@@ -25,8 +25,8 @@ interface SpeechRecognitionHook {
 
 declare global {
   interface Window {
-    webkitSpeechRecognition: any;
-    SpeechRecognition: any;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognition;
   }
 }
 
@@ -38,7 +38,7 @@ export const useSpeechRecognition = (
   const [confidence, setConfidence] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
 
   const {
@@ -67,7 +67,7 @@ export const useSpeechRecognition = (
       setError(null);
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = '';
       let interimTranscript = '';
 
@@ -88,7 +88,7 @@ export const useSpeechRecognition = (
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
       

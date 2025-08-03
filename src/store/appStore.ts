@@ -10,7 +10,7 @@ interface ConnectionStatus {
 interface OfflineAction {
   id: string;
   type: string;
-  data: any;
+  data: unknown;
   timestamp: Date;
   retryCount: number;
 }
@@ -31,13 +31,13 @@ interface AppState {
   notificationSettings: NotificationSettings;
   
   // UI State
-  installPromptEvent: any;
+  installPromptEvent: Event | null;
   isInstallable: boolean;
   isInstalled: boolean;
   
   // Performance
   lastDataFetch: Record<string, Date>;
-  cachedData: Record<string, any>;
+  cachedData: Record<string, unknown>;
   
   // Actions
   setOnlineStatus: (isOnline: boolean) => void;
@@ -49,12 +49,12 @@ interface AppState {
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   requestNotificationPermission: () => Promise<void>;
   
-  setInstallPromptEvent: (event: any) => void;
+  setInstallPromptEvent: (event: Event | null) => void;
   setInstallable: (installable: boolean) => void;
   setInstalled: (installed: boolean) => void;
   
-  setCachedData: (key: string, data: any) => void;
-  getCachedData: (key: string) => any;
+  setCachedData: (key: string, data: unknown) => void;
+  getCachedData: (key: string) => unknown;
   clearCachedData: (key?: string) => void;
   
   updateLastFetch: (key: string) => void;

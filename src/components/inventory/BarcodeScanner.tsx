@@ -120,7 +120,7 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
     const track = streamRef.current.getVideoTracks()[0];
     try {
       await track.applyConstraints({
-        advanced: [{ torch: !flashOn } as any]
+        advanced: [{ torch: !flashOn } as MediaTrackConstraintSet]
       });
       setFlashOn(!flashOn);
     } catch (err) {

@@ -18,7 +18,7 @@ export const useOfflineOperation = () => {
     operation: () => Promise<T>,
     fallbackAction: {
       type: keyof typeof OfflineActionTypes;
-      data: any;
+      data: unknown;
     },
     options: OfflineOperationOptions = {}
   ): Promise<T | null> => {

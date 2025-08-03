@@ -7,7 +7,7 @@ import { useBarcodeAPI } from '@/hooks/useBarcodeAPI';
 
 const BarcodeTest = () => {
   const [barcode, setBarcode] = useState('3017620422003');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ status: number; product?: { name: string; brand?: string; category?: string; image_url?: string } } | null>(null);
   const { fetchProductInfo, loading, error } = useBarcodeAPI();
 
   const handleTest = async () => {

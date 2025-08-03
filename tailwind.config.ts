@@ -119,5 +119,8 @@ export default {
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		// @ts-expect-error - tailwindcss-animate types not available
+		require("tailwindcss-animate")
+	],
 } satisfies Config;

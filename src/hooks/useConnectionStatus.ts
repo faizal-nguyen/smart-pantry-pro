@@ -26,7 +26,7 @@ export const useConnectionStatus = () => {
         const registration = await navigator.serviceWorker.ready;
         // Check if sync is supported before using it
         if ('sync' in registration) {
-          await (registration as any).sync.register('offline-sync');
+          await (registration as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register('offline-sync');
         }
       }
       
@@ -69,7 +69,7 @@ export const useConnectionStatus = () => {
   };
 };
 
-async function storeOfflineActionsInDB(actions: any[]) {
+async function storeOfflineActionsInDB(actions: Array<{ type: string; data: unknown }>) {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('smart-grocery-offline', 1);
     

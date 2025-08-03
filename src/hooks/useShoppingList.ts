@@ -72,7 +72,7 @@ export const useShoppingList = () => {
       if (!user.user) throw new Error('User not authenticated');
 
       // Check if product exists or create it
-      let product = await supabase
+      const product = await supabase
         .from('products')
         .select('*')
         .eq('name', item.productName)

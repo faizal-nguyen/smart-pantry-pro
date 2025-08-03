@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   Search, 
   Package, 
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
+import { useBarcodeAPI } from "@/hooks/useBarcodeAPI";
 import ProductCard from "@/components/inventory/ProductCard";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
 import VoiceInputButton from "@/components/inventory/VoiceInputButton";
@@ -40,8 +42,10 @@ const Inventory = () => {
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<{status: number, product?: { name: string; brand?: string; category?: string }} | null>(null);
   
   const { inventory, loading, deleteInventoryItem } = useInventory();
+  const { fetchProductInfo, loading: apiLoading } = useBarcodeAPI();
 
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => {
@@ -211,6 +215,49 @@ const Inventory = () => {
       {/* Test API Codes-Barres (Temporaire) */}
       <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h3 className="text-lg font-semibold mb-4">🧪 Test API Codes-Barres</h3>
+        
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <Button 
+              onClick={async () => {
+                console.log('🧪 Test API clicked');
+                try {
+                  const result = await fetchProductInfo('3017620422003');
+                  console.log('📦 Test result:', result);
+                  setTestResult(result);
+                  alert(`Test API: ${result.status === 1 ? 'SUCCESS' : 'FAILED'}\nProduit: ${result.product?.name || 'Non trouvé'}`);
+                } catch (error) {
+                  console.error('❌ Test error:', error);
+                  alert('Erreur lors du test API');
+                }
+              }}
+              disabled={apiLoading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {apiLoading ? 'Test en cours...' : '🧪 Tester API Nutella'}
+            </Button>
+            
+            <Button 
+              onClick={() => {
+                console.log('🔍 Test scan clicked');
+                alert('Test scan - Vérifiez la console pour les logs');
+              }}
+              variant="outline"
+            >
+              📱 Test Scan
+            </Button>
+          </div>
+          
+          {testResult && (
+            <div className="p-3 bg-white border rounded-lg">
+              <h4 className="font-medium mb-2">Résultat du test:</h4>
+              <pre className="text-xs bg-gray-100 p-2 rounded overflow-auto">
+                {JSON.stringify(testResult, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+        
         <BarcodeTest />
       </div>
 

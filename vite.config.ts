@@ -101,16 +101,13 @@ export default defineConfig(({ mode }) => ({
     reportCompressedSize: false
   },
   optimizeDeps: {
-    // Forcer la pré-bundling de React
+    // Forcer la pré-bundling de React et des packages critiques
     include: [
       'react', 
       'react-dom',
       '@radix-ui/react-dialog',
-      '@radix-ui/react-select',
       '@supabase/supabase-js'
-    ],
-    // Exclure les packages qui peuvent causer des conflits
-    exclude: ['@radix-ui/react-select']
+    ]
   },
   // Optimisations pour Vercel
   define: {
