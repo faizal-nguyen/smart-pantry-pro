@@ -168,13 +168,13 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         
         // Auto-fill form with API data
         setProductName(result.product.name);
-        if (result.product.category) {
+        if (result.product.category && CATEGORIES.includes(result.product.category)) {
           setCategory(result.product.category);
         }
         if (result.product.image_url) {
           setImageUrl(result.product.image_url);
         }
-        if (result.product.suggested_unit) {
+        if (result.product.suggested_unit && UNIT_TYPES.includes(result.product.suggested_unit)) {
           setUnitType(result.product.suggested_unit);
         }
         
@@ -357,13 +357,13 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                           if (result.status === 1 && result.product) {
                             setApiProductInfo(result.product);
                             setProductName(result.product.name);
-                            if (result.product.category) {
+                            if (result.product.category && CATEGORIES.includes(result.product.category)) {
                               setCategory(result.product.category);
                             }
                             if (result.product.image_url) {
                               setImageUrl(result.product.image_url);
                             }
-                            if (result.product.suggested_unit) {
+                            if (result.product.suggested_unit && UNIT_TYPES.includes(result.product.suggested_unit)) {
                               setUnitType(result.product.suggested_unit);
                             }
                             toast({
