@@ -143,20 +143,27 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   };
 
   const handleBarcodeScanned = async (scannedBarcode: string) => {
+    console.log('📱 Barcode scanned:', scannedBarcode);
     setBarcode(scannedBarcode);
     
     // Check if a product with this barcode already exists
     const existingProduct = products.find(p => p.barcode === scannedBarcode);
     if (existingProduct) {
+      console.log('✅ Existing product found:', existingProduct);
       setSelectedProduct(existingProduct);
       setStep('inventory');
       return;
     }
 
+    console.log('🔍 No existing product, fetching from API...');
+    
     // Try to fetch product info from API
     try {
       const result = await fetchProductInfo(scannedBarcode);
+      console.log('📦 API result:', result);
+      
       if (result.status === 1 && result.product) {
+        console.log('✅ Product found via API:', result.product);
         setApiProductInfo(result.product);
         
         // Auto-fill form with API data
@@ -173,6 +180,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
           description: `Informations récupérées pour ${result.product.name}`,
         });
       } else {
+        console.log('❌ Product not found in API');
         toast({
           title: "Produit non trouvé",
           description: "Aucune information disponible pour ce code-barres",
@@ -180,7 +188,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         });
       }
     } catch (error) {
-      console.error('Error fetching product info:', error);
+      console.error('❌ Error in handleBarcodeScanned:', error);
       toast({
         title: "Erreur",
         description: "Impossible de récupérer les informations du produit",
@@ -319,6 +327,17 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                     ) : (
                       <Camera className="h-4 w-4" />
                     )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => handleBarcodeScanned('3017620422003')}
+                    className="shrink-0"
+                    disabled={apiLoading}
+                    title="Test avec Nutella"
+                  >
+                    🧪
                   </Button>
                   {barcode && (
                     <Button

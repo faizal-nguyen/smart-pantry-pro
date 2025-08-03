@@ -75,6 +75,7 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
         (result, err) => {
           if (result) {
             const barcode = result.getText();
+            console.log('📱 Barcode detected:', barcode);
             onScan(barcode);
             stopScanning();
             onClose();

@@ -21,6 +21,7 @@ import ProductCard from "@/components/inventory/ProductCard";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
 import VoiceInputButton from "@/components/inventory/VoiceInputButton";
 import EditItemDialog from "@/components/inventory/EditItemDialog";
+import BarcodeTest from "@/components/inventory/BarcodeTest";
 
 const CATEGORIES = [
   "Tous",
@@ -205,6 +206,12 @@ const Inventory = () => {
             </div>
           ))
         )}
+      </div>
+
+      {/* Test API Codes-Barres (Temporaire) */}
+      <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h3 className="text-lg font-semibold mb-4">🧪 Test API Codes-Barres</h3>
+        <BarcodeTest />
       </div>
 
       {/* Boutons flottants */}
