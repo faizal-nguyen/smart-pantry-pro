@@ -6,14 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -49,25 +47,14 @@ const Auth = () => {
           errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
         }
         
-        toast({
-          variant: "destructive",
-          title: "Erreur d'inscription",
-          description: errorMessage
-        });
+        console.error("Erreur d'inscription:", errorMessage);
       } else {
         setEmail("");
         setPassword("");
-        toast({
-          title: "Inscription réussie",
-          description: "Vérifiez votre email pour confirmer votre compte."
-        });
+        console.log("Inscription réussie - Vérifiez votre email pour confirmer votre compte.");
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Une erreur est survenue lors de l'inscription."
-      });
+      console.error("Erreur lors de l'inscription:", error);
     } finally {
       setLoading(false);
     }
@@ -93,24 +80,13 @@ const Auth = () => {
           errorMessage = "Trop de tentatives de connexion. Réessayez plus tard.";
         }
         
-        toast({
-          variant: "destructive",
-          title: "Erreur de connexion",
-          description: errorMessage
-        });
+        console.error("Erreur de connexion:", errorMessage);
       } else {
-        toast({
-          title: "Connexion réussie",
-          description: "Bienvenue dans Smart Grocery !"
-        });
+        console.log("Connexion réussie - Bienvenue dans Smart Grocery !");
         // Navigation will be handled by the Layout component
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la connexion."
-      });
+      console.error("Erreur lors de la connexion:", error);
     } finally {
       setLoading(false);
     }
