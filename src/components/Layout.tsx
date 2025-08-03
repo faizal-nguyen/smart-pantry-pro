@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
-// import { usePWA } from "@/hooks/usePWA";
-import PWAStatus from "@/components/PWAStatus";
-// import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
@@ -21,11 +16,9 @@ const Layout = ({ children }: LayoutProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("inventory");
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Initialize PWA hooks - temporarily disabled
-  // usePWA();
 
   useEffect(() => {
     // Set up auth state listener
@@ -75,6 +68,21 @@ const Layout = ({ children }: LayoutProps) => {
     }
   };
 
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'inventory':
+        return <Inventory />;
+      case 'recipes':
+        return <Recipes />;
+      case 'shopping':
+        return <ShoppingList />;
+      case 'assistant':
+        return <RecipeAssistant />;
+      default:
+        return <Inventory />;
+    }
+  };
+
   // Show loading spinner while checking auth
   if (loading) {
     return (
@@ -94,63 +102,73 @@ const Layout = ({ children }: LayoutProps) => {
         <div className="flex items-center justify-between p-4">
           <h1 className="text-xl font-bold text-primary">Smart Grocery</h1>
           <div className="flex items-center gap-2">
-            {/* <ThemeToggle /> */}
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="touch-target">
-              <LogOut className="w-4 h-4 mr-2" />
+            <button 
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-transparent hover:bg-muted rounded-md transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
               Déconnexion
-            </Button>
+            </button>
           </div>
         </div>
-        {/* <PWAStatus /> */}
       </header>
 
       <main className="pb-20">
-        <Tabs defaultValue="inventory" className="w-full">
-          <TabsContent value="inventory">
-            <Inventory />
-          </TabsContent>
-          <TabsContent value="recipes">
-            <Recipes />
-          </TabsContent>
-          <TabsContent value="shopping">
-            <ShoppingList />
-          </TabsContent>
-          <TabsContent value="assistant">
-            <RecipeAssistant />
-          </TabsContent>
-
-          <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid w-full grid-cols-4 bg-card/80 backdrop-blur-md border-t rounded-none shadow-lg">
-            <TabsTrigger 
-              value="inventory" 
-              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
-            >
-              <Package className="w-5 h-5" />
-              Inventaire
-            </TabsTrigger>
-            <TabsTrigger 
-              value="recipes" 
-              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
-            >
-              <ChefHat className="w-5 h-5" />
-              Recettes
-            </TabsTrigger>
-            <TabsTrigger 
-              value="shopping" 
-              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              Courses
-            </TabsTrigger>
-            <TabsTrigger 
-              value="assistant" 
-              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
-            >
-              <Bot className="w-5 h-5" />
-              Assistant
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {renderActiveTab()}
       </main>
+
+      {/* Simple navigation bar */}
+      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-t shadow-lg">
+        <div className="grid grid-cols-4 h-full">
+          <button
+            onClick={() => setActiveTab('inventory')}
+            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
+              activeTab === 'inventory' 
+                ? 'text-primary bg-primary/10' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Package className="w-5 h-5" />
+            Inventaire
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('recipes')}
+            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
+              activeTab === 'recipes' 
+                ? 'text-primary bg-primary/10' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ChefHat className="w-5 h-5" />
+            Recettes
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('shopping')}
+            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
+              activeTab === 'shopping' 
+                ? 'text-primary bg-primary/10' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ShoppingCart className="w-5 h-5" />
+            Courses
+          </button>
+          
+          <button
+            onClick={() => setActiveTab('assistant')}
+            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
+              activeTab === 'assistant' 
+                ? 'text-primary bg-primary/10' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Bot className="w-5 h-5" />
+            Assistant
+          </button>
+        </div>
+      </nav>
     </div>
   );
 };
