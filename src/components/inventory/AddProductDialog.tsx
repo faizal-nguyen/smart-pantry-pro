@@ -174,6 +174,9 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         if (result.product.image_url) {
           setImageUrl(result.product.image_url);
         }
+        if (result.product.suggested_unit) {
+          setUnitType(result.product.suggested_unit);
+        }
         
         toast({
           title: "Produit trouvé !",
@@ -332,7 +335,11 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => handleBarcodeScanned('3017620422003')}
+                    onClick={() => {
+                      console.log('🧪 Test button clicked in dialog');
+                      alert('Test bouton dans dialog - Vérifiez la console');
+                      handleBarcodeScanned('3017620422003');
+                    }}
                     className="shrink-0"
                     disabled={apiLoading}
                     title="Test avec Nutella"
@@ -355,6 +362,9 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                             }
                             if (result.product.image_url) {
                               setImageUrl(result.product.image_url);
+                            }
+                            if (result.product.suggested_unit) {
+                              setUnitType(result.product.suggested_unit);
                             }
                             toast({
                               title: "Produit trouvé !",
