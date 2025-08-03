@@ -1,0 +1,11 @@
+{
+  "projectId": "smart-pantry-pro",
+  "orgId": "your-org-id",
+  "settings": {
+    "framework": "vite",
+    "buildCommand": "npm run build:vercel",
+    "outputDirectory": "dist",
+    "installCommand": "npm install --legacy-peer-deps --force",
+    "devCommand": "npm run dev"
+  }
+} 

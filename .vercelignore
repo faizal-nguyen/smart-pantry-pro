@@ -1,0 +1,29 @@
+# Ignorer les fichiers de développement
+node_modules
+.git
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Ignorer les fichiers de cache
+.cache
+.parcel-cache
+.vite
+
+# Ignorer les fichiers de test
+coverage
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# Ignorer les fichiers de documentation
+README.md
+docs/
+*.md
+
+# Ignorer les fichiers de développement
+scripts/
+.vscode/
+.idea/ 
