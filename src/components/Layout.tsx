@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 // import { usePWA } from "@/hooks/usePWA";
 import PWAStatus from "@/components/PWAStatus";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+// import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
@@ -94,7 +94,7 @@ const Layout = ({ children }: LayoutProps) => {
         <div className="flex items-center justify-between p-4">
           <h1 className="text-xl font-bold text-primary">Smart Grocery</h1>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            {/* <ThemeToggle /> */}
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="touch-target">
               <LogOut className="w-4 h-4 mr-2" />
               Déconnexion
