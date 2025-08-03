@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
-import { useToast } from "@/hooks/use-toast";
 import { usePWA } from "@/hooks/usePWA";
 import PWAStatus from "@/components/PWAStatus";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -24,7 +23,6 @@ const Layout = ({ children }: LayoutProps) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
   
   // Initialize PWA hooks
   usePWA();
@@ -68,16 +66,9 @@ const Layout = ({ children }: LayoutProps) => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        toast({
-          variant: "destructive",
-          title: "Erreur de déconnexion",
-          description: error.message
-        });
+        console.error("Erreur de déconnexion:", error.message);
       } else {
-        toast({
-          title: "Déconnexion réussie",
-          description: "Vous avez été déconnecté avec succès."
-        });
+        console.log("Déconnexion réussie");
       }
     } catch (error) {
       console.error('Error signing out:', error);
