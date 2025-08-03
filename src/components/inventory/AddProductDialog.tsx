@@ -103,15 +103,22 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
 
     setLoading(true);
     try {
-      const newProduct = await addProduct({
-        name: productName,
-        category,
-        unit_type: unitType,
-        barcode: barcode || undefined,
-        image_url: imageUrl
-      });
+      let productToUse = selectedProduct;
       
-      setSelectedProduct(newProduct);
+      // Si on a un produit existant sélectionné, on l'utilise directement
+      // Sinon on crée un nouveau produit
+      if (!selectedProduct) {
+        const newProduct = await addProduct({
+          name: productName,
+          category,
+          unit_type: unitType,
+          barcode: barcode || undefined,
+          image_url: imageUrl
+        });
+        productToUse = newProduct;
+        setSelectedProduct(newProduct);
+      }
+      
       setStep('inventory');
     } catch (error) {
       console.error('Error creating product:', error);
@@ -145,8 +152,19 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   const handleExistingProduct = async (productId: string) => {
     const product = products.find(p => p.id === productId);
     if (product) {
+      // Pré-remplir les champs avec le produit existant mais rester sur l'étape produit
+      setProductName(product.name);
+      setCategory(product.category);
+      setUnitType(product.unit_type);
+      setBarcode(product.barcode || "");
+      if (product.image_url) {
+        setImageUrl(product.image_url);
+      }
       setSelectedProduct(product);
-      setStep('inventory');
+      toast({
+        title: "Produit sélectionné !",
+        description: `${product.name} - Vérifiez les informations avant de continuer`,
+      });
     }
   };
 
@@ -158,8 +176,18 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     const existingProduct = products.find(p => p.barcode === scannedBarcode);
     if (existingProduct) {
       console.log('✅ Existing product found:', existingProduct);
+      // Pré-remplir les champs avec le produit existant mais rester sur l'étape produit
+      setProductName(existingProduct.name);
+      setCategory(existingProduct.category);
+      setUnitType(existingProduct.unit_type);
+      if (existingProduct.image_url) {
+        setImageUrl(existingProduct.image_url);
+      }
       setSelectedProduct(existingProduct);
-      setStep('inventory');
+      toast({
+        title: "Produit existant trouvé !",
+        description: `${existingProduct.name} - Vous pouvez modifier les informations si nécessaire`,
+      });
       return;
     }
 
@@ -474,7 +502,11 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
               )}
 
               <Button type="submit" disabled={loading} className="w-full h-12 text-lg">
-                {loading ? "Création..." : "Créer le produit"}
+                {loading ? (
+                  selectedProduct ? "Validation..." : "Création..."
+                ) : (
+                  selectedProduct ? "Continuer vers l'inventaire" : "Créer le produit"
+                )}
               </Button>
             </form>
           </div>

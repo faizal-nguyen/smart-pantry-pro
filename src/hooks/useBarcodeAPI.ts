@@ -28,7 +28,20 @@ export const useBarcodeAPI = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fonction pour mapper les catégories Open Food Facts vers nos catégories
-  const mapApiCategoryToAppCategory = (apiCategory: string): string | undefined => {
+  const mapApiCategoryToAppCategory = (apiCategory: string | string[]): string | undefined => {
+    // Si c'est un tableau, essayer chaque catégorie jusqu'à trouver un match
+    if (Array.isArray(apiCategory)) {
+      for (const cat of apiCategory) {
+        const result = mapSingleCategory(cat);
+        if (result) return result;
+      }
+      return undefined;
+    }
+    
+    return mapSingleCategory(apiCategory);
+  };
+
+  const mapSingleCategory = (apiCategory: string): string | undefined => {
     if (!apiCategory) return undefined;
     
     const categoryMapping: { [key: string]: string } = {
@@ -229,11 +242,17 @@ export const useBarcodeAPI = () => {
       console.log('📦 API Response:', data);
 
       if (data.status === 1 && data.product) {
-        // Extraire et mapper la catégorie
-        const rawCategory = data.product.categories_tags?.[0] || data.product.categories;
-        const mappedCategory = mapApiCategoryToAppCategory(rawCategory);
+        // Extraire et mapper la catégorie - essayer toutes les catégories disponibles
+        const allCategories = data.product.categories_tags || [];
+        const rawCategory = allCategories[0] || data.product.categories;
+        const mappedCategory = mapApiCategoryToAppCategory(allCategories.length > 0 ? allCategories : rawCategory);
         
-        console.log('🏷️ Category mapping:', { rawCategory, mappedCategory });
+        console.log('🏷️ Category mapping:', { 
+          rawCategory, 
+          allCategories: allCategories.slice(0, 5), // Premières 5 catégories
+          productName: data.product.product_name,
+          mappedCategory 
+        });
 
         const product: ProductInfo = {
           name: data.product.product_name || data.product.product_name_en || data.product.product_name_fr || 'Produit inconnu',
