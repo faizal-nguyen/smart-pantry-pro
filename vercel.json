@@ -9,11 +9,6 @@
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps --force",
   "framework": "vite",
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "build": {
     "env": {
       "NODE_ENV": "production",
