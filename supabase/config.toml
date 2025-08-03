@@ -1,1 +1,4 @@
 project_id = "jwoxacnflphclslpqfzs"
+
+[functions.cleanup-shopping-list]
+verify_jwt = false

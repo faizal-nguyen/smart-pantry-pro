@@ -187,28 +187,37 @@ export type Database = {
       shopping_list: {
         Row: {
           created_at: string
+          estimated_price: number | null
           id: string
           is_purchased: boolean
+          priority: number | null
           product_id: string
           quantity: number
+          store_section: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          estimated_price?: number | null
           id?: string
           is_purchased?: boolean
+          priority?: number | null
           product_id: string
           quantity?: number
+          store_section?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          estimated_price?: number | null
           id?: string
           is_purchased?: boolean
+          priority?: number | null
           product_id?: string
           quantity?: number
+          store_section?: string | null
           updated_at?: string
           user_id?: string
         }

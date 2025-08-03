@@ -46,7 +46,16 @@ export const useShoppingList = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setShoppingList(data || []);
+      
+      // Cast data to ensure all required properties are present
+      const mappedData = (data || []).map(item => ({
+        ...item,
+        priority: item.priority ?? 1,
+        estimated_price: item.estimated_price ?? undefined,
+        store_section: item.store_section ?? undefined
+      })) as ShoppingItem[];
+      
+      setShoppingList(mappedData);
     } catch (error) {
       console.error('Error fetching shopping list:', error);
       toast({
@@ -104,13 +113,21 @@ export const useShoppingList = () => {
 
       if (error) throw error;
 
-      setShoppingList(prev => [data, ...prev]);
+      // Map the returned data to include all required properties
+      const mappedData = {
+        ...data,
+        priority: data.priority ?? 1,
+        estimated_price: data.estimated_price ?? undefined,
+        store_section: data.store_section ?? undefined
+      } as ShoppingItem;
+
+      setShoppingList(prev => [mappedData, ...prev]);
       toast({
         title: "Produit ajouté",
         description: `${item.productName} ajouté à votre liste de courses.`
       });
 
-      return data;
+      return mappedData;
     } catch (error) {
       console.error('Error adding to shopping list:', error);
       toast({
