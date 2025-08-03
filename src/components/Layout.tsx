@@ -8,6 +8,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
 import { usePWA } from "@/hooks/usePWA";
 import PWAStatus from "@/components/PWAStatus";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
@@ -101,10 +102,13 @@ const Layout = ({ children }: LayoutProps) => {
       <header className="border-b bg-card">
         <div className="flex items-center justify-between p-4">
           <h1 className="text-xl font-bold text-primary">Smart Grocery</h1>
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Déconnexion
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="touch-target">
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
+            </Button>
+          </div>
         </div>
         <PWAStatus />
       </header>
@@ -124,31 +128,31 @@ const Layout = ({ children }: LayoutProps) => {
             <RecipeAssistant />
           </TabsContent>
 
-          <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid w-full grid-cols-4 bg-card border-t rounded-none">
+          <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid w-full grid-cols-4 bg-card/80 backdrop-blur-md border-t rounded-none shadow-lg">
             <TabsTrigger 
               value="inventory" 
-              className="flex flex-col gap-1 h-full text-xs"
+              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
             >
               <Package className="w-5 h-5" />
               Inventaire
             </TabsTrigger>
             <TabsTrigger 
               value="recipes" 
-              className="flex flex-col gap-1 h-full text-xs"
+              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
             >
               <ChefHat className="w-5 h-5" />
               Recettes
             </TabsTrigger>
             <TabsTrigger 
               value="shopping" 
-              className="flex flex-col gap-1 h-full text-xs"
+              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
             >
               <ShoppingCart className="w-5 h-5" />
               Courses
             </TabsTrigger>
             <TabsTrigger 
               value="assistant" 
-              className="flex flex-col gap-1 h-full text-xs"
+              className="flex flex-col gap-1 h-full text-xs touch-target interactive"
             >
               <Bot className="w-5 h-5" />
               Assistant
