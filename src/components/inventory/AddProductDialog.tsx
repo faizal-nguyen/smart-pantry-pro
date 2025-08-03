@@ -27,8 +27,14 @@ const CATEGORIES = [
   "Fruits et légumes",
   "Viandes et poissons", 
   "Produits laitiers",
-  "Épicerie salée",
+  "Pain et viennoiseries",
+  "Pâtes, riz et féculents",
+  "Épices et condiments",
+  "Sauces et huiles",
+  "Conserves",
   "Épicerie sucrée",
+  "Café, thé et infusions",
+  "Gâteaux et biscuits",
   "Surgelés",
   "Boissons",
   "Hygiène et beauté",
@@ -71,6 +77,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [apiProductInfo, setApiProductInfo] = useState<ProductInfo | null>(null);
+  const [categoryAutoFilled, setCategoryAutoFilled] = useState(false);
   
   const { products, addProduct, addToInventory } = useInventory();
   const { fetchProductInfo, loading: apiLoading, error: apiError } = useBarcodeAPI();
@@ -86,6 +93,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     setLocation("");
     setSelectedProduct(null);
     setApiProductInfo(null);
+    setCategoryAutoFilled(false);
     setStep('product');
   };
 
@@ -170,6 +178,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         setProductName(result.product.name);
         if (result.product.category && CATEGORIES.includes(result.product.category)) {
           setCategory(result.product.category);
+          setCategoryAutoFilled(true);
         }
         if (result.product.image_url) {
           setImageUrl(result.product.image_url);
@@ -275,9 +284,23 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
               {/* Autres champs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category">Catégorie *</Label>
-                  <Select value={category} onValueChange={setCategory} required>
-                    <SelectTrigger>
+                  <Label htmlFor="category">
+                    Catégorie * 
+                    {categoryAutoFilled && (
+                      <span className="ml-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                        ✓ Auto-détectée
+                      </span>
+                    )}
+                  </Label>
+                  <Select 
+                    value={category} 
+                    onValueChange={(value) => {
+                      setCategory(value);
+                      setCategoryAutoFilled(false); // Reset auto-filled status when manually changed
+                    }} 
+                    required
+                  >
+                    <SelectTrigger className={categoryAutoFilled ? "border-green-300 bg-green-50" : ""}>
                       <SelectValue placeholder="Choisir..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -288,6 +311,11 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {categoryAutoFilled && (
+                    <p className="text-xs text-green-600">
+                      💡 Cette catégorie a été détectée automatiquement. Vous pouvez la modifier si nécessaire.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -359,6 +387,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                             setProductName(result.product.name);
                             if (result.product.category && CATEGORIES.includes(result.product.category)) {
                               setCategory(result.product.category);
+                              setCategoryAutoFilled(true);
                             }
                             if (result.product.image_url) {
                               setImageUrl(result.product.image_url);

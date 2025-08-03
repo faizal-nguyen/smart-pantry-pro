@@ -57,17 +57,94 @@ export const useBarcodeAPI = () => {
       'dairy-products': 'Produits laitiers',
       'produits-laitiers': 'Produits laitiers',
       
+      // Pain et viennoiseries
+      'bread': 'Pain et viennoiseries',
+      'breads': 'Pain et viennoiseries',
+      'pain': 'Pain et viennoiseries',
+      'pains': 'Pain et viennoiseries',
+      'viennoiseries': 'Pain et viennoiseries',
+      'pastries': 'Pain et viennoiseries',
+      'bakery': 'Pain et viennoiseries',
+      'sliced-bread': 'Pain et viennoiseries',
+      'pain-de-mie': 'Pain et viennoiseries',
+      
+      // Pâtes, riz et féculents
+      'pasta': 'Pâtes, riz et féculents',
+      'rice': 'Pâtes, riz et féculents',
+      'noodles': 'Pâtes, riz et féculents',
+      'cereals': 'Pâtes, riz et féculents',
+      'grains': 'Pâtes, riz et féculents',
+      'quinoa': 'Pâtes, riz et féculents',
+      'riz': 'Pâtes, riz et féculents',
+      'pates': 'Pâtes, riz et féculents',
+      'legumineuses': 'Pâtes, riz et féculents',
+      'legumes-secs': 'Pâtes, riz et féculents',
+      
+      // Épices et condiments
+      'spices': 'Épices et condiments',
+      'herbs': 'Épices et condiments',
+      'seasonings': 'Épices et condiments',
+      'condiments': 'Épices et condiments',
+      'epices': 'Épices et condiments',
+      'herbes': 'Épices et condiments',
+      'aromates': 'Épices et condiments',
+      'sel': 'Épices et condiments',
+      'sucre': 'Épices et condiments',
+      'salt': 'Épices et condiments',
+      'sugar': 'Épices et condiments',
+      
+      // Sauces et huiles
+      'sauces': 'Sauces et huiles',
+      'oils': 'Sauces et huiles',
+      'vinegars': 'Sauces et huiles',
+      'dressings': 'Sauces et huiles',
+      'huiles': 'Sauces et huiles',
+      'vinaigres': 'Sauces et huiles',
+      'mayonnaise': 'Sauces et huiles',
+      'ketchup': 'Sauces et huiles',
+      'mustard': 'Sauces et huiles',
+      'moutarde': 'Sauces et huiles',
+      
+      // Conserves
+      'canned-foods': 'Conserves',
+      'preserves': 'Conserves',
+      'canned': 'Conserves',
+      'conserves': 'Conserves',
+      'pickles': 'Conserves',
+      'canned-vegetables': 'Conserves',
+      'canned-fruits': 'Conserves',
+      
+      // Café, thé et infusions
+      'coffee': 'Café, thé et infusions',
+      'tea': 'Café, thé et infusions',
+      'herbal-teas': 'Café, thé et infusions',
+      'cafe': 'Café, thé et infusions',
+      'the': 'Café, thé et infusions',
+      'infusions': 'Café, thé et infusions',
+      'tisanes': 'Café, thé et infusions',
+      
+      // Gâteaux et biscuits
+      'cookies': 'Gâteaux et biscuits',
+      'biscuits': 'Gâteaux et biscuits',
+      'cakes': 'Gâteaux et biscuits',
+      'crackers': 'Gâteaux et biscuits',
+      'gateau': 'Gâteaux et biscuits',
+      'gateaux': 'Gâteaux et biscuits',
+      'patisseries': 'Gâteaux et biscuits',
+      
       // Épicerie sucrée
       'sweets': 'Épicerie sucrée',
       'chocolate': 'Épicerie sucrée',
       'chocolates': 'Épicerie sucrée',
-      'cookies': 'Épicerie sucrée',
-      'biscuits': 'Épicerie sucrée',
       'candies': 'Épicerie sucrée',
       'desserts': 'Épicerie sucrée',
       'confectionery': 'Épicerie sucrée',
       'chocolate-spreads': 'Épicerie sucrée',
       'spreads': 'Épicerie sucrée',
+      'honey': 'Épicerie sucrée',
+      'jam': 'Épicerie sucrée',
+      'confiture': 'Épicerie sucrée',
+      'miel': 'Épicerie sucrée',
       
       // Boissons
       'beverages': 'Boissons',
@@ -76,21 +153,16 @@ export const useBarcodeAPI = () => {
       'sodas': 'Boissons',
       'juices': 'Boissons',
       'alcoholic-beverages': 'Boissons',
+      'jus': 'Boissons',
+      'eaux': 'Boissons',
+      'boissons': 'Boissons',
       
       // Surgelés
       'frozen': 'Surgelés',
       'frozen-foods': 'Surgelés',
       'ice-creams': 'Surgelés',
-      
-      // Épicerie salée (par défaut pour les produits alimentaires non classés)
-      'snacks': 'Épicerie salée',
-      'prepared-foods': 'Épicerie salée',
-      'canned-foods': 'Épicerie salée',
-      'pasta': 'Épicerie salée',
-      'rice': 'Épicerie salée',
-      'cereals': 'Épicerie salée',
-      'bread': 'Épicerie salée',
-      'condiments': 'Épicerie salée'
+      'surgeles': 'Surgelés',
+      'glaces': 'Surgelés'
     };
 
     // Nettoyer la catégorie API
@@ -123,8 +195,14 @@ export const useBarcodeAPI = () => {
       'Fruits et légumes': 'kg',
       'Viandes et poissons': 'kg',
       'Produits laitiers': 'L',
-      'Épicerie salée': 'paquet(s)',
+      'Pain et viennoiseries': 'unité(s)',
+      'Pâtes, riz et féculents': 'paquet(s)',
+      'Épices et condiments': 'g',
+      'Sauces et huiles': 'mL',
+      'Conserves': 'boîte(s)',
       'Épicerie sucrée': 'paquet(s)',
+      'Café, thé et infusions': 'paquet(s)',
+      'Gâteaux et biscuits': 'paquet(s)',
       'Surgelés': 'paquet(s)',
       'Boissons': 'L',
       'Hygiène et beauté': 'unité(s)',
