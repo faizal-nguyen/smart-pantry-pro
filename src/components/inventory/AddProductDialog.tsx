@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -20,15 +19,18 @@ import {
 import { Plus, Camera } from "lucide-react";
 import { useInventory, Product } from "@/hooks/useInventory";
 import BarcodeScanner from "./BarcodeScanner";
+import { ImageUploadSection } from "./ImageUploadSection";
 
 const CATEGORIES = [
-  "Fruits/Légumes",
-  "Viandes", 
+  "Fruits et légumes",
+  "Viandes et poissons", 
   "Produits laitiers",
-  "Épicerie",
+  "Épicerie salée",
+  "Épicerie sucrée",
   "Surgelés",
   "Boissons",
-  "Hygiène",
+  "Hygiène et beauté",
+  "Entretien",
   "Autres"
 ];
 
@@ -37,9 +39,10 @@ const UNIT_TYPES = [
   "kg", 
   "g",
   "L",
-  "ml",
+  "mL",
   "paquet(s)",
-  "boîte(s)"
+  "boîte(s)",
+  "sachet(s)"
 ];
 
 interface AddProductDialogProps {
@@ -57,6 +60,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   const [category, setCategory] = useState("");
   const [unitType, setUnitType] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   
   // Inventory form
   const [quantity, setQuantity] = useState("");
@@ -72,6 +76,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     setCategory("");
     setUnitType("");
     setBarcode("");
+    setImageUrl(undefined);
     setQuantity("");
     setExpiryDate("");
     setLocation("");
@@ -89,7 +94,8 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         name: productName,
         category,
         unit_type: unitType,
-        barcode: barcode || undefined
+        barcode: barcode || undefined,
+        image_url: imageUrl
       });
       
       setSelectedProduct(newProduct);
@@ -156,7 +162,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
       <DialogTrigger asChild>
         {trigger || defaultTrigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {step === 'product' ? 'Ajouter un produit' : 'Ajouter à l\'inventaire'}
@@ -164,7 +170,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         </DialogHeader>
 
         {step === 'product' && (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Option produit existant */}
             {products.length > 0 && (
               <div className="space-y-2">
@@ -182,14 +188,15 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                   </SelectContent>
                 </Select>
                 
-                <div className="text-center text-sm text-muted-foreground my-2">
+                <div className="text-center text-sm text-muted-foreground my-4">
                   ou créer un nouveau produit
                 </div>
               </div>
             )}
 
             {/* Nouveau produit */}
-            <form onSubmit={handleProductSubmit} className="space-y-4">
+            <form onSubmit={handleProductSubmit} className="space-y-6">
+              {/* Nom du produit - EN PREMIER */}
               <div className="space-y-2">
                 <Label htmlFor="productName">Nom du produit *</Label>
                 <Input
@@ -198,39 +205,54 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="ex: Tomates cerises"
                   required
+                  className="text-lg font-medium"
                 />
               </div>
 
+              {/* Section photo - PROMINENTE */}
               <div className="space-y-2">
-                <Label htmlFor="category">Catégorie *</Label>
-                <Select value={category} onValueChange={setCategory} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une catégorie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Photo du produit</Label>
+                <ImageUploadSection
+                  value={imageUrl}
+                  onChange={setImageUrl}
+                  productName={productName}
+                  disabled={loading}
+                />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="unitType">Unité *</Label>
-                <Select value={unitType} onValueChange={setUnitType} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une unité" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {UNIT_TYPES.map((unit) => (
-                      <SelectItem key={unit} value={unit}>
-                        {unit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              {/* Autres champs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category">Catégorie *</Label>
+                  <Select value={category} onValueChange={setCategory} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="unitType">Unité *</Label>
+                  <Select value={unitType} onValueChange={setUnitType} required>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choisir..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNIT_TYPES.map((unit) => (
+                        <SelectItem key={unit} value={unit}>
+                          {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -255,7 +277,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                 </div>
               </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
+              <Button type="submit" disabled={loading} className="w-full h-12 text-lg">
                 {loading ? "Création..." : "Créer le produit"}
               </Button>
             </form>
@@ -264,11 +286,20 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
 
         {step === 'inventory' && selectedProduct && (
           <div className="space-y-4">
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="font-medium">{selectedProduct.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {selectedProduct.category} • {selectedProduct.unit_type}
-              </p>
+            <div className="p-4 bg-muted rounded-lg flex items-center gap-3">
+              {selectedProduct.image_url && (
+                <img 
+                  src={selectedProduct.image_url} 
+                  alt={selectedProduct.name}
+                  className="w-12 h-12 rounded-lg object-cover"
+                />
+              )}
+              <div>
+                <p className="font-medium">{selectedProduct.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedProduct.category} • {selectedProduct.unit_type}
+                </p>
+              </div>
             </div>
 
             <form onSubmit={handleInventorySubmit} className="space-y-4">

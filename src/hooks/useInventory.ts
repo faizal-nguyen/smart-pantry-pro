@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 export interface Product {
   id: string;
@@ -8,6 +7,7 @@ export interface Product {
   category: string;
   unit_type: string;
   barcode?: string;
+  image_url?: string;
 }
 
 export interface InventoryItem {
@@ -23,7 +23,6 @@ export const useInventory = () => {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
 
   const fetchInventory = async () => {
     try {
@@ -39,11 +38,6 @@ export const useInventory = () => {
       setInventory(data || []);
     } catch (error) {
       console.error('Error fetching inventory:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible de charger l'inventaire."
-      });
     }
   };
 
@@ -72,19 +66,11 @@ export const useInventory = () => {
       if (error) throw error;
       
       setProducts(prev => [...prev, data]);
-      toast({
-        title: "Produit ajouté",
-        description: `${productData.name} a été ajouté à la base de produits.`
-      });
+      console.log(`Produit ajouté: ${productData.name}`);
       
       return data;
     } catch (error) {
       console.error('Error adding product:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible d'ajouter le produit."
-      });
       throw error;
     }
   };
@@ -106,19 +92,11 @@ export const useInventory = () => {
       if (error) throw error;
 
       setInventory(prev => [data, ...prev]);
-      toast({
-        title: "Produit ajouté à l'inventaire",
-        description: "Le produit a été ajouté avec succès."
-      });
+      console.log("Produit ajouté à l'inventaire");
 
       return data;
     } catch (error) {
       console.error('Error adding to inventory:', error);
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible d'ajouter le produit à l'inventaire."
-      });
       throw error;
     }
   };
@@ -139,19 +117,11 @@ export const useInventory = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Produit mis à jour",
-        description: "Les modifications ont été sauvegardées."
-      });
+      console.log("Produit mis à jour");
     } catch (error) {
       console.error('Error updating inventory item:', error);
       // Revert optimistic update
       await fetchInventory();
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible de modifier le produit."
-      });
     }
   };
 
@@ -167,19 +137,11 @@ export const useInventory = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Produit supprimé",
-        description: "Le produit a été retiré de l'inventaire."
-      });
+      console.log("Produit supprimé");
     } catch (error) {
       console.error('Error deleting inventory item:', error);
       // Revert optimistic update
       await fetchInventory();
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible de supprimer le produit."
-      });
     }
   };
 

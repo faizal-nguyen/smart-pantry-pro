@@ -58,12 +58,15 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Fruits/Légumes': 'bg-green-100 text-green-800',
-      'Viandes': 'bg-red-100 text-red-800', 
+      'Fruits et légumes': 'bg-green-100 text-green-800',
+      'Viandes et poissons': 'bg-red-100 text-red-800', 
       'Produits laitiers': 'bg-blue-100 text-blue-800',
-      'Épicerie': 'bg-yellow-100 text-yellow-800',
+      'Épicerie salée': 'bg-orange-100 text-orange-800',
+      'Épicerie sucrée': 'bg-pink-100 text-pink-800',
       'Surgelés': 'bg-cyan-100 text-cyan-800',
       'Boissons': 'bg-purple-100 text-purple-800',
+      'Hygiène et beauté': 'bg-indigo-100 text-indigo-800',
+      'Entretien': 'bg-gray-100 text-gray-800',
     };
     return colors[category] || 'bg-gray-100 text-gray-800';
   };
@@ -71,38 +74,51 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex-1">
-            <h3 className="font-semibold text-foreground">
-              {item.product?.name || 'Produit inconnu'}
-            </h3>
-            <Badge 
-              variant="secondary" 
-              className={`mt-1 ${getCategoryColor(item.product?.category || '')}`}
-            >
-              {item.product?.category}
-            </Badge>
-          </div>
+        <div className="flex gap-3 mb-3">
+          {/* Image du produit */}
+          {item.product?.image_url && (
+            <div className="flex-shrink-0">
+              <img
+                src={item.product.image_url}
+                alt={item.product.name}
+                className="w-16 h-16 rounded-lg object-cover border"
+              />
+            </div>
+          )}
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(item)}>
-                Modifier
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => onDelete(item.id)}
-                className="text-destructive"
+          <div className="flex justify-between items-start flex-1">
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">
+                {item.product?.name || 'Produit inconnu'}
+              </h3>
+              <Badge 
+                variant="secondary" 
+                className={`mt-1 ${getCategoryColor(item.product?.category || '')}`}
               >
-                Supprimer
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {item.product?.category}
+              </Badge>
+            </div>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEdit(item)}>
+                  Modifier
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => onDelete(item.id)}
+                  className="text-destructive"
+                >
+                  Supprimer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className="space-y-2">
