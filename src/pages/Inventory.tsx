@@ -19,6 +19,7 @@ import {
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
 import ProductCard from "@/components/inventory/ProductCard";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
+import VoiceInputButton from "@/components/inventory/VoiceInputButton";
 import EditItemDialog from "@/components/inventory/EditItemDialog";
 
 const CATEGORIES = [
@@ -206,7 +207,8 @@ const Inventory = () => {
         )}
       </div>
 
-      {/* Bouton flottant */}
+      {/* Boutons flottants */}
+      <VoiceInputButton />
       <AddProductDialog />
 
       {/* Dialog d'édition */}
