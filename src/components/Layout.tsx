@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
-import { usePWA } from "@/hooks/usePWA";
+// import { usePWA } from "@/hooks/usePWA";
 import PWAStatus from "@/components/PWAStatus";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import Inventory from "@/pages/Inventory";
@@ -24,8 +24,8 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Initialize PWA hooks
-  usePWA();
+  // Initialize PWA hooks - temporarily disabled
+  // usePWA();
 
   useEffect(() => {
     // Set up auth state listener
@@ -101,7 +101,7 @@ const Layout = ({ children }: LayoutProps) => {
             </Button>
           </div>
         </div>
-        <PWAStatus />
+        {/* <PWAStatus /> */}
       </header>
 
       <main className="pb-20">
