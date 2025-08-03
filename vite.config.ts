@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
+    // Optimisations pour Vercel
+    target: 'esnext',
+    minify: 'terser',
+    sourcemap: false,
     // Optimisations pour le build de production
     rollupOptions: {
       output: {
@@ -43,7 +47,45 @@ export default defineConfig(({ mode }) => ({
             '@radix-ui/react-select',
             '@radix-ui/react-dropdown-menu',
             '@radix-ui/react-tabs',
-            '@radix-ui/react-toast'
+            '@radix-ui/react-toast',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-alert-dialog',
+            '@radix-ui/react-avatar',
+            '@radix-ui/react-checkbox',
+            '@radix-ui/react-collapsible',
+            '@radix-ui/react-context-menu',
+            '@radix-ui/react-hover-card',
+            '@radix-ui/react-label',
+            '@radix-ui/react-menubar',
+            '@radix-ui/react-navigation-menu',
+            '@radix-ui/react-progress',
+            '@radix-ui/react-radio-group',
+            '@radix-ui/react-scroll-area',
+            '@radix-ui/react-separator',
+            '@radix-ui/react-slider',
+            '@radix-ui/react-slot',
+            '@radix-ui/react-switch',
+            '@radix-ui/react-toggle',
+            '@radix-ui/react-toggle-group',
+            '@radix-ui/react-tooltip'
+          ],
+          // Séparer les utilitaires
+          'utils-vendor': [
+            'clsx',
+            'class-variance-authority',
+            'tailwind-merge',
+            'tailwindcss-animate',
+            'lucide-react',
+            'date-fns',
+            'zod',
+            'react-hook-form',
+            '@hookform/resolvers'
+          ],
+          // Séparer Supabase
+          'supabase-vendor': [
+            '@supabase/supabase-js',
+            '@tanstack/react-query'
           ]
         }
       }
@@ -52,12 +94,26 @@ export default defineConfig(({ mode }) => ({
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true
-    }
+    },
+    // Optimisations de performance
+    chunkSizeWarningLimit: 1000,
+    emptyOutDir: true,
+    reportCompressedSize: false
   },
   optimizeDeps: {
     // Forcer la pré-bundling de React
-    include: ['react', 'react-dom'],
+    include: [
+      'react', 
+      'react-dom',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-select',
+      '@supabase/supabase-js'
+    ],
     // Exclure les packages qui peuvent causer des conflits
     exclude: ['@radix-ui/react-select']
+  },
+  // Optimisations pour Vercel
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(mode)
   }
 }));

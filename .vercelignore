@@ -10,6 +10,7 @@ node_modules
 .cache
 .parcel-cache
 .vite
+.vite-build-cache
 
 # Ignorer les fichiers de test
 coverage
@@ -17,13 +18,38 @@ coverage
 *.test.ts
 *.spec.js
 *.spec.ts
+__tests__
+test
+tests
 
 # Ignorer les fichiers de documentation
 README.md
 docs/
 *.md
+BARCODE_API.md
+DEPLOYMENT.md
 
 # Ignorer les fichiers de développement
 scripts/
 .vscode/
-.idea/ 
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignorer les fichiers temporaires
+.tmp
+.temp
+*.tmp
+*.temp
+
+# Ignorer les fichiers de build locaux
+dist/
+build/
+out/
+
+# Ignorer les fichiers de configuration de développement
+.eslintrc.js
+.prettierrc
+.editorconfig 

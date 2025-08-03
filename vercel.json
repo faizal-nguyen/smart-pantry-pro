@@ -5,13 +5,19 @@
       "destination": "/index.html"
     }
   ],
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build:optimized",
   "outputDirectory": "dist",
-  "installCommand": "npm install --legacy-peer-deps",
+  "installCommand": "npm install --legacy-peer-deps --force",
   "framework": "vite",
   "functions": {
     "app/api/**/*.ts": {
       "runtime": "nodejs18.x"
+    }
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production",
+      "VITE_BUILD_OPTIMIZE": "true"
     }
   }
 }
