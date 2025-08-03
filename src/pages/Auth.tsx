@@ -1,16 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
 
   // Check if user is already authenticated
@@ -22,7 +18,8 @@ const Auth = () => {
     });
   }, [navigate]);
 
-  const handleSignUp = async () => {
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
@@ -60,7 +57,8 @@ const Auth = () => {
     }
   };
 
-  const handleSignIn = async () => {
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -94,103 +92,95 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl text-primary">Smart Grocery</CardTitle>
-          <p className="text-sm text-muted-foreground">
+      <div className="w-full max-w-md bg-card rounded-lg border shadow-lg">
+        <div className="p-6 text-center border-b">
+          <h1 className="text-2xl font-bold text-primary">Smart Grocery</h1>
+          <p className="text-sm text-muted-foreground mt-2">
             Gérez votre inventaire et vos courses intelligemment
           </p>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Connexion</TabsTrigger>
-              <TabsTrigger value="signup">Inscription</TabsTrigger>
-            </TabsList>
+        </div>
+        
+        <div className="p-6">
+          {/* Toggle buttons */}
+          <div className="flex rounded-lg border p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => setIsSignUp(false)}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                !isSignUp 
+                  ? 'bg-primary text-primary-foreground shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Connexion
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsSignUp(true)}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                isSignUp 
+                  ? 'bg-primary text-primary-foreground shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Inscription
+            </button>
+          </div>
+
+          <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium mb-2">
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                placeholder="votre@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+            </div>
             
-            <TabsContent value="signin" className="space-y-4">
-              <form onSubmit={(e) => { e.preventDefault(); handleSignIn(); }}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="votre@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Mot de passe</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                  <Button 
-                    type="submit"
-                    className="w-full" 
-                    disabled={loading}
-                  >
-                    {loading ? "Connexion..." : "Se connecter"}
-                  </Button>
-                </div>
-              </form>
-            </TabsContent>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-2">
+                Mot de passe
+              </label>
+              <input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+              {isSignUp && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Minimum 6 caractères
+                </p>
+              )}
+            </div>
             
-            <TabsContent value="signup" className="space-y-4">
-              <form onSubmit={(e) => { e.preventDefault(); handleSignUp(); }}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email-signup">Email</Label>
-                    <Input
-                      id="email-signup"
-                      type="email"
-                      placeholder="votre@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password-signup">Mot de passe</Label>
-                    <Input
-                      id="password-signup"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Minimum 6 caractères
-                    </p>
-                  </div>
-                  <Button 
-                    type="submit"
-                    className="w-full" 
-                    disabled={loading}
-                  >
-                    {loading ? "Inscription..." : "S'inscrire"}
-                  </Button>
-                </div>
-              </form>
-            </TabsContent>
-          </Tabs>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none py-2 px-4 rounded-md text-sm font-medium transition-colors"
+            >
+              {loading 
+                ? (isSignUp ? "Inscription..." : "Connexion...") 
+                : (isSignUp ? "S'inscrire" : "Se connecter")
+              }
+            </button>
+          </form>
           
           <div className="mt-4 text-center text-xs text-muted-foreground">
             En vous inscrivant, vous acceptez nos conditions d'utilisation
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 };
