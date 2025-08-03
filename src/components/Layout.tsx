@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Package, ChefHat, ShoppingCart, LogOut, Loader2 } from "lucide-react";
+import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
+import RecipeAssistant from "@/pages/RecipeAssistant";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -113,8 +114,11 @@ const Layout = ({ children }: LayoutProps) => {
           <TabsContent value="shopping">
             <ShoppingList />
           </TabsContent>
+          <TabsContent value="assistant">
+            <RecipeAssistant />
+          </TabsContent>
 
-          <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid w-full grid-cols-3 bg-card border-t rounded-none">
+          <TabsList className="fixed bottom-0 left-0 right-0 h-16 grid w-full grid-cols-4 bg-card border-t rounded-none">
             <TabsTrigger 
               value="inventory" 
               className="flex flex-col gap-1 h-full text-xs"
@@ -135,6 +139,13 @@ const Layout = ({ children }: LayoutProps) => {
             >
               <ShoppingCart className="w-5 h-5" />
               Courses
+            </TabsTrigger>
+            <TabsTrigger 
+              value="assistant" 
+              className="flex flex-col gap-1 h-full text-xs"
+            >
+              <Bot className="w-5 h-5" />
+              Assistant
             </TabsTrigger>
           </TabsList>
         </Tabs>

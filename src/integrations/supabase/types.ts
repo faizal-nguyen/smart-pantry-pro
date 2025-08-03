@@ -85,6 +85,33 @@ export type Database = {
         }
         Relationships: []
       }
+      recipe_conversations: {
+        Row: {
+          ai_response: string
+          created_at: string
+          id: string
+          inventory_snapshot: string | null
+          user_id: string
+          user_message: string
+        }
+        Insert: {
+          ai_response: string
+          created_at?: string
+          id?: string
+          inventory_snapshot?: string | null
+          user_id: string
+          user_message: string
+        }
+        Update: {
+          ai_response?: string
+          created_at?: string
+          id?: string
+          inventory_snapshot?: string | null
+          user_id?: string
+          user_message?: string
+        }
+        Relationships: []
+      }
       recipe_ingredients: {
         Row: {
           created_at: string
