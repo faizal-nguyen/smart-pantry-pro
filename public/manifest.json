@@ -1,0 +1,120 @@
+{
+  "name": "Smart Grocery - Gestion Intelligente d'Inventaire",
+  "short_name": "Smart Grocery",
+  "description": "Application mobile pour gérer votre inventaire de courses avec assistant IA et reconnaissance vocale",
+  "theme_color": "#10b981",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/",
+  "categories": ["food", "lifestyle", "productivity"],
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-1.png",
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshots/desktop-1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Inventaire",
+      "short_name": "Inventaire",
+      "description": "Voir mon inventaire",
+      "url": "/?tab=inventory",
+      "icons": [
+        {
+          "src": "/icons/shortcut-inventory.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Liste de courses",
+      "short_name": "Courses",
+      "description": "Ma liste de courses",
+      "url": "/?tab=shopping",
+      "icons": [
+        {
+          "src": "/icons/shortcut-shopping.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Assistant IA",
+      "short_name": "Assistant",
+      "description": "Assistant culinaire",
+      "url": "/?tab=assistant",
+      "icons": [
+        {
+          "src": "/icons/shortcut-assistant.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
+}

@@ -6,6 +6,8 @@ import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot } from "lucide-rea
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
+import { usePWA } from "@/hooks/usePWA";
+import PWAStatus from "@/components/PWAStatus";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
@@ -22,6 +24,9 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  
+  // Initialize PWA hooks
+  usePWA();
 
   useEffect(() => {
     // Set up auth state listener
@@ -101,6 +106,7 @@ const Layout = ({ children }: LayoutProps) => {
             Déconnexion
           </Button>
         </div>
+        <PWAStatus />
       </header>
 
       <main className="pb-20">
