@@ -16,10 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Camera } from "lucide-react";
+import { Plus, Camera, Search, Loader2 } from "lucide-react";
 import { useInventory, Product } from "@/hooks/useInventory";
+import { useBarcodeAPI, ProductInfo } from "@/hooks/useBarcodeAPI";
 import BarcodeScanner from "./BarcodeScanner";
 import { ImageUploadSection } from "./ImageUploadSection";
+import { toast } from "@/hooks/use-toast";
 
 const CATEGORIES = [
   "Fruits et légumes",
@@ -68,8 +70,10 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   const [location, setLocation] = useState("");
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [apiProductInfo, setApiProductInfo] = useState<ProductInfo | null>(null);
   
   const { products, addProduct, addToInventory } = useInventory();
+  const { fetchProductInfo, loading: apiLoading, error: apiError } = useBarcodeAPI();
 
   const resetForm = () => {
     setProductName("");
@@ -81,6 +85,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     setExpiryDate("");
     setLocation("");
     setSelectedProduct(null);
+    setApiProductInfo(null);
     setStep('product');
   };
 
@@ -137,7 +142,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     }
   };
 
-  const handleBarcodeScanned = (scannedBarcode: string) => {
+  const handleBarcodeScanned = async (scannedBarcode: string) => {
     setBarcode(scannedBarcode);
     
     // Check if a product with this barcode already exists
@@ -145,6 +150,42 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     if (existingProduct) {
       setSelectedProduct(existingProduct);
       setStep('inventory');
+      return;
+    }
+
+    // Try to fetch product info from API
+    try {
+      const result = await fetchProductInfo(scannedBarcode);
+      if (result.status === 1 && result.product) {
+        setApiProductInfo(result.product);
+        
+        // Auto-fill form with API data
+        setProductName(result.product.name);
+        if (result.product.category) {
+          setCategory(result.product.category);
+        }
+        if (result.product.image_url) {
+          setImageUrl(result.product.image_url);
+        }
+        
+        toast({
+          title: "Produit trouvé !",
+          description: `Informations récupérées pour ${result.product.name}`,
+        });
+      } else {
+        toast({
+          title: "Produit non trouvé",
+          description: "Aucune information disponible pour ce code-barres",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching product info:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de récupérer les informations du produit",
+        variant: "destructive",
+      });
     }
   };
 
@@ -271,11 +312,108 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                     size="icon"
                     onClick={() => setScannerOpen(true)}
                     className="shrink-0"
+                    disabled={apiLoading}
                   >
-                    <Camera className="h-4 w-4" />
+                    {apiLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
                   </Button>
+                  {barcode && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={async () => {
+                        try {
+                          const result = await fetchProductInfo(barcode);
+                          if (result.status === 1 && result.product) {
+                            setApiProductInfo(result.product);
+                            setProductName(result.product.name);
+                            if (result.product.category) {
+                              setCategory(result.product.category);
+                            }
+                            if (result.product.image_url) {
+                              setImageUrl(result.product.image_url);
+                            }
+                            toast({
+                              title: "Produit trouvé !",
+                              description: `Informations récupérées pour ${result.product.name}`,
+                            });
+                          } else {
+                            toast({
+                              title: "Produit non trouvé",
+                              description: "Aucune information disponible pour ce code-barres",
+                              variant: "destructive",
+                            });
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Erreur",
+                            description: "Impossible de récupérer les informations du produit",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      disabled={apiLoading}
+                    >
+                      {apiLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
+
+              {/* Affichage des informations API */}
+              {apiProductInfo && (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      Informations récupérées automatiquement
+                    </span>
+                  </div>
+                  
+                  <div className="flex gap-3">
+                    {apiProductInfo.image_url && (
+                      <img 
+                        src={apiProductInfo.image_url} 
+                        alt={apiProductInfo.name}
+                        className="w-16 h-16 rounded-lg object-cover border"
+                      />
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <p className="font-medium text-sm">{apiProductInfo.name}</p>
+                      {apiProductInfo.brand && (
+                        <p className="text-xs text-muted-foreground">Marque: {apiProductInfo.brand}</p>
+                      )}
+                      {apiProductInfo.category && (
+                        <p className="text-xs text-muted-foreground">Catégorie: {apiProductInfo.category}</p>
+                      )}
+                      {apiProductInfo.nutrition && (
+                        <p className="text-xs text-muted-foreground">
+                          {apiProductInfo.nutrition.energy_100g && 
+                            `${Math.round(apiProductInfo.nutrition.energy_100g)} kcal/100g`
+                          }
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {apiProductInfo.ingredients && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-green-700 font-medium">
+                        Voir les ingrédients
+                      </summary>
+                      <p className="mt-2 text-green-600">{apiProductInfo.ingredients}</p>
+                    </details>
+                  )}
+                </div>
+              )}
 
               <Button type="submit" disabled={loading} className="w-full h-12 text-lg">
                 {loading ? "Création..." : "Créer le produit"}
