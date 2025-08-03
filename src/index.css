@@ -384,3 +384,9 @@ All colors MUST be HSL.
 .pull-refresh {
   animation: pullRefresh 1s linear infinite;
 }
+
+/* Barcode scan animation */
+@keyframes scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}

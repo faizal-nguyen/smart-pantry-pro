@@ -17,8 +17,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Camera } from "lucide-react";
 import { useInventory, Product } from "@/hooks/useInventory";
+import BarcodeScanner from "./BarcodeScanner";
 
 const CATEGORIES = [
   "Fruits/Légumes",
@@ -49,6 +50,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'product' | 'inventory'>('product');
+  const [scannerOpen, setScannerOpen] = useState(false);
   
   // Product form
   const [productName, setProductName] = useState("");
@@ -125,6 +127,17 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     const product = products.find(p => p.id === productId);
     if (product) {
       setSelectedProduct(product);
+      setStep('inventory');
+    }
+  };
+
+  const handleBarcodeScanned = (scannedBarcode: string) => {
+    setBarcode(scannedBarcode);
+    
+    // Check if a product with this barcode already exists
+    const existingProduct = products.find(p => p.barcode === scannedBarcode);
+    if (existingProduct) {
+      setSelectedProduct(existingProduct);
       setStep('inventory');
     }
   };
@@ -222,12 +235,24 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
 
               <div className="space-y-2">
                 <Label htmlFor="barcode">Code-barres (optionnel)</Label>
-                <Input
-                  id="barcode"
-                  value={barcode}
-                  onChange={(e) => setBarcode(e.target.value)}
-                  placeholder="ex: 1234567890123"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="barcode"
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    placeholder="ex: 1234567890123"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setScannerOpen(true)}
+                    className="shrink-0"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <Button type="submit" disabled={loading} className="w-full">
@@ -298,6 +323,12 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
           </div>
         )}
       </DialogContent>
+      
+      <BarcodeScanner
+        isOpen={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+      />
     </Dialog>
   );
 };
