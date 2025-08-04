@@ -83,6 +83,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   const { fetchProductInfo, loading: apiLoading, error: apiError } = useBarcodeAPI();
 
   const resetForm = () => {
+    console.log('🔄 Resetting form...');
     setProductName("");
     setCategory("");
     setUnitType("");
@@ -95,6 +96,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     setApiProductInfo(null);
     setCategoryAutoFilled(false);
     setStep('product');
+    console.log('✅ Form reset complete');
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
@@ -170,6 +172,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
 
   const handleBarcodeScanned = async (scannedBarcode: string) => {
     console.log('📱 Barcode scanned:', scannedBarcode);
+    console.log('🔍 Current form state before scan:', { productName, category, unitType, imageUrl });
     setBarcode(scannedBarcode);
     
     // Check if a product with this barcode already exists
@@ -203,17 +206,55 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
         setApiProductInfo(result.product);
         
         // Auto-fill form with API data
+        console.log('🔄 Attempting to fill form with:', {
+          name: result.product.name,
+          category: result.product.category,
+          categoryIncluded: result.product.category ? CATEGORIES.includes(result.product.category) : false,
+          suggested_unit: result.product.suggested_unit,
+          unitIncluded: result.product.suggested_unit ? UNIT_TYPES.includes(result.product.suggested_unit) : false,
+          image_url: result.product.image_url
+        });
+        
         setProductName(result.product.name);
-        if (result.product.category && CATEGORIES.includes(result.product.category)) {
-          setCategory(result.product.category);
-          setCategoryAutoFilled(true);
+        console.log('✅ Product name set to:', result.product.name);
+        
+        if (result.product.category) {
+          if (CATEGORIES.includes(result.product.category)) {
+            setCategory(result.product.category);
+            setCategoryAutoFilled(true);
+            console.log('✅ Category set to:', result.product.category);
+          } else {
+            // Si la catégorie API n'est pas dans notre liste, on l'affiche quand même pour debug
+            console.log('❌ Category not in our list but setting for debug. Available categories:', CATEGORIES);
+            console.log('❌ API category was:', result.product.category);
+            // Pour le debug, on peut essayer de la définir quand même temporairement
+            console.log('🧪 TEMPORARY: Setting API category anyway for debug');
+            setCategory(result.product.category);
+            setCategoryAutoFilled(true);
+          }
+        } else {
+          console.log('❌ No category returned from API');
         }
+        
         if (result.product.image_url) {
           setImageUrl(result.product.image_url);
+          console.log('✅ Image URL set to:', result.product.image_url);
         }
+        
         if (result.product.suggested_unit && UNIT_TYPES.includes(result.product.suggested_unit)) {
           setUnitType(result.product.suggested_unit);
+          console.log('✅ Unit type set to:', result.product.suggested_unit);
+        } else {
+          console.log('❌ Unit type not set. Available units:', UNIT_TYPES);
+          console.log('❌ API suggested unit was:', result.product.suggested_unit);
         }
+        
+        console.log('🔍 Form state after scan:', { 
+          productName: result.product.name, 
+          category: result.product.category, 
+          unitType: result.product.suggested_unit, 
+          imageUrl: result.product.image_url 
+        });
         
         toast({
           title: "Produit trouvé !",
@@ -392,15 +433,32 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                     variant="outline"
                     size="icon"
                     onClick={() => {
-                      console.log('🧪 Test button clicked in dialog');
-                      alert('Test bouton dans dialog - Vérifiez la console');
+                      console.log('🧪 Test button clicked in dialog - simulating barcode scan');
+                      console.log('🔍 Form state BEFORE test scan:', { productName, category, unitType, imageUrl });
                       handleBarcodeScanned('3017620422003');
                     }}
                     className="shrink-0"
                     disabled={apiLoading}
-                    title="Test avec Nutella"
+                    title="Test avec Nutella (3017620422003)"
                   >
                     🧪
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      console.log('🔧 Direct form fill test - no API');
+                      setProductName("Test Pain de Mie");
+                      setCategory("Pain et viennoiseries");
+                      setUnitType("unité(s)");
+                      setCategoryAutoFilled(true);
+                      console.log('✅ Direct form fill complete');
+                    }}
+                    className="shrink-0"
+                    title="Test direct form fill"
+                  >
+                    🔧
                   </Button>
                   {barcode && (
                     <Button

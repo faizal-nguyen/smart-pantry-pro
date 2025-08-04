@@ -20,7 +20,17 @@
     "debug:database": "node debug-dispatcher.js analyze",
     "debug:performance": "node debug-dispatcher.js analyze",
     "debug:game-logic": "node debug-dispatcher.js analyze",
-    "debug:integration": "node debug-dispatcher.js analyze"
+    "debug:integration": "node debug-dispatcher.js analyze",
+    "debug:voice": "node smart-pantry-agents.js voice",
+    "debug:scanner": "node smart-pantry-agents.js scanner",
+    "debug:smart-pantry": "node smart-pantry-agents.js analyze",
+    "debug:voice-ai": "node smart-pantry-agents.js voice",
+    "debug:inventory-camera": "node smart-pantry-agents.js scanner",
+    "claude:voice": "node claude-runner.js /debug-voice",
+    "claude:scanner": "node claude-runner.js /debug-scanner",
+    "claude:smart-pantry": "node claude-runner.js /debug-smart-pantry",
+    "claude:voice-ai": "node claude-runner.js /debug-voice-ai",
+    "claude:inventory-camera": "node claude-runner.js /debug-inventory-camera"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
