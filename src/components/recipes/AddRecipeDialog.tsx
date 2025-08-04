@@ -118,7 +118,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
   const { parseRecipeFromURL: parseURL, loading: parsing, error: parseError } = useRecipeParser();
   
   // Social media parsing hook (pattern Cipher)
-  const { parseRecipeFromSocial, loading: socialParsing, error: socialError } = useSocialRecipeParser();
+  const { parseRecipeFromSocial, loading: socialParsing, error: socialParseError } = useSocialRecipeParser();
   
   // Form state (pattern AddProductDialog Cipher)
   const [recipeName, setRecipeName] = useState("");
