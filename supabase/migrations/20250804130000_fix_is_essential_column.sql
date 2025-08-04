@@ -12,6 +12,6 @@ BEGIN
     ALTER TABLE public.recipe_ingredients 
     ADD COLUMN is_essential BOOLEAN DEFAULT TRUE;
     
-    COMMENT ON COLUMN public.recipe_ingredients.is_essential IS 'Indique si l\'ingrédient est essentiel pour la recette';
+    COMMENT ON COLUMN public.recipe_ingredients.is_essential IS 'Indique si l''ingrédient est essentiel pour la recette';
   END IF;
 END $$;
