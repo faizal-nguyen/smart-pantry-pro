@@ -56,51 +56,59 @@ export default async function handler(req, res) {
       }
     }
     
-    const { url, source } = body || {};
+    const { url, source, html: providedHtml } = body || {};
 
-    if (!url) {
-      return res.status(400).json({ error: 'URL is required' });
+    if (!url && !providedHtml) {
+      return res.status(400).json({ error: 'URL or HTML is required' });
     }
 
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OpenAI API key not configured');
     }
 
-    console.log(`🤖 AI parsing recipe from: ${url} (source: ${source})`);
+    console.log(`🤖 AI parsing recipe from: ${url || 'provided HTML'} (source: ${source})`);
 
-    // 1. Fetch page content
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
-    };
+    let html;
+    
+    // 1. Use provided HTML or fetch page content
+    if (providedHtml) {
+      html = providedHtml;
+      console.log('📄 Using provided HTML content');
+    } else {
+      // Fetch page content if not provided
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+      };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    let response;
-    try {
-      response = await fetch(url, { 
-        headers, 
-        signal: controller.signal 
-      });
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
-        console.error('⏱️ Timeout lors du fetch de l\'URL après 15 secondes');
-        throw new Error('Timeout: La page a mis trop de temps à répondre');
+      let response;
+      try {
+        response = await fetch(url, { 
+          headers, 
+          signal: controller.signal 
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          console.error('⏱️ Timeout lors du fetch de l\'URL après 15 secondes');
+          throw new Error('Timeout: La page a mis trop de temps à répondre');
+        }
+        console.error('❌ Erreur lors du fetch:', fetchError);
+        throw new Error(`Impossible de récupérer la page: ${fetchError.message}`);
       }
-      console.error('❌ Erreur lors du fetch:', fetchError);
-      throw new Error(`Impossible de récupérer la page: ${fetchError.message}`);
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch URL: ${response.status}`);
+      }
+
+      html = await response.text();
     }
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch URL: ${response.status}`);
-    }
-
-    let html = await response.text();
     
     // Nettoyer le HTML
     html = html
@@ -117,10 +125,16 @@ export default async function handler(req, res) {
     }
 
     // 2. Prompt optimisé pour extraction de recettes françaises
-    const prompt = `Tu es un expert en parsing de recettes françaises. Analyse ce HTML et extrait les informations de la recette au format JSON.
+    const prompt = `Tu es un expert en parsing de recettes françaises, spécialisé dans ${source || 'sites de cuisine'}. Analyse ce HTML et extrait TOUTES les informations de la recette au format JSON.
 
-URL source: ${url}
-Source: ${source}
+URL source: ${url || 'Non fournie'}
+Source: ${source || 'Générique'}
+
+${source === 'marmiton' ? `IMPORTANT pour Marmiton:
+- Les ingrédients peuvent être dans des structures MuiGrid-root ou des listes
+- Cherche les patterns: "200 g de farine", "2 oeufs", etc.
+- Décode les entités HTML (&#x20; = espace, &#xE0; = à, etc.)
+- Les instructions sont souvent dans des sections "preparation" ou "recipe-preparation"` : ''}
 
 HTML à analyser:
 ${html}
@@ -151,12 +165,14 @@ Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte:
 }
 
 IMPORTANT:
-- Extrais TOUS les ingrédients avec quantités précises
+- Extrais TOUS les ingrédients avec quantités précises (cherche PARTOUT dans le HTML)
+- Décode TOUTES les entités HTML (&#x20;, &#xE0;, etc.) en caractères normaux
 - Convertis les durées en minutes (30min, 1h30 = 90min)
 - Devine la difficulté selon la complexité (1=très facile, 5=très difficile)
 - Identifie la catégorie de cuisine
 - Si informations manquantes, utilise des valeurs par défaut cohérentes
-- Assure-toi que le JSON est parfaitement valide`;
+- Assure-toi que le JSON est parfaitement valide
+- NE JAMAIS retourner un tableau vide pour les ingrédients - cherche plus profondément`;
 
     // 3. Appel OpenAI avec retry
     console.log('🔄 Calling OpenAI API...');

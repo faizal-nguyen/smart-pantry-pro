@@ -1,63 +1,14 @@
 Bug-fixing.md
 
-🤖 Parsing with AI: https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx
-index-CiUanMF1.js:33  POST https://smart-pantry-pro.vercel.app/api/parse-recipe-ai 500 (Internal Server Error)
-Tl @ index-CiUanMF1.js:33
-Il @ index-CiUanMF1.js:33
-await in Il
-parseRecipeFromURL @ index-CiUanMF1.js:33
-onClick @ index-CiUanMF1.js:33
-_n @ react-vendor-CrvtNH9J.js:20
-Mn @ react-vendor-CrvtNH9J.js:20
-(anonyme) @ react-vendor-CrvtNH9J.js:20
-Pl @ react-vendor-CrvtNH9J.js:20
-Nl @ react-vendor-CrvtNH9J.js:20
-(anonyme) @ react-vendor-CrvtNH9J.js:20
-Js @ react-vendor-CrvtNH9J.js:20
-Sn @ react-vendor-CrvtNH9J.js:20
-Ol @ react-vendor-CrvtNH9J.js:20
-Ut @ react-vendor-CrvtNH9J.js:20
-Dt @ react-vendor-CrvtNH9J.js:20Comprendre cette erreur
-index-CiUanMF1.js:33 AI parsing failed: Error: AI parsing failed
-    at Tl (index-CiUanMF1.js:33:468504)
-    at async Il (index-CiUanMF1.js:33:467058)
-    at async parseRecipeFromURL (index-CiUanMF1.js:33:466045)
-    at async onClick (index-CiUanMF1.js:33:514753)
-Tl @ index-CiUanMF1.js:33
-await in Tl
-Il @ index-CiUanMF1.js:33
-await in Il
-parseRecipeFromURL @ index-CiUanMF1.js:33
-onClick @ index-CiUanMF1.js:33
-_n @ react-vendor-CrvtNH9J.js:20
-Mn @ react-vendor-CrvtNH9J.js:20
-(anonyme) @ react-vendor-CrvtNH9J.js:20
-Pl @ react-vendor-CrvtNH9J.js:20
-Nl @ react-vendor-CrvtNH9J.js:20
-(anonyme) @ react-vendor-CrvtNH9J.js:20
-Js @ react-vendor-CrvtNH9J.js:20
-Sn @ react-vendor-CrvtNH9J.js:20
-Ol @ react-vendor-CrvtNH9J.js:20
-Ut @ react-vendor-CrvtNH9J.js:20
-Dt @ react-vendor-CrvtNH9J.js:20Comprendre cette erreur
-index-CiUanMF1.js:33 URL parsing error: Error: Parsing IA impossible
-    at onClick (index-CiUanMF1.js:33:514793)
+Lorsque je parse une URL voila les resultats de la console
+🥘 Parsing Marmiton recipe: https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx
+index-DxDg9w2c.js:33 Found 0 JSON-LD scripts but no Recipe schema
+index-DxDg9w2c.js:33 Auth event: SIGNED_IN faizal.nguyen@hotmail.fr
 
-    2. Tester l'endpoint de diagnostic:
-  curl https://votre-app.vercel.app/api/test-env
-  -> https://smart-pantry-pro.vercel.app/api/test-env
+Cote front 
+dans la partie description j'ai : Recette&#x20;Poireaux&#x20;&#xE0;&#x20;la&#x20;grecque&#x20;rapides&#x20;&#x3A;&#x20;d&#xE9;couvrez&#x20;les&#x20;ingr&#xE9;dients,&#x20;ustensiles&#x20;et&#x20;&#xE9;tapes&#x20;de&#x20;pr&#xE9;paration    
 
-  This Serverless Function has crashed.
+Instructions : 
+{"@context":"http://schema.org","@type":"ItemList","url":"https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx","numberOfItems":10,"itemListElement":[{"@type":"ListItem","position":1,"url":"https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx"},{"@type":"ListItem","position":2,"url":"https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-de-ma-grand-mere_33505.aspx","image":""},{"@type":"ListItem","position":3,"url":"https://www.marmiton.org/recettes/recette_salade-grecque_34399.aspx","image":""},{"@type":"ListItem","position":4,"url":"https://www.marmiton.org/recettes/recette_champignons-a-la-grecque-facile-et-rapide_82781.aspx","image":""},{"@type":"ListItem","position":5,"url":"https://www.marmiton.org/recettes/recette_pancakes-rapides_90951.aspx","image":""},{"@type":"ListItem","position":6,"url":"https://www.marmiton.org/recettes/recette_champignons-a-la-grecque_15354.aspx","image":""},{"@type":"ListItem","position":7,"url":"https://www.marmiton.org/recettes/recette_poulet-a-la-grecque_28306.aspx","image":""},{"@type":"ListItem","position":8,"url":"https://www.marmiton.org/recettes/recette_legumes-a-la-grecque_172331.aspx","image":""},{"@type":"ListItem","position":9,"url":"https://www.marmiton.org/recettes/recette_canneles-rapides_33822.aspx","image":""},{"@type":"ListItem","position":10,"url":"https://www.marmiton.org/recettes/recette_orangettes-rapides_342954.aspx","image":""}],"RelatedLink":[]}
 
-Your connection is working correctly.
-
-Vercel is working correctly.
-
-500: INTERNAL_SERVER_ERROR
-Code: FUNCTION_INVOCATION_FAILED
-ID: cdg1::9mntz-1754314355267-0ea55b2fddda
-
-If you are a visitor, contact the website owner or try again later.
-If you are the owner, learn how to fix the error and check the logs.
-
-je n'ai aucun log pour expliquer quel est le probleme precis, sur vercel j'ai bien ajouter la variable d'environnement. 
+Les ingrédients ne sont pas récupérer et ajouter automatiquement dans le form. Il faut retravailler le script. Est-ce qu'il a besoin d'utiliser une requete OpenAI qui va parser la page et renvoyer les bonnes informations dans les bons champs ? 

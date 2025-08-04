@@ -123,6 +123,13 @@ const parseMarmitonRecipe = async (url: string): Promise<RecipeParsingResult> =>
     
     // 3. Fallback: DOM parsing spécialisé Marmiton
     const recipe = parseMarmitonDOM(html, url);
+    
+    // Si le parsing DOM n'a pas trouvé d'ingrédients, utiliser l'IA
+    if (recipe.ingredients.length === 0) {
+      console.log('⚠️ No ingredients found with DOM parsing, using AI...');
+      return await parseWithAI(url, 'marmiton', html);
+    }
+    
     return {
       success: true,
       data: recipe,
@@ -239,14 +246,20 @@ const parseGenericRecipe = async (url: string): Promise<RecipeParsingResult> => 
 };
 
 // Parser avec IA OpenAI (pattern Cipher AI)
-const parseWithAI = async (url: string, source: string): Promise<RecipeParsingResult> => {
+const parseWithAI = async (url: string, source: string, html?: string): Promise<RecipeParsingResult> => {
   try {
     console.log('🤖 Parsing with AI:', url);
+    
+    // Si on a déjà le HTML, l'envoyer directement
+    const body: any = { url, source };
+    if (html) {
+      body.html = html;
+    }
     
     const response = await fetch(`/api/parse-recipe-ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, source })
+      body: JSON.stringify(body)
     });
     
     if (!response.ok) {
@@ -478,6 +491,43 @@ const normalizeMicrodataRecipe = (microdata: any): ParsedRecipe => {
 const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
   // Parsing DOM amélioré pour Marmiton (pattern Cipher)
   try {
+    // Helper pour décoder les entités HTML
+    const decodeHTMLEntities = (text: string): string => {
+      const entities: Record<string, string> = {
+        '&amp;': '&',
+        '&lt;': '<',
+        '&gt;': '>',
+        '&quot;': '"',
+        '&#x27;': "'",
+        '&#x2F;': '/',
+        '&#x20;': ' ',
+        '&#xE0;': 'à',
+        '&#xE8;': 'è',
+        '&#xE9;': 'é',
+        '&#xEA;': 'ê',
+        '&#xF4;': 'ô',
+        '&#xF9;': 'ù',
+        '&#xE7;': 'ç',
+        '&#x3A;': ':',
+        '&#x3B;': ';',
+        '&#x21;': '!',
+        '&#x3F;': '?',
+        '&#x2C;': ',',
+        '&nbsp;': ' '
+      };
+      
+      let decoded = text;
+      for (const [entity, char] of Object.entries(entities)) {
+        decoded = decoded.replace(new RegExp(entity, 'gi'), char);
+      }
+      
+      // Décoder les entités numériques restantes
+      decoded = decoded.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(parseInt(dec)));
+      decoded = decoded.replace(/&#x([0-9A-F]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+      
+      return decoded;
+    };
+    
     // Extraction titre - Marmiton 2024 structure
     const titleMatch = html.match(/<h1[^>]*class="[^"]*recipe-name[^"]*"[^>]*>([^<]+)</i) ||
                       html.match(/<h1[^>]*class="[^"]*recipe-title[^"]*"[^>]*>([^<]+)</i) ||
@@ -485,12 +535,12 @@ const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
                       html.match(/<h1[^>]*data-testid="recipe-title"[^>]*>([^<]+)</i) ||
                       html.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
                       html.match(/property="og:title"[^>]*content="([^"]+)"/i);
-    const name = titleMatch ? titleMatch[1].trim().replace(' - Marmiton', '').replace(/&#?\w+;/g, '') : 'Recette Marmiton';
+    const name = titleMatch ? decodeHTMLEntities(titleMatch[1].trim().replace(' - Marmiton', '')) : 'Recette Marmiton';
     
     // Extraction description
     const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i) ||
                      html.match(/<div[^>]*class="[^"]*recipe-description[^"]*"[^>]*>([^<]+)</i);
-    const description = descMatch ? descMatch[1].trim() : '';
+    const description = descMatch ? decodeHTMLEntities(descMatch[1].trim()) : '';
     
     // Extraction image
     const imgMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
@@ -507,30 +557,49 @@ const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
     const servingsMatch = html.match(/(?:pour|serves?)[^0-9]*(\d+)[^0-9]*(?:personnes?|pers)/i) ||
                          html.match(/data-servings="(\d+)"/i);
     
-    // Extraction des ingrédients - Marmiton structure
+    // Extraction des ingrédients - Marmiton structure 2024
     const ingredients: ParsedIngredient[] = [];
     
-    // Essayer plusieurs patterns pour les ingrédients
+    // Essayer plusieurs patterns pour les ingrédients (Marmiton utilise des structures variées)
     const ingredientPatterns = [
+      // Patterns modernes Marmiton
       /<li[^>]*class="[^"]*ingredient[^"]*"[^>]*>(.*?)<\/li>/gi,
       /<div[^>]*class="[^"]*recipe-ingredient[^"]*"[^>]*>(.*?)<\/div>/gi,
-      /<span[^>]*class="[^"]*ingredient-[^"]*"[^>]*>(.*?)<\/span>/gi
+      /<span[^>]*class="[^"]*ingredient-[^"]*"[^>]*>(.*?)<\/span>/gi,
+      // Pattern pour la structure avec quantité et nom séparés
+      /<div[^>]*class="[^"]*MuiGrid-root[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>.*?<span[^>]*>([^<]+)<\/span>.*?<\/div>/gi,
+      // Pattern pour les listes d'ingrédients dans des divs
+      /<div[^>]*data-ingredient[^>]*>(.*?)<\/div>/gi,
+      // Pattern générique pour trouver des listes d'ingrédients
+      /(?:Ingr[ée]dients|INGREDIENTS)[^<]*<[^>]*>(.*?)<\/(?:ul|ol|div)>/si
     ];
     
     for (const pattern of ingredientPatterns) {
       const matches = html.matchAll(pattern);
       for (const match of matches) {
-        const ingText = match[1]
-          .replace(/<[^>]*>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        let ingText = '';
+        
+        // Gérer le cas où on a quantité et nom séparés
+        if (match[2]) {
+          ingText = `${match[1]} ${match[2]}`;
+        } else {
+          ingText = match[1];
+        }
+        
+        // Nettoyer et décoder le texte
+        ingText = decodeHTMLEntities(
+          ingText
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        );
         
         if (ingText && ingText.length > 2) {
           // Parser l'ingrédient pour extraire quantité et nom
           const { quantity, unit, name } = parseIngredientText(ingText);
-          if (name) {
+          if (name && name.length > 1) {
             ingredients.push({
-              name,
+              name: decodeHTMLEntities(name),
               quantity,
               unit,
               is_essential: true,
@@ -540,6 +609,34 @@ const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
         }
       }
       if (ingredients.length > 0) break;
+    }
+    
+    // Si aucun ingrédient trouvé, essayer de chercher dans une section plus large
+    if (ingredients.length === 0) {
+      // Chercher la section ingrédients
+      const ingredientSectionMatch = html.match(/(?:Ingr[ée]dients|INGREDIENTS)[^<]*<[^>]*>([\s\S]*?)(?:<h\d|<div[^>]*class="[^"]*(?:instructions|preparation|etapes))/i);
+      if (ingredientSectionMatch) {
+        const section = ingredientSectionMatch[1];
+        // Extraire tout texte qui ressemble à un ingrédient
+        const lines = section.split(/\n|<br|<\/li>|<\/div>|<\/p>/i);
+        for (const line of lines) {
+          const cleanLine = decodeHTMLEntities(
+            line.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+          );
+          if (cleanLine && cleanLine.length > 5 && cleanLine.length < 200) {
+            const { quantity, unit, name } = parseIngredientText(cleanLine);
+            if (name && name.length > 1) {
+              ingredients.push({
+                name: decodeHTMLEntities(name),
+                quantity,
+                unit,
+                is_essential: true,
+                confidence: 0.6
+              });
+            }
+          }
+        }
+      }
     }
     
     // Extraction des instructions
