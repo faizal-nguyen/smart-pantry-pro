@@ -66,13 +66,13 @@ const parseInstagramRecipe = async (url: string): Promise<SocialParsingResult> =
   try {
     console.log('📸 Parsing Instagram recipe:', url);
     
-    // Extract post ID from URL
-    const postIdMatch = url.match(/\/p\/([A-Za-z0-9_-]+)/);
+    // Extract post ID from URL (support both /p/ and /reel/ formats)
+    const postIdMatch = url.match(/\/(p|reel)\/([A-Za-z0-9_-]+)/);
     if (!postIdMatch) {
       throw new Error('Invalid Instagram URL');
     }
     
-    const postId = postIdMatch[1];
+    const postId = postIdMatch[2];
     
     // Call our API endpoint
     const response = await fetch('/api/parse-social', {

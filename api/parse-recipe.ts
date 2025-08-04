@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 
 // API endpoint pour parsing recettes URL (pattern Cipher)
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[parse-recipe] Request received:', req.method, req.body?.url);
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -41,13 +42,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // Réduit à 10s
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-      signal: controller.signal
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      console.error('Fetch error:', fetchError);
+      
+      if (fetchError instanceof Error) {
+        if (fetchError.name === 'AbortError') {
+          return res.status(408).json({ error: 'Request timeout - site too slow' });
+        }
+      }
+      
+      return res.status(500).json({ error: 'Failed to fetch website' });
+    }
 
     clearTimeout(timeoutId);
 
@@ -89,3 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
+
+// Configuration Vercel
+export const config = {
+  maxDuration: 30, // 30 secondes max
+};

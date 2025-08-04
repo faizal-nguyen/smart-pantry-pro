@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/hooks/use-toast";
 
 // Types adaptés du PRP Cipher
 interface Recipe {
@@ -126,7 +127,18 @@ const RecipeCard = ({
   const totalTime = recipe.prep_time + recipe.cook_time;
 
   return (
-    <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer group">
+    <Card 
+      className="hover:shadow-lg transition-all duration-200 cursor-pointer group"
+      onClick={() => {
+        // TODO: Implémenter l'ouverture du détail de la recette
+        console.log('Recipe clicked:', recipe.id);
+        // Pour l'instant, on affiche juste les infos dans un toast
+        toast({
+          title: recipe.name,
+          description: `${recipe.description || 'Cliquez sur Modifier pour voir les détails'}`,
+        });
+      }}
+    >
       <CardContent className="p-4">
         {/* Image recette avec overlays */}
         <div className="relative mb-3">
