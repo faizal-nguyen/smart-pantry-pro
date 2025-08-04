@@ -81,9 +81,14 @@ async function extractRecipeWithAI(content: string, platform: string): Promise<a
   try {
     // Check if OpenAI API key is available
     if (!process.env.OPENAI_API_KEY) {
-      console.warn('OpenAI API key not found, using basic extraction');
+      console.error('❌ OPENAI_API_KEY not found in environment variables');
+      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('API')));
+      console.warn('Falling back to basic extraction');
       return extractRecipeBasic(content);
     }
+
+    // Debug: Log API key presence
+    console.log('✅ OPENAI_API_KEY found for social parsing');
 
     // Prepare prompt for OpenAI
     const prompt = `
@@ -110,6 +115,7 @@ async function extractRecipeWithAI(content: string, platform: string): Promise<a
     }
     `;
 
+    console.log('🔄 Calling OpenAI API for social media parsing...');
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -134,7 +140,9 @@ async function extractRecipeWithAI(content: string, platform: string): Promise<a
     });
 
     if (!response.ok) {
-      console.error('OpenAI API error:', response.status);
+      const errorBody = await response.text();
+      console.error('❌ OpenAI API error:', response.status);
+      console.error('Error response:', errorBody);
       return extractRecipeBasic(content);
     }
 
@@ -154,7 +162,8 @@ async function extractRecipeWithAI(content: string, platform: string): Promise<a
     }
 
   } catch (error) {
-    console.error('OpenAI extraction error:', error);
+    console.error('❌ OpenAI extraction error:', error);
+    console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
     return extractRecipeBasic(content);
   }
 }

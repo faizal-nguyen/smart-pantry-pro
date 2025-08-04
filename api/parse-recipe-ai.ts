@@ -23,8 +23,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OPENAI_API_KEY not found in environment variables');
+      console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('API')));
       throw new Error('OpenAI API key not configured');
     }
+
+    // Debug: Log API key presence (first 10 chars only for security)
+    console.log('✅ OPENAI_API_KEY found:', process.env.OPENAI_API_KEY.substring(0, 10) + '...');
 
     console.log(`🤖 AI parsing recipe from: ${url} (source: ${source})`);
 
@@ -108,6 +113,7 @@ IMPORTANT:
 - Assure-toi que le JSON est parfaitement valide`;
 
     // 3. Appel OpenAI avec gestion d'erreurs (pattern Cipher précautions)
+    console.log('🔄 Calling OpenAI API...');
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -132,7 +138,10 @@ IMPORTANT:
     });
 
     if (!openaiResponse.ok) {
-      throw new Error(`OpenAI API error: ${openaiResponse.status}`);
+      const errorBody = await openaiResponse.text();
+      console.error('❌ OpenAI API error:', openaiResponse.status);
+      console.error('Error response:', errorBody);
+      throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorBody}`);
     }
 
     const openaiData = await openaiResponse.json();
@@ -198,7 +207,9 @@ IMPORTANT:
     });
 
   } catch (error) {
-    console.error('Error in AI recipe parsing:', error);
+    console.error('❌ Error in AI recipe parsing:', error);
+    console.error('Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
     let errorMessage = 'AI parsing failed';
     let statusCode = 500;
