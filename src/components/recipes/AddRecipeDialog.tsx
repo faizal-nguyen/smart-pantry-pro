@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useRecipeParser } from "@/hooks/useRecipeParser";
+import RecipeBookScanner, { OCRRecipeResult } from "./RecipeBookScanner";
+import RecipeVoiceInput, { ValidatedRecipe } from "./RecipeVoiceInput";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +36,8 @@ import {
   X,
   Star,
   Clock,
-  Users
+  Users,
+  BookOpen
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -128,6 +131,12 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
   
   // URL parsing state
   const [recipeUrl, setRecipeUrl] = useState("");
+  
+  // OCR scanner state (pattern Cipher)
+  const [showOCRScanner, setShowOCRScanner] = useState(false);
+  
+  // Voice input state (pattern Cipher)
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
 
   const resetForm = () => {
     setRecipeName("");
@@ -241,6 +250,123 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
     }
   };
 
+  // OCR handler (pattern Cipher adaptation)
+  const handleOCRResult = (ocrResult: OCRRecipeResult) => {
+    try {
+      // Remplir le formulaire avec les données OCR (pattern Cipher)
+      if (ocrResult.parsedRecipe) {
+        const recipe = ocrResult.parsedRecipe;
+        
+        setRecipeName(recipe.name);
+        setInstructions(recipe.instructions);
+        
+        // Mapper les ingrédients OCR
+        if (recipe.ingredients && recipe.ingredients.length > 0) {
+          const mappedIngredients = recipe.ingredients.map((ing: string, index: number) => ({
+            name: ing,
+            quantity: 1,
+            unit: "unité",
+            is_essential: true,
+            notes: ""
+          }));
+          setIngredients(mappedIngredients);
+        }
+        
+        // Temps de cuisson/prep si disponibles
+        if (recipe.cookTime) {
+          const cookTimeMatch = recipe.cookTime.match(/(\d+)/);
+          if (cookTimeMatch) {
+            setCookTime(cookTimeMatch[1]);
+          }
+        }
+        
+        if (recipe.prepTime) {
+          const prepTimeMatch = recipe.prepTime.match(/(\d+)/);
+          if (prepTimeMatch) {
+            setPrepTime(prepTimeMatch[1]);
+          }
+        }
+        
+        if (recipe.servings) {
+          setServings(recipe.servings.toString());
+        }
+        
+        toast({
+          title: "Recette scannée !",
+          description: `${recipe.name} - ${recipe.ingredients.length} ingrédients détectés`,
+        });
+        
+      } else {
+        // Si pas de recette parsée, mettre juste le texte dans les instructions
+        setInstructions(ocrResult.text);
+        
+        toast({
+          title: "Texte scanné",
+          description: "Texte ajouté aux instructions. Veuillez compléter les autres champs.",
+        });
+      }
+      
+      // Passer au mode manuel pour compléter/corriger
+      setCurrentTab("manual");
+      
+    } catch (error) {
+      console.error('OCR result processing error:', error);
+      toast({
+        title: "Erreur OCR",
+        description: "Impossible de traiter le résultat du scan",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Voice input handler (pattern Cipher adaptation)
+  const handleVoiceRecipe = (voiceRecipe: ValidatedRecipe) => {
+    try {
+      // Remplir le formulaire avec les données vocales (pattern Cipher)
+      setRecipeName(voiceRecipe.name);
+      setInstructions(voiceRecipe.instructions || "");
+      
+      // Mapper les ingrédients vocaux
+      const mappedIngredients = voiceRecipe.ingredients.map(ing => ({
+        name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        is_essential: ing.is_essential,
+        notes: ing.notes || ""
+      }));
+      setIngredients(mappedIngredients);
+      
+      // Temps et portions
+      if (voiceRecipe.prepTime) {
+        setPrepTime(voiceRecipe.prepTime.toString());
+      }
+      
+      if (voiceRecipe.cookingTime) {
+        setCookTime(voiceRecipe.cookingTime.toString());
+      }
+      
+      if (voiceRecipe.servings) {
+        setServings(voiceRecipe.servings.toString());
+      }
+      
+      toast({
+        title: "Recette vocale traitée !",
+        description: `${voiceRecipe.name} - ${voiceRecipe.ingredients.length} ingrédients (confiance: ${Math.round(voiceRecipe.confidence * 100)}%)`,
+      });
+      
+      // Passer au mode manuel pour finaliser
+      setCurrentTab("manual");
+      
+    } catch (error) {
+      console.error('Voice recipe processing error:', error);
+      toast({
+        title: "Erreur vocale",
+        description: "Impossible de traiter la recette vocale",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleSubmit = async () => {
     if (!recipeName.trim()) {
       toast({
@@ -312,18 +438,21 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
         
         {/* Tabs pour différents modes d'ajout (pattern Cipher) */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-5 mb-4">
             <TabsTrigger value="manual" className="text-xs">
               Manuel
             </TabsTrigger>
             <TabsTrigger value="url" className="text-xs">
               URL
             </TabsTrigger>
+            <TabsTrigger value="voice" className="text-xs">
+              Vocal
+            </TabsTrigger>
+            <TabsTrigger value="scan" className="text-xs">
+              Scanner
+            </TabsTrigger>
             <TabsTrigger value="social" className="text-xs" disabled>
               Social
-            </TabsTrigger>
-            <TabsTrigger value="scan" className="text-xs" disabled>
-              Scanner
             </TabsTrigger>
           </TabsList>
           
@@ -520,6 +649,37 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
             </div>
           </TabsContent>
           
+          {/* Mode Voice Input */}
+          <TabsContent value="voice" className="space-y-4">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                <Mic className="h-10 w-10 text-primary" />
+              </div>
+              
+              <div>
+                <h3 className="font-semibold text-lg">Dictée de Recette</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Dictez votre recette avec ingrédients, quantités et instructions
+                </p>
+              </div>
+              
+              <Button 
+                onClick={() => setShowVoiceInput(true)}
+                size="lg"
+                className="w-full"
+              >
+                <Mic className="w-5 h-5 mr-2" />
+                Commencer la Dictée
+              </Button>
+              
+              <div className="text-xs text-muted-foreground">
+                <p>• Parlez clairement et distinctement</p>
+                <p>• Mentionnez les quantités et unités</p>
+                <p>• Le système reconnaît le vocabulaire culinaire français</p>
+              </div>
+            </div>
+          </TabsContent>
+          
           {/* Mode URL */}
           <TabsContent value="url" className="space-y-4">
             <div>
@@ -571,11 +731,33 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
             </div>
           </TabsContent>
           
-          <TabsContent value="scan">
-            <div className="text-center py-8 text-muted-foreground">
-              <Camera className="h-12 w-12 mx-auto mb-4" />
-              <p>Scanner de livres de recettes</p>
-              <p className="text-sm">Bientôt disponible...</p>
+          <TabsContent value="scan" className="space-y-4">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                <BookOpen className="h-10 w-10 text-primary" />
+              </div>
+              
+              <div>
+                <h3 className="font-semibold text-lg">Scanner Livre de Recettes</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Scannez une page de livre de cuisine pour extraire automatiquement la recette
+                </p>
+              </div>
+              
+              <Button 
+                onClick={() => setShowOCRScanner(true)}
+                size="lg"
+                className="w-full"
+              >
+                <Camera className="w-5 h-5 mr-2" />
+                Ouvrir le Scanner OCR
+              </Button>
+              
+              <div className="text-xs text-muted-foreground">
+                <p>• Positionnez bien la recette dans le cadre</p>
+                <p>• Assurez-vous que l'éclairage est suffisant</p>
+                <p>• Le texte sera automatiquement extrait et analysé</p>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
@@ -600,6 +782,20 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
           </Button>
         </div>
       </DialogContent>
+      
+      {/* OCR Scanner Modal */}
+      <RecipeBookScanner
+        isOpen={showOCRScanner}
+        onClose={() => setShowOCRScanner(false)}
+        onScan={handleOCRResult}
+      />
+      
+      {/* Voice Input Modal */}
+      <RecipeVoiceInput
+        open={showVoiceInput}
+        onOpenChange={setShowVoiceInput}
+        onRecipeValidated={handleVoiceRecipe}
+      />
     </Dialog>
   );
 };
