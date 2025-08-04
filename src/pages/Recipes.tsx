@@ -135,7 +135,17 @@ const Recipes = () => {
   const handleRecipeAdded = async (recipeData: any) => {
     try {
       const { ingredients, ...recipe } = recipeData;
-      await addRecipeWithIngredients(recipe, ingredients);
+      
+      // Mapper les ingrédients de 'name' vers 'ingredient_name'
+      const mappedIngredients = ingredients.map((ing: any) => ({
+        ingredient_name: ing.name,
+        quantity: ing.quantity,
+        unit: ing.unit,
+        is_essential: ing.is_essential,
+        notes: ing.notes
+      }));
+      
+      await addRecipeWithIngredients(recipe, mappedIngredients);
       
       toast({
         title: "Recette ajoutée !",
