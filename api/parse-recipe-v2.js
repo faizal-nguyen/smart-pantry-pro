@@ -13,7 +13,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { url, source } = req.body || {};
+    // Parse body si nécessaire
+    let body = req.body;
+    
+    if (!body && req.readable) {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      const rawBody = Buffer.concat(chunks).toString();
+      try {
+        body = JSON.parse(rawBody);
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid JSON', details: e.message });
+      }
+    } else if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid JSON', details: e.message });
+      }
+    }
+    
+    const { url, source } = body || {};
 
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
