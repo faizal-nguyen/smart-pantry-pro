@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   // Test de l'API OpenAI si la clé existe
-  let apiTest = { success: false, error: null };
+  let apiTest: { success: boolean; error: string | null } = { success: false, error: null };
   
   if (process.env.OPENAI_API_KEY) {
     try {
