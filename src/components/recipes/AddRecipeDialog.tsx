@@ -216,11 +216,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
       return;
     }
 
-    console.log('🔗 Starting URL parsing for:', recipeUrl);
-
     try {
       const result = await parseURL(recipeUrl);
-      console.log('📋 Parse result:', result);
       
       if (result.success && result.data) {
         const recipe = result.data;

@@ -44,30 +44,23 @@ export const useRecipeParser = () => {
   
   // Pattern principal adapté de useBarcodeAPI
   const parseRecipeFromURL = async (url: string): Promise<RecipeParsingResult> => {
-    console.log('🔍 useRecipeParser: Starting parseRecipeFromURL for', url);
     setLoading(true);
     setError(null);
     
     try {
       const domain = new URL(url).hostname.toLowerCase();
-      console.log('🌐 Domain detected:', domain);
       
       // Router vers parser spécialisé (pattern Cipher)
       switch (true) {
         case domain.includes('marmiton'):
-          console.log('→ Using Marmiton parser');
           return await parseMarmitonRecipe(url);
         case domain.includes('750g'):
-          console.log('→ Using 750g parser');
           return await parse750gRecipe(url);
         case domain.includes('cuisineaz'):
-          console.log('→ Using CuisineAZ parser');
           return await parseCuisineAZRecipe(url);
         case domain.includes('allrecipe'):
-          console.log('→ Using AllRecipes parser');
           return await parseAllRecipesRecipe(url);
         default:
-          console.log('→ Using generic parser');
           return await parseGenericRecipe(url);
       }
     } catch (err) {
@@ -98,16 +91,11 @@ const parseMarmitonRecipe = async (url: string): Promise<RecipeParsingResult> =>
     console.log('🥘 Parsing Marmiton recipe:', url);
     
     // 1. Fetch page content
-    const apiUrl = '/api/parse-recipe';
-    console.log('📡 Fetching from API:', apiUrl);
-    
-    const response = await fetch(apiUrl, {
+    const response = await fetch('/api/parse-recipe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, parser: 'marmiton' })
     });
-    
-    console.log('📡 API Response status:', response.status);
     
     if (!response.ok) {
       const errorData = await response.text();

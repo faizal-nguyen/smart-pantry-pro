@@ -67,14 +67,11 @@ export const useRecipes = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      // Temporaire : gérer l'absence de la colonne is_public
-      let query = supabase
+      const { data, error } = await supabase
         .from('recipes')
         .select('*')
-        .eq('user_id', user.user.id)
+        .or(`user_id.eq.${user.user.id},is_public.eq.true`)
         .order('created_at', { ascending: false });
-      
-      const { data, error } = await query;
 
       if (error) throw error;
       setRecipes(data || []);
@@ -118,23 +115,14 @@ export const useRecipes = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      // Temporaire : ignorer si la table n'existe pas
-      try {
-        const { data, error } = await supabase
-          .from('recipe_collections')
-          .select('*')
-          .eq('user_id', user.user.id)
-          .order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('recipe_collections')
+        .select('*')
+        .eq('user_id', user.user.id)
+        .order('created_at', { ascending: false });
 
-        if (error && error.code !== '42P01') { // 42P01 = table does not exist
-          throw error;
-        }
-        
-        setCollections(data || []);
-      } catch (tableError) {
-        console.warn('Table recipe_collections not found, skipping collections fetch');
-        setCollections([]);
-      }
+      if (error) throw error;
+      setCollections(data || []);
     } catch (error) {
       console.error('Error fetching collections:', error);
     }
@@ -146,29 +134,12 @@ export const useRecipes = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error('User not authenticated');
 
-      // Adapter les données pour éviter les erreurs de colonnes manquantes
-      const safeRecipeData: any = {
-        name: recipeData.name,
-        prep_time: recipeData.prep_time,
-        servings: recipeData.servings,
-        instructions: recipeData.instructions,
-        user_id: user.user.id
-      };
-      
-      // Ajouter les colonnes optionnelles seulement si elles existent dans le schéma
-      const optionalFields = ['description', 'image_url', 'cuisine_category', 'meal_type', 
-                            'cook_time', 'rest_time', 'difficulty', 'tags', 'source_type', 
-                            'source_url', 'nutrition_info', 'is_public', 'rating', 'rating_count'];
-      
-      for (const field of optionalFields) {
-        if (recipeData[field as keyof typeof recipeData] !== undefined) {
-          safeRecipeData[field] = recipeData[field as keyof typeof recipeData];
-        }
-      }
-
       const { data, error } = await supabase
         .from('recipes')
-        .insert([safeRecipeData])
+        .insert([{
+          ...recipeData,
+          user_id: user.user.id
+        }])
         .select()
         .single();
 
@@ -193,54 +164,31 @@ export const useRecipes = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error('User not authenticated');
 
-      // 1. Ajouter la recette avec gestion des colonnes manquantes
-      const safeRecipeData: any = {
-        name: recipeData.name,
-        prep_time: recipeData.prep_time,
-        servings: recipeData.servings,
-        instructions: recipeData.instructions,
-        user_id: user.user.id
-      };
-      
-      // Ajouter les colonnes optionnelles
-      const optionalFields = ['description', 'image_url', 'cuisine_category', 'meal_type', 
-                            'cook_time', 'rest_time', 'difficulty', 'tags', 'source_type', 
-                            'source_url', 'nutrition_info', 'is_public', 'rating', 'rating_count'];
-      
-      for (const field of optionalFields) {
-        if (recipeData[field as keyof typeof recipeData] !== undefined) {
-          safeRecipeData[field] = recipeData[field as keyof typeof recipeData];
-        }
-      }
-
+      // 1. Ajouter la recette
       const { data: recipe, error: recipeError } = await supabase
         .from('recipes')
-        .insert([safeRecipeData])
+        .insert([{
+          ...recipeData,
+          user_id: user.user.id
+        }])
         .select()
         .single();
 
       if (recipeError) throw recipeError;
 
-      // 2. Ajouter les ingrédients (si la table existe)
+      // 2. Ajouter les ingrédients
       if (ingredients.length > 0) {
-        try {
-          const ingredientsWithRecipeId = ingredients.map((ingredient, index) => ({
-            ...ingredient,
-            recipe_id: recipe.id,
-            order_index: index
-          }));
+        const ingredientsWithRecipeId = ingredients.map((ingredient, index) => ({
+          ...ingredient,
+          recipe_id: recipe.id,
+          order_index: index
+        }));
 
-          const { error: ingredientsError } = await supabase
-            .from('recipe_ingredients')
-            .insert(ingredientsWithRecipeId);
+        const { error: ingredientsError } = await supabase
+          .from('recipe_ingredients')
+          .insert(ingredientsWithRecipeId);
 
-          if (ingredientsError && ingredientsError.code !== '42P01') {
-            console.error('Error adding ingredients:', ingredientsError);
-            // Ne pas faire échouer l'ajout de la recette si les ingrédients échouent
-          }
-        } catch (ingError) {
-          console.warn('Could not add ingredients, table might not exist');
-        }
+        if (ingredientsError) throw ingredientsError;
       }
 
       setRecipes(prev => [recipe, ...prev]);
