@@ -250,10 +250,15 @@ const parseWithAI = async (url: string, source: string): Promise<RecipeParsingRe
     });
     
     if (!response.ok) {
-      throw new Error('AI parsing failed');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'AI parsing failed');
     }
     
     const result = await response.json();
+    
+    if (!result.success) {
+      throw new Error(result.error || 'AI parsing failed');
+    }
     
     return {
       success: true,
@@ -267,7 +272,7 @@ const parseWithAI = async (url: string, source: string): Promise<RecipeParsingRe
     
     return {
       success: false,
-      error: 'Parsing IA impossible',
+      error: error instanceof Error ? error.message : 'Parsing IA impossible',
       confidence: 0,
       parsingMethod: 'fallback'
     };
@@ -846,6 +851,33 @@ const extractTagsFromData = (data: any): string[] => {
   }
   
   return tags.filter(Boolean);
+};
+
+const extractTagsFromRecipe = (name: string, description: string): string[] => {
+  const tags: string[] = [];
+  const text = `${name} ${description}`.toLowerCase();
+  
+  // Tags basés sur des mots-clés
+  const tagMap: Record<string, string[]> = {
+    'rapide': ['rapide', 'quick', '15 min', '10 min'],
+    'facile': ['facile', 'simple', 'easy'],
+    'végétarien': ['végétarien', 'vegetarian', 'végé'],
+    'végan': ['végan', 'vegan'],
+    'sans gluten': ['sans gluten', 'gluten free'],
+    'dessert': ['dessert', 'gâteau', 'tarte', 'mousse'],
+    'apéritif': ['apéritif', 'tapas', 'entrée'],
+    'plat principal': ['plat principal', 'main course'],
+    'salade': ['salade', 'salad'],
+    'soupe': ['soupe', 'soup', 'potage']
+  };
+  
+  for (const [tag, keywords] of Object.entries(tagMap)) {
+    if (keywords.some(keyword => text.includes(keyword))) {
+      tags.push(tag);
+    }
+  }
+  
+  return tags;
 };
 
 const createFallbackRecipe = (url: string, name: string): ParsedRecipe => {
