@@ -201,6 +201,8 @@ IMPORTANT:
     }
 
     // 4. Parser et valider le JSON
+    console.log('Raw AI Response:', aiResponse);
+    
     let recipe;
     try {
       // Nettoyer la réponse (enlever markdown si présent)
@@ -209,11 +211,35 @@ IMPORTANT:
         .replace(/```\s*/g, '')
         .trim();
       
+      console.log('Cleaned response:', cleanedResponse.substring(0, 200) + '...');
+      
       recipe = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      console.error('JSON parsing error:', parseError);
-      console.error('AI Response:', aiResponse);
-      throw new Error('Invalid JSON response from AI');
+      console.error('JSON parsing error:', parseError.message);
+      console.error('AI Response (first 500 chars):', aiResponse.substring(0, 500));
+      
+      // Essayer de retourner une version simplifiée
+      return res.status(200).json({
+        success: true,
+        recipe: {
+          name: "Recette importée",
+          description: "Parsing en cours d'amélioration",
+          ingredients: [
+            { name: "Voir la recette originale", quantity: 1, unit: "unité", is_essential: true }
+          ],
+          instructions: aiResponse || "Instructions non disponibles",
+          prep_time: 30,
+          cook_time: 30,
+          servings: 4,
+          source_url: url
+        },
+        confidence: 0.3,
+        method: 'ai-fallback',
+        debug: {
+          error: parseError.message,
+          rawResponse: aiResponse.substring(0, 500)
+        }
+      });
     }
 
     // 5. Validation et normalisation
