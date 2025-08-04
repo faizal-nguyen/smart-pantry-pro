@@ -98,10 +98,16 @@ const parseMarmitonRecipe = async (url: string): Promise<RecipeParsingResult> =>
     });
     
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Parse recipe API error:', errorData);
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const html = await response.text();
+    
+    if (!html || html.length < 100) {
+      throw new Error('Contenu HTML invalide ou vide');
+    }
     
     // 2. Try structured data first (JSON-LD)
     const structuredData = extractJSONLD(html, 'Recipe');
@@ -274,20 +280,50 @@ const extractJSONLD = (html: string, schemaType: string): any => {
     // Regex pour extraire JSON-LD
     const jsonLdRegex = /<script[^>]*type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/gsi;
     let match;
+    const foundScripts = [];
     
     while ((match = jsonLdRegex.exec(html)) !== null) {
       try {
-        const jsonData = JSON.parse(match[1]);
+        const jsonText = match[1].trim();
+        // Nettoyer le JSON de caractères problématiques
+        const cleanedJson = jsonText
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Supprimer caractères de contrôle
+          .replace(/\r?\n/g, ' ') // Remplacer retours ligne
+          .replace(/\s+/g, ' '); // Normaliser espaces
+          
+        const jsonData = JSON.parse(cleanedJson);
+        foundScripts.push(jsonData);
         
-        if (jsonData['@type'] === schemaType || 
-            (Array.isArray(jsonData) && jsonData.some(item => item['@type'] === schemaType))) {
-          return Array.isArray(jsonData) ? jsonData.find(item => item['@type'] === schemaType) : jsonData;
+        // Chercher le type Recipe
+        if (jsonData['@type'] === schemaType) {
+          console.log('✅ Found direct Recipe JSON-LD');
+          return jsonData;
+        }
+        
+        // Chercher dans un array
+        if (Array.isArray(jsonData)) {
+          const recipe = jsonData.find(item => item['@type'] === schemaType);
+          if (recipe) {
+            console.log('✅ Found Recipe in JSON-LD array');
+            return recipe;
+          }
+        }
+        
+        // Chercher dans un graph
+        if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+          const recipe = jsonData['@graph'].find(item => item['@type'] === schemaType);
+          if (recipe) {
+            console.log('✅ Found Recipe in JSON-LD graph');
+            return recipe;
+          }
         }
       } catch (e) {
+        console.warn('Failed to parse JSON-LD:', e.message);
         continue;
       }
     }
     
+    console.log(`Found ${foundScripts.length} JSON-LD scripts but no Recipe schema`);
     return null;
   } catch (error) {
     console.error('Error extracting JSON-LD:', error);
@@ -323,20 +359,47 @@ const extractMicrodata = (html: string, itemType: string): any => {
 
 // Normaliseurs spécialisés (patterns Cipher)
 const normalizeMarmitonStructuredData = (data: any): ParsedRecipe => {
+  console.log('📋 Normalizing Marmiton structured data');
+  
+  // Gérer les différents formats de yield
+  let servings = 4;
+  if (data.recipeYield) {
+    if (typeof data.recipeYield === 'string') {
+      const match = data.recipeYield.match(/\d+/);
+      servings = match ? parseInt(match[0]) : 4;
+    } else if (typeof data.recipeYield === 'number') {
+      servings = data.recipeYield;
+    } else if (Array.isArray(data.recipeYield) && data.recipeYield.length > 0) {
+      servings = parseInt(data.recipeYield[0]) || 4;
+    }
+  }
+  
+  // Gérer les images (format Marmiton spécifique)
+  let imageUrl = '';
+  if (data.image) {
+    if (typeof data.image === 'string') {
+      imageUrl = data.image;
+    } else if (data.image.url) {
+      imageUrl = data.image.url;
+    } else if (Array.isArray(data.image) && data.image.length > 0) {
+      imageUrl = typeof data.image[0] === 'string' ? data.image[0] : data.image[0].url || '';
+    }
+  }
+  
   return {
     name: data.name || 'Recette sans nom',
     description: data.description || '',
-    image_url: data.image?.url || data.image || '',
-    cuisine_category: guessCuisineFromName(data.name),
-    meal_type: guessMealTypeFromName(data.name),
-    prep_time: parseDuration(data.prepTime) || 30,
+    image_url: imageUrl,
+    cuisine_category: data.recipeCuisine || guessCuisineFromName(data.name),
+    meal_type: data.recipeCategory || guessMealTypeFromName(data.name),
+    prep_time: parseDuration(data.prepTime) || 15,
     cook_time: parseDuration(data.cookTime) || 30,
-    servings: parseInt(data.recipeYield) || 4,
+    servings,
     difficulty: guessDifficultyFromInstructions(data.recipeInstructions),
     instructions: normalizeInstructions(data.recipeInstructions),
     ingredients: normalizeIngredients(data.recipeIngredient),
     tags: extractTagsFromData(data),
-    source_url: data.url || '',
+    source_url: data.url || data['@id'] || '',
     confidence: 0.9
   };
 };
@@ -408,24 +471,125 @@ const normalizeMicrodataRecipe = (microdata: any): ParsedRecipe => {
 
 // Parsers DOM spécialisés (pattern Cipher fallback)
 const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
-  // Parsing DOM basique pour Marmiton (pattern Cipher)
+  // Parsing DOM amélioré pour Marmiton (pattern Cipher)
   try {
-    // Extraction titre
-    const titleMatch = html.match(/<h1[^>]*class="[^"]*recipe-title[^"]*"[^>]*>([^<]+)</i) ||
-                      html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    const name = titleMatch ? titleMatch[1].trim() : 'Recette Marmiton';
-
+    // Extraction titre - Marmiton 2024 structure
+    const titleMatch = html.match(/<h1[^>]*class="[^"]*recipe-name[^"]*"[^>]*>([^<]+)</i) ||
+                      html.match(/<h1[^>]*class="[^"]*recipe-title[^"]*"[^>]*>([^<]+)</i) ||
+                      html.match(/<h1[^>]*class="[^"]*SHRD__sc[^"]*"[^>]*>([^<]+)</i) ||
+                      html.match(/<h1[^>]*data-testid="recipe-title"[^>]*>([^<]+)</i) ||
+                      html.match(/<h1[^>]*>([^<]+)<\/h1>/i) ||
+                      html.match(/property="og:title"[^>]*content="([^"]+)"/i);
+    const name = titleMatch ? titleMatch[1].trim().replace(' - Marmiton', '').replace(/&#?\w+;/g, '') : 'Recette Marmiton';
+    
     // Extraction description
-    const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
-    const description = descMatch ? descMatch[1] : '';
-
+    const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i) ||
+                     html.match(/<div[^>]*class="[^"]*recipe-description[^"]*"[^>]*>([^<]+)</i);
+    const description = descMatch ? descMatch[1].trim() : '';
+    
     // Extraction image
-    const imgMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i);
+    const imgMatch = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i) ||
+                    html.match(/<img[^>]*class="[^"]*recipe-media[^"]*"[^>]*src="([^"]+)"/i);
     const image_url = imgMatch ? imgMatch[1] : '';
-
-    // Temps de préparation/cuisson basique
-    const prepMatch = html.match(/préparation[^0-9]*(\d+)[^0-9]*min/i);
-    const cookMatch = html.match(/cuisson[^0-9]*(\d+)[^0-9]*min/i);
+    
+    // Temps de préparation/cuisson - Marmiton utilise des formats variés
+    const prepMatch = html.match(/(?:préparation|prep)[^0-9]*(\d+)[^0-9]*(?:min|h)/i) ||
+                     html.match(/data-prep-time="(\d+)"/i);
+    const cookMatch = html.match(/(?:cuisson|cook)[^0-9]*(\d+)[^0-9]*(?:min|h)/i) ||
+                     html.match(/data-cook-time="(\d+)"/i);
+    
+    // Portions
+    const servingsMatch = html.match(/(?:pour|serves?)[^0-9]*(\d+)[^0-9]*(?:personnes?|pers)/i) ||
+                         html.match(/data-servings="(\d+)"/i);
+    
+    // Extraction des ingrédients - Marmiton structure
+    const ingredients: ParsedIngredient[] = [];
+    
+    // Essayer plusieurs patterns pour les ingrédients
+    const ingredientPatterns = [
+      /<li[^>]*class="[^"]*ingredient[^"]*"[^>]*>(.*?)<\/li>/gi,
+      /<div[^>]*class="[^"]*recipe-ingredient[^"]*"[^>]*>(.*?)<\/div>/gi,
+      /<span[^>]*class="[^"]*ingredient-[^"]*"[^>]*>(.*?)<\/span>/gi
+    ];
+    
+    for (const pattern of ingredientPatterns) {
+      const matches = html.matchAll(pattern);
+      for (const match of matches) {
+        const ingText = match[1]
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (ingText && ingText.length > 2) {
+          // Parser l'ingrédient pour extraire quantité et nom
+          const { quantity, unit, name } = parseIngredientText(ingText);
+          if (name) {
+            ingredients.push({
+              name,
+              quantity,
+              unit,
+              is_essential: true,
+              confidence: 0.7
+            });
+          }
+        }
+      }
+      if (ingredients.length > 0) break;
+    }
+    
+    // Extraction des instructions
+    let instructions = '';
+    
+    // Essayer plusieurs patterns pour les instructions
+    const instructionPatterns = [
+      /<div[^>]*class="[^"]*recipe-preparation[^"]*"[^>]*>(.*?)<\/div>/si,
+      /<ol[^>]*class="[^"]*recipe-steps[^"]*"[^>]*>(.*?)<\/ol>/si,
+      /<div[^>]*class="[^"]*preparation[^"]*"[^>]*>(.*?)<\/div>/si
+    ];
+    
+    for (const pattern of instructionPatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        // Extraire chaque étape
+        const stepsHtml = match[1];
+        const stepMatches = stepsHtml.matchAll(/<li[^>]*>(.*?)<\/li>/gi);
+        const steps = [];
+        let stepNum = 1;
+        
+        for (const stepMatch of stepMatches) {
+          const stepText = stepMatch[1]
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          if (stepText && stepText.length > 10) {
+            steps.push(`${stepNum}. ${stepText}`);
+            stepNum++;
+          }
+        }
+        
+        if (steps.length > 0) {
+          instructions = steps.join('\n');
+          break;
+        }
+      }
+    }
+    
+    // Si pas d'instructions structurées, essayer de trouver du texte
+    if (!instructions) {
+      const fallbackMatch = html.match(/(?:préparation|instructions?|étapes?)[^<]*<[^>]*>(.*?)<\/[^>]+>/si);
+      if (fallbackMatch) {
+        instructions = fallbackMatch[1]
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+    }
+    
+    // Difficulté
+    const diffMatch = html.match(/(?:difficulté|difficulty)[^0-9]*(\d)/i) ||
+                     html.match(/data-difficulty="(\d+)"/i);
+    const difficulty = diffMatch ? parseInt(diffMatch[1]) : 2;
     
     return {
       name,
@@ -433,15 +597,15 @@ const parseMarmitonDOM = (html: string, url: string): ParsedRecipe => {
       image_url,
       cuisine_category: guessCuisineFromName(name),
       meal_type: guessMealTypeFromName(name),
-      prep_time: prepMatch ? parseInt(prepMatch[1]) : 30,
+      prep_time: prepMatch ? parseInt(prepMatch[1]) : 15,
       cook_time: cookMatch ? parseInt(cookMatch[1]) : 30,
-      servings: 4,
-      difficulty: 2,
-      instructions: 'Instructions à compléter après import DOM',
-      ingredients: [],
-      tags: ['marmiton'],
+      servings: servingsMatch ? parseInt(servingsMatch[1]) : 4,
+      difficulty: Math.min(5, Math.max(1, difficulty)),
+      instructions: instructions || 'Voir la recette sur Marmiton pour les instructions complètes',
+      ingredients,
+      tags: extractTagsFromRecipe(name, description),
       source_url: url,
-      confidence: 0.5
+      confidence: ingredients.length > 0 ? 0.7 : 0.5
     };
   } catch (error) {
     console.error('Error parsing Marmiton DOM:', error);

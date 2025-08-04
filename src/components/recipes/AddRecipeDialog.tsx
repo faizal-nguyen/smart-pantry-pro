@@ -141,9 +141,11 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
   
   // URL parsing state
   const [recipeUrl, setRecipeUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
   
   // Social media parsing state
   const [socialUrl, setSocialUrl] = useState("");
+  const [socialError, setSocialError] = useState<string | null>(null);
   
   // OCR scanner state (pattern Cipher)
   const [showOCRScanner, setShowOCRScanner] = useState(false);
@@ -169,6 +171,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
     ]);
     setRecipeUrl("");
     setSocialUrl("");
+    setUrlError(null);
+    setSocialError(null);
     setCurrentTab("manual");
   };
 
@@ -205,12 +209,10 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
 
   // Pattern parsing URL (implementation Cipher avec useRecipeParser)
   const parseRecipeFromURL = async () => {
+    setUrlError(null);
+    
     if (!recipeUrl.trim()) {
-      toast({
-        title: "URL manquante",
-        description: "Veuillez entrer une URL de recette",
-        variant: "destructive"
-      });
+      setUrlError("Veuillez entrer une URL de recette");
       return;
     }
 
@@ -250,28 +252,37 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
           description: `${recipe.name} - ${recipe.ingredients.length} ingrédients (${result.parsingMethod})`,
         });
         
+        // Passer au mode manuel pour finaliser
+        setCurrentTab("manual");
+        
       } else {
         throw new Error(result.error || 'Parsing failed');
       }
       
     } catch (error) {
       console.error('URL parsing error:', error);
-      toast({
-        title: "Erreur de parsing",
-        description: error instanceof Error ? error.message : "Impossible d'extraire la recette de cette URL",
-        variant: "destructive"
-      });
+      const errorMessage = error instanceof Error ? error.message : "Impossible d'extraire la recette de cette URL";
+      setUrlError(errorMessage);
+      
+      // Afficher des suggestions pour résoudre le problème
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        setUrlError("URL introuvable. Vérifiez que le lien est correct.");
+      } else if (errorMessage.includes('timeout')) {
+        setUrlError("Délai d'attente dépassé. Le site est peut-être lent ou indisponible.");
+      } else if (errorMessage.includes('HTTP')) {
+        setUrlError("Erreur de connexion au site. Réessayez dans quelques instants.");
+      } else {
+        setUrlError(`Erreur: ${errorMessage}. Essayez de copier-coller le texte manuellement.`);
+      }
     }
   };
 
   // Social media parsing handler (pattern Cipher)
   const parseSocialRecipe = async () => {
+    setSocialError(null);
+    
     if (!socialUrl.trim()) {
-      toast({
-        title: "URL manquante",
-        description: "Veuillez entrer une URL de réseau social",
-        variant: "destructive"
-      });
+      setSocialError("Veuillez entrer une URL de réseau social");
       return;
     }
 
@@ -320,11 +331,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
       
     } catch (error) {
       console.error('Social parsing error:', error);
-      toast({
-        title: "Erreur de parsing",
-        description: error instanceof Error ? error.message : "Impossible d'extraire la recette de ce réseau social",
-        variant: "destructive"
-      });
+      const errorMessage = error instanceof Error ? error.message : "Impossible d'extraire la recette de ce réseau social";
+      setSocialError(errorMessage);
     }
   };
 
@@ -783,6 +791,11 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
               <p className="text-sm text-muted-foreground mt-1">
                 Supporte: Marmiton, 750g, Cuisine AZ, blogs culinaires
               </p>
+              {urlError && (
+                <div className="text-sm text-red-500 mt-2 p-2 bg-red-50 rounded">
+                  {urlError}
+                </div>
+              )}
             </div>
             
             {/* Si parsing réussi, afficher preview */}
@@ -847,6 +860,11 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
                   </Badge>
                 </div>
               </div>
+              {socialError && (
+                <div className="text-sm text-red-500 mt-2 p-2 bg-red-50 rounded">
+                  {socialError}
+                </div>
+              )}
             </div>
             
             {/* Exemples de liens */}
