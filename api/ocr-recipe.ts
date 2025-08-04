@@ -152,7 +152,7 @@ async function processWithTesseract(imageBuffer: Buffer) {
     // Optimize for recipe text recognition
     await worker.setParameters({
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ .,;:!?()-\'\"°/\\n',
-      tessedit_pageseg_mode: '6', // Uniform block of text
+      tessedit_pageseg_mode: 6, // Uniform block of text
     });
 
     const { data: { text, confidence } } = await worker.recognize(imageBuffer);
@@ -179,7 +179,7 @@ function parseRecipeFromText(text: string): { success: boolean; recipe?: any } {
     // Clean and normalize text
     const cleanText = text
       .replace(/\s+/g, ' ')
-      .replace(/[^\w\sàâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ.,;:!?()-'\"°/]/g, '')
+      .replace(/[^\w\sàâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ.,;:!?()\-'\"°\/]/g, '')
       .trim();
 
     if (cleanText.length < 50) {

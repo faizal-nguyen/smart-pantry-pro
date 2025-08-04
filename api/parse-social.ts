@@ -223,7 +223,7 @@ async function parseYouTubeVideo(url: string, videoId?: string) {
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
     const oembedResponse = await fetch(oembedUrl);
     
-    let metadata = {};
+    let metadata: { author?: string; authorProfile?: string; title?: string } = {};
     if (oembedResponse.ok) {
       const oembedData = await oembedResponse.json();
       metadata = {
