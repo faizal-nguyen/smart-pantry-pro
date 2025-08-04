@@ -1,0 +1,98 @@
+# cipher-pantry-validator.yml
+llm:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  apiKey: $ANTHROPIC_API_KEY
+
+systemPrompt: |
+  Tu es le SMART PANTRY VALIDATOR avec mémoire Cipher intégrée.
+  
+  MISSION VALIDATION INTELLIGENTE:
+  - Rechercher dans Cipher les patterns similaires déjà validés/échoués
+  - Analyser conflicts avec l'architecture Smart Pantry existante
+  - Identifier risques spécifiques aux apps d'inventaire alimentaire
+  - Prédire problèmes basé sur expériences passées
+  - Recommander précautions adaptées au contexte alimentaire
+  
+  STACK SMART PANTRY À VALIDER:
+  - Frontend: React + TypeScript + Tailwind CSS (responsive mobile-first)
+  - Backend: Supabase (PostgreSQL + Storage + Auth)
+  - IA: OpenAI API (recettes + parsing vocal)
+  - Camera: Web APIs (codes-barres + photos produits)
+  - PWA: Service Workers + offline functionality
+  
+  DOMAINES CRITIQUES SMART PANTRY:
+  - Reconnaissance vocale alimentaire (variations linguistiques)
+  - Gestion dates péremption (alertes critiques santé)
+  - Photos produits (storage + compression + thumbnails)
+  - Scanner codes-barres (API OpenFoodFacts + fallbacks)
+  - IA recettes (contexte inventaire + suggestions pertinentes)
+  - Sync temps réel (inventaire partagé famille)
+  - Performance mobile (usage cuisine/courses)
+
+memory:
+  system: cipher
+  categories:
+    # Validation Patterns Spécialisés
+    - pantry_validation_patterns_successful
+    - food_safety_validation_rules
+    - mobile_performance_validations
+    - voice_integration_validations
+    - camera_api_compatibility_checks
+    
+    # Échecs Analysés et Solutions
+    - common_pantry_app_failures
+    - food_data_integration_issues  
+    - offline_functionality_problems
+    - voice_recognition_edge_cases
+    - barcode_scanning_limitations
+    
+    # Architecture Patterns
+    - supabase_pantry_schema_patterns
+    - openai_food_integration_patterns
+    - pwa_offline_food_sync_patterns
+    - mobile_camera_optimization_patterns
+    - real_time_inventory_patterns
+
+specialization_memory:
+  food_safety_critical: true
+  mobile_performance_priority: true
+  offline_functionality_essential: true
+  voice_multilingual_support: true
+  family_sharing_complexity: true
+
+validation_checks:
+  food_safety:
+    - dates_peremption_format_validation
+    - allergenes_detection_voice_visual
+    - temperature_storage_validation
+    - contamination_croisee_separation
+  
+  voice_recognition:
+    - produits_francais_variations
+    - quantites_alimentaires_parsing
+    - variations_regionales_detection
+    - marques_vs_generiques_intelligence
+  
+  mobile_performance:
+    - camera_access_ios_android
+    - storage_quotas_photos_offline
+    - battery_usage_scanner_voice
+    - network_sync_offline_online
+  
+  integration_compatibility:
+    - openfoodfacts_api_limits
+    - supabase_storage_rls_policies
+    - openai_api_context_management
+    - pwa_capabilities_notifications
+
+output_format:
+  validation_result:
+    status: "SAFE_TO_PROCEED | NEEDS_PRECAUTIONS | STOP_AND_RESOLVE"
+    confidence_score: "0-100%"
+    similar_patterns_found: "number"
+    success_rate: "percentage"
+    recommendations: "array of actions"
+    precautions: "array of warnings"
+    blockers: "array of issues to resolve"
+    optimization_patterns: "array of proven optimizations"

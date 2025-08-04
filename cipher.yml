@@ -1,0 +1,104 @@
+# Cipher Configuration for Smart Pantry Pro
+# Memory layer for coding agents
+
+name: "Smart Pantry Pro Agent"
+description: "AI coding assistant with persistent memory for Smart Pantry project"
+
+# LLM Configuration
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  apiKey: $OPENAI_API_KEY
+  maxIterations: 50
+
+# Memory Configuration
+memory:
+  type: postgresql
+  connection:
+    host: $STORAGE_DATABASE_HOST
+    port: $STORAGE_DATABASE_PORT
+    database: $STORAGE_DATABASE_NAME
+    user: $STORAGE_DATABASE_USER
+    password: $STORAGE_DATABASE_PASSWORD
+    ssl: $STORAGE_DATABASE_SSL
+
+# Smart Pantry Specific Tools
+tools:
+  - name: smart_pantry_debug
+    description: "Debug Smart Pantry issues with specialized agents"
+    type: function
+    parameters:
+      type: object
+      properties:
+        issue:
+          type: string
+          description: "Description of the Smart Pantry issue"
+        agent_type:
+          type: string
+          enum: ["voice_ai", "inventory_camera", "smart_pantry_complete"]
+          description: "Type of debug agent to use"
+      required: ["issue"]
+
+  - name: barcode_api_test
+    description: "Test barcode API integration"
+    type: function
+    parameters:
+      type: object
+      properties:
+        barcode:
+          type: string
+          description: "Barcode to test"
+      required: ["barcode"]
+
+  - name: voice_recognition_test
+    description: "Test voice recognition functionality"
+    type: function
+    parameters:
+      type: object
+      properties:
+        command:
+          type: string
+          description: "Voice command to test"
+      required: ["command"]
+
+# Project Context
+context:
+  project: "Smart Pantry Pro"
+  stack:
+    - "React + TypeScript"
+    - "Vite"
+    - "Supabase"
+    - "Radix UI"
+    - "Tailwind CSS"
+    - "PWA"
+  features:
+    - "Voice Recognition"
+    - "Barcode Scanning"
+    - "AI Integration"
+    - "Inventory Management"
+    - "Photo Upload"
+    - "Mobile Optimization"
+  current_issues:
+    - "API codes-barres ne remplit pas les champs automatiquement"
+    - "Reconnaissance vocale parsing"
+    - "Performance mobile"
+    - "Synchronisation temps réel"
+
+# MCP Server Configuration
+mcp:
+  mode: aggregator
+  transport: stdio
+  tools:
+    - smart_pantry_debug
+    - barcode_api_test
+    - voice_recognition_test
+
+# Environment Variables
+env:
+  - OPENAI_API_KEY
+  - STORAGE_DATABASE_HOST
+  - STORAGE_DATABASE_PORT
+  - STORAGE_DATABASE_NAME
+  - STORAGE_DATABASE_USER
+  - STORAGE_DATABASE_PASSWORD
+  - STORAGE_DATABASE_SSL 

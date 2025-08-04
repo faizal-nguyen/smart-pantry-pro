@@ -1,0 +1,156 @@
+{
+  "slash_commands": [
+    {
+      "command": "/debug-voice",
+      "description": "🎤 Déboguer les problèmes de reconnaissance vocale et IA",
+      "examples": [
+        "/debug-voice \"La reconnaissance vocale ne comprend pas 'j'ai 2 litres de lait'\"",
+        "/debug-voice \"Le micro ne fonctionne pas sur mobile\"",
+        "/debug-voice \"L'IA ne comprend pas mon inventaire\""
+      ],
+      "agent": "VOICE_AI",
+      "expertise": [
+        "Reconnaissance vocale (Web Speech API)",
+        "Intégration OpenAI API", 
+        "Parsing intelligent des commandes vocales",
+        "Gestion des réponses IA contextuelles"
+      ]
+    },
+    {
+      "command": "/debug-scanner",
+      "description": "📱 Déboguer les problèmes de scanner codes-barres et caméra",
+      "examples": [
+        "/debug-scanner \"Le scanner ne reconnaît pas les codes EAN-13\"",
+        "/debug-scanner \"La caméra ne s'active pas sur mobile\"",
+        "/debug-scanner \"Upload photos échoue sur Supabase\""
+      ],
+      "agent": "INVENTORY_CAMERA",
+      "expertise": [
+        "Gestion inventaire en temps réel",
+        "Scanner codes-barres (ZXing/QuaggaJS)",
+        "Upload et traitement photos",
+        "Supabase Storage intégration"
+      ]
+    },
+    {
+      "command": "/debug-smart-pantry",
+      "description": "🥘 Analyse complète Smart Pantry (recommandé)",
+      "examples": [
+        "/debug-smart-pantry \"Le scan de code-barres ne remplit pas les champs automatiquement\"",
+        "/debug-smart-pantry \"L'application est lente sur mobile\"",
+        "/debug-smart-pantry \"Sync problèmes entre devices\""
+      ],
+      "agent": "SMART_PANTRY_COMPLETE",
+      "expertise": [
+        "Classification automatique des bugs",
+        "Coordination des agents spécialisés",
+        "Analyse complète Smart Pantry",
+        "Résolution garantie"
+      ]
+    },
+    {
+      "command": "/debug-voice-ai",
+      "description": "🤖 Déboguer spécifiquement les problèmes d'IA conversationnelle",
+      "examples": [
+        "/debug-voice-ai \"L'IA ne comprend pas mon inventaire\"",
+        "/debug-voice-ai \"Pas de suggestions de recettes\"",
+        "/debug-voice-ai \"Réponses OpenAI incohérentes\""
+      ],
+      "agent": "VOICE_AI",
+      "expertise": [
+        "OpenAI API integration",
+        "Context management",
+        "Prompt engineering",
+        "Response formatting"
+      ]
+    },
+    {
+      "command": "/debug-inventory-camera",
+      "description": "📦 Déboguer les problèmes d'inventaire et de caméra",
+      "examples": [
+        "/debug-inventory-camera \"Produits ne s'ajoutent pas à l'inventaire\"",
+        "/debug-inventory-camera \"La caméra ne s'active pas sur mobile\"",
+        "/debug-inventory-camera \"Upload photos échoue sur Supabase\""
+      ],
+      "agent": "INVENTORY_CAMERA",
+      "expertise": [
+        "CRUD operations Supabase",
+        "Real-time updates",
+        "Camera access",
+        "Barcode recognition"
+      ]
+    }
+  ],
+  "smart_pantry_context": {
+    "project": "Smart Pantry Pro",
+    "stack": [
+      "React + TypeScript",
+      "Vite",
+      "Supabase",
+      "Radix UI",
+      "Tailwind CSS",
+      "PWA"
+    ],
+    "features": [
+      "Voice Recognition",
+      "Barcode Scanning",
+      "AI Integration",
+      "Inventory Management",
+      "Photo Upload",
+      "Mobile Optimization"
+    ],
+    "current_issues": [
+      "API codes-barres ne remplit pas les champs automatiquement",
+      "Reconnaissance vocale parsing",
+      "Performance mobile",
+      "Synchronisation temps réel"
+    ]
+  },
+  "agents": {
+    "VOICE_AI": {
+      "name": "🎤 VOICE & AI INTEGRATION DEBUG AGENT",
+      "specialties": [
+        "Web Speech API",
+        "OpenAI Integration",
+        "NLP Parsing",
+        "Voice Commands"
+      ],
+      "bug_types": [
+        "Microphone permissions",
+        "Speech recognition accuracy",
+        "AI response quality",
+        "Text parsing errors"
+      ]
+    },
+    "INVENTORY_CAMERA": {
+      "name": "📱 INVENTORY & CAMERA DEBUG AGENT", 
+      "specialties": [
+        "Supabase CRUD",
+        "Barcode Scanning",
+        "Photo Upload",
+        "Mobile Optimization"
+      ],
+      "bug_types": [
+        "Database sync issues",
+        "Camera access problems",
+        "Storage upload failures",
+        "Mobile performance"
+      ]
+    },
+    "SMART_PANTRY_COMPLETE": {
+      "name": "🥘 SMART PANTRY COMPLETE ANALYSIS",
+      "specialties": [
+        "Automatic classification",
+        "Multi-agent coordination",
+        "End-to-end debugging",
+        "Smart Pantry expertise"
+      ],
+      "bug_types": [
+        "Cross-feature issues",
+        "Integration problems",
+        "Performance bottlenecks",
+        "User experience issues"
+      ]
+    }
+  }
+} 

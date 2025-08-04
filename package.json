@@ -30,9 +30,15 @@
     "claude:scanner": "node claude-runner.js /debug-scanner",
     "claude:smart-pantry": "node claude-runner.js /debug-smart-pantry",
     "claude:voice-ai": "node claude-runner.js /debug-voice-ai",
-    "claude:inventory-camera": "node claude-runner.js /debug-inventory-camera"
+    "claude:inventory-camera": "node claude-runner.js /debug-inventory-camera",
+    "agents:init": "node integrate-agents.js init",
+    "agents:status": "node integrate-agents.js status",
+    "agents:test": "node integrate-agents.js test",
+    "agents:debug": "node integrate-agents.js debug",
+    "agents:optimize": "node integrate-agents.js optimize"
   },
   "dependencies": {
+    "@vercel/node": "^3.0.21",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",

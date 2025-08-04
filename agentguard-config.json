@@ -1,0 +1,175 @@
+{
+  "name": "Smart Pantry AgentGuard",
+  "description": "Security and monitoring for Smart Pantry AI agents",
+  "version": "1.0.0",
+  "config": {
+    "security": {
+      "enabled": true,
+      "rate_limiting": {
+        "enabled": true,
+        "max_requests_per_minute": 100,
+        "max_requests_per_hour": 1000
+      },
+      "input_validation": {
+        "enabled": true,
+        "max_input_length": 10000,
+        "blocked_patterns": [
+          "script",
+          "javascript:",
+          "data:text/html",
+          "vbscript:"
+        ]
+      },
+      "output_filtering": {
+        "enabled": true,
+        "max_output_length": 50000,
+        "sensitive_patterns": [
+          "password",
+          "api_key",
+          "secret",
+          "token"
+        ]
+      }
+    },
+    "monitoring": {
+      "enabled": true,
+      "log_level": "info",
+      "metrics": {
+        "enabled": true,
+        "collect_performance": true,
+        "collect_errors": true,
+        "collect_usage": true
+      },
+      "alerts": {
+        "enabled": true,
+        "error_threshold": 5,
+        "performance_threshold": 1000
+      }
+    },
+    "agents": {
+      "smart_pantry_debug": {
+        "enabled": true,
+        "security_level": "high",
+        "rate_limit": 50,
+        "timeout": 30000,
+        "allowed_operations": [
+          "debug_voice",
+          "debug_scanner",
+          "debug_smart_pantry",
+          "test_barcode_api",
+          "test_voice_recognition"
+        ]
+      },
+      "voice_ai_agent": {
+        "enabled": true,
+        "security_level": "medium",
+        "rate_limit": 30,
+        "timeout": 60000,
+        "allowed_operations": [
+          "voice_recognition",
+          "speech_parsing",
+          "openai_integration"
+        ]
+      },
+      "inventory_camera_agent": {
+        "enabled": true,
+        "security_level": "medium",
+        "rate_limit": 40,
+        "timeout": 45000,
+        "allowed_operations": [
+          "barcode_scanning",
+          "camera_access",
+          "photo_upload",
+          "inventory_management"
+        ]
+      }
+    },
+    "smart_pantry_specific": {
+      "barcode_api": {
+        "enabled": true,
+        "allowed_apis": [
+          "openfoodfacts",
+          "upc_database"
+        ],
+        "rate_limit": 20,
+        "timeout": 10000
+      },
+      "voice_recognition": {
+        "enabled": true,
+        "allowed_languages": ["fr-FR", "en-US"],
+        "max_duration": 30,
+        "noise_reduction": true
+      },
+      "supabase_integration": {
+        "enabled": true,
+        "allowed_operations": [
+          "read_inventory",
+          "write_inventory",
+          "upload_photos",
+          "sync_data"
+        ],
+        "rate_limit": 100
+      }
+    }
+  },
+  "rules": {
+    "input_validation": [
+      "All user inputs must be sanitized",
+      "Barcode inputs must be numeric only",
+      "Voice commands must be text only",
+      "File uploads must be images only"
+    ],
+    "output_validation": [
+      "No sensitive data in responses",
+      "API keys must be masked",
+      "Database credentials must be hidden",
+      "Error messages must be user-friendly"
+    ],
+    "rate_limiting": [
+      "Max 100 requests per minute per user",
+      "Max 1000 requests per hour per user",
+      "Barcode API calls limited to 20 per minute",
+      "Voice recognition limited to 30 per minute"
+    ],
+    "security": [
+      "All API calls must be authenticated",
+      "Database queries must use prepared statements",
+      "File uploads must be validated",
+      "Cross-origin requests must be validated"
+    ]
+  },
+  "monitoring": {
+    "metrics": {
+      "performance": {
+        "response_time": "avg",
+        "memory_usage": "max",
+        "cpu_usage": "avg",
+        "error_rate": "percentage"
+      },
+      "usage": {
+        "requests_per_minute": "count",
+        "unique_users": "count",
+        "feature_usage": "distribution"
+      },
+      "security": {
+        "blocked_requests": "count",
+        "suspicious_activity": "count",
+        "rate_limit_violations": "count"
+      }
+    },
+    "alerts": {
+      "high_error_rate": {
+        "threshold": 5,
+        "action": "notify_admin"
+      },
+      "performance_degradation": {
+        "threshold": 1000,
+        "action": "scale_resources"
+      },
+      "security_breach": {
+        "threshold": 1,
+        "action": "block_user"
+      }
+    }
+  }
+} 

@@ -1,0 +1,100 @@
+# cipher-pantry-executor.yml
+llm:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  apiKey: $ANTHROPIC_API_KEY
+
+systemPrompt: |
+  Tu es l'ORCHESTRATOR SMART PANTRY avec mémoire Cipher intégrée.
+  
+  MISSION EXÉCUTION INTELLIGENTE:
+  - Utiliser Cipher pour appliquer patterns pantry prouvés
+  - Déployer agents spécialisés avec mémoire alimentaire
+  - Optimiser implémentation basée sur learnings précédents
+  - Éviter erreurs communes aux apps d'inventaire alimentaire
+  - Stocker nouveaux patterns découverts pour amélioration continue
+  
+  ARCHITECTURE SMART PANTRY:
+  - Frontend responsive mobile-first (usage cuisine)
+  - Base données alimentaire (produits + inventaire + recettes)
+  - IA conversationnelle (suggestions recettes contextuelles)
+  - Reconnaissance vocale alimentaire (français + variations)
+  - Scanner codes-barres (OpenFoodFacts integration)
+  - Gestion photos produits (compression + storage optimisé)
+  - Mode offline (usage courses + cuisine sans réseau)
+  
+  AGENTS SPÉCIALISÉS DISPONIBLES:
+  - Voice & AI Integration Agent (reconnaissance vocale + OpenAI)
+  - Inventory & Camera Agent (gestion stock + scanner + photos)
+
+memory:
+  system: cipher
+  categories:
+    # Execution Patterns Pantry
+    - pantry_feature_execution_successful
+    - food_app_optimization_strategies
+    - mobile_cooking_app_patterns
+    - voice_food_recognition_patterns
+    - inventory_sync_patterns_effective
+    
+    # Implementation Learnings
+    - supabase_food_schema_optimizations
+    - openai_recipe_integration_patterns
+    - camera_barcode_optimization_learned
+    - offline_pantry_sync_strategies
+    - mobile_kitchen_ux_patterns
+    
+    # Performance & Quality
+    - pantry_app_performance_optimizations
+    - food_safety_implementation_patterns
+    - user_engagement_food_apps
+    - retention_strategies_cooking_apps
+
+deployment_intelligence:
+  learn_from_food_app_patterns: true
+  optimize_for_kitchen_usage: true
+  prioritize_offline_functionality: true
+  enhance_voice_food_recognition: true
+  apply_food_safety_validations: true
+
+execution_strategies:
+  voice_ai_deployment:
+    patterns_search: "voice_food_recognition_patterns"
+    optimizations: "openai_recipe_integration_patterns"
+    fallbacks: "voice_recognition_edge_cases"
+    learning_storage: "voice_food_recognition_patterns"
+  
+  inventory_camera_deployment:
+    scanner_patterns: "camera_barcode_optimization_learned"
+    storage_patterns: "supabase_food_schema_optimizations"
+    offline_patterns: "offline_pantry_sync_strategies"
+    learning_storage: "inventory_sync_patterns_effective"
+
+performance_tracking:
+  execution_time_improvement: true
+  pattern_recognition_accuracy: true
+  user_satisfaction_metrics: true
+  feature_success_rate: true
+  learning_accumulation_speed: true
+
+intelligence_evolution:
+  stages:
+    beginner: "1-5 features: apprentissage patterns de base"
+    intermediate: "6-15 features: reconnaissance patterns alimentaires"
+    expert: "16-30 features: optimisations food-tech avancées"
+    master: "30+ features: super-intelligence pantry évolutive"
+  
+  improvement_metrics:
+    execution_speed_gain: "15-80% per stage"
+    pattern_accuracy: "60-95% recognition rate"
+    user_satisfaction: "70-98% satisfaction rate"
+    code_quality: "continuously improving"
+
+output_format:
+  execution_result:
+    intelligence_applied: "patterns found and used"
+    agents_deployed: "specialized agents with memory"
+    optimizations_used: "food-specific improvements"
+    performance_gain: "execution time improvement"
+    learning_stored: "new patterns discovered"
+    next_execution_prediction: "expected improvement"

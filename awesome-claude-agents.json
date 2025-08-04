@@ -1,0 +1,270 @@
+{
+  "name": "Smart Pantry Awesome Claude Agents",
+  "description": "Collection of specialized Claude agents for Smart Pantry Pro",
+  "version": "1.0.0",
+  "agents": {
+    "smart_pantry_debugger": {
+      "name": "🥘 Smart Pantry Debug Agent",
+      "description": "Specialized agent for debugging Smart Pantry issues",
+      "capabilities": [
+        "Voice recognition debugging",
+        "Barcode scanner troubleshooting",
+        "API integration analysis",
+        "Mobile performance optimization",
+        "Database sync issues"
+      ],
+      "tools": [
+        "debug_voice",
+        "debug_scanner",
+        "debug_smart_pantry",
+        "test_barcode_api",
+        "test_voice_recognition"
+      ],
+      "prompts": {
+        "system": "You are a specialized Smart Pantry debugging agent. You help diagnose and fix issues with voice recognition, barcode scanning, API integrations, and mobile performance. Always provide step-by-step solutions and validate fixes.",
+        "examples": [
+          "Debug voice recognition issues",
+          "Troubleshoot barcode scanner problems",
+          "Analyze API integration failures",
+          "Optimize mobile performance"
+        ]
+      }
+    },
+    "voice_ai_specialist": {
+      "name": "🎤 Voice & AI Specialist",
+      "description": "Expert in voice recognition and AI integration",
+      "capabilities": [
+        "Web Speech API configuration",
+        "OpenAI integration",
+        "NLP parsing",
+        "Voice command processing",
+        "AI response optimization"
+      ],
+      "tools": [
+        "voice_recognition_test",
+        "speech_parsing_analysis",
+        "openai_integration_debug",
+        "voice_command_validation"
+      ],
+      "prompts": {
+        "system": "You are a Voice & AI specialist for Smart Pantry. You excel at debugging voice recognition issues, optimizing AI responses, and improving user experience with voice commands.",
+        "examples": [
+          "Fix microphone permissions",
+          "Improve speech recognition accuracy",
+          "Optimize AI response quality",
+          "Debug parsing errors"
+        ]
+      }
+    },
+    "inventory_camera_expert": {
+      "name": "📱 Inventory & Camera Expert",
+      "description": "Specialist in inventory management and camera operations",
+      "capabilities": [
+        "Barcode scanning optimization",
+        "Camera access management",
+        "Photo upload troubleshooting",
+        "Database synchronization",
+        "Mobile camera integration"
+      ],
+      "tools": [
+        "barcode_scanner_test",
+        "camera_access_debug",
+        "photo_upload_analysis",
+        "inventory_sync_check"
+      ],
+      "prompts": {
+        "system": "You are an Inventory & Camera expert for Smart Pantry. You specialize in barcode scanning, camera operations, photo management, and database synchronization issues.",
+        "examples": [
+          "Fix barcode recognition",
+          "Debug camera access",
+          "Troubleshoot photo uploads",
+          "Resolve sync issues"
+        ]
+      }
+    },
+    "performance_optimizer": {
+      "name": "⚡ Performance Optimizer",
+      "description": "Expert in mobile and web performance optimization",
+      "capabilities": [
+        "Mobile performance analysis",
+        "PWA optimization",
+        "Bundle size optimization",
+        "Loading time improvement",
+        "Memory usage optimization"
+      ],
+      "tools": [
+        "performance_audit",
+        "bundle_analysis",
+        "loading_time_test",
+        "memory_usage_check"
+      ],
+      "prompts": {
+        "system": "You are a Performance Optimizer for Smart Pantry. You focus on improving mobile performance, PWA functionality, and overall user experience.",
+        "examples": [
+          "Optimize mobile performance",
+          "Improve PWA installation",
+          "Reduce bundle size",
+          "Speed up loading times"
+        ]
+      }
+    },
+    "security_guardian": {
+      "name": "🛡️ Security Guardian",
+      "description": "Security specialist for Smart Pantry applications",
+      "capabilities": [
+        "Input validation",
+        "API security",
+        "Data protection",
+        "Rate limiting",
+        "Vulnerability assessment"
+      ],
+      "tools": [
+        "security_audit",
+        "input_validation_check",
+        "api_security_test",
+        "vulnerability_scan"
+      ],
+      "prompts": {
+        "system": "You are a Security Guardian for Smart Pantry. You ensure all user inputs are safe, APIs are secure, and data is protected.",
+        "examples": [
+          "Validate user inputs",
+          "Secure API endpoints",
+          "Protect sensitive data",
+          "Implement rate limiting"
+        ]
+      }
+    }
+  },
+  "integrations": {
+    "cipher": {
+      "enabled": true,
+      "config_file": "cipher.yml",
+      "memory_persistence": true,
+      "context_awareness": true
+    },
+    "agentguard": {
+      "enabled": true,
+      "config_file": "agentguard-config.json",
+      "security_monitoring": true,
+      "rate_limiting": true
+    },
+    "smart_pantry_agents": {
+      "enabled": true,
+      "config_file": "smart-pantry-agents.js",
+      "specialized_debugging": true,
+      "automated_classification": true
+    }
+  },
+  "workflows": {
+    "debug_workflow": {
+      "name": "Smart Pantry Debug Workflow",
+      "steps": [
+        {
+          "step": 1,
+          "agent": "smart_pantry_debugger",
+          "action": "classify_issue",
+          "description": "Classify the reported issue"
+        },
+        {
+          "step": 2,
+          "agent": "voice_ai_specialist",
+          "action": "analyze_voice_issues",
+          "condition": "issue_type == 'voice'"
+        },
+        {
+          "step": 3,
+          "agent": "inventory_camera_expert",
+          "action": "analyze_camera_issues",
+          "condition": "issue_type == 'camera'"
+        },
+        {
+          "step": 4,
+          "agent": "performance_optimizer",
+          "action": "analyze_performance",
+          "condition": "issue_type == 'performance'"
+        },
+        {
+          "step": 5,
+          "agent": "security_guardian",
+          "action": "security_check",
+          "condition": "always"
+        },
+        {
+          "step": 6,
+          "agent": "smart_pantry_debugger",
+          "action": "provide_solution",
+          "description": "Provide comprehensive solution"
+        }
+      ]
+    },
+    "optimization_workflow": {
+      "name": "Smart Pantry Optimization Workflow",
+      "steps": [
+        {
+          "step": 1,
+          "agent": "performance_optimizer",
+          "action": "audit_performance",
+          "description": "Audit current performance"
+        },
+        {
+          "step": 2,
+          "agent": "voice_ai_specialist",
+          "action": "optimize_voice",
+          "description": "Optimize voice features"
+        },
+        {
+          "step": 3,
+          "agent": "inventory_camera_expert",
+          "action": "optimize_camera",
+          "description": "Optimize camera features"
+        },
+        {
+          "step": 4,
+          "agent": "security_guardian",
+          "action": "security_audit",
+          "description": "Security audit"
+        },
+        {
+          "step": 5,
+          "agent": "smart_pantry_debugger",
+          "action": "validate_optimizations",
+          "description": "Validate all optimizations"
+        }
+      ]
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "agent_performance": {
+        "response_time": "avg",
+        "success_rate": "percentage",
+        "user_satisfaction": "rating"
+      },
+      "issue_resolution": {
+        "time_to_resolve": "avg",
+        "resolution_rate": "percentage",
+        "recurrence_rate": "percentage"
+      },
+      "feature_usage": {
+        "voice_recognition": "count",
+        "barcode_scanning": "count",
+        "photo_upload": "count",
+        "inventory_management": "count"
+      }
+    },
+    "alerts": {
+      "high_error_rate": {
+        "threshold": 5,
+        "action": "notify_admin"
+      },
+      "performance_degradation": {
+        "threshold": 1000,
+        "action": "trigger_optimization"
+      },
+      "security_breach": {
+        "threshold": 1,
+        "action": "block_and_notify"
+      }
+    }
+  }
+} 

@@ -1,0 +1,607 @@
+import { useState } from "react";
+import { useRecipeParser } from "@/hooks/useRecipeParser";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { 
+  ChefHat, 
+  Camera, 
+  Link, 
+  Instagram, 
+  Loader2,
+  Plus,
+  X,
+  Star,
+  Clock,
+  Users
+} from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+
+// Pattern cuisine categories (adaptation ProductCard Cipher)
+const CUISINE_CATEGORIES = [
+  "Française",
+  "Italienne", 
+  "Asiatique",
+  "Méditerranéenne",
+  "Mexicaine",
+  "Indienne",
+  "Japonaise",
+  "Américaine",
+  "Végétarienne",
+  "Végan",
+  "Sans gluten",
+  "Desserts",
+  "Autres"
+];
+
+const MEAL_TYPES = [
+  "breakfast",
+  "lunch", 
+  "dinner",
+  "snack",
+  "dessert",
+  "drink",
+  "appetizer"
+];
+
+const UNITS = [
+  "g", "kg", "ml", "l", "c.à.s", "c.à.c", 
+  "tasse", "verre", "pincée", "gousse", 
+  "tranche", "unité", "boîte", "paquet"
+];
+
+interface Recipe {
+  name: string;
+  description?: string;
+  image_url?: string;
+  cuisine_category?: string;
+  meal_type?: string;
+  prep_time: number;
+  cook_time: number;
+  servings: number;
+  difficulty: number;
+  instructions: string;
+  tags: string[];
+  ingredients: RecipeIngredient[];
+}
+
+interface RecipeIngredient {
+  name: string;
+  quantity: number;
+  unit: string;
+  is_essential: boolean;
+  notes?: string;
+}
+
+interface AddRecipeDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRecipeAdded?: (recipe: Recipe) => void;
+}
+
+const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogProps) => {
+  const [loading, setLoading] = useState(false);
+  const [currentTab, setCurrentTab] = useState("manual");
+  
+  // URL parsing hook (pattern Cipher)
+  const { parseRecipeFromURL: parseURL, loading: parsing, error: parseError } = useRecipeParser();
+  
+  // Form state (pattern AddProductDialog Cipher)
+  const [recipeName, setRecipeName] = useState("");
+  const [description, setDescription] = useState("");
+  const [cuisineCategory, setCuisineCategory] = useState("");
+  const [mealType, setMealType] = useState("");
+  const [prepTime, setPrepTime] = useState("15");
+  const [cookTime, setCookTime] = useState("30");
+  const [servings, setServings] = useState("4");
+  const [difficulty, setDifficulty] = useState(2);
+  const [instructions, setInstructions] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
+  
+  // Ingredients state
+  const [ingredients, setIngredients] = useState<RecipeIngredient[]>([
+    { name: "", quantity: 0, unit: "g", is_essential: true, notes: "" }
+  ]);
+  
+  // URL parsing state
+  const [recipeUrl, setRecipeUrl] = useState("");
+
+  const resetForm = () => {
+    setRecipeName("");
+    setDescription("");
+    setCuisineCategory("");
+    setMealType("");
+    setPrepTime("15");
+    setCookTime("30");
+    setServings("4");
+    setDifficulty(2);
+    setInstructions("");
+    setImageUrl("");
+    setTags([]);
+    setNewTag("");
+    setIngredients([
+      { name: "", quantity: 0, unit: "g", is_essential: true, notes: "" }
+    ]);
+    setRecipeUrl("");
+    setCurrentTab("manual");
+  };
+
+  const addTag = () => {
+    if (newTag.trim() && !tags.includes(newTag.trim())) {
+      setTags([...tags, newTag.trim()]);
+      setNewTag("");
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  const addIngredient = () => {
+    setIngredients([
+      ...ingredients,
+      { name: "", quantity: 0, unit: "g", is_essential: true, notes: "" }
+    ]);
+  };
+
+  const updateIngredient = (index: number, field: keyof RecipeIngredient, value: any) => {
+    const updated = ingredients.map((ingredient, i) => 
+      i === index ? { ...ingredient, [field]: value } : ingredient
+    );
+    setIngredients(updated);
+  };
+
+  const removeIngredient = (index: number) => {
+    if (ingredients.length > 1) {
+      setIngredients(ingredients.filter((_, i) => i !== index));
+    }
+  };
+
+  // Pattern parsing URL (implementation Cipher avec useRecipeParser)
+  const parseRecipeFromURL = async () => {
+    if (!recipeUrl.trim()) {
+      toast({
+        title: "URL manquante",
+        description: "Veuillez entrer une URL de recette",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const result = await parseURL(recipeUrl);
+      
+      if (result.success && result.data) {
+        const recipe = result.data;
+        
+        // Remplir le formulaire avec les données parsées (pattern Cipher)
+        setRecipeName(recipe.name);
+        setDescription(recipe.description || "");
+        setCuisineCategory(recipe.cuisine_category || "");
+        setMealType(recipe.meal_type || "");
+        setPrepTime(recipe.prep_time.toString());
+        setCookTime(recipe.cook_time.toString());
+        setServings(recipe.servings.toString());
+        setDifficulty(recipe.difficulty);
+        setInstructions(recipe.instructions);
+        setImageUrl(recipe.image_url || "");
+        
+        // Mapper les ingrédients
+        const mappedIngredients = recipe.ingredients.map(ing => ({
+          name: ing.name,
+          quantity: ing.quantity,
+          unit: ing.unit,
+          is_essential: ing.is_essential,
+          notes: ing.notes || ""
+        }));
+        setIngredients(mappedIngredients);
+        
+        // Tags
+        setTags(recipe.tags || []);
+        
+        toast({
+          title: "Recette parsée !",
+          description: `${recipe.name} - ${recipe.ingredients.length} ingrédients (${result.parsingMethod})`,
+        });
+        
+      } else {
+        throw new Error(result.error || 'Parsing failed');
+      }
+      
+    } catch (error) {
+      console.error('URL parsing error:', error);
+      toast({
+        title: "Erreur de parsing",
+        description: error instanceof Error ? error.message : "Impossible d'extraire la recette de cette URL",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!recipeName.trim()) {
+      toast({
+        title: "Nom manquant",
+        description: "Veuillez entrer un nom pour la recette",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (ingredients.filter(ing => ing.name.trim()).length === 0) {
+      toast({
+        title: "Ingrédients manquants", 
+        description: "Veuillez ajouter au moins un ingrédient",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const recipe: Recipe = {
+        name: recipeName,
+        description: description || undefined,
+        image_url: imageUrl || undefined,
+        cuisine_category: cuisineCategory || undefined,
+        meal_type: mealType || undefined,
+        prep_time: parseInt(prepTime),
+        cook_time: parseInt(cookTime),
+        servings: parseInt(servings),
+        difficulty,
+        instructions,
+        tags,
+        ingredients: ingredients.filter(ing => ing.name.trim())
+      };
+
+      // TODO: Implémenter avec useRecipes hook
+      console.log('🍳 Adding recipe:', recipe);
+      
+      onRecipeAdded?.(recipe);
+      onOpenChange(false);
+      resetForm();
+      
+      toast({
+        title: "Recette ajoutée !",
+        description: `${recipeName} a été ajoutée à votre collection`,
+      });
+      
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter la recette",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ChefHat className="h-5 w-5" />
+            Ajouter une recette
+          </DialogTitle>
+        </DialogHeader>
+        
+        {/* Tabs pour différents modes d'ajout (pattern Cipher) */}
+        <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsTrigger value="manual" className="text-xs">
+              Manuel
+            </TabsTrigger>
+            <TabsTrigger value="url" className="text-xs">
+              URL
+            </TabsTrigger>
+            <TabsTrigger value="social" className="text-xs" disabled>
+              Social
+            </TabsTrigger>
+            <TabsTrigger value="scan" className="text-xs" disabled>
+              Scanner
+            </TabsTrigger>
+          </TabsList>
+          
+          {/* Mode manuel */}
+          <TabsContent value="manual" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nom de la recette *</Label>
+                <Input
+                  id="name"
+                  value={recipeName}
+                  onChange={(e) => setRecipeName(e.target.value)}
+                  placeholder="Ex: Pâtes à la carbonara"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="cuisine">Cuisine</Label>
+                <Select value={cuisineCategory} onValueChange={setCuisineCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choisir une cuisine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CUISINE_CATEGORIES.map((cuisine) => (
+                      <SelectItem key={cuisine} value={cuisine}>
+                        {cuisine}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description courte de la recette..."
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="prep-time">Préparation (min)</Label>
+                <Input
+                  id="prep-time"
+                  type="number"
+                  value={prepTime}
+                  onChange={(e) => setPrepTime(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="cook-time">Cuisson (min)</Label>
+                <Input
+                  id="cook-time"
+                  type="number"
+                  value={cookTime}
+                  onChange={(e) => setCookTime(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="servings">Portions</Label>
+                <Input
+                  id="servings"
+                  type="number"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <Label>Difficulté</Label>
+                <div className="flex items-center gap-1 mt-1">
+                  {[1, 2, 3, 4, 5].map((level) => (
+                    <Button
+                      key={level}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setDifficulty(level)}
+                    >
+                      <Star 
+                        className={`h-4 w-4 ${
+                          level <= difficulty 
+                            ? 'fill-yellow-400 text-yellow-400' 
+                            : 'text-gray-300'
+                        }`} 
+                      />
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Ingrédients */}
+            <div>
+              <Label>Ingrédients *</Label>
+              <div className="space-y-2">
+                {ingredients.map((ingredient, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      placeholder="Nom ingrédient"
+                      value={ingredient.name}
+                      onChange={(e) => updateIngredient(index, 'name', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Qté"
+                      value={ingredient.quantity || ''}
+                      onChange={(e) => updateIngredient(index, 'quantity', parseFloat(e.target.value) || 0)}
+                      className="w-20"
+                    />
+                    <Select 
+                      value={ingredient.unit} 
+                      onValueChange={(value) => updateIngredient(index, 'unit', value)}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UNITS.map((unit) => (
+                          <SelectItem key={unit} value={unit}>
+                            {unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeIngredient(index)}
+                      disabled={ingredients.length === 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addIngredient}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter un ingrédient
+                </Button>
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div>
+              <Label htmlFor="instructions">Instructions *</Label>
+              <Textarea
+                id="instructions"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="1. Étape 1...&#10;2. Étape 2...&#10;3. Étape 3..."
+                rows={6}
+              />
+            </div>
+
+            {/* Tags */}
+            <div>
+              <Label>Tags</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Input
+                  placeholder="Ajouter un tag..."
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && addTag()}
+                />
+                <Button onClick={addTag} size="sm">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="cursor-pointer">
+                    {tag}
+                    <X 
+                      className="h-3 w-3 ml-1" 
+                      onClick={() => removeTag(tag)}
+                    />
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+          
+          {/* Mode URL */}
+          <TabsContent value="url" className="space-y-4">
+            <div>
+              <Label htmlFor="url">URL de la recette</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="url"
+                  value={recipeUrl}
+                  onChange={(e) => setRecipeUrl(e.target.value)}
+                  placeholder="https://www.marmiton.org/recettes/..."
+                />
+                <Button 
+                  onClick={parseRecipeFromURL}
+                  disabled={parsing}
+                >
+                  {parsing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Link className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Supporte: Marmiton, 750g, Cuisine AZ, blogs culinaires
+              </p>
+            </div>
+            
+            {/* Si parsing réussi, afficher preview */}
+            {recipeName && (
+              <div className="p-4 border rounded-lg bg-muted/50">
+                <h4 className="font-semibold mb-2">Recette extraite :</h4>
+                <p><strong>{recipeName}</strong></p>
+                <p className="text-sm text-muted-foreground">{description}</p>
+                <div className="flex items-center gap-4 text-sm mt-2">
+                  <span>⏱️ {parseInt(prepTime) + parseInt(cookTime)}min</span>
+                  <span>👥 {servings} pers.</span>
+                  <span>📊 {difficulty}/5</span>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+          
+          {/* Modes désactivés pour l'instant */}
+          <TabsContent value="social">
+            <div className="text-center py-8 text-muted-foreground">
+              <Instagram className="h-12 w-12 mx-auto mb-4" />
+              <p>Import depuis les réseaux sociaux</p>
+              <p className="text-sm">Bientôt disponible...</p>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="scan">
+            <div className="text-center py-8 text-muted-foreground">
+              <Camera className="h-12 w-12 mx-auto mb-4" />
+              <p>Scanner de livres de recettes</p>
+              <p className="text-sm">Bientôt disponible...</p>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Annuler
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Ajout en cours...
+              </>
+            ) : (
+              <>
+                <ChefHat className="h-4 w-4 mr-2" />
+                Ajouter la recette
+              </>
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default AddRecipeDialog;

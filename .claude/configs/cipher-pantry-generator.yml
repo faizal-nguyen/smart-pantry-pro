@@ -1,0 +1,117 @@
+# cipher-pantry-generator.yml
+llm:
+  provider: anthropic
+  model: claude-3-5-sonnet-20241022
+  apiKey: $ANTHROPIC_API_KEY
+
+systemPrompt: |
+  Tu es le SMART PANTRY FEATURE GENERATOR avec mémoire Cipher intégrée.
+  
+  MISSION GÉNÉRATION PRP INTELLIGENTE:
+  - Analyser codebase Smart Pantry pour patterns existants
+  - Utiliser mémoire Cipher pour appliquer patterns alimentaires prouvés
+  - Générer Product Requirements Prompts (PRP) complets et optimisés
+  - Spécialiser pour apps d'inventaire alimentaire et usage mobile cuisine
+  - Intégrer learnings accumulés pour amélioration continue qualité
+  
+  ARCHITECTURE SMART PANTRY À ANALYSER:
+  - Frontend: React + TypeScript + Tailwind CSS (mobile-first)
+  - Backend: Supabase (PostgreSQL + Storage + Auth + RLS)
+  - IA: OpenAI API (recettes contextuelles + parsing vocal)
+  - APIs: OpenFoodFacts (codes-barres) + Web APIs (caméra)
+  - PWA: Service Workers + offline functionality + notifications
+  - Mobile: Responsive + touch-optimized + performance cuisine
+  
+  SPÉCIALISATIONS ALIMENTAIRES PRP:
+  - Reconnaissance vocale produits alimentaires français
+  - Scanner codes-barres avec fallbacks OpenFoodFacts
+  - IA recettes basée inventaire réel utilisateur
+  - Photos produits avec compression optimisée
+  - Gestion dates péremption et alertes sécurité
+  - Sync offline pour usage courses + cuisine
+  - Performance mobile pour usage mains occupées
+  - UX adaptée éclairage cuisine + feedback audio
+
+memory:
+  system: cipher
+  categories:
+    # PRP Generation Patterns
+    - pantry_prp_generation_successful
+    - food_tech_feature_blueprints
+    - mobile_kitchen_prp_patterns
+    - voice_integration_prp_templates
+    - camera_scanner_prp_optimized
+    
+    # Codebase Analysis Patterns
+    - react_pantry_component_patterns
+    - supabase_food_schema_patterns
+    - openai_recipe_integration_patterns
+    - openfoodfacts_api_patterns
+    - pwa_offline_sync_patterns
+    
+    # Implementation Learnings
+    - feature_implementation_success_patterns
+    - common_pantry_development_pitfalls
+    - food_safety_implementation_requirements
+    - mobile_performance_optimization_patterns
+    - user_engagement_kitchen_patterns
+    
+    # Quality Assurance Patterns
+    - food_tech_testing_strategies
+    - mobile_kitchen_qa_checklists
+    - voice_recognition_validation_patterns
+    - offline_functionality_testing_patterns
+
+generation_intelligence:
+  analyze_existing_codebase: true
+  apply_food_tech_patterns: true
+  optimize_for_mobile_kitchen: true
+  integrate_voice_ai_learnings: true
+  include_offline_strategies: true
+  apply_performance_optimizations: true
+
+prp_structure:
+  context_section:
+    - smart_pantry_architecture_overview
+    - existing_patterns_analysis
+    - cipher_intelligence_applied
+    - food_tech_specializations
+  
+  implementation_section:
+    - step_by_step_phases
+    - component_breakdown_optimized
+    - integration_points_proven
+    - testing_strategy_food_specialized
+  
+  validation_section:
+    - unit_tests_food_tech
+    - integration_tests_apis
+    - performance_benchmarks_mobile
+    - ux_validation_kitchen_usage
+  
+  quality_section:
+    - code_review_food_tech_checklist
+    - security_food_data_requirements
+    - accessibility_kitchen_usage
+    - responsive_mobile_first_validation
+  
+  success_section:
+    - functional_requirements_food
+    - performance_measurements_mobile
+    - user_experience_kitchen_goals  
+    - business_impact_retention_metrics
+
+output_optimization:
+  use_proven_patterns: true
+  include_implementation_shortcuts: true
+  predict_common_issues: true
+  suggest_performance_optimizations: true
+  provide_fallback_strategies: true
+  include_testing_scenarios: true
+
+intelligence_evolution:
+  track_prp_success_rate: true
+  learn_from_implementation_feedback: true
+  improve_pattern_recognition: true
+  optimize_generation_speed: true
+  enhance_food_tech_specialization: true
