@@ -35,16 +35,36 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('Request method:', req.method);
+    console.log('Request headers:', req.headers);
+    console.log('Request body type:', typeof req.body);
+    console.log('Request body:', req.body);
+    
     // Parse body if needed
     let body = req.body;
-    if (typeof body === 'string') {
+    
+    // Si c'est undefined, essayer de lire le stream
+    if (!body && req.readable) {
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      const rawBody = Buffer.concat(chunks).toString();
+      console.log('Raw body:', rawBody);
+      try {
+        body = JSON.parse(rawBody);
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid JSON', details: e.message });
+      }
+    } else if (typeof body === 'string') {
       try {
         body = JSON.parse(body);
       } catch (e) {
-        return res.status(400).json({ error: 'Invalid JSON in request body' });
+        return res.status(400).json({ error: 'Invalid JSON', details: e.message });
       }
     }
     
+    console.log('Parsed body:', body);
     const { url, source } = body || {};
 
     if (!url) {
