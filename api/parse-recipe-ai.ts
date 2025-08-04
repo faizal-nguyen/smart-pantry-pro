@@ -1,5 +1,29 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+// Fonction de retry avec backoff exponentiel
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: Error | unknown;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (i < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, i);
+        console.log(`🔄 Retry ${i + 1}/${maxRetries} après ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 // API endpoint pour parsing recettes avec IA (pattern Cipher AI)
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -43,10 +67,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    const response = await fetch(url, { 
-      headers, 
-      signal: controller.signal 
-    });
+    let response;
+    try {
+      response = await fetch(url, { 
+        headers, 
+        signal: controller.signal 
+      });
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('⏱️ Timeout lors du fetch de l\'URL après 15 secondes');
+        throw new Error('Timeout: La page a mis trop de temps à répondre');
+      }
+      console.error('❌ Erreur lors du fetch:', fetchError);
+      throw new Error(`Impossible de récupérer la page: ${fetchError instanceof Error ? fetchError.message : 'Erreur inconnue'}`);
+    }
 
     clearTimeout(timeoutId);
 
@@ -114,7 +149,8 @@ IMPORTANT:
 
     // 3. Appel OpenAI avec gestion d'erreurs (pattern Cipher précautions)
     console.log('🔄 Calling OpenAI API...');
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+    const openaiResponse = await retryWithBackoff(async () => {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
@@ -135,14 +171,17 @@ IMPORTANT:
         max_tokens: 2000,
         temperature: 0.1,
       }),
-    });
+      });
 
-    if (!openaiResponse.ok) {
-      const errorBody = await openaiResponse.text();
-      console.error('❌ OpenAI API error:', openaiResponse.status);
-      console.error('Error response:', errorBody);
-      throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorBody}`);
-    }
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error('❌ OpenAI API error:', response.status);
+        console.error('Error response:', errorBody);
+        throw new Error(`OpenAI API error: ${response.status} - ${errorBody}`);
+      }
+      
+      return response;
+    }, 3, 2000); // 3 retries avec délai de base de 2 secondes
 
     const openaiData = await openaiResponse.json();
     const aiResponse = openaiData.choices?.[0]?.message?.content;
@@ -198,6 +237,7 @@ IMPORTANT:
     }
 
     console.log(`✅ AI parsed recipe: ${normalizedRecipe.name} with ${normalizedRecipe.ingredients.length} ingredients`);
+    console.log('Ingredients:', normalizedRecipe.ingredients.map(i => `${i.quantity} ${i.unit} ${i.name}`).join(', '));
 
     res.status(200).json({
       success: true,
@@ -218,12 +258,18 @@ IMPORTANT:
       if (error.message.includes('API key')) {
         errorMessage = 'OpenAI API not configured';
         statusCode = 503;
-      } else if (error.name === 'AbortError') {
+      } else if (error.name === 'AbortError' || error.message.includes('Timeout')) {
         errorMessage = 'Request timeout';
         statusCode = 408;
       } else if (error.message.includes('JSON')) {
         errorMessage = 'Invalid response format';
         statusCode = 422;
+      } else if (error.message.includes('fetch')) {
+        errorMessage = 'Failed to fetch recipe page';
+        statusCode = 502;
+      } else if (error.message.includes('OpenAI API error')) {
+        errorMessage = 'AI service temporarily unavailable';
+        statusCode = 503;
       }
     }
 

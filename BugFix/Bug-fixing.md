@@ -1,39 +1,86 @@
 Bug-fixing.md
 
-erreur sur la page recette 
- Recipe analysis completed: ✅ Can make
-supabase-vendor-CbgWI24E.js:1 
- POST https://jwoxacnflphclslpqfzs.supabase.co/rest/v1/recipe_inventory_cache 404 (Not Found)
-(anonyme)	@	supabase-vendor-CbgWI24E.js:1
-(anonyme)	@	supabase-vendor-CbgWI24E.js:1
-o	@	supabase-vendor-CbgWI24E.js:1
-Promise.then		
-c	@	supabase-vendor-CbgWI24E.js:1
-(anonyme)	@	supabase-vendor-CbgWI24E.js:1
-Qt	@	supabase-vendor-CbgWI24E.js:1
-(anonyme)	@	supabase-vendor-CbgWI24E.js:1
-then	@	supabase-vendor-CbgWI24E.js:1
+Auth event: SIGNED_IN faizal.nguyen@hotmail.fr
+index-CiUanMF1.js:33 🥘 Parsing Marmiton recipe: https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx
+index-CiUanMF1.js:33 
+ POST https://smart-pantry-pro.vercel.app/api/parse-recipe 500 (Internal Server Error)
+index-CiUanMF1.js:33 Parse recipe API error: A server error has occurred
 
-J'ai bien ajouté la clé OpenAI dans vercel mais j'ai toujours les problemes avec les fonctions de parsing AI. Je ne sais pas quoi faire. 
+FUNCTION_INVOCATION_FAILED
 
-supabase-vendor-CbgWI24E.js:1  GET https://jwoxacnflphclslpqfzs.supabase.co/rest/v1/recipe_inventory_cache?select=*&recipe_id=eq.6d455894-6b65-41c9-b036-247ec3bc2a93&user_id=eq.c1e994cc-4af9-47ef-9fd1-a8a8f803c5c6 404 (Not Found)
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-o @ supabase-vendor-CbgWI24E.js:1
-Promise.then
-c @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-Qt @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-then @ supabase-vendor-CbgWI24E.js:1Comprendre cette erreur
-supabase-vendor-CbgWI24E.js:1  POST https://jwoxacnflphclslpqfzs.supabase.co/rest/v1/recipe_inventory_cache 404 (Not Found)
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-o @ supabase-vendor-CbgWI24E.js:1
-Promise.then
-c @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-Qt @ supabase-vendor-CbgWI24E.js:1
-(anonyme) @ supabase-vendor-CbgWI24E.js:1
-then @ supabase-vendor-CbgWI24E.js:1Comprendre cette erreur
-index-CiUanMF1.js:33 🍳 Recipe analysis completed: ✅ Can make
+cdg1::zxntl-1754313517482-fc782490980e
+index-CiUanMF1.js:33 Error parsing Marmiton recipe: Error: HTTP 500: 
+    at Il (index-CiUanMF1.js:33:466687)
+    at async parseRecipeFromURL (index-CiUanMF1.js:33:466045)
+    at async onClick (index-CiUanMF1.js:33:514753)
+Il	@	index-CiUanMF1.js:33
+await in Il		
+parseRecipeFromURL	@	index-CiUanMF1.js:33
+onClick	@	index-CiUanMF1.js:33
+_n	@	react-vendor-CrvtNH9J.js:20
+Mn	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Pl	@	react-vendor-CrvtNH9J.js:20
+Nl	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Js	@	react-vendor-CrvtNH9J.js:20
+Sn	@	react-vendor-CrvtNH9J.js:20
+Ol	@	react-vendor-CrvtNH9J.js:20
+Ut	@	react-vendor-CrvtNH9J.js:20
+Dt	@	react-vendor-CrvtNH9J.js:20
+index-CiUanMF1.js:33 🤖 Parsing with AI: https://www.marmiton.org/recettes/recette_poireaux-a-la-grecque-rapides_29482.aspx
+index-CiUanMF1.js:33 
+ POST https://smart-pantry-pro.vercel.app/api/parse-recipe-ai 500 (Internal Server Error)
+Tl	@	index-CiUanMF1.js:33
+Il	@	index-CiUanMF1.js:33
+await in Il		
+parseRecipeFromURL	@	index-CiUanMF1.js:33
+onClick	@	index-CiUanMF1.js:33
+_n	@	react-vendor-CrvtNH9J.js:20
+Mn	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Pl	@	react-vendor-CrvtNH9J.js:20
+Nl	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Js	@	react-vendor-CrvtNH9J.js:20
+Sn	@	react-vendor-CrvtNH9J.js:20
+Ol	@	react-vendor-CrvtNH9J.js:20
+Ut	@	react-vendor-CrvtNH9J.js:20
+Dt	@	react-vendor-CrvtNH9J.js:20
+index-CiUanMF1.js:33 AI parsing failed: Error: AI parsing failed
+    at Tl (index-CiUanMF1.js:33:468504)
+    at async Il (index-CiUanMF1.js:33:467058)
+    at async parseRecipeFromURL (index-CiUanMF1.js:33:466045)
+    at async onClick (index-CiUanMF1.js:33:514753)
+Tl	@	index-CiUanMF1.js:33
+await in Tl		
+Il	@	index-CiUanMF1.js:33
+await in Il		
+parseRecipeFromURL	@	index-CiUanMF1.js:33
+onClick	@	index-CiUanMF1.js:33
+_n	@	react-vendor-CrvtNH9J.js:20
+Mn	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Pl	@	react-vendor-CrvtNH9J.js:20
+Nl	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Js	@	react-vendor-CrvtNH9J.js:20
+Sn	@	react-vendor-CrvtNH9J.js:20
+Ol	@	react-vendor-CrvtNH9J.js:20
+Ut	@	react-vendor-CrvtNH9J.js:20
+Dt	@	react-vendor-CrvtNH9J.js:20
+index-CiUanMF1.js:33 URL parsing error: Error: Parsing IA impossible
+    at onClick (index-CiUanMF1.js:33:514793)
+onClick	@	index-CiUanMF1.js:33
+await in onClick		
+_n	@	react-vendor-CrvtNH9J.js:20
+Mn	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Pl	@	react-vendor-CrvtNH9J.js:20
+Nl	@	react-vendor-CrvtNH9J.js:20
+(anonyme)	@	react-vendor-CrvtNH9J.js:20
+Js	@	react-vendor-CrvtNH9J.js:20
+Sn	@	react-vendor-CrvtNH9J.js:20
+Ol	@	react-vendor-CrvtNH9J.js:20
+Ut	@	react-vendor-CrvtNH9J.js:20
+Dt	@	react-vendor-CrvtNH9J.js:20

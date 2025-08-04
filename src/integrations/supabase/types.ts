@@ -119,28 +119,52 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          product_id: string
-          quantity_needed: number
+          inventory_product_id: string
+          quantity: number
           recipe_id: string
+          is_essential: boolean
+          ingredient_name: string
+          unit: string
+          notes: string | null
+          order_index: number
+          updated_at: string
+          calories_per_unit: number | null
+          nutrition_data: Json | null
         }
         Insert: {
           created_at?: string
           id?: string
-          product_id: string
-          quantity_needed?: number
+          inventory_product_id?: string
+          quantity: number
           recipe_id: string
+          is_essential?: boolean
+          ingredient_name: string
+          unit: string
+          notes?: string | null
+          order_index?: number
+          updated_at?: string
+          calories_per_unit?: number | null
+          nutrition_data?: Json | null
         }
         Update: {
           created_at?: string
           id?: string
-          product_id?: string
-          quantity_needed?: number
+          inventory_product_id?: string
+          quantity?: number
           recipe_id?: string
+          is_essential?: boolean
+          ingredient_name?: string
+          unit?: string
+          notes?: string | null
+          order_index?: number
+          updated_at?: string
+          calories_per_unit?: number | null
+          nutrition_data?: Json | null
         }
         Relationships: [
           {
-            foreignKeyName: "recipe_ingredients_product_id_fkey"
-            columns: ["product_id"]
+            foreignKeyName: "recipe_ingredients_inventory_product_id_fkey"
+            columns: ["inventory_product_id"]
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
