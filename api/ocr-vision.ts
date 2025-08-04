@@ -206,7 +206,7 @@ async function fallbackToTesseract(req: VercelRequest, res: VercelResponse) {
     // Optimize for recipe text
     await worker.setParameters({
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ .,;:!?()-\'\"°/\\n',
-      tessedit_pageseg_mode: '6', // Uniform block of text
+      tessedit_pageseg_mode: 6, // Uniform block of text
     });
 
     const { data: { text, confidence } } = await worker.recognize(imageBuffer);
@@ -283,7 +283,7 @@ function parseRecipeFromText(text: string): { success: boolean; recipe?: any } {
     // Clean and normalize text (better for Google Vision structured output)
     const cleanText = text
       .replace(/\s+/g, ' ')
-      .replace(/[^\w\sàâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ.,;:!?()-'\"°/]/g, '')
+      .replace(/[^\w\sàâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ.,;:!?()\-'\"°/]/g, '')
       .trim();
 
     if (cleanText.length < 50) {
