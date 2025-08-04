@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Pas besoin d'importer fetch dans l'environnement Vercel
 
 // Fonction de retry avec backoff exponentiel
 async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
