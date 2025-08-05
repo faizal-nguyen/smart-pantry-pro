@@ -75,7 +75,7 @@ export const useShoppingList = () => {
       const product = await supabase
         .from('products')
         .select('*')
-        .eq('name', item.productName)
+        .ilike('name', item.productName)
         .single();
 
       if (product.error || !product.data) {

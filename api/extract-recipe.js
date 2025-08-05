@@ -1,3 +1,120 @@
+// Fonction pour détecter si la recette est déjà en français
+function isRecipeInFrench(recipe) {
+  // Liste de mots-clés français courants en cuisine
+  const frenchKeywords = [
+    'beurre', 'farine', 'œuf', 'sel', 'poivre', 'huile', 'vinaigre',
+    'crème', 'fromage', 'lait', 'sucre', 'levure', 'bouillon',
+    'cuire', 'faire', 'ajouter', 'mélanger', 'préchauffer', 'verser',
+    'minutes', 'heure', 'cuillère', 'soupe', 'café', 'gramme'
+  ];
+  
+  // Vérifier le nom et les instructions
+  const textToCheck = recipe.name.toLowerCase() + ' ' + 
+    recipe.ingredients.map(i => i.name).join(' ').toLowerCase() + ' ' +
+    recipe.instructions.join(' ').toLowerCase();
+  
+  // Compter les mots français trouvés
+  const frenchWordsFound = frenchKeywords.filter(word => 
+    textToCheck.includes(word)
+  ).length;
+  
+  // Si plus de 3 mots français trouvés, considérer comme déjà en français
+  return frenchWordsFound > 3;
+}
+
+// Fonction de traduction intelligente par un chef expert
+async function translateRecipeToFrench(recipe) {
+  const translationPrompt = `Tu es un chef cuisinier français expert avec 20 ans d'expérience.
+  
+Je te donne une recette à traduire en français. Tu dois :
+1. Traduire avec précision culinaire (termes techniques corrects)
+2. Adapter les mesures si nécessaire (cups → ml/g, fahrenheit → celsius)
+3. Garder l'authenticité de la recette tout en la rendant accessible
+4. Utiliser le vocabulaire culinaire français approprié
+
+Recette à traduire :
+Nom: ${recipe.name}
+Description: ${recipe.description}
+Type de cuisine: ${recipe.cuisine_type}
+Ingrédients: ${JSON.stringify(recipe.ingredients, null, 2)}
+Instructions: ${JSON.stringify(recipe.instructions, null, 2)}
+
+IMPORTANT: Retourne UNIQUEMENT un objet JSON avec cette structure :
+{
+  "name": "Nom traduit de la recette",
+  "description": "Description traduite",
+  "cuisine_type": "Type de cuisine en français",
+  "ingredients": [
+    {
+      "name": "nom de l'ingrédient en français",
+      "quantity": nombre,
+      "unit": "unité française appropriée",
+      "notes": "notes traduites si présentes"
+    }
+  ],
+  "instructions": [
+    "Étape 1 traduite",
+    "Étape 2 traduite"
+  ],
+  "tags": ["tags traduits"]
+}`;
+
+  try {
+    const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Tu es un chef cuisinier français expert. Tu traduis des recettes avec précision culinaire. Réponds uniquement en JSON valide.'
+          },
+          {
+            role: 'user',
+            content: translationPrompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+        response_format: { type: "json_object" }
+      }),
+    });
+
+    if (!translationResponse.ok) {
+      console.error('Translation API error');
+      return recipe; // Retourner la recette originale en cas d'erreur
+    }
+
+    const translationData = await translationResponse.json();
+    const translatedContent = translationData.choices?.[0]?.message?.content;
+    
+    if (!translatedContent) {
+      return recipe;
+    }
+
+    const translated = JSON.parse(translatedContent);
+    
+    // Fusionner avec la recette originale (garder les champs non traduits)
+    return {
+      ...recipe,
+      name: translated.name || recipe.name,
+      description: translated.description || recipe.description,
+      cuisine_type: translated.cuisine_type || recipe.cuisine_type,
+      ingredients: translated.ingredients || recipe.ingredients,
+      instructions: translated.instructions || recipe.instructions,
+      tags: translated.tags || recipe.tags
+    };
+    
+  } catch (error) {
+    console.error('Translation error:', error);
+    return recipe; // Retourner la recette originale en cas d'erreur
+  }
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -187,6 +304,14 @@ Retourne un objet JSON avec cette structure EXACTE:
       image_url: recipe.image_url || '',
       source_url: url
     };
+    
+    // 6. Traduire la recette si nécessaire
+    const needsTranslation = normalizedRecipe.name && !isRecipeInFrench(normalizedRecipe);
+    if (needsTranslation) {
+      console.log('🌐 Translating recipe to French...');
+      const translatedRecipe = await translateRecipeToFrench(normalizedRecipe);
+      Object.assign(normalizedRecipe, translatedRecipe);
+    }
     
     // Vérifier qu'on a au moins le nom et des ingrédients
     if (!normalizedRecipe.name || normalizedRecipe.ingredients.length === 0) {

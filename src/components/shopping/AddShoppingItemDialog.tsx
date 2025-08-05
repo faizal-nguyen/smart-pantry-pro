@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -123,6 +124,9 @@ const AddShoppingItemDialog = ({ trigger }: AddShoppingItemDialogProps) => {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Ajouter à la liste de courses</DialogTitle>
+          <DialogDescription>
+            Ajoutez un produit à votre liste de courses. Remplissez les informations du produit ci-dessous.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
