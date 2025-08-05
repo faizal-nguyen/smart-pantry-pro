@@ -20,6 +20,11 @@ export interface TranslatedRecipe extends ScrapedRecipe {
 }
 
 export class RecipeTranslationService {
+  // Déterminer l'URL de base pour les API
+  private readonly API_BASE_URL = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+    ? 'https://smart-pantry-pro.vercel.app'
+    : '';
+
   // Glossaire culinaire indien → français
   private readonly CULINARY_GLOSSARY = {
     // Épices
@@ -190,7 +195,7 @@ export class RecipeTranslationService {
         console.log(`💰 Batch translation cost: €${estimatedCost.toFixed(3)}`);
         
         // Appel API de traduction
-        const response = await fetch('/api/translate-batch', {
+        const response = await fetch(`${this.API_BASE_URL}/api/translate-batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

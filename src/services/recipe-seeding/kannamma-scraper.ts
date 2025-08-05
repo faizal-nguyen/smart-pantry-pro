@@ -31,6 +31,11 @@ export interface ScrapedRecipe {
 }
 
 export class KannammaScraperService {
+  // Déterminer l'URL de base pour les API
+  private readonly API_BASE_URL = window.location.hostname === 'localhost' 
+    ? 'https://smart-pantry-pro.vercel.app'
+    : '';
+
   // Configuration pour Phase 1 - 50 recettes seulement
   private readonly PHASE1_CATEGORIES = [
     { 
@@ -74,7 +79,7 @@ export class KannammaScraperService {
       console.log(`🔍 Scraping category: ${categoryUrl}`);
       
       // Utiliser l'API Vercel pour scraper
-      const response = await fetch('/api/scrape-category', {
+      const response = await fetch(`${this.API_BASE_URL}/api/scrape-category`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: categoryUrl, maxRecipes })
@@ -103,7 +108,7 @@ export class KannammaScraperService {
       console.log(`💰 Estimated cost: €${estimatedCost.toFixed(3)}`);
 
       // Appel API pour extraction en batch
-      const response = await fetch('/api/extract-recipes-batch', {
+      const response = await fetch(`${this.API_BASE_URL}/api/extract-recipes-batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: recipeUrls })
