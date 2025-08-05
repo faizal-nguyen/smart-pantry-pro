@@ -173,17 +173,21 @@ const isExpired = (cachedData: any): boolean => {
 };
 
 const cacheAnalysis = async (recipeId: string, userId: string, analysis: InventoryAnalysis) => {
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + 1); // 1h expiration
-
-  await supabase
-    .from('recipe_inventory_cache')
-    .upsert({
-      recipe_id: recipeId,
-      user_id: userId,
-      analysis_result: analysis,
-      expires_at: expiresAt.toISOString()
+  try {
+    // Utiliser la fonction SQL pour éviter les conflits
+    const { error } = await supabase.rpc('upsert_recipe_inventory_cache', {
+      p_recipe_id: recipeId,
+      p_user_id: userId,
+      p_analysis_result: analysis
     });
+    
+    if (error) {
+      console.warn('Failed to cache analysis:', error);
+      // Ne pas faire échouer l'analyse si le cache échoue
+    }
+  } catch (err) {
+    console.warn('Cache error (non-blocking):', err);
+  }
 };
 
 // Helpers pour données
