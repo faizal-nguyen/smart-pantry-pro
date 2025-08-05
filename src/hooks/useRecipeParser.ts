@@ -88,57 +88,42 @@ export const useRecipeParser = () => {
 // Parser Marmiton (pattern Cipher spécialisé)
 const parseMarmitonRecipe = async (url: string): Promise<RecipeParsingResult> => {
   try {
-    console.log('🥘 Parsing Marmiton recipe:', url);
+    console.log('🥘 Parsing Marmiton recipe with specialized parser:', url);
     
-    // 1. Fetch page content
-    const response = await fetch('/api/parse-recipe', {
+    // Utiliser le nouveau parser spécialisé Marmiton
+    const response = await fetch('/api/parse-recipe-marmiton', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, parser: 'marmiton' })
+      body: JSON.stringify({ url })
     });
     
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Parse recipe API error:', errorData);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Marmiton parser error:', errorData);
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
     
-    const html = await response.text();
+    const result = await response.json();
     
-    if (!html || html.length < 100) {
-      throw new Error('Contenu HTML invalide ou vide');
+    if (!result.success) {
+      throw new Error(result.error || 'Parsing failed');
     }
     
-    // 2. Try structured data first (JSON-LD)
-    const structuredData = extractJSONLD(html, 'Recipe');
-    if (structuredData) {
-      const recipe = normalizeMarmitonStructuredData(structuredData);
-      return {
-        success: true,
-        data: recipe,
-        confidence: 0.9,
-        parsingMethod: 'structured'
-      };
-    }
-    
-    // 3. Fallback: DOM parsing spécialisé Marmiton
-    const recipe = parseMarmitonDOM(html, url);
-    
-    // Si le parsing DOM n'a pas trouvé d'ingrédients, utiliser l'IA
-    if (recipe.ingredients.length === 0) {
-      console.log('⚠️ No ingredients found with DOM parsing, using AI...');
-      return await parseWithAI(url, 'marmiton', html);
+    // Si le parser spécialisé n'a pas trouvé d'ingrédients, utiliser l'IA
+    if (!result.recipe.ingredients || result.recipe.ingredients.length === 0) {
+      console.log('⚠️ No ingredients found with specialized parser, falling back to AI...');
+      return await parseWithAI(url, 'marmiton');
     }
     
     return {
       success: true,
-      data: recipe,
-      confidence: 0.7,
-      parsingMethod: 'dom'
+      data: result.recipe,
+      confidence: result.recipe.confidence || 0.9,
+      parsingMethod: result.method || 'structured'
     };
     
   } catch (error) {
-    console.error('Error parsing Marmiton recipe:', error);
+    console.error('Error with Marmiton specialized parser:', error);
     
     // Fallback vers parsing IA
     return await parseWithAI(url, 'marmiton');
