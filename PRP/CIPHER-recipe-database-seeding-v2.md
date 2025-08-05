@@ -10,7 +10,7 @@
 - 🔒 **Sécurité**: 100% validation allergènes et sécurité alimentaire
 
 ### 🎯 OBJECTIFS RÉVISÉS
-- **Phase 1**: ~100 recettes indiennes authentiques traduites en français
+- **Phase 1**: ~50 recettes indiennes authentiques traduites en français
 - **Performance**: <100ms recherche sur mobile
 - **Sécurité**: 100% des recettes validées allergènes
 - **Coût**: <200€/mois opérations durables
