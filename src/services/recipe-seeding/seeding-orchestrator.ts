@@ -127,8 +127,6 @@ export class RecipeSeedingOrchestrator {
     const recipeData = {
       name: recipe.name,
       description: recipe.description,
-      cuisine_type: recipe.cuisine_type || 'Indian',
-      meal_type: recipe.meal_type || 'dinner',
       prep_time: recipe.prepTime,
       cook_time: recipe.cookTime,
       total_time: recipe.prepTime + recipe.cookTime,

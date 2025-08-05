@@ -2,10 +2,19 @@
 import * as cheerio from 'cheerio';
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS headers - Allow localhost development
+  const origin = req.headers.origin;
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost:5173', 'https://smart-pantry-pro.vercel.app'];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
