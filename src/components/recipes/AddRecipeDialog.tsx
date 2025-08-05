@@ -114,8 +114,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState("manual");
   
-  // URL parsing hook (pattern Cipher)
-  const { parseRecipeFromURL: parseURL, loading: parsing, error: parseError } = useRecipeParser();
+  // URL parsing hook simplifié
+  const { extractRecipeFromURL, loading: parsing, error: parseError } = useRecipeParser();
   
   // Social media parsing hook (pattern Cipher)
   const { parseRecipeFromSocial, loading: socialParsing, error: socialParseError } = useSocialRecipeParser();
@@ -207,7 +207,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
     }
   };
 
-  // Pattern parsing URL (implementation Cipher avec useRecipeParser)
+  // Extraction de recette simplifiée avec OpenAI
   const parseRecipeFromURL = async () => {
     setUrlError(null);
     
@@ -217,46 +217,49 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
     }
 
     try {
-      const result = await parseURL(recipeUrl);
+      const recipe = await extractRecipeFromURL(recipeUrl);
       
-      if (result.success && result.data) {
-        const recipe = result.data;
-        
-        // Remplir le formulaire avec les données parsées (pattern Cipher)
+      if (recipe) {
+        // Remplir le formulaire avec les données extraites
         setRecipeName(recipe.name);
-        setDescription(recipe.description || "");
-        setCuisineCategory(recipe.cuisine_category || "");
-        setMealType(recipe.meal_type || "");
+        setDescription(recipe.description);
+        setCuisineCategory(recipe.cuisine_type);
+        setMealType(recipe.meal_type);
         setPrepTime(recipe.prep_time.toString());
         setCookTime(recipe.cook_time.toString());
         setServings(recipe.servings.toString());
-        setDifficulty(recipe.difficulty);
-        setInstructions(recipe.instructions);
-        setImageUrl(recipe.image_url || "");
+        
+        // Convertir difficulty de string à number
+        const difficultyMap = { 'easy': 1, 'medium': 2, 'hard': 3 };
+        setDifficulty(difficultyMap[recipe.difficulty] || 2);
+        
+        // Joindre les instructions
+        setInstructions(recipe.instructions.join('\n'));
+        setImageUrl(recipe.image_url);
         
         // Mapper les ingrédients
         const mappedIngredients = recipe.ingredients.map(ing => ({
           name: ing.name,
           quantity: ing.quantity,
           unit: ing.unit,
-          is_essential: ing.is_essential,
+          is_essential: true,
           notes: ing.notes || ""
         }));
         setIngredients(mappedIngredients);
         
         // Tags
-        setTags(recipe.tags || []);
+        setTags(recipe.tags);
         
         toast({
-          title: "Recette parsée !",
-          description: `${recipe.name} - ${recipe.ingredients.length} ingrédients (${result.parsingMethod})`,
+          title: "Recette extraite avec succès !",
+          description: `${recipe.name} - ${recipe.ingredients.length} ingrédients`,
         });
         
         // Passer au mode manuel pour finaliser
         setCurrentTab("manual");
         
       } else {
-        throw new Error(result.error || 'Parsing failed');
+        throw new Error('Extraction échouée');
       }
       
     } catch (error) {
