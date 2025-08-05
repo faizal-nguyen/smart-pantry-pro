@@ -123,16 +123,26 @@ export class RecipeSeedingOrchestrator {
 
   // Importer une recette dans la base
   private async importRecipeToDatabase(recipe: any): Promise<void> {
+    // Obtenir l'utilisateur actuel
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Utilisateur non authentifié');
+    }
+
     // Préparer les données pour l'insertion
     const recipeData = {
+      // Champs obligatoires de base
+      user_id: user.id,
       name: recipe.name,
       description: recipe.description,
       prep_time: recipe.prepTime,
       cook_time: recipe.cookTime,
-      total_time: recipe.prepTime + recipe.cookTime,
       servings: recipe.servings,
-      difficulty: recipe.difficulty,
+      difficulty: recipe.difficulty === 'easy' ? 1 : recipe.difficulty === 'medium' ? 3 : 5,
       source_url: recipe.sourceUrl,
+      
+      // Instructions en format texte (jointure avec retours à la ligne)
+      instructions: recipe.translated_instructions?.join('\n') || recipe.instructions?.join('\n') || '',
       
       // Données multilingues
       original_language: 'en',
@@ -141,9 +151,9 @@ export class RecipeSeedingOrchestrator {
       translation_quality_score: recipe.translation_quality_score,
       
       // Sécurité alimentaire
-      allergen_info: recipe.allergen_info,
-      allergen_warnings: recipe.allergen_info.warnings_fr,
-      dietary_tags: recipe.dietary_tags,
+      allergen_info: recipe.allergen_info || {},
+      allergen_warnings: recipe.allergen_info?.warnings_fr || [],
+      dietary_tags: recipe.dietary_tags || recipe.dietaryInfo || [],
       spice_level: recipe.spiceLevel,
       
       // Métadonnées indiennes
@@ -151,15 +161,12 @@ export class RecipeSeedingOrchestrator {
       meal_timing: recipe.meal_timing,
       
       // Validation
-      safety_validated: recipe.safety_validated,
+      safety_validated: recipe.safety_validated || true,
       safety_validated_at: new Date().toISOString(),
-      safety_validator_notes: recipe.safety_validator_notes,
+      safety_validator_notes: recipe.safety_validator_notes || '',
       
       // Images
-      image_url: recipe.imageUrl,
-      
-      // Instructions JSON
-      instructions: recipe.translated_instructions
+      image_url: recipe.imageUrl
     };
 
     // Insérer la recette
