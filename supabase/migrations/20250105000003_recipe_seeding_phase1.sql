@@ -2,32 +2,31 @@
 -- Focus: Sécurité alimentaire et performance mobile
 
 -- 1. Enrichissement table recipes avec métadonnées multilingues
-ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS
-  -- Traduction et langue
-  original_language CHAR(2) DEFAULT 'en',
-  translated_title VARCHAR(500),
-  translated_description TEXT,
-  translation_quality_score INTEGER CHECK (translation_quality_score >= 0 AND translation_quality_score <= 100),
-  
-  -- Sécurité alimentaire obligatoire
-  allergen_info JSONB NOT NULL DEFAULT '{}',
-  allergen_warnings TEXT[] DEFAULT '{}',
-  dietary_tags TEXT[] DEFAULT '{}', -- 'vegetarian', 'vegan', 'gluten-free', etc.
-  spice_level INTEGER CHECK (spice_level >= 0 AND spice_level <= 5),
-  
-  -- Métadonnées indiennes
-  indian_cuisine_type VARCHAR(100), -- 'south-indian', 'tamil', 'kerala'
-  meal_timing VARCHAR(50), -- 'breakfast', 'tiffin', 'lunch', 'dinner'
-  festival_occasions TEXT[] DEFAULT '{}', -- 'diwali', 'pongal', etc.
-  
-  -- Validation qualité
-  safety_validated BOOLEAN DEFAULT FALSE,
-  safety_validated_at TIMESTAMP,
-  safety_validator_notes TEXT,
-  
-  -- Source
-  source_url TEXT,
-  source_name VARCHAR(100) DEFAULT 'kannammacooks.com';
+-- Traduction et langue
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS original_language CHAR(2) DEFAULT 'en';
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS translated_title VARCHAR(500);
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS translated_description TEXT;
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS translation_quality_score INTEGER CHECK (translation_quality_score >= 0 AND translation_quality_score <= 100);
+
+-- Sécurité alimentaire obligatoire
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS allergen_info JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS allergen_warnings TEXT[] DEFAULT '{}';
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS dietary_tags TEXT[] DEFAULT '{}';
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS spice_level INTEGER CHECK (spice_level >= 0 AND spice_level <= 5);
+
+-- Métadonnées indiennes
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS indian_cuisine_type VARCHAR(100);
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS meal_timing VARCHAR(50);
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS festival_occasions TEXT[] DEFAULT '{}';
+
+-- Validation qualité
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS safety_validated BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS safety_validated_at TIMESTAMP;
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS safety_validator_notes TEXT;
+
+-- Source
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS source_url TEXT;
+ALTER TABLE public.recipes ADD COLUMN IF NOT EXISTS source_name VARCHAR(100) DEFAULT 'kannammacooks.com';
 
 -- 2. Index optimisés pour performance mobile <100ms
 CREATE INDEX IF NOT EXISTS idx_recipes_search_fr ON public.recipes 
@@ -194,6 +193,26 @@ BEGIN
   RETURN estimated_cost;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 11. Fonction RPC pour exécuter du SQL raw (pour la recherche optimisée)
+CREATE OR REPLACE FUNCTION execute_raw_sql(query TEXT, params TEXT[] DEFAULT '{}')
+RETURNS JSON AS $$
+DECLARE
+  result JSON;
+BEGIN
+  -- Sécurité: seulement SELECT autorisé
+  IF NOT (query ~* '^\s*SELECT') THEN
+    RAISE EXCEPTION 'Only SELECT queries are allowed';
+  END IF;
+  
+  -- Exécuter la requête dynamique
+  EXECUTE format('SELECT json_agg(row_to_json(t)) FROM (%s) t', query) 
+  USING params
+  INTO result;
+  
+  RETURN COALESCE(result, '[]'::json);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Message de confirmation
 DO $$

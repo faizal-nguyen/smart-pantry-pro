@@ -180,11 +180,38 @@ async function searchRecipesOptimized({ query, filters }: {
     LIMIT 20
   `;
   
-  // Exécuter la requête
-  const { data, error } = await supabase.rpc('execute_raw_sql', {
-    query: sqlQuery,
-    params
-  });
+  // Exécuter la requête directement avec Supabase
+  // Pour l'instant, on utilise une approche simplifiée sans SQL raw
+  let query = supabase
+    .from('recipes')
+    .select('*')
+    .textSearch('translated_title', searchQuery);
+  
+  // Ajouter les filtres
+  if (filters.dietary && filters.dietary.length > 0) {
+    query = query.contains('dietary_tags', filters.dietary);
+  }
+  
+  if (filters.maxTime) {
+    query = query.lte('total_time', filters.maxTime);
+  }
+  
+  if (filters.spiceLevel) {
+    query = query.lte('spice_level', filters.spiceLevel);
+  }
+  
+  if (filters.mealType) {
+    query = query.or(`meal_type.eq.${filters.mealType},meal_timing.eq.${filters.mealType}`);
+  }
+  
+  if (filters.cuisine) {
+    query = query.or(`cuisine_type.ilike.%${filters.cuisine}%,indian_cuisine_type.ilike.%${filters.cuisine}%`);
+  }
+  
+  // Limiter et ordonner
+  query = query.limit(20);
+  
+  const { data, error } = await query;
   
   if (error) {
     console.error('Search query error:', error);
