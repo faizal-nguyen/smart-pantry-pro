@@ -49,7 +49,11 @@
     "agents:debug": "node integrate-agents.js debug",
     "agents:optimize": "node integrate-agents.js optimize",
     "mcp:supabase": "npx -y @supabase/mcp-server-supabase@latest --project-ref=jwoxacnflphclslpqfzs",
-    "mcp:test": "echo 'Testing Supabase MCP connection...' && npm run mcp:supabase -- --help"
+    "mcp:test": "echo 'Testing Supabase MCP connection...' && npm run mcp:supabase -- --help",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:evolution": "jest src/services/__tests__/evolutionV2-validation.test.ts"
   },
   "dependencies": {
     "@google-cloud/vision": "^4.0.2",
@@ -131,7 +135,11 @@
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "@tailwindcss/typography": "^0.5.15",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/dompurify": "^3.0.5",
+    "@types/jest": "^29.5.12",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -140,7 +148,10 @@
     "eslint-plugin-react-refresh": "^0.4.9",
     "globals": "^15.9.0",
     "isomorphic-dompurify": "^2.26.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "lovable-tagger": "^1.1.7",
+    "ts-jest": "^29.1.2",
     "typescript-eslint": "^8.0.1",
     "vercel": "^44.7.3"
   },

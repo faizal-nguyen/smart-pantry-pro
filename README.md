@@ -1,14 +1,17 @@
 # Smart Pantry Pro 🥘
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/smart-pantry-pro/smart-pantry-pro)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/smart-pantry-pro/smart-pantry-pro)
 [![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-2.53-green.svg)](https://supabase.com/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Evolution](https://img.shields.io/badge/Evolution-V2-purple.svg)](docs/EVOLUTION-V2.md)
 
 **Une application intelligente de gestion de garde-manger qui révolutionne votre façon de cuisiner et de gérer vos courses.**
 
-Smart Pantry Pro utilise l'intelligence artificielle, la reconnaissance vocale française, et la vision par ordinateur pour transformer votre cuisine en un espace organisé et efficace, réduisant le gaspillage alimentaire de 47% en moyenne.
+Smart Pantry Pro utilise l'intelligence artificielle, la reconnaissance vocale française, et la vision par ordinateur pour transformer votre cuisine en un espace organisé et efficace, réduisant le gaspillage alimentaire de 47% en moyenne. 
+
+🎉 **Evolution V2** : Assistant nutritionnel IA, planification intelligente des repas, communauté sociale, intégration IoT, analyses prédictives, et architecture offline-first avancée!
 
 ## 🌟 Fonctionnalités Principales
 
@@ -55,6 +58,56 @@ Smart Pantry Pro utilise l'intelligence artificielle, la reconnaissance vocale f
 - **Collections de recettes** : Organisation personnalisée
 - **Calcul nutritionnel** : Informations complètes
 - **Mode d'édition avancé** : Interface WYSIWYG
+
+## 🆕 Evolution V2 - Nouvelles Fonctionnalités
+
+### 🧠 **AI Nutritionist Engine**
+- **Analyse nutritionnelle personnalisée** : Profils de santé individuels
+- **Calcul BMR/TDEE** : Besoins caloriques personnalisés
+- **Recommandations IA** : Suggestions basées sur vos objectifs santé
+- **Suivi des macronutriments** : Protéines, glucides, lipides, fibres
+- **Alertes santé** : Détection des carences et excès
+- **Dashboard nutritionnel** : Vue complète de votre alimentation
+
+### 📅 **Smart Meal Planning System**
+- **Planification hebdomadaire intelligente** : Plans adaptés à vos préférences
+- **Optimisation budgétaire** : Réduction des coûts de 30%
+- **Liste de courses optimisée** : Consolidation intelligente des ingrédients
+- **Adaptation saisonnière** : Produits de saison privilégiés
+- **Contraintes alimentaires** : Allergies, régimes, préférences
+- **Suggestions basées sur l'inventaire** : Zéro gaspillage
+
+### 👥 **Community Features & Social Cooking**
+- **Partage de recettes** : Publiez vos créations culinaires
+- **Challenges culinaires** : Participez à des défis thématiques
+- **Consultations d'experts** : Accès à des nutritionnistes certifiés
+- **Notes et commentaires** : Évaluez les recettes de la communauté
+- **Flux social** : Suivez les chefs et amis
+- **Collections partagées** : Créez des livres de recettes collaboratifs
+
+### 🏠 **IoT Integration Hub**
+- **Smart Fridge** : Synchronisation automatique de l'inventaire
+- **Four connecté** : Préchauffage et contrôle à distance
+- **Balance intelligente** : Pesée automatique des ingrédients
+- **Capteurs de température** : Surveillance en temps réel
+- **Sessions de cuisine guidées** : Instructions étape par étape
+- **Automatisation** : Scénarios personnalisés
+
+### 📊 **Advanced Analytics & Predictive Intelligence**
+- **Prédiction du gaspillage** : ML pour anticiper les pertes
+- **Analyse comportementale** : Patterns d'achat et consommation
+- **Score de durabilité** : Impact environnemental réduit
+- **Optimisation des achats** : Recommandations intelligentes
+- **Rapports détaillés** : Statistiques mensuelles/annuelles
+- **Économies réalisées** : Suivi financier précis
+
+### 🔄 **Offline-First Architecture 2.0**
+- **Synchronisation intelligente** : Résolution automatique des conflits
+- **Cache avancé** : Accès instantané hors-ligne
+- **File d'attente optimisée** : Opérations en arrière-plan
+- **Compression des données** : Économie de bande passante
+- **Mode économie batterie** : Adaptation automatique
+- **Sync sélective** : Priorisation des données critiques
 
 ## 🚀 Installation et Démarrage Rapide
 
@@ -148,11 +201,19 @@ smart-pantry-pro/
 │   │   ├── scanner/         # Smart Scanner
 │   │   ├── ai/              # Assistant IA
 │   │   ├── inventory/       # Gestion inventaire
+│   │   ├── nutrition/       # Dashboard nutritionnel (V2)
+│   │   ├── community/       # Fonctionnalités sociales (V2)
 │   │   └── ui/              # Composants UI
 │   ├── services/            # Services métier
 │   │   ├── vision/          # Vision AI
 │   │   ├── voice/           # Reconnaissance vocale
-│   │   └── socialMediaParser/  # Parsing réseaux sociaux
+│   │   ├── socialMediaParser/  # Parsing réseaux sociaux
+│   │   ├── ai/              # Services IA avancés (V2)
+│   │   ├── planning/        # Planification repas (V2)
+│   │   ├── community/       # Services communautaires (V2)
+│   │   ├── iot/             # Intégration IoT (V2)
+│   │   ├── analytics/       # Analyses prédictives (V2)
+│   │   └── offline/         # Sync intelligente (V2)
 │   ├── hooks/               # Hooks React personnalisés
 │   ├── lib/                 # Utilitaires et configuration
 │   └── pages/               # Pages de l'application
@@ -172,6 +233,8 @@ smart-pantry-pro/
 - **[Documentation Composants](docs/COMPONENTS.md)** - Composants React et props
 - **[Services Métier](docs/SERVICES.md)** - Services et hooks
 - **[Guide Utilisateur](docs/USER-GUIDE.md)** - Manuel d'utilisation
+- **[Evolution V2](docs/EVOLUTION-V2.md)** - Nouvelles fonctionnalités V2
+- **[API Evolution V2](docs/API-V2.md)** - Documentation des nouvelles APIs
 
 ## 🔒 Sécurité et Confidentialité
 
@@ -251,6 +314,16 @@ Smart Pantry Pro utilise et remercie :
 - **Documentation** : [docs.smartpantrypro.com](https://docs.smartpantrypro.com)
 
 ## 🗓️ Changelog
+
+### Version 2.0.0 - Evolution V2 (Août 2025)
+- 🆕 **AI Nutritionist Engine** : Analyse nutritionnelle personnalisée avec profils de santé
+- 🆕 **Smart Meal Planning** : Planification intelligente avec optimisation budgétaire
+- 🆕 **Community Features** : Partage social, challenges, et consultations d'experts
+- 🆕 **IoT Integration Hub** : Support des appareils connectés (frigo, four, balance)
+- 🆕 **Advanced Analytics** : Prédictions ML et analyses comportementales
+- 🆕 **Offline-First 2.0** : Synchronisation intelligente avec résolution de conflits
+- 🔧 **Performance** : Chargement des modules < 1s
+- 🔧 **Architecture** : Extension des services IA existants
 
 ### Version 1.0.0 (Janvier 2025)
 - 🆕 **Smart Scanner** avec vision AI multi-produits

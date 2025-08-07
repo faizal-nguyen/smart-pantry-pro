@@ -47,8 +47,11 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
 │ Type            │ Sensibilité    │ Protection              │
 ├─────────────────┼────────────────┼─────────────────────────┤
 │ Email/Password  │ Critique       │ Hashage + Salt          │
+│ Profil Santé V2 │ Très Critique  │ Encryption + Anonymisation│
 │ Recettes        │ Privée         │ RLS + Encryption        │
 │ Préférences     │ Normale        │ RLS                     │
+│ IoT Data V2     │ Sensible       │ Token Auth + Encryption │
+│ Community V2    │ Publique       │ Moderation + Filtering  │
 │ Analytics       │ Anonymisée     │ Aggregation             │
 └─────────────────┴────────────────┴─────────────────────────┘
 ```
@@ -263,6 +266,7 @@ const cspPolicy = {
 - **Effacement** : Suppression complète
 - **Portabilité** : Export JSON/CSV
 - **Opposition** : Opt-out marketing
+- **Limitation** : Gel des données sur demande (V2)
 
 #### Implementation
 ```typescript
@@ -318,6 +322,10 @@ class GDPRCompliance {
 - **LGPD** (Brésil) : Similar to GDPR
 - **PIPEDA** (Canada) : Consentement explicite
 - **APP** (Australie) : Privacy principles
+- **HIPAA** (USA) : Considérations pour données de santé V2
+  - Pas de stockage de dossiers médicaux
+  - Anonymisation des données de santé
+  - Audit trail pour accès aux données santé
 
 ## 5. Sécurité des APIs Tierces
 
@@ -343,6 +351,24 @@ class SecureOpenAIClient {
     });
     
     return this.parseRecipe(response);
+  }
+  
+  // V2: Protection des données de santé
+  async analyzeNutrition(ingredients: any[], profile?: any): Promise<any> {
+    // Anonymisation du profil de santé
+    const anonymizedProfile = profile ? {
+      age_range: this.getAgeRange(profile.age),
+      activity_level: profile.activityLevel,
+      goals: profile.goals.map(g => g.type) // Pas de valeurs personnelles
+    } : null;
+    
+    // Jamais envoyer de données médicales à l'API
+    const response = await openai.complete({
+      prompt: this.buildNutritionPrompt(ingredients, anonymizedProfile),
+      temperature: 0.3 // Plus déterministe pour la santé
+    });
+    
+    return this.parseNutritionResponse(response);
   }
 }
 ```
@@ -373,6 +399,95 @@ const validateWebhook = (req: Request): boolean => {
 };
 ```
 
+### 5.3 Sécurité IoT (V2)
+
+```typescript
+// Authentification des appareils IoT
+class IoTSecurityManager {
+  // Génération de tokens pour appareils
+  async generateDeviceToken(deviceId: string, userId: string): Promise<string> {
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(token, 10);
+    
+    await db.deviceTokens.insert({
+      deviceId,
+      userId,
+      tokenHash: hashedToken,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 jours
+      capabilities: this.getDeviceCapabilities(deviceId)
+    });
+    
+    return token;
+  }
+  
+  // Validation des commandes IoT
+  validateIoTCommand(command: any, deviceCapabilities: string[]): boolean {
+    // Vérifier que la commande est dans les capacités
+    if (!deviceCapabilities.includes(command.type)) {
+      return false;
+    }
+    
+    // Validation spécifique par type
+    switch (command.type) {
+      case 'temperature':
+        return command.value >= -20 && command.value <= 50;
+      case 'timer':
+        return command.duration > 0 && command.duration <= 24 * 60 * 60;
+      default:
+        return false;
+    }
+  }
+  
+  // Isolation des appareils
+  async executeIoTCommand(deviceId: string, command: any): Promise<void> {
+    // Exécution dans un contexte isolé
+    const sandbox = {
+      deviceId,
+      command: this.sanitizeCommand(command),
+      timeout: 5000 // 5 secondes max
+    };
+    
+    await this.sandboxExecutor.run(sandbox);
+  }
+}
+```
+
+### 5.4 Protection des Données Communautaires (V2)
+
+```typescript
+// Modération et filtrage du contenu
+class CommunitySecurityService {
+  // Filtrage AI du contenu inapproprié
+  async moderateContent(content: any): Promise<ModerationResult> {
+    const checks = await Promise.all([
+      this.checkProfanity(content),
+      this.checkPersonalInfo(content),
+      this.checkSpam(content),
+      this.checkMaliciousLinks(content)
+    ]);
+    
+    return {
+      approved: checks.every(c => c.safe),
+      reasons: checks.filter(c => !c.safe).map(c => c.reason)
+    };
+  }
+  
+  // Vérification des experts
+  async verifyExpert(expertId: string, credentials: any): Promise<boolean> {
+    // Vérification des diplômes et certifications
+    const verified = await this.credentialVerifier.verify(credentials);
+    
+    if (verified) {
+      await db.experts.update(expertId, {
+        verifiedAt: new Date(),
+        verificationLevel: 'professional'
+      });
+    }
+    
+    return verified;
+  }
+}
+
 ## 6. Audit et Monitoring
 
 ### 6.1 Logging de Sécurité
@@ -384,7 +499,12 @@ enum SecurityEvent {
   PERMISSION_DENIED = 'permission_denied',
   SUSPICIOUS_ACTIVITY = 'suspicious_activity',
   DATA_ACCESS = 'data_access',
-  DATA_MODIFICATION = 'data_modification'
+  DATA_MODIFICATION = 'data_modification',
+  // V2 Events
+  HEALTH_DATA_ACCESS = 'health_data_access',
+  IOT_COMMAND = 'iot_command',
+  COMMUNITY_MODERATION = 'community_moderation',
+  EXPERT_VERIFICATION = 'expert_verification'
 }
 
 class SecurityLogger {
@@ -444,18 +564,21 @@ class SecurityLogger {
 - [ ] Tests de sécurité automatisés
 - [ ] Scan des dépendances
 - [ ] Validation des inputs
+- [ ] Anonymisation des données de santé (V2)
 
 ### Déploiement
 - [ ] Configuration sécurisée
 - [ ] Secrets en environnement
 - [ ] Certificats SSL valides
 - [ ] Headers de sécurité
+- [ ] Isolation IoT (V2)
 
 ### Opérations
 - [ ] Monitoring actif
 - [ ] Backups testés
 - [ ] Patches appliqués
 - [ ] Audits réguliers
+- [ ] Modération communauté (V2)
 
 ## 9. Formation et Sensibilisation
 
@@ -487,6 +610,34 @@ class SecurityLogger {
 - [API Security Guide](/docs/api-security)
 - [Privacy Policy](https://smartpantrypro.com/privacy)
 
+## 11. Mesures de Sécurité Evolution V2
+
+### Protection des Données de Santé
+- Chiffrement AES-256 pour tous les profils de santé
+- Anonymisation automatique pour l'analyse
+- Audit trail complet des accès
+- Consentement explicite pour partage avec nutritionnistes
+
+### Sécurité IoT
+- Authentification mutuelle appareil-serveur
+- Isolation réseau des appareils
+- Mises à jour OTA sécurisées
+- Révocation immédiate des tokens compromis
+
+### Sécurité Communautaire
+- Modération AI en temps réel
+- Vérification d'identité des experts
+- Chiffrement des consultations vidéo
+- Système de réputation anti-abuse
+
+### Conformité Santé
+- Respect des guidelines santé numériques
+- Pas de diagnostic médical automatisé
+- Transparence sur les limites de l'IA
+- Formation continue sur la protection des données sensibles
+
 ---
 
 *La sécurité est l'affaire de tous. Si vous découvrez une vulnérabilité, merci de nous contacter de manière responsable via security@smartpantrypro.com*
+
+*Version 2.0 - Mise à jour avec les considérations Evolution V2*

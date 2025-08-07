@@ -4,6 +4,8 @@
 
 Smart Pantry Pro est votre assistant personnel pour une cuisine organisée, intelligente et sans gaspillage. Ce guide vous accompagne dans la découverte de toutes les fonctionnalités de l'application.
 
+**🎉 Nouveau dans la version 2.0 :** Assistant nutritionnel IA, planification intelligente des repas, communauté sociale, intégration IoT, analyses prédictives, et architecture offline-first avancée!
+
 ## 📱 Premiers Pas
 
 ### Installation
@@ -22,6 +24,7 @@ Smart Pantry Pro est votre assistant personnel pour une cuisine organisée, inte
 2. **Allergies et restrictions** : Renseignez vos restrictions alimentaires
 3. **Préférences culinaires** : Sélectionnez vos cuisines préférées
 4. **Autorisations** : Acceptez l'accès à la caméra et au microphone
+5. **🆕 Profil santé** : Complétez votre profil nutritionnel (optionnel)
 
 ## 🏠 Gestion de votre Inventaire
 
@@ -60,6 +63,8 @@ L'inventaire est le cœur de Smart Pantry Pro. Il vous permet de suivre tous vos
 - "Met 3 pommes dans le frigo"
 - "Enlève une bouteille d'eau"
 - "Combien j'ai de pâtes ?"
+- "🆕 Qu'est-ce qui expire bientôt ?"
+- "🆕 Suggère-moi un repas sain"
 
 #### ✏️ Ajout Manuel
 1. Cliquez sur "+" dans l'inventaire
@@ -83,6 +88,7 @@ Organisez par zones de stockage :
 - **Congélateur** : Température < -18°C
 - **Placard** : Température ambiante
 - **Cave** : Pour les vins et conserves
+- **🆕 Appareils IoT** : Synchronisation automatique
 
 #### Alertes de péremption
 
@@ -97,369 +103,444 @@ Organisez par zones de stockage :
 - **3 jours avant** : Alerte avec suggestions d'utilisation
 - **1 jour avant** : Alerte critique
 - **Jour d'expiration** : Rappel final
+- **🆕 Prédictions IA** : Alertes anticipées basées sur vos habitudes
 
-### Gestion des quantités
-1. Utilisez les boutons + / - pour ajuster rapidement
-2. Double-cliquez pour saisie directe
-3. Paramétrez des seuils d'alerte pour stock faible
+## 🍳 Recettes et Suggestions
 
-## 🤖 Assistant IA
+### Recherche de recettes
 
-### Chat Intelligent
-Votre assistant culinaire personnel vous aide à :
-- Trouver des recettes avec vos ingrédients disponibles
-- Gérer les dates de péremption
-- Planifier vos repas
-- Répondre à vos questions culinaires
+#### Par ingrédients disponibles
+1. Accédez à l'onglet "Recettes"
+2. Activez "Basé sur mon inventaire"
+3. Sélectionnez les ingrédients à utiliser
+4. Filtrez par temps, difficulté, cuisine
 
-#### Exemples de questions :
-- "Que puis-je faire avec mes tomates qui vont expirer ?"
-- "Propose-moi un menu pour cette semaine"
-- "Comment conserver les herbes fraîches ?"
-- "Calcule les portions pour 8 personnes"
+#### Assistant IA
+1. Demandez à l'assistant : "Que faire avec mes tomates et pâtes ?"
+2. Recevez des suggestions personnalisées
+3. Adaptez selon vos préférences
 
-### Modes d'interaction
-
-#### 💬 Mode Texte
-- Tapez vos questions dans la zone de chat
-- Obtenez des réponses détaillées avec suggestions
-- Liens vers recettes et conseils
-
-#### 🎤 Mode Vocal
-1. Appuyez sur l'icône microphone
-2. Parlez clairement en français
-3. L'assistant comprend le contexte culinaire
-
-**Optimisations françaises** :
-- Reconnaissance des termes culinaires spécialisés
-- Compréhension des quantités ("une pincée", "un verre")
-- Synonymes régionaux ("pain de mie" vs "pain sandwich")
-
-#### 👁️ Mode Visuel
-1. Prenez une photo de vos ingrédients
-2. L'assistant analyse visuellement le contenu
-3. Recevez des suggestions personnalisées
-
-### Contexte Intelligent
-L'assistant connaît :
-- Votre inventaire actuel
-- Vos allergies et restrictions
-- Vos préférences culinaires
-- La saison actuelle
-- L'historique de vos recettes
-
-## 🍳 Gestion des Recettes
-
-### Découvrir des recettes
-
-#### Recherche intelligente
-1. **Par ingrédients disponibles** : "Recettes avec tomates et basilic"
-2. **Par type** : Entrées, plats, desserts
-3. **Par temps** : Moins de 30 minutes
-4. **Par difficulté** : Facile, moyen, expert
-5. **Par cuisine** : Française, italienne, asiatique
-
-#### Suggestions personnalisées
-L'IA vous propose des recettes basées sur :
-- Vos ingrédients actuels
-- Vos produits qui expirent bientôt
-- Vos goûts personnels
-- La saison
-
-### Ajouter des recettes
-
-#### 📱 Import depuis réseaux sociaux
-1. Copiez l'URL d'une recette Instagram/TikTok/YouTube
-2. Allez dans "Scanner" > "Réseaux sociaux"
-3. Collez l'URL et appuyez sur "Analyser"
-4. Vérifiez et modifiez si nécessaire
-5. Sauvegardez dans votre collection
-
-**Plateformes supportées** :
-- **Instagram** : Posts et Reels de recettes
-- **TikTok** : Vidéos culinaires
-- **YouTube** : Chaînes de cuisine
-- **Pinterest** : Épingles de recettes
-
-#### ✏️ Création manuelle
-1. Cliquez sur "Nouvelle recette"
-2. Ajoutez titre et description
-3. Listez les ingrédients avec quantités
-4. Rédigez les étapes de préparation
-5. Ajoutez temps de préparation et cuisson
-6. Uploadez une photo
-
-#### 📝 Édition avancée
-- **Éditeur visuel** : Formatage riche du texte
-- **Calculs automatiques** : Ajustement des portions
-- **Informations nutritionnelles** : Calcul automatique
-- **Tags personnalisés** : Organisation flexible
+#### Import depuis les réseaux sociaux
+1. Scanner → Mode "Réseaux sociaux"
+2. Collez l'URL de la recette (Instagram, TikTok, YouTube, etc.)
+3. L'IA extrait automatiquement :
+   - Ingrédients avec quantités
+   - Instructions étape par étape
+   - Photos et vidéos
+   - Temps de préparation
+4. Sauvegardez dans vos collections
 
 ### Collections de recettes
-1. **Créez des collections** : "Recettes d'été", "Plats rapides"
-2. **Organisez par thème** : Cuisine du monde, desserts, végétarien
-3. **Partagez vos collections** : Avec famille et amis
-4. **Importez des collections** : Depuis d'autres utilisateurs
+- **Mes favoris** : Vos recettes préférées
+- **Rapide** : Moins de 30 minutes
+- **Économique** : Budget serré
+- **Santé** : Équilibrées et nutritives
+- **🆕 Communauté** : Recettes partagées par d'autres utilisateurs
 
-### Analyse de faisabilité
-Pour chaque recette, voyez :
-- ✅ **Ingrédients disponibles** (en vert)
-- ❌ **Ingrédients manquants** (en rouge)
-- ⚠️ **Ingrédients qui expirent** (priorité)
-- 💡 **Suggestions d'alternatives**
+## 🛒 Liste de Courses
 
-## 🛒 Liste de Courses Intelligente
+### Création automatique
+1. Sélectionnez vos recettes de la semaine
+2. L'app génère automatiquement la liste
+3. Déduit les produits déjà en stock
+4. Optimise les quantités
 
-### Génération automatique
+### Organisation intelligente
+- **Par rayon** : Pour naviguer facilement en magasin
+- **Par magasin** : Si vous fréquentez plusieurs enseignes
+- **Par priorité** : Produits essentiels en premier
+- **🆕 Par budget** : Optimisation des coûts
 
-#### Depuis le planning
-1. Planifiez vos repas de la semaine
-2. Cliquez sur "Générer liste de courses"
-3. Vérifiez les quantités calculées
-4. Ajoutez vos produits habituels
+### Partage
+- Envoyez la liste par SMS/Email
+- Partagez avec les membres du foyer
+- Mode collaboratif temps réel
+- Export PDF pour impression
 
-#### Depuis stocks faibles
-1. L'application détecte vos produits en rupture
-2. Suggère automatiquement les réapprovisiements
-3. Basé sur votre consommation habituelle
+## 🧠 AI Nutritionist - Votre Nutritionniste Personnel (V2)
 
-#### Depuis produits expirants
-1. Identifie les produits à remplacer bientôt
-2. Suggère des achats anticipés
-3. Évite les ruptures de stock
+### Créer votre profil de santé
 
-### Organisation par rayons
-La liste se réorganise automatiquement par rayon :
-1. **Fruits & Légumes**
-2. **Boucherie & Poissonnerie** 
-3. **Produits laitiers**
-4. **Épicerie salée**
-5. **Épicerie sucrée**
-6. **Surgelés**
-7. **Produits d'entretien**
+1. **Accédez au Dashboard Nutritionnel**
+   - Cliquez sur l'icône "Nutrition" dans le menu principal
+   - Ou utilisez la commande vocale : "Ouvre mon dashboard santé"
 
-### Estimations de prix
-- **Prix par produit** : Basé sur les moyennes du marché
-- **Total estimé** : Budget prévisionnel
-- **Historique des prix** : Évolution dans le temps
-- **Comparaisons** : Entre différents magasins
+2. **Complétez votre profil**
+   - **Informations de base** : Âge, sexe, poids, taille
+   - **Niveau d'activité** : Sédentaire à très actif
+   - **Objectifs santé** : Perte de poids, gain musculaire, maintien
+   - **Conditions médicales** : Diabète, hypertension, etc.
+   - **Allergies** : Liste complète pour votre sécurité
+   - **Préférences alimentaires** : Végétarien, sans gluten, etc.
 
-### Partage en famille
-1. **Liste collaborative** : Modifiable par tous les membres
-2. **Attribution des tâches** : "Papa s'occupe de la boucherie"
-3. **Validation en temps réel** : Cochez au fur et à mesure
-4. **Notifications** : Quand quelqu'un modifie la liste
+3. **Analysez votre alimentation**
+   - Le système calcule automatiquement vos besoins caloriques (BMR/TDEE)
+   - Visualisez votre score nutritionnel global (0-100)
+   - Consultez la répartition de vos macronutriments
+   - Recevez des alertes pour les carences ou excès
 
-### En magasin
-1. **Mode magasin** : Interface simplifiée
-2. **Check au fur et à mesure** : Progression visuelle
-3. **Rappels** : Produits oubliés
-4. **Ajouts de dernière minute** : Facilement intégrés
+### Utiliser les recommandations
 
-## 📅 Planning de Repas
+- **Recommandations quotidiennes** : Basées sur votre inventaire actuel
+- **Alertes santé** : Notifications pour les carences détectées
+- **Suggestions de repas** : Optimisées pour vos objectifs
+- **Suivi des progrès** : Graphiques d'évolution hebdomadaire
 
-### Planification hebdomadaire
-1. Vue calendrier claire par semaine
-2. Glissez-déposez vos recettes
-3. Équilibrage automatique des repas
-4. Prise en compte des invités
+### Astuces Pro
+💡 Mettez à jour votre poids chaque semaine pour des recommandations précises
+💡 Activez les notifications pour ne jamais manquer un conseil important
+💡 Consultez le dashboard avant de faire vos courses
 
-### Suggestions IA
-L'assistant propose des menus basés sur :
-- Vos ingrédients disponibles
-- L'équilibre nutritionnel
-- Vos préférences gustatives
-- La variété des repas
-- Le temps de préparation disponible
+## 📅 Smart Meal Planning - Planification Intelligente (V2)
 
-### Gestion des restes
-- **Détection automatique** des restes probables
-- **Suggestions de réutilisation** créatives
-- **Planning anti-gaspi** optimisé
+### Générer un plan de repas hebdomadaire
 
-## 📊 Analytics et Insights
+1. **Ouvrez le planificateur**
+   - Menu → "Planification repas"
+   - Ou commande vocale : "Planifie mes repas de la semaine"
 
-### Tableau de bord personnel
-Suivez vos performances :
-- **Réduction du gaspillage** : Pourcentage et valeur économisée
-- **Économies réalisées** : Comparé à vos habitudes précédentes  
-- **Repas cuisinés** : Statistiques mensuelles
-- **Recettes favorites** : Vos préparations les plus fréquentes
+2. **Définissez vos paramètres**
+   - **Budget** : Montant hebdomadaire disponible
+   - **Nombre de portions** : Pour combien de personnes
+   - **Temps de cuisine** : Rapide (< 30min), Moyen, Long
+   - **Types de cuisine** : Vos préférences culinaires
+   - **Ingrédients à éviter** : Basé sur vos allergies/préférences
 
-### Rapports détaillés
-- **Consommation par catégorie** : Répartition de vos achats
-- **Saisonnalité** : Adaptation à votre consommation saisonnière
-- **Tendances** : Évolution de vos habitudes culinaires
+3. **Options d'optimisation**
+   - ✅ **Optimiser le budget** : Économisez jusqu'à 30%
+   - ✅ **Privilégier les produits de saison** : Fraîcheur et économies
+   - ✅ **Utiliser l'inventaire** : Zéro gaspillage
+   - ✅ **Respecter le profil santé** : Atteindre vos objectifs
 
-### Objectifs personnels
-Définissez vos objectifs :
-- **Zéro gaspillage** : Utiliser tous vos produits
-- **Budget alimentaire** : Respecter votre enveloppe mensuelle
-- **Variété culinaire** : Essayer X nouvelles recettes par mois
-- **Santé** : Équilibrer vos apports nutritionnels
+### Liste de courses intelligente
+
+Après génération du plan :
+
+1. **Consolidation automatique**
+   - Les ingrédients similaires sont regroupés
+   - Les quantités sont optimisées
+   - Les doublons sont éliminés
+
+2. **Organisation par magasin**
+   - Classement par rayon pour gagner du temps
+   - Comparaison des prix entre enseignes
+   - Suggestions d'alternatives économiques
+
+3. **Export et partage**
+   - Télécharger en PDF
+   - Partager avec la famille
+   - Synchroniser avec l'app mobile
+
+## 👥 Community - Cuisinez Ensemble (V2)
+
+### Partager vos recettes
+
+1. **Créez votre recette**
+   - Bouton "+" → "Partager une recette"
+   - Ajoutez photos, ingrédients, instructions
+   - Définissez le niveau de difficulté et le temps
+
+2. **Optimisez la visibilité**
+   - Utilisez des tags pertinents (#végétarien #rapide #économique)
+   - Ajoutez une belle photo principale
+   - Écrivez une description engageante
+
+3. **Interagissez avec la communauté**
+   - Répondez aux commentaires
+   - Notez les recettes des autres
+   - Suivez vos chefs préférés
+
+### Participer aux challenges
+
+1. **Challenge hebdomadaire**
+   - Nouveau thème chaque lundi
+   - Exemples : "Zéro déchet", "Cuisine du monde", "Budget 20€"
+   
+2. **Comment participer**
+   - Rejoignez le challenge depuis l'onglet Communauté
+   - Créez votre recette selon le thème
+   - Publiez avant la fin de semaine
+   - Votez pour vos favoris
+
+3. **Récompenses**
+   - Badges de participation
+   - Points d'expérience
+   - Mise en avant sur la page d'accueil
+   - Prix mensuels pour les gagnants
+
+### Consultations d'experts
+
+1. **Réserver une session**
+   - Onglet "Experts" dans la communauté
+   - Choisissez votre spécialiste (nutritionniste, chef, diététicien)
+   - Sélectionnez un créneau disponible
+   - Préparez vos questions
+
+2. **Types de consultations**
+   - **Nutritionniste** : Plan alimentaire personnalisé (30min)
+   - **Chef** : Techniques de cuisine avancées (45min)
+   - **Diététicien** : Régimes spéciaux et allergies (30min)
+
+## 🏠 IoT Hub - Cuisine Connectée (V2)
+
+### Connecter vos appareils
+
+1. **Configuration initiale**
+   - Menu → "Appareils connectés"
+   - Cliquez sur "Découvrir les appareils"
+   - Assurez-vous que vos appareils sont sur le même réseau Wi-Fi
+
+2. **Appareils supportés**
+   - **Réfrigérateurs intelligents** : Samsung Family Hub, LG ThinQ
+   - **Fours connectés** : Bosch Home Connect, Siemens iQ700
+   - **Balances intelligentes** : Drop Scale, Perfect Bake
+   - **Thermomètres** : Meater, iGrill
+
+### Utiliser le Smart Fridge
+
+1. **Synchronisation automatique**
+   - L'inventaire se met à jour automatiquement
+   - Photos de l'intérieur toutes les heures
+   - Alertes de température anormale
+
+2. **Fonctionnalités avancées**
+   - Vue en temps réel du contenu
+   - Suggestions basées sur ce qui est disponible
+   - Mode économie d'énergie intelligent
+   - Alertes porte ouverte
+
+### Sessions de cuisine guidées
+
+1. **Démarrer une session**
+   - Sélectionnez une recette
+   - Cliquez sur "Cuisiner avec appareils connectés"
+   - Les appareils se configurent automatiquement
+
+2. **Pendant la cuisson**
+   - Le four préchauffe à la bonne température
+   - La balance affiche les quantités à mesurer
+   - Le thermomètre surveille la cuisson
+   - Notifications à chaque étape
+
+## 📊 Analytics - Intelligence Prédictive (V2)
+
+### Prédictions de gaspillage
+
+1. **Dashboard prédictif**
+   - Vue d'ensemble des produits à risque
+   - Niveau de risque : Faible, Moyen, Élevé
+   - Suggestions de prévention personnalisées
+
+2. **Notifications intelligentes**
+   - 7 jours avant : "Les bananes risquent d'être perdues"
+   - 3 jours avant : "Utilisez vos tomates dans une sauce"
+   - 1 jour avant : "Dernière chance pour le yaourt!"
+
+3. **Actions recommandées**
+   - Recettes rapides pour sauver les aliments
+   - Techniques de conservation (congélation, etc.)
+   - Partage avec la communauté locale
+
+### Analyse comportementale
+
+1. **Rapports mensuels**
+   - Dépenses par catégorie
+   - Évolution des habitudes
+   - Produits les plus gaspillés
+   - Économies réalisées
+
+2. **Insights personnalisés**
+   - "Vous achetez trop de pain le samedi"
+   - "Les légumes d'été vous coûtent 20% moins cher"
+   - "Votre consommation de produits laitiers a augmenté"
+
+3. **Optimisations suggérées**
+   - Ajustements des quantités achetées
+   - Meilleurs jours pour faire les courses
+   - Substitutions économiques
+
+### Score de durabilité
+
+1. **Calcul du score (0-100)**
+   - Réduction du gaspillage : 30 points
+   - Achats locaux : 20 points
+   - Produits de saison : 20 points
+   - Emballages réduits : 15 points
+   - Empreinte carbone : 15 points
+
+2. **Améliorer votre score**
+   - Suivez les recommandations personnalisées
+   - Participez aux défis écologiques
+   - Privilégiez les circuits courts
+   - Réduisez les emballages
+
+## 🔄 Mode Hors-Ligne Avancé (V2)
+
+### Configuration
+
+1. **Activer le mode offline**
+   - Paramètres → "Synchronisation"
+   - Activez "Mode hors-ligne intelligent"
+   - Choisissez la taille du cache (50-500 MB)
+
+2. **Priorités de synchronisation**
+   - 🔴 Critique : Inventaire, listes de courses
+   - 🟠 Haute : Recettes favorites, plans de repas
+   - 🟡 Moyenne : Photos, communauté
+   - 🟢 Basse : Statistiques, historique
+
+3. **Optimisations**
+   - **Mode économie batterie** : Sync moins fréquente
+   - **Wi-Fi uniquement** : Pas de sync en 4G
+   - **Compression** : Réduction de 60% des données
+
+### Utilisation hors-ligne
+
+1. **Fonctionnalités disponibles**
+   - ✅ Consulter et modifier l'inventaire
+   - ✅ Accéder aux recettes téléchargées
+   - ✅ Scanner des produits (reconnaissance locale)
+   - ✅ Planifier des repas
+   - ✅ Prendre des notes
+
+2. **Synchronisation au retour**
+   - Connexion détectée → Sync automatique
+   - Résolution intelligente des conflits
+   - Priorité aux modifications récentes
+   - Notification des changements appliqués
 
 ## 🔒 Confidentialité et Sécurité
 
+### Vos données vous appartiennent
+- **Consentement granulaire** : Choisissez précisément ce que vous partagez
+- **Mode privé** : Navigation sans historique
+- **Export complet** : Téléchargez toutes vos données en un clic
+- **Suppression définitive** : Effacez votre compte et toutes les données
+
+### Protection des données
+- **Chiffrement** : Toutes les données sont chiffrées
+- **RGPD** : Conformité totale avec la réglementation européenne
+- **Pas de revente** : Vos données ne sont jamais vendues
+- **Serveurs européens** : Données hébergées en France
+
 ### Paramètres de confidentialité
+1. Menu → Paramètres → Confidentialité
+2. Ajustez chaque permission individuellement
+3. Consultez l'historique d'accès à vos données
+4. Activez/désactivez les fonctionnalités IA
 
-#### Consentement granulaire
-Choisissez précisément ce que vous partagez :
-- ✅ **Historique de scan** : Pour améliorer les suggestions
-- ❌ **Données d'usage** : Pour les statistiques anonymes
-- ✅ **Images de produits** : Pour l'entraînement IA
-- ❌ **Localisation** : Pour les offres locales
+## 💡 Trucs et Astuces
 
-#### Mode privé
-1. **Navigation sans traces** : Pas d'historique sauvegardé
-2. **Suppression automatique** : Données effacées après X jours
-3. **Chiffrement local** : Protection sur votre appareil
+### Raccourcis utiles
 
-### Gestion de vos données
+**Commandes vocales fréquentes** :
+- "Qu'est-ce qui expire bientôt ?"
+- "Ajoute tout ce que j'ai scanné"
+- "Montre-moi des recettes rapides"
+- "Combien j'ai dépensé ce mois-ci ?"
+- "Suggère-moi un repas sain"
+- "Lance une session de cuisine"
 
-#### Export RGPD
-1. Accédez à "Paramètres" > "Confidentialité"
-2. Cliquez sur "Exporter mes données"
-3. Recevez un fichier JSON complet
-4. Toutes vos données en format lisible
+**Gestes tactiles** :
+- Swipe gauche : Marquer comme consommé
+- Swipe droite : Ajouter aux favoris
+- Appui long : Options rapides
+- Pincer : Zoom sur les graphiques
 
-#### Suppression complète
-1. Option "Supprimer mon compte" dans les paramètres
-2. Suppression immédiate et définitive
-3. Impossible de récupérer les données après
-4. Confirmation par email obligatoire
+### Optimiser l'utilisation
 
-### Protection des images
-- **Suppression automatique des EXIF** : Pas de géolocalisation
-- **Traitement local** : Analyse sur votre appareil quand possible
-- **Chiffrement en transit** : Sécurisation des transferts
-- **Pas de stockage non consenti** : Contrôle total
+1. **Routine quotidienne recommandée**
+   - Matin : Consultez les alertes de péremption
+   - Midi : Vérifiez les suggestions de repas
+   - Soir : Mettez à jour l'inventaire utilisé
 
-## 📱 Optimisations Mobile
+2. **Routine hebdomadaire**
+   - Lundi : Générez le plan de repas
+   - Mardi : Finalisez la liste de courses
+   - Samedi : Analysez vos statistiques
+   - Dimanche : Participez au challenge communautaire
 
-### Interface adaptative
-- **Design responsive** : Parfait sur toutes les tailles d'écran
-- **Navigation intuitive** : Optimisée pour le tactile
-- **Gestes naturels** : Swipe, pinch, tap
-- **Mode portrait/paysage** : Adaptation automatique
+3. **Routine mensuelle**
+   - Analysez votre score nutritionnel
+   - Consultez le rapport de durabilité
+   - Ajustez vos objectifs santé
+   - Planifiez une consultation expert
 
-### Performance
-- **Chargement ultra-rapide** : Moins de 2 secondes
-- **Mode hors-ligne** : Fonctionnalités essentielles disponibles
-- **Économie de batterie** : Mode optimisé disponible
-- **Peu de données** : Compression intelligente
+### Résolution des problèmes
 
-### Spécificités iOS
-- **Intégration Siri** : (Futur) Commandes vocales système
-- **Raccourcis** : Actions rapides depuis l'écran d'accueil
-- **Notifications riches** : Aperçus et actions directes
-- **Mode sombre** : Support natif
+**L'app est lente ?**
+- Videz le cache dans les paramètres
+- Vérifiez votre connexion internet
+- Réduisez la qualité des images
 
-### Spécificités Android
-- **Widgets** : (Futur) Liste de courses sur écran d'accueil  
-- **Intégration Google Assistant** : (Futur) Commandes vocales
-- **Partage système** : Recettes vers d'autres apps
-- **Notifications personnalisables** : Contrôle total
+**Scanner ne fonctionne pas ?**
+- Vérifiez les permissions caméra
+- Améliorez l'éclairage
+- Nettoyez l'objectif
+- Mettez à jour l'application
 
-## 💡 Conseils et Astuces
+**Notifications manquées ?**
+- Vérifiez les paramètres de notification
+- Autorisez les notifications système
+- Désactivez le mode économie d'énergie
 
-### Optimiser les scans
-1. **Éclairage** : Lumière naturelle > éclairage artificiel
-2. **Contraste** : Étiquettes claires sur fond neutre
-3. **Stabilité** : Maintenez l'appareil stable 2 secondes
-4. **Distance** : 20-30 cm du produit optimal
+**Synchronisation lente ?**
+- Vérifiez votre connexion internet
+- Réduisez la taille du cache
+- Désactivez la sync des photos
 
-### Maximiser l'IA
-1. **Contexte** : Plus vous donnez d'infos, meilleures sont les suggestions
-2. **Feedback** : Notez les recettes pour améliorer les recommandations
-3. **Régularité** : Utilisez quotidiennement pour un profil précis
+**Appareils IoT non détectés ?**
+- Assurez-vous qu'ils sont sur le même réseau
+- Redémarrez l'appareil IoT
+- Vérifiez les mises à jour firmware
 
-### Réduire le gaspillage
-1. **Consultez les alertes** quotidiennement
-2. **Planifiez en avance** : Menu de la semaine le dimanche
-3. **Batch cooking** : Préparez en grandes quantités
-4. **Utilisez les restes** : Laissez l'IA vous guider
+## 📞 Support et Aide
 
-### Organisation efficace
-1. **Catégorisez dès l'ajout** : Gain de temps ensuite  
-2. **Emplacements précis** : "Étagère 2 du frigo" vs "Frigo"
-3. **Photos** : Ajoutez des photos pour reconnaissance rapide
-4. **Collections thématiques** : Regroupez les recettes similaires
+### Obtenir de l'aide
+- **Chat en direct** : Bulle en bas à droite (9h-19h)
+- **FAQ** : Menu → Aide → Questions fréquentes
+- **Tutoriels vidéo** : Menu → Aide → Tutoriels
+- **Email** : support@smartpantrypro.com
+- **Discord** : Communauté d'entraide
 
-## 🆘 Résolution de Problèmes
+### Signaler un problème
+1. Menu → Aide → Signaler un problème
+2. Décrivez le problème en détail
+3. Joignez une capture d'écran si possible
+4. Nous vous répondrons sous 24h
 
-### Problèmes fréquents
+### Suggérer une amélioration
+Vos idées nous intéressent !
+- Formulaire de feedback in-app
+- Vote pour les fonctionnalités futures
+- Participez aux bêta-tests
 
-#### Le scanner ne reconnaît pas mes produits
-1. **Vérifiez l'éclairage** : Évitez contre-jour et ombres
-2. **Nettoyez l'étiquette** : Enlevez poussière et traces
-3. **Ajustez l'angle** : Étiquette perpendiculaire à la caméra
-4. **Mode manuel** : Ajoutez manuellement si problème persiste
+## 🎯 Fonctionnalités Premium
 
-#### La reconnaissance vocale ne marche pas
-1. **Permissions** : Vérifiez l'accès microphone dans les paramètres
-2. **Environnement** : Réduisez le bruit ambiant
-3. **Langue** : Confirmez que le français est sélectionné
-4. **Connexion** : Certaines fonctions nécessitent internet
+### Essai gratuit
+- 30 jours d'essai complet
+- Aucune carte bancaire requise
+- Toutes les fonctionnalités débloquées
 
-#### Les suggestions ne sont pas pertinentes
-1. **Complétez votre profil** : Allergies, goûts, restrictions
-2. **Utilisez le feedback** : Notez les suggestions (👍/👎)
-3. **Mettez à jour l'inventaire** : Supprimez les produits consommés
-4. **Patience** : L'IA s'améliore avec l'usage
+### Avantages Premium
+- **IA illimitée** : Pas de limite sur les requêtes
+- **Stockage étendu** : 10GB pour vos photos
+- **Export avancé** : Formats multiples
+- **Support prioritaire** : Réponse en 2h
+- **Accès anticipé** : Nouvelles fonctionnalités en avant-première
+- **🆕 Consultations experts** : 1 session gratuite/mois
+- **🆕 IoT illimité** : Connexion appareils illimitée
+- **🆕 Analytics avancés** : Rapports détaillés
 
-#### L'application est lente
-1. **Fermez les autres apps** : Libérez la mémoire
-2. **Connexion** : Vérifiez votre connexion internet
-3. **Cache** : Videz le cache du navigateur
-4. **Mode économie** : Activez le mode batterie dans les paramètres
-
-### Support technique
-- **FAQ complète** : help.smartpantrypro.com
-- **Email support** : support@smartpantrypro.com
-- **Chat en direct** : Disponible dans l'application
-- **Communauté** : Forum utilisateurs et Discord
-
-## 🚀 Nouveautés et Mises à Jour
-
-### Version 1.0.0 (Janvier 2025)
-- 🆕 **Smart Scanner multi-produits** avec Vision AI
-- 🆕 **Assistant vocal français** optimisé cuisine
-- 🆕 **Parser réseaux sociaux** Instagram/TikTok/YouTube
-- 🆕 **Conformité RGPD** contrôle granulaire des données
-- 🆕 **Mode hors-ligne** fonctionnalités essentielles
-- 🆕 **Optimisations mobiles** iOS Safari et performances
-
-### Prochaines fonctionnalités (Q2 2025)
-- 🔮 **Intégration Smart Home** : Alexa, Google Home
-- 🔮 **Commerce intégré** : Commande directe chez vos marchands
-- 🔮 **Partage social** : Publication de vos créations
-- 🔮 **IA nutritionnelle** : Conseils santé personnalisés
-- 🔮 **Réalité augmentée** : Visualisation des recettes
-
-### Notifications de mise à jour
-- **Mises à jour automatiques** : Via votre navigateur
-- **Notes de version** : Détail des nouveautés
-- **Migration de données** : Toujours préservées
-- **Période de test** : Nouvelles fonctions en bêta
-
-## 📞 Communauté et Support
-
-### Rejoignez la communauté
-- **Discord** : Chat en temps réel avec autres utilisateurs
-- **Newsletter** : Recettes de saison et conseils hebdomadaires
-- **Blog** : Articles sur la cuisine anti-gaspi
-- **Réseaux sociaux** : Partagez vos créations #SmartPantryPro
-
-### Contribuer au projet
-- **Bêta-testeurs** : Testez les nouvelles fonctionnalités en avant-première
-- **Retours utilisateurs** : Vos suggestions façonnent l'évolution
-- **Ambassadeurs** : Partagez Smart Pantry Pro autour de vous
-- **Partenariats** : Proposez des collaborations
+### Tarifs
+- **Mensuel** : 4,99€/mois
+- **Annuel** : 39,99€/an (économisez 33%)
+- **Famille** : 69,99€/an (jusqu'à 5 comptes)
 
 ---
 
-**Bienvenue dans l'avenir de la cuisine intelligente !** 🎉
+**Merci d'utiliser Smart Pantry Pro !** 
 
-Avec Smart Pantry Pro, transformez votre cuisine en un espace organisé, créatif et zéro gaspillage. L'intelligence artificielle vous accompagne pour une expérience culinaire révolutionnaire.
+Ensemble, réduisons le gaspillage alimentaire et mangeons mieux. 🌱
 
-*Besoin d'aide ? Notre équipe support est là pour vous : support@smartpantrypro.com* 💙
+*Guide utilisateur - Version 2.0 - Août 2025*

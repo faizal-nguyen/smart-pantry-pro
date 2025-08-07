@@ -1,18 +1,60 @@
 # Documentation API - Smart Pantry Pro
 
-## Vue d'ensemble
+## 📚 Table des matières
+
+1. [Vue d'ensemble](#vue-densemble)
+2. [Authentication](#authentication)
+3. [Base API v1](#base-api-v1)
+   - [Pantry Management](#pantry-management)
+   - [Products](#products)
+   - [Recipes](#recipes)
+   - [Shopping Lists](#shopping-lists)
+   - [Scanner & Vision](#scanner--vision)
+   - [AI Assistant](#ai-assistant)
+4. [Evolution V2 APIs](#evolution-v2-apis)
+   - [AI Nutritionist API](#ai-nutritionist-api)
+   - [Meal Planning API](#meal-planning-api)
+   - [Community API](#community-api)
+   - [IoT API](#iot-api)
+   - [Analytics API](#analytics-api)
+   - [Sync API](#sync-api)
+5. [Sécurité et limites](#sécurité-et-limites)
+
+## 🌐 Vue d'ensemble
 
 L'API Smart Pantry Pro est une API RESTful qui permet d'interagir avec toutes les fonctionnalités de l'application. Elle est construite sur Supabase et Vercel Edge Functions.
 
-## Base URL
+### Base URLs
 
 ```
-Production: https://api.smartpantrypro.com/v1
-Staging: https://api-staging.smartpantrypro.com/v1
-Local: http://localhost:3001/api
+Production V1: https://api.smartpantrypro.com/v1
+Production V2: https://api.smartpantrypro.com/v2
+Staging: https://api-staging.smartpantrypro.com
+Development: http://localhost:3000/api
 ```
 
-## Authentication
+### Headers standards
+
+```http
+Content-Type: application/json
+Accept: application/json
+X-API-Version: 2.0
+```
+
+### Codes de réponse
+
+| Code | Description |
+|------|-------------|
+| 200 | Succès |
+| 201 | Ressource créée |
+| 400 | Requête invalide |
+| 401 | Non authentifié |
+| 403 | Non autorisé |
+| 404 | Ressource non trouvée |
+| 429 | Limite de taux dépassée |
+| 500 | Erreur serveur |
+
+## 🔐 Authentication
 
 L'API utilise JWT (JSON Web Tokens) pour l'authentification. Toutes les requêtes doivent inclure le token dans le header.
 
@@ -29,6 +71,7 @@ Content-Type: application/json
 POST /auth/login
 ```
 
+**Body:**
 ```json
 {
   "email": "user@example.com",
@@ -36,7 +79,7 @@ POST /auth/login
 }
 ```
 
-**Réponse:**
+**Response:**
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -51,22 +94,35 @@ POST /auth/login
 }
 ```
 
-## Endpoints
+### Rafraîchir un token
 
-### 🏠 Pantry (Garde-manger)
+```http
+POST /auth/refresh
+```
+
+**Body:**
+```json
+{
+  "refresh_token": "your_refresh_token"
+}
+```
+
+## 📦 Base API v1
+
+### Pantry Management
 
 #### Obtenir tous les garde-mangers
 
 ```http
-GET /pantries
+GET /api/v1/pantries
 ```
 
-**Paramètres de requête:**
+**Query parameters:**
 - `limit` (number): Nombre d'éléments par page (défaut: 20)
 - `offset` (number): Décalage pour la pagination
 - `sort` (string): Champ de tri (défaut: created_at)
 
-**Réponse:**
+**Response:**
 ```json
 {
   "data": [
@@ -87,10 +143,10 @@ GET /pantries
 #### Créer un garde-manger
 
 ```http
-POST /pantries
+POST /api/v1/pantries
 ```
 
-**Corps de la requête:**
+**Body:**
 ```json
 {
   "name": "Garde-manger principal",
@@ -98,532 +154,842 @@ POST /pantries
 }
 ```
 
-### 📦 Products (Produits)
+### Products
 
-#### Lister les produits
+#### Obtenir les produits d'un garde-manger
 
 ```http
-GET /pantries/{pantry_id}/products
+GET /api/v1/pantries/{pantry_id}/products
 ```
 
-**Paramètres de requête:**
+**Query parameters:**
 - `category` (string): Filtrer par catégorie
-- `expiring_soon` (boolean): Produits expirant dans 7 jours
-- `low_stock` (boolean): Produits en stock faible
+- `expiring` (boolean): Produits proches de la péremption
 - `search` (string): Recherche textuelle
 
-**Réponse:**
+**Response:**
 ```json
 {
   "data": [
     {
       "id": "uuid",
       "name": "Lait demi-écrémé",
+      "category": "Produits laitiers",
       "quantity": 2,
       "unit": "L",
-      "category": "dairy",
       "expiry_date": "2024-01-20",
       "barcode": "3123456789012",
-      "image_url": "https://storage.smartpantrypro.com/products/milk.jpg",
-      "minimum_quantity": 1,
-      "location": "Frigo principal"
+      "image_url": "https://storage.example.com/products/milk.jpg"
     }
-  ]
+  ],
+  "total": 15
 }
 ```
 
 #### Ajouter un produit
 
 ```http
-POST /pantries/{pantry_id}/products
+POST /api/v1/pantries/{pantry_id}/products
 ```
 
-**Corps de la requête:**
+**Body:**
 ```json
 {
-  "name": "Tomates cerises",
+  "name": "Pâtes complètes",
+  "category": "Féculents",
   "quantity": 500,
   "unit": "g",
-  "category": "vegetables",
-  "expiry_date": "2024-01-18",
-  "barcode": "3123456789012",
-  "location": "Bac à légumes"
+  "expiry_date": "2025-06-15",
+  "barcode": "8001234567890"
 }
 ```
 
-#### Mettre à jour la quantité
-
-```http
-PATCH /products/{product_id}/quantity
-```
-
-**Corps de la requête:**
-```json
-{
-  "operation": "add" | "subtract" | "set",
-  "quantity": 100,
-  "reason": "used_in_recipe" | "expired" | "manual_adjustment"
-}
-```
-
-### 🍳 Recipes (Recettes)
+### Recipes
 
 #### Rechercher des recettes
 
 ```http
-GET /recipes/search
+GET /api/v1/recipes/search
 ```
 
-**Paramètres de requête:**
-- `q` (string): Terme de recherche
-- `cuisine_type` (string): Type de cuisine
-- `meal_type` (string): Type de repas
-- `max_time` (number): Temps max en minutes
-- `difficulty` (string): easy|medium|hard
-- `with_available_ingredients` (boolean): Uniquement faisables
+**Query parameters:**
+- `ingredients` (array): Ingrédients disponibles
+- `cuisine` (string): Type de cuisine
+- `time` (number): Temps max en minutes
+- `difficulty` (string): easy, medium, hard
 
-**Réponse:**
+**Response:**
 ```json
 {
   "data": [
     {
       "id": "uuid",
-      "name": "Poulet Tikka Masala",
-      "description": "Un délicieux curry indien",
-      "cuisine_type": "indian",
-      "meal_type": "dinner",
-      "prep_time": 20,
-      "cook_time": 30,
+      "name": "Spaghetti Carbonara",
+      "cuisine": "Italienne",
+      "prep_time": 10,
+      "cook_time": 20,
+      "difficulty": "easy",
       "servings": 4,
-      "difficulty": "medium",
-      "image_url": "https://storage.smartpantrypro.com/recipes/tikka.jpg",
-      "rating": 4.8,
-      "reviews_count": 156,
-      "can_make_now": true,
-      "missing_ingredients": []
+      "image_url": "https://storage.example.com/recipes/carbonara.jpg",
+      "ingredients": [
+        {
+          "name": "Spaghetti",
+          "quantity": 400,
+          "unit": "g"
+        }
+      ],
+      "instructions": [
+        "Faire bouillir l'eau...",
+        "Pendant ce temps..."
+      ],
+      "nutrition": {
+        "calories": 420,
+        "protein": 18,
+        "carbs": 55,
+        "fat": 15
+      }
+    }
+  ],
+  "total": 23
+}
+```
+
+#### Importer une recette depuis une URL
+
+```http
+POST /api/v1/recipes/import
+```
+
+**Body:**
+```json
+{
+  "url": "https://www.instagram.com/p/ABC123/",
+  "pantry_id": "uuid"
+}
+```
+
+### Shopping Lists
+
+#### Obtenir les listes de courses
+
+```http
+GET /api/v1/shopping-lists
+```
+
+#### Créer une liste de courses
+
+```http
+POST /api/v1/shopping-lists
+```
+
+**Body:**
+```json
+{
+  "name": "Courses de la semaine",
+  "items": [
+    {
+      "product_name": "Tomates",
+      "quantity": 1,
+      "unit": "kg",
+      "category": "Légumes"
     }
   ]
 }
 ```
 
-#### Extraire une recette depuis URL
+### Scanner & Vision
+
+#### Scanner un code-barres
 
 ```http
-POST /recipes/extract
+POST /api/v1/scanner/barcode
 ```
 
-**Corps de la requête:**
+**Body:**
 ```json
 {
-  "url": "https://www.marmiton.org/recettes/recette_poulet-tikka-masala_12345.aspx",
-  "translate_to_french": true
+  "barcode": "3123456789012",
+  "pantry_id": "uuid"
 }
 ```
 
-**Réponse:**
+#### Analyser une image (Vision AI)
+
+```http
+POST /api/v1/scanner/vision
+```
+
+**Body (multipart/form-data):**
+- `image`: Fichier image (JPEG, PNG)
+- `pantry_id`: ID du garde-manger
+- `auto_add`: Boolean pour ajout automatique
+
+**Response:**
+```json
+{
+  "detected_products": [
+    {
+      "name": "Pommes Golden",
+      "confidence": 0.95,
+      "quantity": 6,
+      "unit": "pièces",
+      "category": "Fruits",
+      "freshness": "good",
+      "estimated_expiry": "2024-01-25"
+    }
+  ],
+  "processing_time": 1.2
+}
+```
+
+### AI Assistant
+
+#### Envoyer un message à l'assistant
+
+```http
+POST /api/v1/ai-assistant/chat
+```
+
+**Body:**
+```json
+{
+  "message": "Que puis-je cuisiner avec mes tomates et pâtes?",
+  "context": {
+    "pantry_id": "uuid",
+    "dietary_preferences": ["vegetarian"],
+    "cooking_time": 30
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Avec vos tomates et pâtes, je vous suggère...",
+  "suggestions": [
+    {
+      "recipe_id": "uuid",
+      "name": "Pâtes à la sauce tomate fraîche",
+      "match_score": 0.92
+    }
+  ]
+}
+```
+
+## 🆕 Evolution V2 APIs
+
+### 🧠 AI Nutritionist API
+
+#### Profil de santé
+
+##### Créer/Mettre à jour le profil
+
+```http
+PUT /api/v2/nutrition/profile
+```
+
+**Body:**
+```json
+{
+  "age": 30,
+  "gender": "male",
+  "weight": 75,
+  "height": 180,
+  "activityLevel": "moderately_active",
+  "goals": [
+    {
+      "type": "weight_loss",
+      "priority": "high",
+      "targetValue": 70,
+      "targetDate": "2025-12-31"
+    }
+  ],
+  "medicalConditions": ["hypertension"],
+  "allergies": ["lactose", "gluten"],
+  "dietaryPreferences": [
+    {
+      "type": "vegetarian",
+      "strictness": "flexible"
+    }
+  ]
+}
+```
+
+**Response:**
 ```json
 {
   "success": true,
-  "recipe": {
-    "name": "Poulet Tikka Masala",
-    "description": "Un curry indien crémeux et épicé",
-    "ingredients": [
-      {
-        "name": "Poulet",
-        "quantity": 600,
-        "unit": "g",
-        "notes": "coupé en cubes"
+  "data": {
+    "id": "profile-123",
+    "userId": "user-456",
+    "bmr": 1750,
+    "tdee": 2625,
+    "dailyCalories": 2231,
+    "macroTargets": {
+      "protein": 150,
+      "carbohydrates": 280,
+      "fat": 62,
+      "fiber": 35
+    },
+    "createdAt": "2025-08-07T10:00:00Z",
+    "updatedAt": "2025-08-07T10:00:00Z"
+  }
+}
+```
+
+##### Obtenir le profil
+
+```http
+GET /api/v2/nutrition/profile
+```
+
+#### Analyse nutritionnelle
+
+##### Analyser l'alimentation actuelle
+
+```http
+POST /api/v2/nutrition/analyze
+```
+
+**Body:**
+```json
+{
+  "period": "week",
+  "includeRecommendations": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalCalories": 2450,
+    "averageDailyCalories": 2450,
+    "macronutrients": {
+      "protein": {
+        "grams": 120,
+        "percentage": 20,
+        "vsTarget": -30
+      },
+      "carbohydrates": {
+        "grams": 300,
+        "percentage": 49,
+        "vsTarget": 20
+      },
+      "fat": {
+        "grams": 85,
+        "percentage": 31,
+        "vsTarget": 23
+      },
+      "fiber": {
+        "grams": 22,
+        "vsTarget": -13
       }
-    ],
-    "instructions": [
-      "Mariner le poulet dans le yaourt et les épices",
-      "Faire cuire dans une poêle chaude"
-    ],
-    "nutrition": {
-      "calories": 350,
-      "protein": 35,
-      "carbs": 15,
-      "fat": 18
-    }
-  },
-  "performance": {
-    "extraction_time_ms": 2500,
-    "model_used": "gpt-3.5-turbo"
-  }
-}
-```
-
-#### Analyser la faisabilité d'une recette
-
-```http
-POST /recipes/{recipe_id}/analyze
-```
-
-**Réponse:**
-```json
-{
-  "can_make": true,
-  "missing_ingredients": [
-    {
-      "name": "Garam masala",
-      "quantity": 2,
-      "unit": "cuillères à café",
-      "alternatives": ["Curry en poudre", "Mélange d'épices maison"]
-    }
-  ],
-  "expiring_ingredients": [
-    {
-      "name": "Yaourt",
-      "expires_in_days": 2,
-      "quantity_available": 200,
-      "quantity_needed": 150
-    }
-  ],
-  "nutrition_per_serving": {
-    "calories": 350,
-    "protein": 35,
-    "carbs": 15,
-    "fat": 18
-  }
-}
-```
-
-### 🛒 Shopping List (Liste de courses)
-
-#### Obtenir la liste actuelle
-
-```http
-GET /shopping-list
-```
-
-**Réponse:**
-```json
-{
-  "id": "uuid",
-  "created_at": "2024-01-15T10:00:00Z",
-  "updated_at": "2024-01-15T14:30:00Z",
-  "total_items": 24,
-  "estimated_cost": 75.50,
-  "items": [
-    {
-      "id": "uuid",
-      "product_name": "Lait demi-écrémé",
-      "quantity": 2,
-      "unit": "L",
-      "category": "dairy",
-      "checked": false,
-      "price_estimate": 2.40,
-      "notes": "Marque habituelle",
-      "added_from": "low_stock"
-    }
-  ]
-}
-```
-
-#### Générer depuis planning
-
-```http
-POST /shopping-list/generate
-```
-
-**Corps de la requête:**
-```json
-{
-  "from_date": "2024-01-15",
-  "to_date": "2024-01-21",
-  "include_low_stock": true,
-  "include_expiring": true,
-  "consolidate_similar": true
-}
-```
-
-### 📅 Meal Planning (Planning repas)
-
-#### Obtenir le planning
-
-```http
-GET /meal-plans
-```
-
-**Paramètres de requête:**
-- `start_date` (date): Date de début
-- `end_date` (date): Date de fin
-
-**Réponse:**
-```json
-{
-  "data": [
-    {
-      "date": "2024-01-15",
-      "meals": {
-        "breakfast": {
-          "recipe_id": "uuid",
-          "recipe_name": "Pancakes",
-          "servings": 2
-        },
-        "lunch": {
-          "recipe_id": "uuid",
-          "recipe_name": "Salade César",
-          "servings": 2
-        },
-        "dinner": {
-          "recipe_id": "uuid",
-          "recipe_name": "Poulet rôti",
-          "servings": 4,
-          "notes": "Invités ce soir"
+    },
+    "micronutrients": {
+      "vitamins": {
+        "vitaminC": {
+          "amount": 85,
+          "unit": "mg",
+          "dailyValuePercentage": 95
+        }
+      },
+      "minerals": {
+        "iron": {
+          "amount": 12,
+          "unit": "mg",
+          "dailyValuePercentage": 67
         }
       }
-    }
-  ]
-}
-```
-
-#### Suggestions IA pour planning
-
-```http
-POST /meal-plans/suggest
-```
-
-**Corps de la requête:**
-```json
-{
-  "days": 7,
-  "preferences": {
-    "avoid_repeating_days": 3,
-    "use_expiring_first": true,
-    "dietary_restrictions": ["vegetarian"],
-    "preferred_cuisines": ["french", "italian"],
-    "max_prep_time": 45
-  }
-}
-```
-
-### 📊 Analytics
-
-#### Tableau de bord
-
-```http
-GET /analytics/dashboard
-```
-
-**Paramètres de requête:**
-- `period` (string): week|month|year|custom
-- `start_date` (date): Pour période custom
-- `end_date` (date): Pour période custom
-
-**Réponse:**
-```json
-{
-  "period": "month",
-  "metrics": {
-    "waste_reduction": {
-      "percentage": 47,
-      "value_saved": 152.30,
-      "items_saved": 23
     },
-    "shopping": {
-      "total_spent": 580.45,
-      "average_per_trip": 72.55,
-      "trips_count": 8
-    },
-    "cooking": {
-      "meals_cooked": 85,
-      "recipes_tried": 12,
-      "favorite_cuisine": "italian"
-    },
-    "inventory": {
-      "total_items": 156,
-      "expiring_soon": 8,
-      "low_stock": 12,
-      "categories": {
-        "dairy": 15,
-        "vegetables": 28,
-        "meat": 12,
-        "pantry": 45
+    "nutritionalScore": 78,
+    "healthAlerts": [
+      {
+        "type": "deficiency",
+        "nutrient": "protein",
+        "severity": "medium",
+        "message": "Apport en protéines insuffisant pour vos objectifs"
       }
-    }
+    ],
+    "recommendations": [
+      {
+        "priority": "high",
+        "category": "protein",
+        "suggestion": "Ajoutez 30g de protéines par jour",
+        "foods": ["lentilles", "tofu", "quinoa"]
+      }
+    ]
   }
 }
 ```
 
-### 🔔 Notifications
+### 📅 Meal Planning API
 
-#### Obtenir les notifications
+#### Plans de repas
+
+##### Générer un plan hebdomadaire
 
 ```http
-GET /notifications
+POST /api/v2/meal-planning/generate
 ```
 
-**Paramètres de requête:**
-- `unread_only` (boolean): Seulement non lues
-- `type` (string): expiry|low_stock|meal_reminder|tip
-
-**Réponse:**
+**Body:**
 ```json
 {
-  "data": [
+  "weekStartDate": "2025-08-12",
+  "preferences": {
+    "budget": 150,
+    "servings": 4,
+    "cookingTime": "medium",
+    "cuisineTypes": ["française", "italienne"],
+    "avoidIngredients": ["porc", "fruits de mer"]
+  },
+  "useHealthProfile": true,
+  "optimizeForBudget": true,
+  "prioritizeSeasonal": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "plan-789",
+    "weekStartDate": "2025-08-12",
+    "meals": [
+      {
+        "id": "meal-001",
+        "dayOfWeek": 1,
+        "mealType": "lunch",
+        "recipeId": "recipe-123",
+        "recipeName": "Ratatouille provençale",
+        "servings": 4,
+        "prepTime": 20,
+        "cookTime": 45,
+        "estimatedCost": 8.50,
+        "nutritionalInfo": {
+          "calories": 220,
+          "protein": 8,
+          "carbs": 28,
+          "fat": 10
+        },
+        "ingredients": [
+          {
+            "name": "Aubergine",
+            "quantity": 2,
+            "unit": "pièces",
+            "estimatedCost": 3.00,
+            "inInventory": false
+          }
+        ]
+      }
+    ],
+    "totalCost": 145.80,
+    "nutritionalSummary": {
+      "averageDailyCalories": 2250,
+      "macroBalance": "optimal",
+      "micronutrientCoverage": 0.92
+    },
+    "savingsVsAverage": 25.50,
+    "seasonalScore": 0.85
+  }
+}
+```
+
+#### Liste de courses
+
+##### Optimiser la liste de courses
+
+```http
+POST /api/v2/meal-planning/shopping-list/optimize
+```
+
+**Body:**
+```json
+{
+  "mealPlanId": "plan-789",
+  "consolidate": true,
+  "groupByStore": true,
+  "includePrices": true
+}
+```
+
+### 👥 Community API
+
+#### Recettes communautaires
+
+##### Partager une recette
+
+```http
+POST /api/v2/community/recipes
+```
+
+**Body:**
+```json
+{
+  "title": "Tarte aux pommes de grand-mère",
+  "description": "Une recette traditionnelle transmise de génération en génération",
+  "ingredients": [
     {
-      "id": "uuid",
-      "type": "expiry_warning",
-      "title": "3 produits expirent bientôt",
-      "message": "Yaourt, Salade, Fromage blanc expirent dans 2 jours",
-      "created_at": "2024-01-15T08:00:00Z",
-      "read": false,
-      "action_url": "/pantry?filter=expiring",
-      "priority": "high"
+      "name": "Pommes",
+      "quantity": 6,
+      "unit": "pièces"
+    }
+  ],
+  "instructions": [
+    "Préchauffer le four à 180°C",
+    "Éplucher et couper les pommes en lamelles"
+  ],
+  "prepTime": 20,
+  "cookTime": 35,
+  "servings": 8,
+  "difficulty": "easy",
+  "tags": ["dessert", "traditionnel", "automne"],
+  "images": ["image-url-1", "image-url-2"]
+}
+```
+
+##### Rechercher des recettes
+
+```http
+GET /api/v2/community/recipes/search?q=végétarien&tags=rapide,budget&difficulty=easy
+```
+
+#### Challenges
+
+##### Rejoindre un challenge
+
+```http
+POST /api/v2/community/challenges/{challengeId}/join
+```
+
+##### Soumettre une participation
+
+```http
+POST /api/v2/community/challenges/{challengeId}/submit
+```
+
+**Body:**
+```json
+{
+  "recipeId": "recipe-community-123",
+  "images": ["submission-image-1.jpg"],
+  "cookingStory": "J'ai adapté cette recette en utilisant...",
+  "timeSpent": 45
+}
+```
+
+#### Consultations experts
+
+##### Réserver une consultation
+
+```http
+POST /api/v2/community/consultations/book
+```
+
+**Body:**
+```json
+{
+  "expertId": "expert-nutritionist-01",
+  "preferredDate": "2025-08-15",
+  "preferredTime": "14:00",
+  "duration": 30,
+  "topics": ["perte de poids", "alimentation végétarienne"],
+  "notes": "Je souhaite discuter de mon plan alimentaire"
+}
+```
+
+### 🏠 IoT API
+
+#### Gestion des appareils
+
+##### Découvrir les appareils
+
+```http
+GET /api/v2/iot/devices/discover
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "devices": [
+      {
+        "id": "device-fridge-001",
+        "type": "smart_fridge",
+        "brand": "Samsung",
+        "model": "Family Hub",
+        "status": "online",
+        "capabilities": ["temperature", "inventory", "camera"],
+        "currentData": {
+          "temperature": {
+            "main": 4,
+            "freezer": -18,
+            "vegetable": 7
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+##### Contrôler un appareil
+
+```http
+POST /api/v2/iot/devices/{deviceId}/control
+```
+
+**Body:**
+```json
+{
+  "command": "setTemperature",
+  "parameters": {
+    "zone": "main",
+    "temperature": 5
+  }
+}
+```
+
+#### Sessions de cuisine
+
+##### Démarrer une session guidée
+
+```http
+POST /api/v2/iot/cooking-sessions/start
+```
+
+**Body:**
+```json
+{
+  "recipeId": "recipe-456",
+  "devices": [
+    {
+      "deviceId": "device-oven-001",
+      "role": "main_cooking"
+    },
+    {
+      "deviceId": "device-scale-001",
+      "role": "measuring"
     }
   ]
 }
 ```
 
-## Codes d'erreur
+### 📊 Analytics API
 
-| Code | Signification | Description |
-|------|--------------|-------------|
-| 200 | OK | Requête réussie |
-| 201 | Created | Ressource créée |
-| 400 | Bad Request | Requête invalide |
-| 401 | Unauthorized | Token manquant ou invalide |
-| 403 | Forbidden | Accès refusé |
-| 404 | Not Found | Ressource non trouvée |
-| 409 | Conflict | Conflit (ex: doublon) |
-| 429 | Too Many Requests | Rate limit atteint |
-| 500 | Internal Server Error | Erreur serveur |
+#### Prédictions de gaspillage
 
-### Format des erreurs
+##### Obtenir les prédictions
+
+```http
+GET /api/v2/analytics/waste-predictions
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "predictions": [
+      {
+        "productId": "inv-item-123",
+        "productName": "Bananes",
+        "currentQuantity": 6,
+        "unit": "pièces",
+        "wasteRisk": "high",
+        "predictedWasteDate": "2025-08-10",
+        "confidence": 0.89,
+        "reasons": [
+          "Consommation habituelle: 2/semaine",
+          "Mûrissement rapide détecté"
+        ],
+        "preventionSuggestions": [
+          "Utilisez 3 bananes pour un banana bread",
+          "Congelez les bananes mûres pour smoothies"
+        ],
+        "estimatedSavings": 2.50
+      }
+    ],
+    "totalPotentialWaste": 15.80,
+    "preventableWaste": 12.30
+  }
+}
+```
+
+#### Analyse comportementale
+
+##### Analyser les habitudes d'achat
+
+```http
+POST /api/v2/analytics/buying-behavior
+```
+
+**Body:**
+```json
+{
+  "period": {
+    "start": "2025-01-01",
+    "end": "2025-08-01"
+  },
+  "groupBy": "category",
+  "includeSeasonality": true
+}
+```
+
+#### Score de durabilité
+
+##### Calculer le score
+
+```http
+GET /api/v2/analytics/sustainability-score
+```
+
+### 🔄 Sync API
+
+#### État de synchronisation
+
+##### Obtenir l'état actuel
+
+```http
+GET /api/v2/sync/status
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "isOnline": true,
+    "isSyncing": false,
+    "lastSync": "2025-08-07T10:30:00Z",
+    "pendingOperations": 3,
+    "conflictCount": 0,
+    "syncProgress": 100,
+    "bandwidthMode": "high",
+    "batteryOptimized": false
+  }
+}
+```
+
+##### Forcer la synchronisation
+
+```http
+POST /api/v2/sync/trigger
+```
+
+**Body:**
+```json
+{
+  "priority": "high",
+  "entities": ["inventory", "recipes"],
+  "forceFull": false
+}
+```
+
+#### Résolution de conflits
+
+##### Obtenir les conflits
+
+```http
+GET /api/v2/sync/conflicts
+```
+
+##### Résoudre un conflit
+
+```http
+POST /api/v2/sync/conflicts/{conflictId}/resolve
+```
+
+**Body:**
+```json
+{
+  "resolution": "client_wins",
+  "mergeFields": ["quantity", "expiryDate"]
+}
+```
+
+## 🔒 Sécurité et limites
+
+### Rate Limiting
+
+| Endpoint | Limite | Fenêtre |
+|----------|---------|---------|
+| Lecture | 1000/heure | 1 heure |
+| Écriture | 100/heure | 1 heure |
+| IA/ML | 50/heure | 1 heure |
+| IoT | 500/heure | 1 heure |
+| Vision AI | 100/heure | 1 heure |
+
+### Headers de sécurité
+
+```http
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+### Webhooks
+
+Pour recevoir des notifications en temps réel :
+
+```http
+POST /api/v2/webhooks/subscribe
+```
+
+**Body:**
+```json
+{
+  "url": "https://your-server.com/webhook",
+  "events": [
+    "waste.prediction.high",
+    "iot.device.alert",
+    "community.challenge.completed",
+    "sync.conflict.detected",
+    "product.expiring.soon"
+  ],
+  "secret": "your-webhook-secret"
+}
+```
+
+### Gestion des erreurs
+
+Toutes les erreurs suivent ce format :
 
 ```json
 {
   "error": {
     "code": "INVALID_REQUEST",
-    "message": "Le champ 'name' est requis",
+    "message": "Description de l'erreur",
     "details": {
-      "field": "name",
-      "constraint": "required"
+      "field": "email",
+      "reason": "Format invalide"
     }
-  }
+  },
+  "timestamp": "2025-08-07T10:00:00Z",
+  "request_id": "req_abc123"
 }
 ```
 
-## Rate Limiting
+### Pagination
 
-- **Anonyme**: 60 requêtes/heure
-- **Authentifié Free**: 600 requêtes/heure
-- **Authentifié Pro**: 6000 requêtes/heure
-
-Headers de réponse:
-```http
-X-RateLimit-Limit: 600
-X-RateLimit-Remaining: 598
-X-RateLimit-Reset: 1642435200
-```
-
-## Webhooks
-
-### Configuration
+La pagination utilise les paramètres standards :
 
 ```http
-POST /webhooks
+GET /api/v2/resource?page=2&limit=20
 ```
 
-```json
-{
-  "url": "https://myapp.com/webhook",
-  "events": ["product.expiring", "shopping_list.updated"],
-  "secret": "webhook_secret_key"
-}
+**Response headers:**
+```http
+X-Total-Count: 150
+X-Page-Count: 8
+Link: <https://api.smartpantrypro.com/v2/resource?page=3&limit=20>; rel="next"
 ```
 
-### Événements disponibles
+---
 
-- `product.added`
-- `product.updated`
-- `product.expiring`
-- `product.expired`
-- `recipe.created`
-- `shopping_list.updated`
-- `meal_plan.updated`
-
-### Format du payload
-
-```json
-{
-  "event": "product.expiring",
-  "timestamp": "2024-01-15T10:00:00Z",
-  "data": {
-    "product_id": "uuid",
-    "name": "Yaourt nature",
-    "expires_in_days": 2
-  }
-}
-```
-
-## SDK et Exemples
-
-### JavaScript/TypeScript
-
-```typescript
-import { SmartPantryClient } from '@smartpantrypro/sdk';
-
-const client = new SmartPantryClient({
-  apiKey: 'your_api_key',
-  environment: 'production'
-});
-
-// Obtenir les produits
-const products = await client.pantries.getProducts('pantry_id', {
-  expiringOnly: true
-});
-
-// Extraire une recette
-const recipe = await client.recipes.extractFromUrl({
-  url: 'https://example.com/recipe'
-});
-```
-
-### Python
-
-```python
-from smartpantrypro import Client
-
-client = Client(api_key='your_api_key')
-
-# Rechercher des recettes
-recipes = client.recipes.search(
-    query="poulet",
-    max_time=30,
-    with_available_ingredients=True
-)
-
-# Générer liste de courses
-shopping_list = client.shopping_lists.generate(
-    from_date="2024-01-15",
-    to_date="2024-01-21"
-)
-```
-
-### cURL
-
-```bash
-# Obtenir les produits expirant
-curl -X GET "https://api.smartpantrypro.com/v1/products?expiring_soon=true" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json"
-
-# Extraire une recette
-curl -X POST "https://api.smartpantrypro.com/v1/recipes/extract" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"url": "https://example.com/recipe"}'
-```
-
-## Environnement de test
-
-Un environnement sandbox est disponible pour les tests:
-
-```
-Base URL: https://sandbox.smartpantrypro.com/api/v1
-Test API Key: test_pk_1234567890
-```
-
-Données de test réinitialisées quotidiennement.
+*Documentation API Smart Pantry Pro - Version 2.0*

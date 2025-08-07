@@ -150,7 +150,7 @@ export class StreamingAIService {
       }
 
       // Process streaming response
-      await this.processStream(response, config);
+      await this.processStream(response, config.streamCallback || (() => {}));
       
     } catch (error: any) {
       if (error.name === 'AbortError') {

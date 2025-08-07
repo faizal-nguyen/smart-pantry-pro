@@ -9,6 +9,7 @@ Smart Pantry Pro is a comprehensive pantry management application built with:
 - Backend: Node.js, Express, TypeScript
 - Database: PostgreSQL with Drizzle ORM
 - Features: Recipe management, pantry tracking, shopping lists, meal planning
+- **Evolution V2**: AI nutritionist, smart meal planning, community features, IoT integration, predictive analytics, offline-first architecture
 
 ## Cypher Agent System
 
@@ -126,6 +127,22 @@ All agents are available as commands in `.claude/commands/`. See `COMMANDS_INDEX
 - `/src/server/db/`: Database schema and queries
 - `/drizzle/`: Database migrations
 
+### Evolution V2 Services
+- `/src/services/ai/nutritionalAIService.ts`: AI Nutritionist Engine
+- `/src/services/planning/smartMealPlannerService.ts`: Meal Planning System
+- `/src/services/community/communityService.ts`: Community Features
+- `/src/services/iot/iotHubService.ts`: IoT Integration Hub
+- `/src/services/analytics/wasteReductionEngine.ts`: Predictive Analytics
+- `/src/services/offline/intelligentSyncService.ts`: Offline Sync Engine
+
+### Evolution V2 Hooks
+- `/src/hooks/useNutritionalAI.ts`: Nutritional analysis and recommendations
+- `/src/hooks/useMealPlanningAnalysis.ts`: Meal planning and optimization
+- `/src/hooks/useCommunity.ts`: Community features integration
+
+### Evolution V2 Components
+- `/src/components/nutrition/HealthDashboard.tsx`: Nutritional dashboard UI
+
 ## Security Considerations
 
 - Never expose sensitive data in logs
@@ -164,5 +181,41 @@ All agents are available as commands in `.claude/commands/`. See `COMMANDS_INDEX
 → Use performance-optimizer command
 → It will analyze and optimize the bottleneck
 ```
+
+## Evolution V2 Development Guidelines
+
+### AI Service Extension Pattern
+When creating new AI services, extend the StreamingAIService:
+```typescript
+export class YourAIService extends StreamingAIService {
+  constructor(apiKey?: string) {
+    super(apiKey || process.env.NEXT_PUBLIC_OPENAI_API_KEY || '');
+  }
+}
+```
+
+### Service Architecture Patterns
+1. **Singleton Pattern**: Use for services that need single instance
+2. **Factory Pattern**: Use getService() functions for lazy initialization
+3. **Dependency Injection**: Pass API URLs and tokens to constructors
+4. **Error Handling**: Always implement try-catch with fallback behavior
+
+### Testing Evolution V2 Features
+```bash
+# Run all Evolution V2 tests
+npm test
+
+# Run specific feature tests
+npm run test:evolution
+
+# Check implementation status
+npx jest src/services/__tests__/evolutionV2-basic.test.ts
+```
+
+### Performance Guidelines
+- Module loading must be < 1s
+- API responses should be < 3s
+- Use lazy loading for heavy services
+- Implement proper caching strategies
 
 Remember: The Cypher agents are here to help you work more efficiently. Use them proactively for better results!
