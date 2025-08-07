@@ -18,26 +18,26 @@ export default defineConfig(({ mode }) => ({
         ]
       }
     }),
-    // Lovable tagger seulement en développement local (pas sur Vercel)
-    mode === 'development' && process.env.VERCEL !== '1' && (() => {
-      try {
-        // Utiliser import dynamique au lieu de require
-        return {
-          name: 'lovable-tagger-wrapper',
-          async configResolved() {
-            try {
-              const { componentTagger } = await import("lovable-tagger");
-              return componentTagger();
-            } catch {
-              console.log('lovable-tagger not available, skipping');
-              return null;
-            }
-          }
-        };
-      } catch {
-        return null;
-      }
-    })(),
+    // Lovable tagger désactivé temporairement pour debug
+    // mode === 'development' && process.env.VERCEL !== '1' && (() => {
+    //   try {
+    //     // Utiliser import dynamique au lieu de require
+    //     return {
+    //       name: 'lovable-tagger-wrapper',
+    //       async configResolved() {
+    //         try {
+    //           const { componentTagger } = await import("lovable-tagger");
+    //           return componentTagger();
+    //         } catch {
+    //           console.log('lovable-tagger not available, skipping');
+    //           return null;
+    //         }
+    //       }
+    //     };
+    //   } catch {
+    //     return null;
+    //   }
+    // })(),
   ].filter(Boolean),
   resolve: {
     alias: {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useRecipeParser } from "@/hooks/useRecipeParser";
+import { useRecipeParserOptimized } from "@/hooks/useRecipeParserOptimized";
 import { useSocialRecipeParser } from "@/hooks/useSocialRecipeParser";
 import RecipeBookScanner, { OCRRecipeResult } from "./RecipeBookScanner";
 import RecipeVoiceInput, { ValidatedRecipe } from "./RecipeVoiceInput";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -27,6 +28,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { 
   ChefHat, 
   Camera, 
@@ -113,9 +115,11 @@ interface AddRecipeDialogProps {
 const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState("manual");
+  const [extractionProgress, setExtractionProgress] = useState(0);
+  const [extractionStatus, setExtractionStatus] = useState("");
   
   // URL parsing hook simplifié
-  const { extractRecipeFromURL, loading: parsing, error: parseError } = useRecipeParser();
+  const { extractRecipeFromURL, loading: parsing, error: parseError, performance } = useRecipeParserOptimized();
   
   // Social media parsing hook (pattern Cipher)
   const { parseRecipeFromSocial, loading: socialParsing, error: socialParseError } = useSocialRecipeParser();
@@ -216,10 +220,41 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
       return;
     }
 
+    // Réinitialiser le progrès
+    setExtractionProgress(0);
+    setExtractionStatus("Connexion au site...");
+    
+    // Simuler la progression
+    const progressInterval = setInterval(() => {
+      setExtractionProgress(prev => {
+        if (prev >= 90) return 90; // Plafonner à 90% jusqu'à la fin
+        return prev + Math.random() * 15; // Progression aléatoire
+      });
+    }, 1000);
+    
+    // Mettre à jour les statuts
+    setTimeout(() => setExtractionStatus("Analyse de la page..."), 2000);
+    setTimeout(() => setExtractionStatus("Extraction des ingrédients..."), 5000);
+    setTimeout(() => setExtractionStatus("Traduction en français..."), 8000);
+    
     try {
       const recipe = await extractRecipeFromURL(recipeUrl);
       
+      // Arrêter la progression
+      clearInterval(progressInterval);
+      setExtractionProgress(100);
+      setExtractionStatus("Extraction terminée !");
+      
       if (recipe) {
+        // Afficher les métriques de performance si disponibles
+        if (performance) {
+          console.log(`⚡ Extraction optimisée en ${performance.total_time_ms}ms avec ${performance.model_used}`);
+          toast({
+            title: "Extraction réussie",
+            description: `Recette extraite en ${(performance.total_time_ms / 1000).toFixed(1)}s`,
+          });
+        }
+        
         // Remplir le formulaire avec les données extraites
         setRecipeName(recipe.name);
         setDescription(recipe.description);
@@ -264,6 +299,12 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
       
     } catch (error) {
       console.error('URL parsing error:', error);
+      
+      // Arrêter la progression
+      clearInterval(progressInterval);
+      setExtractionProgress(0);
+      setExtractionStatus("");
+      
       const errorMessage = error instanceof Error ? error.message : "Impossible d'extraire la recette de cette URL";
       setUrlError(errorMessage);
       
@@ -523,6 +564,9 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
             <ChefHat className="h-5 w-5" />
             Ajouter une recette
           </DialogTitle>
+          <DialogDescription>
+            Créez une nouvelle recette manuellement, importez-la depuis une URL, ou utilisez la reconnaissance vocale.
+          </DialogDescription>
         </DialogHeader>
         
         {/* Tabs pour différents modes d'ajout (pattern Cipher) */}
@@ -783,17 +827,35 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
                 <Button 
                   onClick={parseRecipeFromURL}
                   disabled={parsing}
+                  variant={parsing ? "secondary" : "default"}
                 >
                   {parsing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Extraction...
+                    </>
                   ) : (
-                    <Link className="h-4 w-4" />
+                    <>
+                      <Link className="h-4 w-4 mr-2" />
+                      Extraire
+                    </>
                   )}
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Supporte: Marmiton, 750g, Cuisine AZ, blogs culinaires
               </p>
+              
+              {/* Barre de progression */}
+              {parsing && extractionProgress > 0 && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{extractionStatus}</span>
+                    <span className="text-muted-foreground">{Math.round(extractionProgress)}%</span>
+                  </div>
+                  <Progress value={extractionProgress} className="h-2" />
+                </div>
+              )}
               {urlError && (
                 <div className="text-sm text-red-500 mt-2 p-2 bg-red-50 rounded">
                   {urlError}

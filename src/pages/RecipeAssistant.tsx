@@ -18,6 +18,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useInventory } from "@/hooks/useInventory";
+import { useShoppingList } from "@/hooks/useShoppingList";
+import MessageDisplay from "@/components/MessageDisplay";
 
 interface Message {
   id: string;
@@ -177,49 +179,46 @@ const RecipeAssistant = () => {
     }
   };
 
-  const extractMissingIngredients = (message: string): string[] => {
-    // Extract ingredients from AI response (simple pattern matching)
-    const lines = message.split('\n');
-    const missingLine = lines.find(line => 
-      line.includes('❌') || 
-      line.toLowerCase().includes('manquant') ||
-      line.toLowerCase().includes('à acheter')
-    );
-    
-    if (!missingLine) return [];
-    
-    // Extract ingredients from the line (basic parsing)
-    const ingredients = missingLine
-      .replace(/❌|Ingrédients manquants|à acheter|:/gi, '')
-      .split(',')
-      .map(ing => ing.trim())
-      .filter(ing => ing.length > 0);
-    
-    return ingredients;
-  };
+  const { addToShoppingList: addItemToShoppingList } = useShoppingList();
 
   const addToShoppingList = async (ingredients: string[]) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      // For each ingredient, try to find matching product or create new one
+      let successCount = 0;
+      
       for (const ingredient of ingredients) {
-        // This is a simplified implementation
-        // In reality, you'd want more sophisticated ingredient parsing
-        await supabase
-          .from('shopping_list')
-          .insert({
-            user_id: user.id,
-            product_id: 'temp', // Would need product matching logic
-            quantity: 1
+        // Parse ingredient string (e.g., "2 oeufs" or "200g de farine")
+        const match = ingredient.match(/^(\d+(?:\.\d+)?)\s*(\w+)?\s*(?:de\s+)?(.+)$/);
+        
+        let productName = ingredient;
+        let quantity = 1;
+        let unit = 'unité';
+        
+        if (match) {
+          quantity = parseFloat(match[1]);
+          unit = match[2] || 'unité';
+          productName = match[3];
+        }
+        
+        try {
+          await addItemToShoppingList({
+            productName,
+            quantity,
+            unit,
+            category: getCategoryForIngredient(productName),
+            storeSection: getStoreSectionForIngredient(productName)
           });
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to add ${productName}:`, error);
+        }
       }
 
-      toast({
-        title: "Ajouté à la liste de courses",
-        description: `${ingredients.length} ingrédient(s) ajouté(s) à votre liste.`
-      });
+      if (successCount > 0) {
+        toast({
+          title: "Ajouté à la liste de courses",
+          description: `${successCount} ingrédient(s) ajouté(s) à votre liste.`
+        });
+      }
     } catch (error) {
       console.error('Error adding to shopping list:', error);
       toast({
@@ -228,6 +227,40 @@ const RecipeAssistant = () => {
         description: "Impossible d'ajouter à la liste de courses."
       });
     }
+  };
+  
+  // Helper functions for categorizing ingredients
+  const getCategoryForIngredient = (ingredientName: string): string => {
+    const name = ingredientName.toLowerCase();
+    
+    if (name.includes('tomate') || name.includes('carotte') || name.includes('oignon') || 
+        name.includes('pomme') || name.includes('salade') || name.includes('légume') || 
+        name.includes('fruit')) {
+      return 'Fruits/Légumes';
+    }
+    if (name.includes('viande') || name.includes('poulet') || name.includes('boeuf') || 
+        name.includes('porc')) {
+      return 'Viandes';
+    }
+    if (name.includes('lait') || name.includes('fromage') || name.includes('yaourt') || 
+        name.includes('beurre') || name.includes('crème')) {
+      return 'Produits laitiers';
+    }
+    
+    return 'Épicerie';
+  };
+  
+  const getStoreSectionForIngredient = (ingredientName: string): string => {
+    const category = getCategoryForIngredient(ingredientName);
+    
+    const sectionMap: Record<string, string> = {
+      'Fruits/Légumes': 'Fruits & Légumes',
+      'Viandes': 'Boucherie/Poissonnerie',
+      'Produits laitiers': 'Frais/Produits laitiers',
+      'Épicerie': 'Épicerie salée'
+    };
+    
+    return sectionMap[category] || 'Épicerie salée';
   };
 
   const formatTimestamp = (date: Date) => {
@@ -259,53 +292,14 @@ const RecipeAssistant = () => {
           <ScrollArea className="h-full p-4">
             <div className="space-y-4">
               {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] rounded-lg p-3 ${
-                    message.type === 'user' 
-                      ? 'bg-primary text-primary-foreground' 
-                      : 'bg-muted'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      {message.type === 'user' ? (
-                        <User className="w-4 h-4" />
-                      ) : (
-                        <Bot className="w-4 h-4 text-primary" />
-                      )}
-                      <span className="text-xs opacity-70">
-                        {formatTimestamp(message.timestamp)}
-                      </span>
-                      {message.inventoryCount !== undefined && (
-                        <Badge variant="outline" className="text-xs">
-                          {message.inventoryCount} produits analysés
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="whitespace-pre-line text-sm">
-                      {message.content}
-                    </div>
-
-                    {/* Extract missing ingredients for shopping list */}
-                    {message.type === 'assistant' && message.content.includes('❌') && (
-                      <div className="mt-2 pt-2 border-t border-border/50">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const ingredients = extractMissingIngredients(message.content);
-                            if (ingredients.length > 0) {
-                              addToShoppingList(ingredients);
-                            }
-                          }}
-                          className="text-xs"
-                        >
-                          <ShoppingCart className="w-3 h-3 mr-1" />
-                          Ajouter à ma liste de courses
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <MessageDisplay
+                  key={message.id}
+                  type={message.type}
+                  content={message.content}
+                  timestamp={message.timestamp}
+                  inventoryCount={message.inventoryCount}
+                  onAddToShoppingList={message.type === 'assistant' ? addToShoppingList : undefined}
+                />
               ))}
               
               {loading && (

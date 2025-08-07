@@ -43,16 +43,18 @@ export const useRecipeParser = () => {
     try {
       console.log('🤖 Extracting recipe from URL:', url);
       
-      // Déterminer si on est en local ou en production
-      const isLocal = window.location.hostname === 'localhost';
-      const apiUrl = isLocal 
-        ? 'https://smart-pantry-pro.vercel.app/api/extract-recipe'
+      // Utiliser l'API locale en développement, relative en production
+      const isDevelopment = window.location.hostname === 'localhost';
+      const apiUrl = isDevelopment 
+        ? 'http://localhost:3001/api/extract-recipe'
         : '/api/extract-recipe';
       
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url }),
+        // Timeout après 60 secondes pour les recettes complexes
+        signal: AbortSignal.timeout(60000)
       });
       
       if (!response.ok) {
@@ -70,7 +72,22 @@ export const useRecipeParser = () => {
       return result.recipe;
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      let errorMessage = 'Erreur inconnue';
+      
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMessage = 'L\'extraction prend plus de temps que prévu. Veuillez patienter ou réessayer avec une URL différente.';
+        } else if (err.message.includes('signal timed out')) {
+          errorMessage = 'Temps d\'extraction dépassé (60s). La recette est peut-être trop complexe ou le site est lent.';
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = 'Erreur de connexion. Vérifiez votre connexion internet.';
+        } else if (err.message.includes('CORS')) {
+          errorMessage = 'Erreur de configuration. Rechargez la page et réessayez.';
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       console.error('❌ Recipe extraction error:', errorMessage);
       setError(errorMessage);
       return null;

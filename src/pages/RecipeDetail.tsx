@@ -1,0 +1,542 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { 
+  ArrowLeft, 
+  Clock, 
+  Users, 
+  Star, 
+  Heart, 
+  Share, 
+  ShoppingCart,
+  ChefHat,
+  CheckCircle,
+  AlertCircle,
+  XCircle,
+  Edit,
+  Trash2,
+  IndianRupee
+} from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { useRecipes } from "@/hooks/useRecipes";
+import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
+import { useShoppingList } from "@/hooks/useShoppingList";
+import { useIndianPriceEstimator } from "@/hooks/useIndianPriceEstimator";
+import { supabase } from "@/integrations/supabase/client";
+
+interface RecipeIngredient {
+  id: string;
+  ingredient_name: string;
+  quantity: number;
+  unit: string;
+  is_essential: boolean;
+  notes?: string;
+}
+
+const RecipeDetail = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { recipes, deleteRecipe } = useRecipes();
+  const { addToShoppingList } = useShoppingList();
+  const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
+  const [instructions, setInstructions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState(false);
+  
+  const recipe = recipes.find(r => r.id === id);
+  const { analysis: inventoryAnalysis } = useRecipeInventoryAnalysis(id || '');
+  const { estimatePrices, isIndianRecipe } = useIndianPriceEstimator();
+  const [indianPriceEstimate, setIndianPriceEstimate] = useState<any>(null);
+
+  useEffect(() => {
+    if (id) {
+      fetchRecipeDetails();
+    }
+  }, [id]);
+  
+  useEffect(() => {
+    // Estimate Indian prices if it's an Indian recipe
+    if (recipe && ingredients.length > 0 && isIndianRecipe(recipe.cuisine_category, recipe.tags)) {
+      estimatePrices(ingredients, recipe.id).then(result => {
+        if (result) {
+          setIndianPriceEstimate(result);
+        }
+      });
+    }
+  }, [recipe, ingredients]);
+
+  const fetchRecipeDetails = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch ingredients
+      const { data: ingredientsData, error: ingredientsError } = await supabase
+        .from('recipe_ingredients')
+        .select('*')
+        .eq('recipe_id', id)
+        .order('created_at');
+
+      if (ingredientsError) throw ingredientsError;
+      setIngredients(ingredientsData || []);
+
+      // Parse instructions from recipe
+      if (recipe?.instructions) {
+        try {
+          const parsedInstructions = typeof recipe.instructions === 'string' 
+            ? JSON.parse(recipe.instructions) 
+            : recipe.instructions;
+          setInstructions(Array.isArray(parsedInstructions) ? parsedInstructions : []);
+        } catch (jsonError) {
+          // If JSON parsing fails, treat as plain text and split by newlines or periods
+          const plainTextInstructions = recipe.instructions
+            .split(/\n|\. /)
+            .map(instruction => instruction.trim())
+            .filter(instruction => instruction.length > 0);
+          setInstructions(plainTextInstructions);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching recipe details:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les détails de la recette",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette recette ?')) {
+      try {
+        await deleteRecipe(id);
+        toast({
+          title: "Recette supprimée",
+          description: "La recette a été supprimée avec succès",
+        });
+        navigate('/');
+      } catch (error) {
+        toast({
+          title: "Erreur",
+          description: "Impossible de supprimer la recette",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleAddToShoppingList = async () => {
+    if (!inventoryAnalysis || inventoryAnalysis.missingIngredients.length === 0) {
+      toast({
+        title: "Aucun ingrédient manquant",
+        description: "Tous les ingrédients sont déjà disponibles dans votre inventaire !",
+      });
+      return;
+    }
+
+    setAddingToCart(true);
+    try {
+      // Ajouter chaque ingrédient manquant à la liste de courses
+      for (const missing of inventoryAnalysis.missingIngredients) {
+        await addToShoppingList({
+          productName: missing.ingredient.ingredient_name,
+          quantity: missing.ingredient.quantity || 1,
+          category: getStoreSectionForIngredient(missing.ingredient.ingredient_name),
+          unit: missing.ingredient.unit || 'unité',
+          estimatedPrice: missing.estimatedPrice,
+          storeSection: getStoreSectionForIngredient(missing.ingredient.ingredient_name)
+        });
+      }
+
+      toast({
+        title: "Ajouté à la liste de courses",
+        description: `${inventoryAnalysis.missingIngredients.length} ingrédients ajoutés à votre liste`,
+      });
+
+      // Optionnel : naviguer vers la liste de courses
+      // navigate('/shopping');
+    } catch (error) {
+      console.error('Error adding to shopping list:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter les ingrédients à la liste de courses",
+        variant: "destructive"
+      });
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  // Helper function pour déterminer la section du magasin
+  const getStoreSectionForIngredient = (ingredientName: string): string => {
+    const name = ingredientName.toLowerCase().trim();
+    
+    // Catégories simplifiées pour la liste de courses
+    if (name.includes('tomate') || name.includes('carotte') || name.includes('oignon') || 
+        name.includes('pomme') || name.includes('salade') || name.includes('légume') || 
+        name.includes('fruit')) {
+      return 'Fruits et légumes';
+    }
+    if (name.includes('viande') || name.includes('poulet') || name.includes('boeuf') || 
+        name.includes('porc')) {
+      return 'Boucherie';
+    }
+    if (name.includes('poisson') || name.includes('saumon') || name.includes('thon')) {
+      return 'Poissonnerie';
+    }
+    if (name.includes('lait') || name.includes('fromage') || name.includes('yaourt') || 
+        name.includes('beurre')) {
+      return 'Produits laitiers';
+    }
+    if (name.includes('pain') || name.includes('baguette')) {
+      return 'Boulangerie';
+    }
+    
+    return 'Épicerie';
+  };
+
+  const getCuisineColor = (category: string) => {
+    const colors: Record<string, string> = {
+      'Française': 'bg-blue-100 text-blue-800',
+      'Italienne': 'bg-green-100 text-green-800',
+      'Asiatique': 'bg-red-100 text-red-800',
+      'Méditerranéenne': 'bg-orange-100 text-orange-800',
+      'Mexicaine': 'bg-yellow-100 text-yellow-800',
+      'Indienne': 'bg-purple-100 text-purple-800',
+      'Japonaise': 'bg-pink-100 text-pink-800',
+      'Américaine': 'bg-indigo-100 text-indigo-800',
+      'Végétarienne': 'bg-emerald-100 text-emerald-800',
+      'Végan': 'bg-lime-100 text-lime-800',
+    };
+    return colors[category] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getInventoryStatusIcon = (isAvailable: boolean, isEssential: boolean) => {
+    if (isAvailable) return <CheckCircle className="w-4 h-4 text-green-600" />;
+    if (isEssential) return <XCircle className="w-4 h-4 text-red-600" />;
+    return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+  };
+
+  if (!recipe) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-4">Recette non trouvée</h2>
+          <Button onClick={() => navigate('/')}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Retour aux recettes
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const totalTime = recipe.prep_time + recipe.cook_time;
+
+  return (
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
+      {/* Header */}
+      <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/')}
+          className="mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Retour aux recettes
+        </Button>
+
+        <div className="flex justify-between items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold mb-2">{recipe.name}</h1>
+            {recipe.description && (
+              <p className="text-muted-foreground">{recipe.description}</p>
+            )}
+          </div>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" size="icon">
+              <Heart className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon">
+              <Share className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => navigate(`/recipes/${id}/edit`)}>
+              <Edit className="w-4 h-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={handleDelete}>
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 mt-4">
+          {recipe.cuisine_category && (
+            <Badge className={getCuisineColor(recipe.cuisine_category)}>
+              {recipe.cuisine_category}
+            </Badge>
+          )}
+          
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Clock className="w-4 h-4" />
+            <span>{totalTime} min</span>
+          </div>
+          
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Users className="w-4 h-4" />
+            <span>{recipe.servings} personnes</span>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            {[...Array(5)].map((_, i) => (
+              <Star 
+                key={i}
+                className={`w-4 h-4 ${
+                  i < recipe.difficulty 
+                    ? 'fill-yellow-400 text-yellow-400' 
+                    : 'text-gray-300'
+                }`} 
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Image */}
+      {recipe.image_url && (
+        <div className="mb-6">
+          <img 
+            src={recipe.image_url} 
+            alt={recipe.name}
+            className="w-full h-64 md:h-96 object-cover rounded-lg"
+          />
+        </div>
+      )}
+
+      {/* Inventory Status */}
+      {inventoryAnalysis && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3">Analyse de l'inventaire</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Statut</p>
+                <p className="font-medium">
+                  {inventoryAnalysis.canMake ? '✅ Réalisable' : '❌ Ingrédients manquants'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Disponibles</p>
+                <p className="font-medium">{inventoryAnalysis.availableIngredients.length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Manquants</p>
+                <p className="font-medium text-orange-600">
+                  {inventoryAnalysis.missingIngredients.length}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Coût total recette</p>
+                <p className="font-medium">
+                  {inventoryAnalysis.totalRecipeCost?.toFixed(2) || '0.00'}€
+                  {indianPriceEstimate && isIndianRecipe(recipe.cuisine_category, recipe.tags) && (
+                    <span className="text-xs text-muted-foreground ml-1">
+                      (Épicerie indienne: {indianPriceEstimate.totalCost}€)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            {inventoryAnalysis.missingIngredients.length > 0 && (
+              <div className="mt-3 pt-3 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Coût des ingrédients manquants:
+                  </span>
+                  <span className="font-medium text-orange-600">
+                    {inventoryAnalysis.estimatedCost?.toFixed(2) || '0.00'}€
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* Ingredients */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Ingrédients</h2>
+            {loading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-6 bg-muted animate-pulse rounded" />
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ingredients.map((ingredient) => {
+                  const isAvailable = inventoryAnalysis?.availableIngredients.some(
+                    ai => ai.ingredient_name === ingredient.ingredient_name
+                  );
+                  
+                  return (
+                    <div 
+                      key={ingredient.id} 
+                      className={`flex items-center justify-between p-2 rounded-lg ${
+                        !isAvailable && ingredient.is_essential 
+                          ? 'bg-red-50' 
+                          : !isAvailable 
+                          ? 'bg-yellow-50' 
+                          : 'bg-green-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {getInventoryStatusIcon(isAvailable || false, ingredient.is_essential)}
+                        <span className={!isAvailable ? 'text-muted-foreground' : ''}>
+                          {ingredient.quantity} {ingredient.unit} {ingredient.ingredient_name}
+                        </span>
+                      </div>
+                      {ingredient.notes && (
+                        <span className="text-xs text-muted-foreground">{ingredient.notes}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            <Button 
+              className="w-full mt-4" 
+              onClick={handleAddToShoppingList}
+              disabled={inventoryAnalysis?.canMake || addingToCart}
+            >
+              {addingToCart ? (
+                <>
+                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Ajout en cours...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  Ajouter à la liste de courses
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Instructions */}
+        <Card>
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Instructions</h2>
+            {loading ? (
+              <div className="space-y-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-16 bg-muted animate-pulse rounded" />
+                ))}
+              </div>
+            ) : instructions.length > 0 ? (
+              <ol className="space-y-4">
+                {instructions.map((instruction, index) => (
+                  <li key={index} className="flex gap-3">
+                    <span className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">
+                      {index + 1}
+                    </span>
+                    <p className="pt-1">{instruction}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-muted-foreground">Aucune instruction disponible</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Indian Price Estimate Card */}
+      {indianPriceEstimate && isIndianRecipe(recipe.cuisine_category, recipe.tags) && (
+        <Card className="mt-6">
+          <CardContent className="p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <IndianRupee className="w-5 h-5" />
+              Estimation prix épicerie indienne
+            </h2>
+            <div className="space-y-2">
+              {indianPriceEstimate.estimates.map((estimate: any, index: number) => (
+                <div key={index} className="flex justify-between text-sm">
+                  <span>
+                    {estimate.quantity} {estimate.unit} {estimate.name}
+                    {estimate.englishName !== estimate.frenchName && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({estimate.englishName})
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-medium">{estimate.estimatedPrice.toFixed(2)}€</span>
+                </div>
+              ))}
+              <Separator className="my-2" />
+              <div className="flex justify-between font-semibold">
+                <span>Total estimé</span>
+                <span>{indianPriceEstimate.totalCost}€</span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {indianPriceEstimate.disclaimer}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Additional Info */}
+      <Card className="mt-6">
+        <CardContent className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Informations supplémentaires</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Temps de préparation</p>
+              <p className="font-medium">{recipe.prep_time} min</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Temps de cuisson</p>
+              <p className="font-medium">{recipe.cook_time} min</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Type de repas</p>
+              <p className="font-medium">{recipe.meal_type || 'Non spécifié'}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Créée le</p>
+              <p className="font-medium">
+                {new Date(recipe.created_at).toLocaleDateString('fr-FR')}
+              </p>
+            </div>
+          </div>
+          
+          {recipe.tags && recipe.tags.length > 0 && (
+            <div className="mt-4">
+              <p className="text-muted-foreground mb-2">Tags</p>
+              <div className="flex flex-wrap gap-2">
+                {recipe.tags.map((tag) => (
+                  <Badge key={tag} variant="outline">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default RecipeDetail;

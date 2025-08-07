@@ -72,13 +72,19 @@ export const useShoppingList = () => {
       if (!user.user) throw new Error('User not authenticated');
 
       // Check if product exists or create it
-      const product = await supabase
+      const { data: existingProducts, error: searchError } = await supabase
         .from('products')
         .select('*')
-        .ilike('name', item.productName)
-        .single();
+        .ilike('name', item.productName);
 
-      if (product.error || !product.data) {
+      let productData;
+      
+      if (searchError) {
+        console.error('Error searching for product:', searchError);
+        throw searchError;
+      }
+
+      if (!existingProducts || existingProducts.length === 0) {
         // Create new product
         const { data: newProduct, error: productError } = await supabase
           .from('products')
@@ -90,8 +96,14 @@ export const useShoppingList = () => {
           .select()
           .single();
 
-        if (productError) throw productError;
-        product.data = newProduct;
+        if (productError) {
+          console.error('Error creating product:', productError);
+          throw productError;
+        }
+        productData = newProduct;
+      } else {
+        // Use existing product
+        productData = existingProducts[0];
       }
 
       // Add to shopping list
@@ -99,7 +111,7 @@ export const useShoppingList = () => {
         .from('shopping_list')
         .insert({
           user_id: user.user.id,
-          product_id: product.data.id,
+          product_id: productData.id,
           quantity: item.quantity,
           estimated_price: item.estimatedPrice,
           store_section: item.storeSection,
@@ -204,6 +216,94 @@ export const useShoppingList = () => {
     }
   };
 
+  const updateShoppingItem = async (id: string, updates: {
+    productName: string;
+    quantity: number;
+    unit: string;
+    category: string;
+    estimatedPrice?: number;
+    storeSection?: string;
+  }) => {
+    try {
+      // First, check if we need to update the product or create a new one
+      const item = shoppingList.find(i => i.id === id);
+      if (!item) throw new Error('Item not found');
+
+      let productId = item.product_id;
+      
+      // Check if product name changed
+      if (item.product?.name !== updates.productName) {
+        // Check if a product with the new name exists
+        const { data: existingProducts, error: searchError } = await supabase
+          .from('products')
+          .select('*')
+          .ilike('name', updates.productName);
+
+        if (searchError) {
+          console.error('Error searching for product:', searchError);
+          throw searchError;
+        }
+
+        if (existingProducts && existingProducts.length > 0) {
+          productId = existingProducts[0].id;
+        } else {
+          // Create new product
+          const { data: newProduct, error: productError } = await supabase
+            .from('products')
+            .insert({
+              name: updates.productName,
+              category: updates.category,
+              unit_type: updates.unit
+            })
+            .select()
+            .single();
+
+          if (productError) {
+            console.error('Error creating product:', productError);
+            throw productError;
+          }
+          productId = newProduct.id;
+        }
+      } else if (item.product) {
+        // Update existing product if category or unit changed
+        await supabase
+          .from('products')
+          .update({
+            category: updates.category,
+            unit_type: updates.unit
+          })
+          .eq('id', item.product_id);
+      }
+
+      // Update shopping list item
+      const { error } = await supabase
+        .from('shopping_list')
+        .update({
+          product_id: productId,
+          quantity: updates.quantity,
+          estimated_price: updates.estimatedPrice,
+          store_section: updates.storeSection
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Article modifié",
+        description: "Les modifications ont été enregistrées."
+      });
+      
+      fetchShoppingList();
+    } catch (error) {
+      console.error('Error updating shopping item:', error);
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de modifier l'article."
+      });
+    }
+  };
+
   const addAllToInventory = async () => {
     try {
       const { data: user } = await supabase.auth.getUser();
@@ -279,10 +379,102 @@ export const useShoppingList = () => {
     }
   };
 
+  const removeMultipleFromShoppingList = async (ids: string[]) => {
+    try {
+      // Optimistic update
+      setShoppingList(prev => prev.filter(item => !ids.includes(item.id)));
+
+      const { error } = await supabase
+        .from('shopping_list')
+        .delete()
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast({
+        title: "Produits supprimés",
+        description: `${ids.length} produit(s) supprimé(s) de la liste.`
+      });
+    } catch (error) {
+      console.error('Error removing multiple items:', error);
+      // Revert optimistic update
+      await fetchShoppingList();
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de supprimer les produits."
+      });
+    }
+  };
+
+  const toggleMultiplePurchased = async (ids: string[], isPurchased: boolean) => {
+    try {
+      // Optimistic update
+      setShoppingList(prev =>
+        prev.map(item =>
+          ids.includes(item.id) ? { ...item, is_purchased: isPurchased } : item
+        )
+      );
+
+      const { error } = await supabase
+        .from('shopping_list')
+        .update({ 
+          is_purchased: isPurchased,
+          updated_at: new Date().toISOString()
+        })
+        .in('id', ids);
+
+      if (error) throw error;
+
+      toast({
+        title: isPurchased ? "Produits achetés" : "Produits non achetés",
+        description: `${ids.length} produit(s) marqué(s) comme ${isPurchased ? 'acheté(s)' : 'non acheté(s)'}.`
+      });
+    } catch (error) {
+      console.error('Error toggling multiple items:', error);
+      // Revert optimistic update
+      await fetchShoppingList();
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: "Impossible de modifier le statut des produits."
+      });
+    }
+  };
+
   const getTotalEstimatedCost = () => {
     return shoppingList
       .filter(item => !item.is_purchased)
-      .reduce((total, item) => total + (item.estimated_price || 0) * item.quantity, 0);
+      .reduce((total, item) => {
+        let price = item.estimated_price || 0;
+        const productName = item.product?.name?.toLowerCase() || '';
+        
+        // Fix pour les prix incorrects des feuilles de curry
+        if ((productName.includes('curry') && (productName.includes('feuille') || productName.includes('leaf') || productName.includes('leaves'))) ||
+            productName === 'curry leaves' || productName === 'feuilles de curry') {
+          if (price > 10) {
+            price = 0.01; // 1 centime par feuille
+          }
+        }
+        
+        // Fix pour les prix incorrects de l'eau
+        if ((productName === 'eau' || productName === 'water' || productName.includes('eau')) && 
+            price > 1) {
+          price = 0.001; // 0.001€ par unité pour l'eau
+        }
+        
+        // Fix pour les prix incorrects de la viande
+        const unit = item.product?.unit_type?.toLowerCase() || '';
+        if ((productName.includes('steak') || productName.includes('viande') || productName.includes('boeuf') || 
+             productName.includes('porc') || productName.includes('poulet') || productName.includes('agneau')) && 
+            unit === 'g' && price > 100) {
+          // Prix par gramme pour la viande
+          const pricePerKg = productName.includes('flank') ? 25 : 20;
+          price = pricePerKg / 1000;
+        }
+        
+        return total + (price * item.quantity);
+      }, 0);
   };
 
   const getPurchasedCount = () => {
@@ -312,8 +504,11 @@ export const useShoppingList = () => {
     shoppingList,
     loading,
     addToShoppingList,
+    updateShoppingItem,
     togglePurchased,
     removeFromShoppingList,
+    removeMultipleFromShoppingList,
+    toggleMultiplePurchased,
     addAllToInventory,
     clearPurchased,
     getTotalEstimatedCost,

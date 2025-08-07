@@ -6,7 +6,8 @@ import {
   MoreVertical, 
   MapPin, 
   Euro,
-  Trash2
+  Trash2,
+  Edit
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -21,9 +22,52 @@ interface ShoppingItemCardProps {
   item: ShoppingItem;
   onTogglePurchased: (id: string, isPurchased: boolean) => void;
   onRemove: (id: string) => void;
+  onEdit?: (item: ShoppingItem) => void;
+  isSelected?: boolean;
+  onSelect?: (id: string) => void;
 }
 
-const ShoppingItemCard = ({ item, onTogglePurchased, onRemove }: ShoppingItemCardProps) => {
+const ShoppingItemCard = ({ item, onTogglePurchased, onRemove, onEdit, isSelected, onSelect }: ShoppingItemCardProps) => {
+  // Fix pour les prix incorrects des feuilles de curry et de l'eau
+  const getCorrectedPrice = (item: ShoppingItem): number | undefined => {
+    if (!item.estimated_price) return undefined;
+    
+    const productName = item.product?.name?.toLowerCase() || '';
+    const unit = item.product?.unit_type?.toLowerCase() || '';
+    
+    // Si c'est des feuilles de curry avec un prix aberrant
+    if ((productName.includes('curry') && (productName.includes('feuille') || productName.includes('leaf') || productName.includes('leaves'))) ||
+        productName === 'curry leaves' || productName === 'feuilles de curry') {
+      // Si le prix est supérieur à 10€, c'est clairement une erreur
+      if (item.estimated_price > 10) {
+        console.log(`🍃 Prix corrigé pour ${productName}: ${item.estimated_price}€ → 0.01€`);
+        return 0.01; // 1 centime par feuille
+      }
+    }
+    
+    // Si c'est de l'eau avec un prix aberrant
+    if ((productName === 'eau' || productName === 'water' || productName.includes('eau')) && 
+        item.estimated_price > 1) {
+      // L'eau ne devrait jamais coûter plus de 1€ par unité
+      // Pour 4 tasses (1L), le prix devrait être environ 0.001€
+      console.log(`💧 Prix corrigé pour ${productName}: ${item.estimated_price}€ → 0.001€`);
+      return 0.001;
+    }
+    
+    // Si c'est de la viande avec un prix aberrant (plus de 100€/kg est suspect)
+    if ((productName.includes('steak') || productName.includes('viande') || productName.includes('boeuf') || 
+         productName.includes('porc') || productName.includes('poulet') || productName.includes('agneau')) && 
+        unit === 'g' && item.estimated_price > 100) {
+      // Recalculer le prix correct basé sur 25€/kg pour le flank steak
+      const pricePerKg = productName.includes('flank') ? 25 : 20; // Prix moyen viande
+      const correctPrice = pricePerKg / 1000; // Prix par gramme
+      console.log(`🥩 Prix corrigé pour ${productName}: ${item.estimated_price}€ → ${correctPrice}€/g`);
+      return correctPrice;
+    }
+    
+    return item.estimated_price;
+  };
+  
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       'Fruits/Légumes': 'bg-green-100 text-green-800',
@@ -57,10 +101,19 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove }: ShoppingItemCar
   };
 
   return (
-    <Card className={`transition-all duration-200 ${item.is_purchased ? 'opacity-60 bg-muted/50' : 'hover:shadow-md'}`}>
+    <Card className={`transition-all duration-200 ${item.is_purchased ? 'opacity-60 bg-muted/50' : 'hover:shadow-md'} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          {/* Checkbox */}
+          {/* Selection checkbox (if onSelect is provided) */}
+          {onSelect && (
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onSelect(item.id)}
+              className="mt-1"
+            />
+          )}
+          
+          {/* Purchase checkbox */}
           <Checkbox
             checked={item.is_purchased}
             onCheckedChange={(checked) => onTogglePurchased(item.id, checked as boolean)}
@@ -83,7 +136,7 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove }: ShoppingItemCar
                   {item.estimated_price && (
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Euro className="w-3 h-3" />
-                      <span>{(item.estimated_price * item.quantity).toFixed(2)}€</span>
+                      <span>{(getCorrectedPrice(item)! * item.quantity).toFixed(2)}€</span>
                     </div>
                   )}
                 </div>
@@ -115,6 +168,12 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove }: ShoppingItemCar
                   <DropdownMenuItem onClick={() => onTogglePurchased(item.id, !item.is_purchased)}>
                     {item.is_purchased ? 'Marquer comme non acheté' : 'Marquer comme acheté'}
                   </DropdownMenuItem>
+                  {onEdit && (
+                    <DropdownMenuItem onClick={() => onEdit(item)}>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Modifier
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => onRemove(item.id)}

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   ShoppingCart, 
   Plus, 
@@ -15,7 +16,9 @@ import {
   Filter,
   Search,
   Store,
-  CheckCircle2
+  CheckCircle2,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import {
   Select,
@@ -27,7 +30,9 @@ import {
 import { useShoppingList } from "@/hooks/useShoppingList";
 import ShoppingItemCard from "@/components/shopping/ShoppingItemCard";
 import AddShoppingItemDialog from "@/components/shopping/AddShoppingItemDialog";
+import EditShoppingItemDialog from "@/components/shopping/EditShoppingItemDialog";
 import { useToast } from "@/hooks/use-toast";
+import { ShoppingItem } from "@/hooks/useShoppingList";
 
 const STORE_SECTIONS = [
   "Entrée",
@@ -48,12 +53,18 @@ const ShoppingList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState("Tous");
   const [showPurchased, setShowPurchased] = useState(true);
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   
   const { 
     shoppingList, 
     loading, 
+    updateShoppingItem,
     togglePurchased, 
     removeFromShoppingList,
+    removeMultipleFromShoppingList,
+    toggleMultiplePurchased,
     addAllToInventory,
     clearPurchased,
     getTotalEstimatedCost,
@@ -142,6 +153,68 @@ const ShoppingList = () => {
     if (window.confirm(`Supprimer ${purchasedCount} produit(s) acheté(s) de la liste ?`)) {
       await clearPurchased();
     }
+  };
+
+  const handleEditItem = (item: ShoppingItem) => {
+    setEditingItem(item);
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async (id: string, updates: {
+    productName: string;
+    quantity: number;
+    unit: string;
+    category: string;
+    estimatedPrice?: number;
+    storeSection?: string;
+  }) => {
+    await updateShoppingItem(id, updates);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === filteredItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(filteredItems.map(item => item.id)));
+    }
+  };
+
+  const handleSelectItem = (id: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedItems.size === 0) {
+      toast({
+        title: "Aucun produit sélectionné",
+        description: "Sélectionnez d'abord les produits à supprimer."
+      });
+      return;
+    }
+
+    if (window.confirm(`Supprimer ${selectedItems.size} produit(s) de la liste ?`)) {
+      await removeMultipleFromShoppingList(Array.from(selectedItems));
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleMarkSelectedAsPurchased = async (isPurchased: boolean) => {
+    if (selectedItems.size === 0) {
+      toast({
+        title: "Aucun produit sélectionné",
+        description: "Sélectionnez d'abord les produits à modifier."
+      });
+      return;
+    }
+
+    await toggleMultiplePurchased(Array.from(selectedItems), isPurchased);
+    setSelectedItems(new Set());
   };
 
   const getTotalItems = () => filteredItems.length;
@@ -281,6 +354,61 @@ const ShoppingList = () => {
         </div>
       </div>
 
+      {/* Barre d'outils de sélection */}
+      {filteredItems.length > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedItems.size === filteredItems.length && filteredItems.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm font-medium">
+                    {selectedItems.size > 0 
+                      ? `${selectedItems.size} sélectionné(s)` 
+                      : "Tout sélectionner"}
+                  </span>
+                </div>
+                
+                {selectedItems.size > 0 && (
+                  <>
+                    <Separator orientation="vertical" className="h-6" />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleMarkSelectedAsPurchased(true)}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Marquer acheté
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleMarkSelectedAsPurchased(false)}
+                      >
+                        <Square className="w-4 h-4 mr-2" />
+                        Non acheté
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleDeleteSelected}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Supprimer
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Liste des produits organisée par rayon */}
       <div className="space-y-6">
         {Object.keys(groupedItems).length === 0 ? (
@@ -319,6 +447,9 @@ const ShoppingList = () => {
                     item={item}
                     onTogglePurchased={togglePurchased}
                     onRemove={removeFromShoppingList}
+                    onEdit={handleEditItem}
+                    isSelected={selectedItems.has(item.id)}
+                    onSelect={handleSelectItem}
                   />
                 ))}
               </div>
@@ -328,6 +459,14 @@ const ShoppingList = () => {
           ))
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <EditShoppingItemDialog
+        item={editingItem}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSave={handleSaveEdit}
+      />
     </div>
   );
 };

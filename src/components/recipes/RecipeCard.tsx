@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 // Types adaptés du PRP Cipher
 interface Recipe {
@@ -49,6 +50,7 @@ interface InventoryAnalysis {
   availableIngredients: number;
   missingIngredients: number;
   estimatedCost: number;
+  totalRecipeCost?: number;
 }
 
 interface RecipeCardProps {
@@ -72,6 +74,7 @@ const RecipeCard = ({
   onShare,
   isFavorite = false
 }: RecipeCardProps) => {
+  const navigate = useNavigate();
   
   // Pattern status inventaire (adaptation ProductCard Cipher)
   const getInventoryStatusColor = () => {
@@ -130,13 +133,7 @@ const RecipeCard = ({
     <Card 
       className="hover:shadow-lg transition-all duration-200 cursor-pointer group"
       onClick={() => {
-        // TODO: Implémenter l'ouverture du détail de la recette
-        console.log('Recipe clicked:', recipe.id);
-        // Pour l'instant, on affiche juste les infos dans un toast
-        toast({
-          title: recipe.name,
-          description: `${recipe.description || 'Cliquez sur Modifier pour voir les détails'}`,
-        });
+        navigate(`/recipes/${recipe.id}`);
       }}
     >
       <CardContent className="p-4">
@@ -246,11 +243,11 @@ const RecipeCard = ({
                   </span>
                 </div>
               )}
-              {inventoryAnalysis.estimatedCost > 0 && (
+              {(inventoryAnalysis.totalRecipeCost ?? inventoryAnalysis.estimatedCost) > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Coût estimé:</span>
                   <span className="font-medium">
-                    {inventoryAnalysis.estimatedCost.toFixed(2)}€
+                    {(inventoryAnalysis.totalRecipeCost ?? inventoryAnalysis.estimatedCost).toFixed(2)}€
                   </span>
                 </div>
               )}
