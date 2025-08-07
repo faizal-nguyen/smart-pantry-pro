@@ -5,6 +5,8 @@
 
 import { sanitizeInput, isValidUrl } from '@/lib/security';
 import { Recipe, RecipeIngredient } from '@/types/recipe';
+import { StreamingAIService } from '@/services/ai/streamingAIService';
+import { SecureInstagramProxy } from './secureInstagramProxy';
 
 export interface SocialMediaPlatform {
   name: 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'pinterest' | 'twitter';
@@ -38,6 +40,34 @@ export interface ParsedRecipeResult {
 }
 
 export class SocialMediaRecipeParser {
+  /**
+   * Parse recipe from manual text input
+   */
+  async parseFromText(text: string): Promise<ParsedRecipeResult> {
+    try {
+      // Extract recipe using AI
+      const recipe = await this.aiExtractRecipe(text, { source: 'manual' });
+      
+      return {
+        success: true,
+        recipe: {
+          ...recipe,
+          author: {
+            name: 'Import manuel',
+            platform: 'manual'
+          }
+        },
+        platform: 'manual' as any,
+        confidence: 0.8
+      };
+    } catch (error: any) {
+      console.error('Manual text parsing error:', error);
+      return {
+        success: false,
+        error: error.message || 'Erreur lors de l\'extraction'
+      };
+    }
+  }
   private platforms: SocialMediaPlatform[] = [
     {
       name: 'instagram',
@@ -167,26 +197,101 @@ export class SocialMediaRecipeParser {
    * Parse Instagram content
    */
   private async parseInstagram(url: string): Promise<any> {
-    // Instagram requires special handling due to their anti-scraping measures
-    // In production, this would use Instagram's Basic Display API
-    
-    // For now, we'll use a mock implementation
-    // In real implementation, this would:
-    // 1. Use Instagram oEmbed API for public posts
-    // 2. Extract caption and comments
-    // 3. Use AI to parse recipe from caption/comments
-
-    const postId = this.extractPostId(url, 'instagram');
-    
-    return {
-      caption: 'Mock Instagram recipe content',
-      comments: [],
-      mediaUrl: `https://instagram.com/p/${postId}/media`,
-      author: {
-        username: 'chef_example',
-        name: 'Example Chef'
+    try {
+      // Validate Instagram URL first
+      if (!SecureInstagramProxy.isValidInstagramUrl(url)) {
+        throw new Error('URL Instagram invalide');
       }
-    };
+
+      // Try secure backend proxy first (recommended approach)
+      const proxyResult = await SecureInstagramProxy.fetchInstagramOEmbed(url);
+      
+      if (proxyResult.success && proxyResult.data) {
+        return {
+          caption: proxyResult.data.title || proxyResult.data.caption || '',
+          author: {
+            username: proxyResult.data.author_name || 'unknown',
+            name: proxyResult.data.author_name || 'Unknown'
+          },
+          mediaUrl: proxyResult.data.thumbnail_url,
+          embedHtml: proxyResult.data.html
+        };
+      }
+
+      // Fallback to client-side approach if proxy is not available
+      const facebookToken = import.meta.env.VITE_FACEBOOK_ACCESS_TOKEN;
+      
+      if (facebookToken && facebookToken.trim() !== '') {
+        console.warn('⚠️ Using client-side Facebook token (not recommended for production)');
+        
+        try {
+          const oEmbedUrl = `https://graph.facebook.com/v18.0/instagram_oembed?url=${encodeURIComponent(url)}&access_token=${facebookToken}`;
+          const response = await fetch(oEmbedUrl);
+          
+          if (response.ok) {
+            const data = await response.json();
+            return {
+              caption: data.title || data.caption || '',
+              author: {
+                username: data.author_name || 'unknown',
+                name: data.author_name || 'Unknown'
+              },
+              mediaUrl: data.thumbnail_url,
+              embedHtml: data.html
+            };
+          } else {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.warn(`Instagram oEmbed API error: ${response.status} ${response.statusText}`);
+            console.warn('Response:', errorText);
+          }
+        } catch (oEmbedError) {
+          console.warn('Instagram oEmbed network error:', oEmbedError);
+        }
+      }
+      
+      // Final fallback: Manual input with clear instructions
+      const postId = SecureInstagramProxy.extractPostId(url);
+      
+      return {
+        caption: this.getManualInputMessage(!!facebookToken),
+        comments: [],
+        mediaUrl: `https://instagram.com/p/${postId}/`,
+        author: {
+          username: 'instagram_user',
+          name: 'Instagram User'
+        },
+        needsManualInput: true,
+        configurationMissing: !facebookToken,
+        postId
+      };
+    } catch (error) {
+      console.error('Instagram parsing error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate appropriate message for manual input based on configuration
+   */
+  private getManualInputMessage(hasToken: boolean): string {
+    if (!hasToken) {
+      return `🔧 Configuration manquante: Instagram oEmbed nécessite un token Facebook.
+
+Instructions pour configurer:
+1. Créez une app Facebook sur developers.facebook.com
+2. Ajoutez le produit oEmbed et soumettez pour révision
+3. Ajoutez VITE_FACEBOOK_ACCESS_TOKEN à .env.local
+
+En attendant, copiez le texte de la publication Instagram ci-dessous :`;
+    } else {
+      return `⚠️ Erreur d'API: Impossible d'accéder à Instagram automatiquement.
+Cela peut être dû à:
+- Token Facebook expiré ou invalide
+- Permissions oEmbed non approuvées
+- Restrictions d'accès Instagram
+
+Copiez le texte de la publication Instagram ci-dessous :`;
+    }
   }
 
   /**
@@ -350,32 +455,114 @@ export class SocialMediaRecipeParser {
    * AI-powered recipe extraction
    */
   private async aiExtractRecipe(text: string, metadata: any): Promise<any> {
-    // This would call OpenAI to extract structured recipe data
-    // For now, return mock data
-    
-    // In production:
-    // 1. Send text to OpenAI with specific prompt
-    // 2. Extract ingredients, instructions, times, etc.
-    // 3. Handle multiple languages
-    // 4. Validate extracted data
+    try {
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) {
+        console.warn('OpenAI API key not found, using basic extraction');
+        return this.basicExtraction(text);
+      }
 
+      const aiService = new StreamingAIService(apiKey);
+      
+      const systemPrompt = `Tu es un expert culinaire qui extrait des recettes à partir de posts sur les réseaux sociaux.
+Tu dois TOUJOURS retourner un objet JSON valide, même si tu ne peux pas extraire une recette complète.
+NE JAMAIS retourner de texte avant ou après le JSON.
+NE JAMAIS dire "Désolé" ou donner des explications.
+TOUJOURS commencer directement par { et finir par }
+
+Structure JSON OBLIGATOIRE:
+{
+  "name": "nom de la recette (ou 'Recette inconnue' si absent)",
+  "description": "description courte (ou vide si absent)",
+  "ingredients": ["ingrédient 1", "ingrédient 2"] (ou tableau vide si absent),
+  "instructions": ["étape 1", "étape 2"] (ou tableau vide si absent),
+  "prepTime": 15 (nombre en minutes, 15 par défaut),
+  "cookTime": 30 (nombre en minutes, 30 par défaut),
+  "servings": 4 (nombre de portions, 4 par défaut),
+  "difficulty": "medium" (toujours "easy", "medium" ou "hard")
+}`;
+
+      const userMessage = `Extrais la recette de ce texte:\n${text}`;
+      
+      let result = '';
+      await aiService.streamChat(
+        systemPrompt,
+        userMessage,
+        (chunk) => {
+          if (chunk.choices?.[0]?.delta?.content) {
+            result += chunk.choices[0].delta.content;
+          }
+        }
+      );
+
+      // Clean and parse the JSON response
+      try {
+        // Remove any text before the first { and after the last }
+        const jsonMatch = result.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.warn('No JSON found in AI response, using basic extraction');
+          return this.basicExtraction(text);
+        }
+        
+        const cleanedResult = jsonMatch[0];
+        const parsed = JSON.parse(cleanedResult);
+        
+        // Validate the parsed result has required fields
+        if (!parsed.name || typeof parsed.name !== 'string') {
+          parsed.name = 'Recette extraite';
+        }
+        if (!Array.isArray(parsed.ingredients)) {
+          parsed.ingredients = [];
+        }
+        if (!Array.isArray(parsed.instructions)) {
+          parsed.instructions = [];
+        }
+        if (typeof parsed.prepTime !== 'number') {
+          parsed.prepTime = 15;
+        }
+        if (typeof parsed.cookTime !== 'number') {
+          parsed.cookTime = 30;
+        }
+        if (typeof parsed.servings !== 'number') {
+          parsed.servings = 4;
+        }
+        if (!['easy', 'medium', 'hard'].includes(parsed.difficulty)) {
+          parsed.difficulty = 'medium';
+        }
+        
+        return parsed;
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', parseError);
+        console.log('Raw AI response:', result);
+        return this.basicExtraction(text);
+      }
+      
+    } catch (error) {
+      console.error('AI extraction failed:', error);
+      return this.basicExtraction(text);
+    }
+  }
+
+  /**
+   * Basic extraction fallback when AI is not available
+   */
+  private basicExtraction(text: string): any {
+    // Simple pattern matching for common recipe formats
+    const lines = text.split('\n').filter(line => line.trim());
+    
     return {
-      name: 'Recette extraite',
-      description: 'Description de la recette',
-      ingredients: [
-        '2 tomates',
-        '1 oignon',
-        '200g de pâtes'
-      ],
-      instructions: [
-        'Couper les légumes',
-        'Faire cuire les pâtes',
-        'Mélanger le tout'
-      ],
+      name: lines[0] || 'Recette sans nom',
+      description: lines[1] || '',
+      ingredients: lines.filter(line => 
+        /^\d+|^-|^•|ingrédient/i.test(line.trim())
+      ).slice(0, 10),
+      instructions: lines.filter(line => 
+        /^étape|^step|faire|cuire|mélanger|ajouter/i.test(line.trim())
+      ).slice(0, 10),
       prepTime: 15,
-      cookTime: 20,
+      cookTime: 30,
       servings: 4,
-      difficulty: 'easy'
+      difficulty: 'medium'
     };
   }
 
