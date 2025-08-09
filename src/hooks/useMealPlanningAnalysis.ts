@@ -54,7 +54,7 @@ export function useMealPlanningAnalysis() {
   });
 
   const mealPlannerService = useState<SmartMealPlannerService | null>(() => {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     return apiKey ? getSmartMealPlannerService(apiKey) : null;
   })[0];
 

@@ -1,4 +1,6 @@
-import { NextApiRequest, NextApiResponse } from 'next';
+// Support both Next.js API and Vercel Functions
+type Request = any;
+type Response = any;
 
 const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL,
@@ -17,42 +19,17 @@ const ALLOWED_HEADERS = [
 ];
 
 /**
- * Validate CORS for API endpoints
+ * Simple CORS handler for Vercel Functions
  */
-export function validateCORS(
-  req: NextApiRequest,
-  res: NextApiResponse
-): boolean {
+export function corsHandler(req: Request, res: Response): void {
   const origin = req.headers.origin;
   
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-    res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS.join(', '));
-    res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS.join(', '));
-    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-    res.status(204).end();
-    return false;
-  }
-
-  // Check origin
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } else if (process.env.NODE_ENV === 'development') {
-    // Allow any origin in development
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  } else {
-    // Reject request in production
-    res.status(403).json({ error: 'CORS: Origin not allowed' });
-    return false;
-  }
-
-  // Set other CORS headers
+  // Set basic CORS headers
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', ALLOWED_METHODS.join(', '));
   res.setHeader('Access-Control-Allow-Headers', ALLOWED_HEADERS.join(', '));
-
-  return true;
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
 }
 
 /**

@@ -1,5 +1,4 @@
 import DOMPurify from 'isomorphic-dompurify';
-import { createHash } from 'crypto';
 
 /**
  * Sanitize user input to prevent XSS
@@ -54,10 +53,30 @@ export function isValidUrl(url: string): boolean {
 }
 
 /**
- * Hash sensitive data
+ * Hash sensitive data using Web Crypto API (browser-compatible)
  */
-export function hashData(data: string): string {
-  return createHash('sha256').update(data).digest('hex');
+export async function hashData(data: string): Promise<string> {
+  // Use Web Crypto API for browser compatibility
+  const msgUint8 = new TextEncoder().encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+/**
+ * Synchronous hash function for backward compatibility
+ * Note: This is less secure than the async version above
+ */
+export function hashDataSync(data: string): string {
+  // Simple hash function for cases where async is not possible
+  let hash = 0;
+  for (let i = 0; i < data.length; i++) {
+    const char = data.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
 }
 
 /**
@@ -91,15 +110,16 @@ export function containsSQLInjection(input: string): boolean {
 }
 
 /**
- * Generate secure random token
+ * Generate secure random token using Web Crypto API
  */
 export function generateSecureToken(length: number = 32): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let token = '';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
   
+  let token = '';
   for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    token += chars[randomIndex];
+    token += chars[array[i] % chars.length];
   }
   
   return token;

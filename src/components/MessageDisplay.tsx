@@ -80,8 +80,8 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = ({
   const hasMissingIngredients = missingIngredients.length > 0;
 
   return (
-    <div className={`flex ${type === 'user' ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] rounded-lg p-3 ${
+    <div className={`flex ${type === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+      <div className={`max-w-[80%] rounded-lg p-3 overflow-hidden ${
         type === 'user' 
           ? 'bg-primary text-primary-foreground' 
           : 'bg-muted'
@@ -103,15 +103,17 @@ export const MessageDisplay: React.FC<MessageDisplayProps> = ({
         </div>
         
         {/* Use ReactMarkdown for better formatting */}
-        <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+        <div className="text-sm prose prose-sm dark:prose-invert max-w-full overflow-x-auto break-words [&>*]:max-w-full">
           <ReactMarkdown
             components={{
               // Custom renderers for better display
               h3: ({ children }) => <h3 className="text-base font-semibold mt-2 mb-1">{children}</h3>,
               ul: ({ children }) => <ul className="list-disc pl-4 my-1">{children}</ul>,
               li: ({ children }) => <li className="my-0.5">{children}</li>,
-              p: ({ children }) => <p className="my-1">{children}</p>,
+              p: ({ children }) => <p className="my-1 break-words">{children}</p>,
               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              code: ({ children }) => <code className="text-xs bg-muted-foreground/20 px-1 py-0.5 rounded break-all">{children}</code>,
+              pre: ({ children }) => <pre className="overflow-x-auto text-xs bg-muted-foreground/20 p-2 rounded my-2">{children}</pre>,
             }}
           >
             {content}

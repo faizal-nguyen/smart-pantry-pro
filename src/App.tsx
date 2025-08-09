@@ -7,6 +7,9 @@ import RecipeSeeding from "./pages/RecipeSeeding";
 import RecipeDetail from "./pages/RecipeDetail";
 import RecipeEdit from "./pages/RecipeEdit";
 import NotFound from "./pages/NotFound";
+import InventoryPage from "./pages/InventoryPage";
+import RecipesPage from "./pages/RecipesPage";
+import ShoppingListPage from "./pages/ShoppingListPage";
 
 const queryClient = new QueryClient();
 
@@ -16,6 +19,9 @@ const App = () => (
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/inventory" element={<InventoryPage />} />
+        <Route path="/recipes" element={<RecipesPage />} />
+        <Route path="/shopping" element={<ShoppingListPage />} />
         <Route path="/assistant" element={<RecipeAssistant />} />
         <Route path="/recipe-seeding" element={<RecipeSeeding />} />
         <Route path="/recipes/:id" element={<RecipeDetail />} />

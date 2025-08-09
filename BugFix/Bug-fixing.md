@@ -1,32 +1,80 @@
 # Bug-fixing.md
 
-## ✅ RÉSOLU : Extraction CookdTV avec Puppeteer
+Bug Import social 
+àa ne fonctionne toujours pas 
 
-### Problème initial
-```
-🚀 Extracting recipe (optimized) from URL: https://cookdtv.com/recipes/moti-mahal-butter-chicken
-POST http://localhost:3001/api/extract-recipe-ultra-optimized 400 (Bad Request)
-❌ Recipe extraction error: Extraction impossible.
-```
-
-### Cause
-CookdTV est une application React SPA qui nécessite l'exécution de JavaScript pour afficher le contenu.
-
-### Solution appliquée
-1. **Installation de Puppeteer** pour navigateur headless
-2. **Création d'un extracteur dédié** (`extract-recipe-spa.js`)
-3. **Intégration dans l'API** pour traiter automatiquement les sites SPA
-
-### Statut actuel
-⚠️ **Limitation** : L'extraction avec Puppeteer fonctionne mais est :
-- Plus lente (15-20 secondes)
-- Plus complexe à maintenir
-- Consommatrice en ressources
-
-### Recommandation
-Pour les sites comme CookdTV, nous recommandons la **saisie manuelle** :
-1. L'utilisateur visite la page de la recette
-2. Copie les informations (titre, ingrédients, instructions)
-3. Colle dans le formulaire manuel
-
-C'est plus rapide et fiable que l'extraction automatique pour ces sites complexes.
+videoProcessorAPI.ts:100  POST http://localhost:8000/process/url net::ERR_CONNECTION_REFUSED
+processVideoURL @ videoProcessorAPI.ts:100
+parseFromVideoUrl @ videoRecipeParser.ts:69
+(anonyme) @ useVideoRecipeParser.ts:60
+handleUrlImport @ VideoImportCard.tsx:78
+callCallback2 @ chunk-276SZO74.js?v=a78225c2:3674
+invokeGuardedCallbackDev @ chunk-276SZO74.js?v=a78225c2:3699
+invokeGuardedCallback @ chunk-276SZO74.js?v=a78225c2:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-276SZO74.js?v=a78225c2:3736
+executeDispatch @ chunk-276SZO74.js?v=a78225c2:7014
+processDispatchQueueItemsInOrder @ chunk-276SZO74.js?v=a78225c2:7034
+processDispatchQueue @ chunk-276SZO74.js?v=a78225c2:7043
+dispatchEventsForPlugins @ chunk-276SZO74.js?v=a78225c2:7051
+(anonyme) @ chunk-276SZO74.js?v=a78225c2:7174
+batchedUpdates$1 @ chunk-276SZO74.js?v=a78225c2:18913
+batchedUpdates @ chunk-276SZO74.js?v=a78225c2:3579
+dispatchEventForPluginEventSystem @ chunk-276SZO74.js?v=a78225c2:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-276SZO74.js?v=a78225c2:5478
+dispatchEvent @ chunk-276SZO74.js?v=a78225c2:5472
+dispatchDiscreteEvent @ chunk-276SZO74.js?v=a78225c2:5449Comprendre cette erreur
+videoRecipeParser.ts:88 Backend processing failed, falling back to basic extraction: TypeError: Failed to fetch
+    at VideoProcessorAPI.processVideoURL (videoProcessorAPI.ts:100:28)
+    at VideoRecipeParser.parseFromVideoUrl (videoRecipeParser.ts:69:44)
+    at useVideoRecipeParser.ts:60:35
+    at handleUrlImport (VideoImportCard.tsx:78:26)
+    at HTMLUnknownElement.callCallback2 (chunk-276SZO74.js?v=a78225c2:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-276SZO74.js?v=a78225c2:3699:24)
+    at invokeGuardedCallback (chunk-276SZO74.js?v=a78225c2:3733:39)
+    at invokeGuardedCallbackAndCatchFirstError (chunk-276SZO74.js?v=a78225c2:3736:33)
+    at executeDispatch (chunk-276SZO74.js?v=a78225c2:7014:11)
+    at processDispatchQueueItemsInOrder (chunk-276SZO74.js?v=a78225c2:7034:15)
+parseFromVideoUrl @ videoRecipeParser.ts:88
+await in parseFromVideoUrl
+(anonyme) @ useVideoRecipeParser.ts:60
+handleUrlImport @ VideoImportCard.tsx:78
+callCallback2 @ chunk-276SZO74.js?v=a78225c2:3674
+invokeGuardedCallbackDev @ chunk-276SZO74.js?v=a78225c2:3699
+invokeGuardedCallback @ chunk-276SZO74.js?v=a78225c2:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-276SZO74.js?v=a78225c2:3736
+executeDispatch @ chunk-276SZO74.js?v=a78225c2:7014
+processDispatchQueueItemsInOrder @ chunk-276SZO74.js?v=a78225c2:7034
+processDispatchQueue @ chunk-276SZO74.js?v=a78225c2:7043
+dispatchEventsForPlugins @ chunk-276SZO74.js?v=a78225c2:7051
+(anonyme) @ chunk-276SZO74.js?v=a78225c2:7174
+batchedUpdates$1 @ chunk-276SZO74.js?v=a78225c2:18913
+batchedUpdates @ chunk-276SZO74.js?v=a78225c2:3579
+dispatchEventForPluginEventSystem @ chunk-276SZO74.js?v=a78225c2:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-276SZO74.js?v=a78225c2:5478
+dispatchEvent @ chunk-276SZO74.js?v=a78225c2:5472
+dispatchDiscreteEvent @ chunk-276SZO74.js?v=a78225c2:5449Comprendre cet avertissement
+videoRecipeParser.ts:346 VideoRecipeParser: Using fallback extraction for: instagram
+videoRecipeParser.ts:353 VideoRecipeParser: Trying Instagram oEmbed API...
+videoRecipeParser.ts:354  POST http://localhost:3001/api/social/instagram-oembed 500 (Internal Server Error)
+fallbackExtraction @ videoRecipeParser.ts:354
+await in fallbackExtraction
+parseFromVideoUrl @ videoRecipeParser.ts:90
+await in parseFromVideoUrl
+(anonyme) @ useVideoRecipeParser.ts:60
+handleUrlImport @ VideoImportCard.tsx:78
+callCallback2 @ chunk-276SZO74.js?v=a78225c2:3674
+invokeGuardedCallbackDev @ chunk-276SZO74.js?v=a78225c2:3699
+invokeGuardedCallback @ chunk-276SZO74.js?v=a78225c2:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-276SZO74.js?v=a78225c2:3736
+executeDispatch @ chunk-276SZO74.js?v=a78225c2:7014
+processDispatchQueueItemsInOrder @ chunk-276SZO74.js?v=a78225c2:7034
+processDispatchQueue @ chunk-276SZO74.js?v=a78225c2:7043
+dispatchEventsForPlugins @ chunk-276SZO74.js?v=a78225c2:7051
+(anonyme) @ chunk-276SZO74.js?v=a78225c2:7174
+batchedUpdates$1 @ chunk-276SZO74.js?v=a78225c2:18913
+batchedUpdates @ chunk-276SZO74.js?v=a78225c2:3579
+dispatchEventForPluginEventSystem @ chunk-276SZO74.js?v=a78225c2:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-276SZO74.js?v=a78225c2:5478
+dispatchEvent @ chunk-276SZO74.js?v=a78225c2:5472
+dispatchDiscreteEvent @ chunk-276SZO74.js?v=a78225c2:5449Comprendre cette erreur
+videoRecipeParser.ts:388 VideoRecipeParser: Instagram oEmbed failed, using basic metadata

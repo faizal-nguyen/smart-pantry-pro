@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev --listen 3000",
+    "dev": "concurrently \"npm run api\" \"vite --port 3000\"",
     "dev:vite": "vite",
     "dev:custom": "concurrently \"npm run api:server\" \"npm run dev:client\"",
     "dev:client": "vite",
@@ -102,6 +102,7 @@
     "dotenv": "^17.2.1",
     "embla-carousel-react": "^8.3.0",
     "express": "^5.1.0",
+    "framer-motion": "^12.23.12",
     "input-otp": "^1.2.4",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.462.0",

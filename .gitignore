@@ -22,8 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Environment files - NEVER commit these
 .env.local
+.env
+*.env
+.env.production
+.env.development
 
 # MCP Configuration (contains sensitive tokens)
 .mcp/config.json
 .cursorrules
+.vercel

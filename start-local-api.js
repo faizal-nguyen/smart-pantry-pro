@@ -18,11 +18,15 @@ app.use(express.json({ limit: '10mb' }));
 const extractRecipeHandler = (await import('./api/extract-recipe.js')).default;
 const extractRecipeOptimizedHandler = (await import('./api/extract-recipe-ultra-optimized.js')).default;
 const healthHandler = (await import('./api/health.js')).default;
+const instagramOEmbedHandler = (await import('./api/social-instagram-oembed.js')).default;
 
 // API Routes
 app.post('/api/extract-recipe', extractRecipeHandler);
 app.post('/api/extract-recipe-ultra-optimized', extractRecipeOptimizedHandler);
 app.get('/api/health', healthHandler);
+
+// Social media endpoints
+app.post('/api/social/instagram-oembed', instagramOEmbedHandler);
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -39,6 +43,7 @@ app.listen(PORT, () => {
    - POST http://localhost:${PORT}/api/extract-recipe
    - POST http://localhost:${PORT}/api/extract-recipe-ultra-optimized
    - GET  http://localhost:${PORT}/api/health
+   - POST http://localhost:${PORT}/api/social/instagram-oembed
 
 💡 Keep this terminal open while developing.
   `);

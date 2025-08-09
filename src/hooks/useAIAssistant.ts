@@ -51,7 +51,7 @@ export function useAIAssistant() {
 
   // Initialize streaming service
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     if (apiKey) {
       streamingService.current = getStreamingAIService(apiKey);
     }

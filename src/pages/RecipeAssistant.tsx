@@ -13,13 +13,20 @@ import {
   Trash2,
   Package,
   Bot,
-  User
+  User,
+  ArrowLeft,
+  Home,
+  Video,
+  Sparkles
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useInventory } from "@/hooks/useInventory";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import MessageDisplay from "@/components/MessageDisplay";
+import { SocialImportCard } from "@/components/social/SocialImportCard";
+import { VideoImportCard } from "@/components/social/VideoImportCard";
+import { useNavigate } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -41,10 +48,12 @@ const RecipeAssistant = () => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>([]);
+  const [showVideoImport, setShowVideoImport] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
   const { inventory } = useInventory();
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Load conversation history
@@ -271,26 +280,117 @@ const RecipeAssistant = () => {
   };
 
   return (
-    <div className="p-4 space-y-4 pb-20 max-w-4xl mx-auto">
-      {/* Header */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <ChefHat className="w-6 h-6 text-primary" />
-            Assistant Recettes
-            <Badge variant="secondary" className="ml-auto">
-              <Package className="w-3 h-3 mr-1" />
-              {inventory.length} produits
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-      </Card>
+    <div className="min-h-screen bg-background">
+      {/* Navigation Bar */}
+      <header className="sticky top-0 z-50 border-b bg-card">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => navigate('/')}
+              className="hover:bg-muted"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="text-xl font-bold text-primary">Assistant Chef</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showVideoImport ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowVideoImport(!showVideoImport)}
+              className="flex items-center gap-2"
+            >
+              <Video className="w-4 h-4" />
+              <span className="hidden sm:inline">Import Vidéo</span>
+              {showVideoImport && <Sparkles className="w-3 h-3 text-yellow-400" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/')}
+              className="hover:bg-muted"
+            >
+              <Home className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="p-4 space-y-4 pb-20 max-w-4xl mx-auto">
+        {/* Header */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <ChefHat className="w-6 h-6 text-primary" />
+              Assistant Recettes
+              <Badge variant="secondary" className="ml-auto">
+                <Package className="w-3 h-3 mr-1" />
+                {inventory.length} produits
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+        </Card>
+
+        {/* Import Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-primary">
+              {showVideoImport ? 'Import Vidéo Intelligent' : 'Import de Recettes'}
+            </h2>
+            {showVideoImport && (
+              <Badge variant="secondary" className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Nouveau
+              </Badge>
+            )}
+          </div>
+          
+          {/* Toggle between standard and video import */}
+          {showVideoImport ? (
+            <VideoImportCard 
+              onImport={(recipe) => {
+                toast({
+                  title: "Recette extraite de la vidéo !",
+                  description: `"${recipe.name}" a été analysée avec succès.`
+                });
+                // Add the recipe to conversation context
+                const newMessage: Message = {
+                  id: Date.now().toString(),
+                  type: 'assistant',
+                  content: `🎥 **${recipe.name}** extraite depuis une vidéo !\n\n⏱️ **Temps total**: ${recipe.totalTime} min\n👥 **Portions**: ${recipe.servings}\n🍳 **Difficulté**: ${recipe.difficulty}\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst) => `${inst.step}. ${inst.text}`).join('\n')}\n\n${recipe.videoUrl ? `📹 [Voir la vidéo originale](${recipe.videoUrl})` : ''}\n\nVoulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
+                  timestamp: new Date()
+                };
+                setMessages(prev => [...prev, newMessage]);
+              }}
+            />
+          ) : (
+            <SocialImportCard 
+              variant="default"
+              onImport={(recipe) => {
+                toast({
+                  title: "Recette importée !",
+                  description: `"${recipe.title}" a été ajoutée avec succès.`
+                });
+                // Add the recipe to conversation context
+                const newMessage: Message = {
+                  id: Date.now().toString(),
+                  type: 'assistant',
+                  content: `📍 **${recipe.title}** importée depuis ${recipe.platform}!\n\n⏱️ **Temps**: ${recipe.prepTime}\n👥 **Portions**: ${recipe.servings}\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}\n\nVoulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
+                  timestamp: new Date()
+                };
+                setMessages(prev => [...prev, newMessage]);
+              }}
+            />
+          )}
+        </div>
 
       {/* Chat Area */}
-      <Card className="h-[60vh]">
-        <CardContent className="p-0">
-          <ScrollArea className="h-full p-4">
-            <div className="space-y-4">
+      <Card className="h-[60vh] overflow-hidden">
+        <CardContent className="p-0 h-full">
+          <ScrollArea className="h-full">
+            <div className="p-4 space-y-4">
               {messages.map((message) => (
                 <MessageDisplay
                   key={message.id}
@@ -384,6 +484,7 @@ const RecipeAssistant = () => {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 };

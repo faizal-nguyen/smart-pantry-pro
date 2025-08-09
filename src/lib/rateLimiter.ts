@@ -135,3 +135,44 @@ if (typeof window === 'undefined') {
     rateLimiter.cleanup().catch(console.error);
   }, 60 * 60 * 1000);
 }
+
+/**
+ * Simple rate limiter handler for Vercel Functions
+ */
+export async function rateLimiterHandler(req: any, res: any): Promise<{
+  allowed: boolean;
+  retryAfter?: number;
+}> {
+  try {
+    const clientIP = req.headers['x-forwarded-for'] || 
+                     req.headers['x-real-ip'] || 
+                     req.connection?.remoteAddress || 
+                     'unknown';
+    
+    const key = `api_${clientIP}`;
+    const config = {
+      keyPrefix: 'social_parser',
+      maxRequests: 100, // 100 requests per window
+      windowMs: 60 * 60 * 1000 // 1 hour
+    };
+
+    const allowed = await rateLimiter.checkLimit(key, config);
+    
+    if (!allowed) {
+      const resetTime = await rateLimiter.getResetTime(key);
+      const retryAfter = Math.ceil((resetTime - Date.now()) / 1000);
+      
+      return {
+        allowed: false,
+        retryAfter
+      };
+    }
+
+    return { allowed: true };
+
+  } catch (error) {
+    console.error('Rate limiter error:', error);
+    // On error, allow the request to proceed
+    return { allowed: true };
+  }
+}

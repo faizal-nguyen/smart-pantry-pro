@@ -165,7 +165,7 @@ export class ImageProcessingPipeline {
     
     // Strip EXIF if requested
     if (options.stripExif !== false) {
-      const visionService = getAdvancedVisionService(process.env.OPENAI_API_KEY!);
+      const visionService = getAdvancedVisionService(import.meta.env.VITE_OPENAI_API_KEY || '');
       blob = await visionService.stripExifData(blob);
     }
 
@@ -184,7 +184,7 @@ export class ImageProcessingPipeline {
     blob: Blob,
     options: ProcessingOptions
   ): Promise<any> {
-    const visionService = getAdvancedVisionService(process.env.OPENAI_API_KEY!);
+    const visionService = getAdvancedVisionService(import.meta.env.VITE_OPENAI_API_KEY || '');
     
     return visionService.analyzeImage(blob, {
       detectMultiple: options.detectMultiple,
@@ -206,7 +206,7 @@ export class ImageProcessingPipeline {
    * Detect expiry date
    */
   private async detectExpiry(blob: Blob): Promise<any> {
-    const visionService = getAdvancedVisionService(process.env.OPENAI_API_KEY!);
+    const visionService = getAdvancedVisionService(import.meta.env.VITE_OPENAI_API_KEY || '');
     return visionService.detectExpiryDate(blob);
   }
 

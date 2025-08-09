@@ -7,6 +7,7 @@ import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
 import RecipeAssistant from "@/pages/RecipeAssistant";
+import { FloatingVideoButton } from "@/components/ui/FloatingVideoButton";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -16,9 +17,20 @@ const Layout = ({ children }: LayoutProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("inventory");
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Determine active tab based on current route
+  const getActiveTab = () => {
+    const path = location.pathname;
+    if (path === '/inventory') return 'inventory';
+    if (path === '/recipes') return 'recipes';
+    if (path === '/shopping') return 'shopping';
+    if (path === '/assistant') return 'assistant';
+    return 'inventory'; // default
+  };
+  
+  const [activeTab, setActiveTab] = useState(getActiveTab());
 
   useEffect(() => {
     // Set up auth state listener
@@ -68,20 +80,6 @@ const Layout = ({ children }: LayoutProps) => {
     }
   };
 
-  const renderActiveTab = () => {
-    switch (activeTab) {
-      case 'inventory':
-        return <Inventory />;
-      case 'recipes':
-        return <Recipes />;
-      case 'shopping':
-        return <ShoppingList />;
-      case 'assistant':
-        return <RecipeAssistant />;
-      default:
-        return <Inventory />;
-    }
-  };
 
   // Show loading spinner while checking auth
   if (loading) {
@@ -114,16 +112,19 @@ const Layout = ({ children }: LayoutProps) => {
       </header>
 
       <main className="pb-20">
-        {renderActiveTab()}
+        {children}
       </main>
+
+      {/* Floating Video Import Button */}
+      <FloatingVideoButton />
 
       {/* Simple navigation bar */}
       <nav className="fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-t shadow-lg">
         <div className="grid grid-cols-4 h-full">
           <button
-            onClick={() => setActiveTab('inventory')}
+            onClick={() => navigate('/inventory')}
             className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              activeTab === 'inventory' 
+              location.pathname === '/inventory' 
                 ? 'text-primary bg-primary/10' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
@@ -133,9 +134,9 @@ const Layout = ({ children }: LayoutProps) => {
           </button>
           
           <button
-            onClick={() => setActiveTab('recipes')}
+            onClick={() => navigate('/recipes')}
             className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              activeTab === 'recipes' 
+              location.pathname === '/recipes' 
                 ? 'text-primary bg-primary/10' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
@@ -145,9 +146,9 @@ const Layout = ({ children }: LayoutProps) => {
           </button>
           
           <button
-            onClick={() => setActiveTab('shopping')}
+            onClick={() => navigate('/shopping')}
             className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              activeTab === 'shopping' 
+              location.pathname === '/shopping' 
                 ? 'text-primary bg-primary/10' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}
@@ -157,9 +158,9 @@ const Layout = ({ children }: LayoutProps) => {
           </button>
           
           <button
-            onClick={() => setActiveTab('assistant')}
+            onClick={() => navigate('/assistant')}
             className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              activeTab === 'assistant' 
+              location.pathname === '/assistant' 
                 ? 'text-primary bg-primary/10' 
                 : 'text-muted-foreground hover:text-foreground'
             }`}

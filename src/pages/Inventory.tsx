@@ -2,13 +2,13 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { 
   Search, 
   Package, 
   Filter,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 import { 
   Select,
@@ -22,6 +22,10 @@ import ProductCard from "@/components/inventory/ProductCard";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
 import VoiceInputButton from "@/components/inventory/VoiceInputButton";
 import EditItemDialog from "@/components/inventory/EditItemDialog";
+import { FeatureShowcase } from "@/components/features/FeatureShowcase";
+import { VisionAIButton } from "@/components/vision/VisionAIButton";
+import { VoiceCommandInterface } from "@/components/voice/VoiceCommandInterface";
+import { motion } from "framer-motion";
 
 const CATEGORIES = [
   "Tous",
@@ -104,10 +108,36 @@ const Inventory = () => {
 
   return (
     <div className="p-4 space-y-4 pb-20">
+      {/* Feature Showcase V2 */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="mb-6"
+      >
+        <div className="flex items-center gap-2 mb-4">
+          <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+          <h2 className="text-lg font-semibold">Nouvelles fonctionnalités IA</h2>
+          <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
+            V2
+          </Badge>
+        </div>
+        <FeatureShowcase variant="grid" className="mb-6" />
+      </motion.div>
+
+      {/* Quick Actions V2 */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <VisionAIButton variant="compact" className="w-full" />
+        <AddProductDialog />
+      </div>
+
+      {/* Voice Command Interface */}
+      <VoiceCommandInterface />
+
       {/* Header avec stats */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Inventaire</h1>
+          <h1 className="text-2xl font-bold">Mon Inventaire</h1>
         </div>
         
         <div className="grid grid-cols-2 gap-4">
