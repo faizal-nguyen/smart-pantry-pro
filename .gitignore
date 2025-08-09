@@ -33,3 +33,4 @@ dist-ssr
 .mcp/config.json
 .cursorrules
 .vercel
+api/video-processor/venv/
