@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Frontend API</title>
+</head>
+<body>
+    <h1>Test API Instagram Video</h1>
+    <button onclick="testAPI()">Test avec URL Instagram</button>
+    <div id="result"></div>
+    
+    <script>
+    async function testAPI() {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerHTML = 'Loading...';
+        
+        try {
+            const response = await fetch('/api/parse-video-recipe', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    videoUrl: 'https://www.instagram.com/reel/DJ63290I7L8/',
+                    platform: 'instagram'
+                })
+            });
+            
+            console.log('Response status:', response.status);
+            
+            const data = await response.json();
+            console.log('Response data:', data);
+            
+            if (response.ok && data.success) {
+                resultDiv.innerHTML = `
+                    <h2>Success!</h2>
+                    <p><strong>Title:</strong> ${data.data.title}</p>
+                    <p><strong>Description:</strong> ${data.data.description}</p>
+                    <p><strong>Processing Time:</strong> ${data.processingTime}</p>
+                `;
+            } else {
+                resultDiv.innerHTML = `
+                    <h2>Error</h2>
+                    <p>${data.error || data.message || 'Unknown error'}</p>
+                `;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            resultDiv.innerHTML = `
+                <h2>Error</h2>
+                <p>${error.message}</p>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

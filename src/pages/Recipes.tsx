@@ -19,13 +19,21 @@ import {
   Heart,
   Grid3X3,
   List,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Video,
+  Sparkles
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes, Recipe } from "@/hooks/useRecipes";
-import { useRecipeInventoryAnalysis, useMultipleRecipeAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
+import { useRecipeInventoryAnalysis, useMultipleRecipeAnalysis, cleanupAllOrphanedCacheEntries } from "@/hooks/useRecipeInventoryAnalysis";
+import { supabase } from "@/integrations/supabase/client";
 import RecipeCard from "@/components/recipes/RecipeCard";
 import AddRecipeDialog from "@/components/recipes/AddRecipeDialog";
+import { SocialImportCard } from "@/components/social/SocialImportCard";
+import { InstagramVideoExtractor } from "@/components/recipes/InstagramVideoExtractor";
+import { ExtractedRecipeModal } from "@/components/recipes/ExtractedRecipeModal";
+import { Card } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
 
 // Filters interface (pattern Cipher)
 interface RecipeFilters {
@@ -48,10 +56,18 @@ const CUISINE_OPTIONS = [
 ];
 
 const Recipes = () => {
+  const navigate = useNavigate();
+  
   // State management (pattern useInventory Cipher)
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSocialImport, setShowSocialImport] = useState(false);
+  const [showVideoImport, setShowVideoImport] = useState(false);
+  const [showVideoExtractor, setShowVideoExtractor] = useState(false);
+  const [extractedRecipe, setExtractedRecipe] = useState<any>(null);
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const [savingRecipe, setSavingRecipe] = useState(false);
   const [filters, setFilters] = useState<RecipeFilters>({
     search: "",
     cuisine: "all",
@@ -74,7 +90,7 @@ const Recipes = () => {
 
   // Analyse inventaire pour toutes les recettes (pattern Cipher intelligence)
   const recipeIds = recipes.map(r => r.id);
-  const { analyses: inventoryAnalyses } = useMultipleRecipeAnalysis(recipeIds);
+  const { analyses: inventoryAnalyses, loading: analysesLoading } = useMultipleRecipeAnalysis(recipeIds);
 
   // Filtered recipes (pattern Cipher)
   const filteredRecipes = recipes.filter(recipe => {
@@ -187,6 +203,22 @@ const Recipes = () => {
     });
   };
 
+  // Nettoyage automatique des entrées orphelines au démarrage
+  useEffect(() => {
+    const cleanupOnMount = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await cleanupAllOrphanedCacheEntries(user.id);
+        }
+      } catch (error) {
+        console.warn('Initial cleanup failed:', error);
+      }
+    };
+
+    cleanupOnMount();
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
       {/* Header avec stats (pattern Cipher) */}
@@ -223,6 +255,30 @@ const Recipes = () => {
             </Button>
           </div>
 
+          <Button
+            variant={showVideoExtractor ? "default" : "outline"}
+            onClick={() => {
+              setShowVideoExtractor(!showVideoExtractor);
+              setShowSocialImport(false);
+            }}
+            className={showVideoExtractor ? "bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600" : ""}
+          >
+            <Video className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Import Vidéo IA</span>
+            {showVideoExtractor && <Sparkles className="w-3 h-3 ml-1 text-yellow-300" />}
+          </Button>
+
+          <Button
+            variant={showSocialImport ? "default" : "outline"}
+            onClick={() => {
+              setShowSocialImport(!showSocialImport);
+              setShowVideoExtractor(false);
+            }}
+          >
+            <ChefHat className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Import URL</span>
+          </Button>
+          
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Ajouter
@@ -342,6 +398,133 @@ const Recipes = () => {
         </Badge>
       </div>
 
+      {/* Video Extractor Section */}
+      {showVideoExtractor && (
+        <Card className="p-4 mb-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                Import Vidéo avec IA (Deepgram + GPT-4)
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowVideoExtractor(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <InstagramVideoExtractor 
+              onRecipeExtracted={(recipe, sourceUrl) => {
+                console.log("🎥 Recette extraite de vidéo Instagram:", recipe);
+                console.log("🔗 URL source:", sourceUrl);
+                
+                // Stocker la recette extraite avec l'URL source et ouvrir la modal
+                setExtractedRecipe({ ...recipe, sourceUrl });
+                setShowRecipeModal(true);
+                
+                toast({
+                  title: "🎥 Recette extraite avec succès !",
+                  description: `"${recipe.title}" a été analysée. Vérifiez les détails avant de l'enregistrer.`
+                });
+              }}
+              onError={(error) => {
+                toast({
+                  title: "Erreur d'extraction",
+                  description: error.message,
+                  variant: "destructive"
+                });
+              }}
+            />
+            
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>✨ Extraction intelligente avec transcription audio Deepgram</p>
+              <p>🤖 Analyse et structuration des recettes avec GPT-4</p>
+              <p>📱 Supporte Instagram, TikTok et YouTube</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Social Import Section */}
+      {showSocialImport && (
+        <Card className="p-4 mb-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">
+                Import depuis une URL
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowSocialImport(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <SocialImportCard 
+              variant="default"
+              onImport={async (recipe) => {
+                console.log("🎯 Import de recette:", recipe);
+                
+                try {
+                  // Convertir le format ImportedRecipe vers le format attendu par addRecipeWithIngredients
+                  const recipeData = {
+                    name: recipe.title,
+                    description: recipe.author ? `Recette de ${recipe.author}` : '',
+                    cuisine_category: 'Autre',
+                    meal_type: 'main',
+                    prep_time: parseInt(recipe.prepTime || '15'),
+                    cook_time: parseInt(recipe.prepTime || '30'), 
+                    servings: recipe.servings || 4,
+                    difficulty: 3,
+                    tags: recipe.tags || [],
+                    is_public: false,
+                    image_url: recipe.imageUrl,
+                    ingredients: recipe.ingredients.map((ing, index) => ({
+                      ingredient_name: ing,
+                      quantity: 1,
+                      unit: '',
+                      order_index: index,
+                      is_essential: true
+                    })),
+                    instructions: recipe.instructions.join('\n')
+                  };
+                  
+                  console.log("📝 Données formatées:", recipeData);
+                  
+                  await addRecipeWithIngredients(recipeData);
+                  
+                  toast({
+                    title: "✅ Recette importée !",
+                    description: `"${recipe.title}" a été ajoutée à votre collection.`
+                  });
+                  
+                  setShowSocialImport(false);
+                  
+                  // Rafraîchir la liste des recettes
+                  window.location.reload();
+                  
+                } catch (error) {
+                  console.error("❌ Erreur lors de l'import:", error);
+                  toast({
+                    title: "Erreur d'import",
+                    description: "Impossible d'ajouter la recette. Veuillez réessayer.",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            />
+            
+            <div className="text-sm text-muted-foreground">
+              <p>💡 Pour importer depuis une vidéo Instagram/TikTok avec l'IA (Deepgram + GPT), utilisez le bouton "Import Vidéo IA" ci-dessus.</p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Results count */}
       {filteredRecipes.length !== recipes.length && (
         <div className="text-sm text-muted-foreground">
@@ -386,7 +569,14 @@ const Recipes = () => {
             <RecipeCard
               key={recipe.id}
               recipe={recipe}
-              inventoryAnalysis={inventoryAnalyses[recipe.id]}
+              inventoryAnalysis={inventoryAnalyses[recipe.id] ? {
+                canMake: inventoryAnalyses[recipe.id].canMake,
+                confidence: inventoryAnalyses[recipe.id].confidence,
+                availableIngredients: inventoryAnalyses[recipe.id].availableIngredients.length,
+                missingIngredients: inventoryAnalyses[recipe.id].missingIngredients.length,
+                estimatedCost: inventoryAnalyses[recipe.id].estimatedCost,
+                totalRecipeCost: inventoryAnalyses[recipe.id].totalRecipeCost
+              } : undefined}
               onEdit={(recipe) => {
                 // TODO: Implement edit functionality
                 console.log('Edit recipe:', recipe);
@@ -426,6 +616,63 @@ const Recipes = () => {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onRecipeAdded={handleRecipeAdded}
+      />
+
+      {/* Extracted Recipe Modal */}
+      <ExtractedRecipeModal
+        open={showRecipeModal}
+        onOpenChange={setShowRecipeModal}
+        recipe={extractedRecipe}
+        sourceUrl={extractedRecipe?.sourceUrl}
+        saving={savingRecipe}
+        onConfirm={async (editedRecipe) => {
+          try {
+            setSavingRecipe(true);
+            console.log("💾 Sauvegarde de la recette éditée:", editedRecipe);
+            
+            // Séparer les ingrédients du reste de la recette
+            const { ingredients, ...recipeData } = editedRecipe;
+            
+            // Ajouter l'URL source si elle existe
+            if (extractedRecipe?.sourceUrl) {
+              recipeData.source_url = extractedRecipe.sourceUrl;
+              recipeData.source_type = 'instagram';
+            }
+            
+            console.log("📝 Données de la recette:", recipeData);
+            console.log("🥗 Ingrédients:", ingredients);
+            
+            // Appeler addRecipeWithIngredients avec les paramètres séparés
+            await addRecipeWithIngredients(recipeData, ingredients);
+            
+            toast({
+              title: "✅ Recette enregistrée !",
+              description: `"${editedRecipe.name}" a été ajoutée à votre collection.`
+            });
+            
+            // Fermer les modals et réinitialiser
+            setShowRecipeModal(false);
+            setShowVideoExtractor(false);
+            setExtractedRecipe(null);
+            
+            // Rafraîchir la liste
+            window.location.reload();
+            
+          } catch (error) {
+            console.error("❌ Erreur lors de la sauvegarde:", error);
+            toast({
+              title: "Erreur de sauvegarde",
+              description: "Impossible d'enregistrer la recette. Veuillez réessayer.",
+              variant: "destructive"
+            });
+          } finally {
+            setSavingRecipe(false);
+          }
+        }}
+        onCancel={() => {
+          setShowRecipeModal(false);
+          setExtractedRecipe(null);
+        }}
       />
     </div>
   );

@@ -58,7 +58,25 @@ export const useRecipeInventoryAnalysis = (recipeId: string) => {
     cacheTime: 600000, // 10 minutes
     enabled: !!recipeId,
     // Invalider le cache quand l'inventaire change
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
+    // Éviter de refaire des requêtes si la recette n'existe plus
+    retry: (failureCount, error: any) => {
+      // Ne pas retenter si c'est une erreur 406 (recette supprimée) ou 404 (non trouvée)
+      if (error?.code === 'PGRST116' || error?.message?.includes('JSON object requested, multiple (or no) rows returned')) {
+        console.warn(`Recipe ${recipeId} not found - stopping retry attempts`);
+        return false;
+      }
+      // Retenter maximum 2 fois pour les autres erreurs
+      return failureCount < 2;
+    },
+    // Log des erreurs pour debugging
+    onError: (error: any) => {
+      if (error?.code === 'PGRST116') {
+        console.warn(`Recipe ${recipeId} no longer exists - removing from analysis`);
+      } else {
+        console.error(`Recipe inventory analysis error for ${recipeId}:`, error);
+      }
+    }
   });
 
   return {
@@ -90,7 +108,7 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     ]);
 
     if (!recipe) {
-      throw new Error('Recipe not found');
+      throw new Error(`RECIPE_NOT_FOUND: Recipe ${recipeId} not found`);
     }
 
     // 3. Analyse intelligente ingredient par ingredient
@@ -154,7 +172,19 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     
     return analysis;
 
-  } catch (error) {
+  } catch (error: any) {
+    // Gestion spécifique des recettes supprimées
+    if (error.message?.includes('RECIPE_NOT_FOUND')) {
+      console.warn(`🗑️ Recipe ${recipeId} has been deleted - cannot analyze inventory`);
+      // Nettoyer le cache pour cette recette
+      const { data: user } = await supabase.auth.getUser();
+      if (user.user) {
+        await cleanupOrphanedCacheEntries(recipeId, user.user.id);
+      }
+      throw new Error(`Recipe ${recipeId} no longer exists`);
+    }
+    
+    // Log et re-throw les autres erreurs
     console.error('Error analyzing recipe inventory:', error);
     throw error;
   }
@@ -162,15 +192,31 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
 
 // Cache management (pattern Cipher précautions)
 const getCachedAnalysis = async (recipeId: string, userId: string) => {
-  const { data, error } = await supabase
-    .from('recipe_inventory_cache')
-    .select('*')
-    .eq('recipe_id', recipeId)
-    .eq('user_id', userId)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('recipe_inventory_cache')
+      .select('*')
+      .eq('recipe_id', recipeId)
+      .eq('user_id', userId)
+      .single();
 
-  if (error) return null;
-  return data;
+    // Si erreur 406 ou PGRST116, la recette n'existe plus - nettoyer le cache
+    if (error?.code === 'PGRST116') {
+      console.log(`🧹 Nettoyage cache pour recette supprimée: ${recipeId}`);
+      await cleanupOrphanedCacheEntries(recipeId, userId);
+      return null;
+    }
+    
+    if (error) {
+      console.warn('Cache lookup error (non-blocking):', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.warn('Failed to get cached analysis:', error);
+    return null;
+  }
 };
 
 const isExpired = (cachedData: any): boolean => {
@@ -197,17 +243,39 @@ const cacheAnalysis = async (recipeId: string, userId: string, analysis: Invento
 
 // Helpers pour données
 const getRecipeWithIngredients = async (recipeId: string) => {
-  const [recipeResult, ingredientsResult] = await Promise.all([
-    supabase.from('recipes').select('*').eq('id', recipeId).single(),
-    supabase.from('recipe_ingredients').select('*').eq('recipe_id', recipeId)
-  ]);
+  try {
+    const [recipeResult, ingredientsResult] = await Promise.all([
+      supabase.from('recipes').select('*').eq('id', recipeId).single(),
+      supabase.from('recipe_ingredients').select('*').eq('recipe_id', recipeId)
+    ]);
 
-  if (recipeResult.error) throw recipeResult.error;
-  
-  return {
-    ...recipeResult.data,
-    ingredients: ingredientsResult.data || []
-  };
+    // Gestion spécifique des recettes supprimées
+    if (recipeResult.error) {
+      if (recipeResult.error.code === 'PGRST116') {
+        console.warn(`🗑️ Recipe ${recipeId} not found (deleted) - stopping analysis`);
+        throw new Error(`RECIPE_NOT_FOUND: Recipe ${recipeId} has been deleted`);
+      }
+      throw recipeResult.error;
+    }
+    
+    // Log si des ingrédients manquent (non-bloquant)
+    if (ingredientsResult.error) {
+      console.warn(`⚠️ Error fetching ingredients for recipe ${recipeId}:`, ingredientsResult.error);
+    }
+    
+    return {
+      ...recipeResult.data,
+      ingredients: ingredientsResult.data || []
+    };
+  } catch (error: any) {
+    // Re-throw les erreurs de recettes supprimées avec un type spécifique
+    if (error.message?.includes('RECIPE_NOT_FOUND')) {
+      throw error;
+    }
+    // Log et re-throw les autres erreurs
+    console.error(`Error fetching recipe ${recipeId} with ingredients:`, error);
+    throw error;
+  }
 };
 
 const getUserInventory = async (userId: string): Promise<InventoryItem[]> => {
@@ -314,6 +382,85 @@ const findBestSubstitution = async (ingredient: RecipeIngredient, inventory: Inv
   }
 
   return null;
+};
+
+// Fonction de nettoyage pour les entrées de cache orphelines
+const cleanupOrphanedCacheEntries = async (recipeId: string, userId: string) => {
+  try {
+    console.log(`🧹 Cleaning up orphaned cache entries for recipe ${recipeId}`);
+    
+    const { error } = await supabase
+      .from('recipe_inventory_cache')
+      .delete()
+      .eq('recipe_id', recipeId)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.warn('Failed to cleanup orphaned cache entry:', error);
+    } else {
+      console.log(`✅ Cleaned up cache for deleted recipe ${recipeId}`);
+    }
+  } catch (error) {
+    console.warn('Cleanup error (non-blocking):', error);
+  }
+};
+
+// Fonction utilitaire pour nettoyer toutes les entrées orphelines d'un utilisateur
+export const cleanupAllOrphanedCacheEntries = async (userId: string) => {
+  try {
+    console.log('🧹 Starting cleanup of all orphaned cache entries...');
+    
+    // 1. Récupérer toutes les entrées de cache de l'utilisateur
+    const { data: cacheEntries, error: cacheError } = await supabase
+      .from('recipe_inventory_cache')
+      .select('recipe_id, id')
+      .eq('user_id', userId);
+    
+    if (cacheError) {
+      console.error('Error fetching cache entries:', cacheError);
+      return;
+    }
+    
+    if (!cacheEntries || cacheEntries.length === 0) {
+      console.log('No cache entries found for user');
+      return;
+    }
+    
+    // 2. Récupérer toutes les recettes existantes
+    const { data: existingRecipes, error: recipesError } = await supabase
+      .from('recipes')
+      .select('id');
+    
+    if (recipesError) {
+      console.error('Error fetching recipes:', recipesError);
+      return;
+    }
+    
+    // 3. Identifier les entrées orphelines
+    const existingRecipeIds = new Set(existingRecipes?.map(r => r.id) || []);
+    const orphanedEntries = cacheEntries.filter(entry => !existingRecipeIds.has(entry.recipe_id));
+    
+    if (orphanedEntries.length > 0) {
+      console.log(`Found ${orphanedEntries.length} orphaned cache entries`);
+      
+      // 4. Supprimer les entrées orphelines
+      const orphanedIds = orphanedEntries.map(entry => entry.id);
+      const { error: deleteError } = await supabase
+        .from('recipe_inventory_cache')
+        .delete()
+        .in('id', orphanedIds);
+      
+      if (deleteError) {
+        console.error('Error deleting orphaned entries:', deleteError);
+      } else {
+        console.log(`✅ Cleaned up ${orphanedEntries.length} orphaned cache entries`);
+      }
+    } else {
+      console.log('No orphaned cache entries found');
+    }
+  } catch (error) {
+    console.error('Cleanup all orphaned entries error:', error);
+  }
 };
 
 const findPossibleSubstitutions = async (ingredient: RecipeIngredient, inventory: InventoryItem[]): Promise<Substitution[]> => {
@@ -951,23 +1098,46 @@ export const useMultipleRecipeAnalysis = (recipeIds: string[]) => {
   const [loading, setLoading] = useState(false);
 
   const analyzeMultiple = async () => {
+    if (recipeIds.length === 0) return;
+    
     setLoading(true);
     try {
-      const results = await Promise.all(
+      // Analyser chaque recette individuellement, en gérant les erreurs
+      const results = await Promise.allSettled(
         recipeIds.map(async (id) => {
-          const analysis = await analyzeRecipeInventory(id);
-          return { id, analysis };
+          try {
+            const analysis = await analyzeRecipeInventory(id);
+            return { id, analysis };
+          } catch (error: any) {
+            // Log les recettes supprimées mais ne pas faire échouer tout le batch
+            if (error.message?.includes('no longer exists')) {
+              console.warn(`⚠️ Skipping deleted recipe ${id} in batch analysis`);
+            } else {
+              console.error(`Error analyzing recipe ${id}:`, error);
+            }
+            return null;
+          }
         })
       );
 
-      const analysisMap = results.reduce((acc, { id, analysis }) => {
-        acc[id] = analysis;
+      // Filtrer les résultats valides et construire le map
+      const analysisMap = results.reduce((acc, result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const { id, analysis } = result.value;
+          acc[id] = analysis;
+        }
         return acc;
       }, {} as Record<string, InventoryAnalysis>);
 
       setAnalyses(analysisMap);
+      
+      // Log le résumé
+      const successCount = Object.keys(analysisMap).length;
+      const failedCount = recipeIds.length - successCount;
+      console.log(`📊 Batch analysis completed: ${successCount} success, ${failedCount} failed/skipped`);
+      
     } catch (error) {
-      console.error('Error analyzing multiple recipes:', error);
+      console.error('Error in multiple recipe analysis:', error);
     } finally {
       setLoading(false);
     }
@@ -976,6 +1146,9 @@ export const useMultipleRecipeAnalysis = (recipeIds: string[]) => {
   useEffect(() => {
     if (recipeIds.length > 0) {
       analyzeMultiple();
+    } else {
+      // Si pas de recettes, nettoyer les analyses
+      setAnalyses({});
     }
   }, [recipeIds.join(',')]);
 

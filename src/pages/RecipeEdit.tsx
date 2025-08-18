@@ -101,18 +101,31 @@ const RecipeEdit = () => {
       // Parse instructions
       if (existingRecipe?.instructions) {
         try {
-          const parsedInstructions = typeof existingRecipe.instructions === 'string' 
-            ? JSON.parse(existingRecipe.instructions) 
-            : existingRecipe.instructions;
-          setInstructions(Array.isArray(parsedInstructions) ? parsedInstructions : ['']);
-        } catch (jsonError) {
-          // If JSON parsing fails, treat as plain text and split by newlines or periods
-          const plainTextInstructions = existingRecipe.instructions
-            .split(/\n|\. /)
-            .map(instruction => instruction.trim())
-            .filter(instruction => instruction.length > 0);
-          setInstructions(plainTextInstructions.length > 0 ? plainTextInstructions : ['']);
+          // Si c'est déjà un tableau, on l'utilise directement
+          if (Array.isArray(existingRecipe.instructions)) {
+            setInstructions(existingRecipe.instructions.length > 0 ? existingRecipe.instructions : ['']);
+          } else if (typeof existingRecipe.instructions === 'string') {
+            // Essayer de parser comme JSON
+            try {
+              const parsed = JSON.parse(existingRecipe.instructions);
+              setInstructions(Array.isArray(parsed) ? parsed : ['']);
+            } catch (e) {
+              // Si ce n'est pas du JSON, traiter comme texte brut
+              const plainTextInstructions = existingRecipe.instructions
+                .split(/\n/)
+                .map(instruction => instruction.trim())
+                .filter(instruction => instruction.length > 0);
+              setInstructions(plainTextInstructions.length > 0 ? plainTextInstructions : ['']);
+            }
+          } else {
+            setInstructions(['']);
+          }
+        } catch (error) {
+          console.error('Error parsing instructions:', error);
+          setInstructions(['']);
         }
+      } else {
+        setInstructions(['']);
       }
     } catch (error) {
       console.error('Error fetching recipe details:', error);
@@ -185,12 +198,17 @@ const RecipeEdit = () => {
       }
       
       // Update recipe
+      // Formatter les instructions : soit comme texte simple avec retours à la ligne, soit comme JSON
+      const formattedInstructions = instructions
+        .filter(i => i.trim())
+        .join('\n');
+      
       const { error: recipeError } = await supabase
         .from('recipes')
         .update({
           ...recipe,
           image_url: imageUrl,
-          instructions: JSON.stringify(instructions.filter(i => i.trim()))
+          instructions: formattedInstructions
         })
         .eq('id', id);
 
@@ -511,14 +529,38 @@ const RecipeEdit = () => {
                     />
                   </div>
                   
-                  <div className="w-24">
+                  <div className="w-32">
                     <Label>Unité</Label>
-                    <Input
-                      value={ingredient.unit}
-                      onChange={(e) => updateIngredient(index, 'unit', e.target.value)}
-                      placeholder="g, ml..."
-                      required
-                    />
+                    <Select 
+                      value={ingredient.unit} 
+                      onValueChange={(value) => updateIngredient(index, 'unit', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Unité" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="g">g</SelectItem>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="ml">ml</SelectItem>
+                        <SelectItem value="L">L</SelectItem>
+                        <SelectItem value="cl">cl</SelectItem>
+                        <SelectItem value="dl">dl</SelectItem>
+                        <SelectItem value="c. à soupe">c. à soupe</SelectItem>
+                        <SelectItem value="c. à café">c. à café</SelectItem>
+                        <SelectItem value="tasse">tasse</SelectItem>
+                        <SelectItem value="verre">verre</SelectItem>
+                        <SelectItem value="pincée">pincée</SelectItem>
+                        <SelectItem value="unité">unité</SelectItem>
+                        <SelectItem value="tranche">tranche</SelectItem>
+                        <SelectItem value="feuille">feuille</SelectItem>
+                        <SelectItem value="gousse">gousse</SelectItem>
+                        <SelectItem value="branche">branche</SelectItem>
+                        <SelectItem value="bouquet">bouquet</SelectItem>
+                        <SelectItem value="sachet">sachet</SelectItem>
+                        <SelectItem value="boîte">boîte</SelectItem>
+                        <SelectItem value="pot">pot</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div className="flex items-center gap-2">

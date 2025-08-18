@@ -57,35 +57,27 @@ export const useSocialRecipeParser = () => {
     setError(null);
     
     try {
-      // Use the enhanced API endpoint
-      const response = await fetch('/api/social-extract-enhanced', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url: url || undefined,
-          manualText: manualText || undefined,
-          options: {
-            enableCache: options.enableCache ?? true,
-            cacheTimeout: options.cacheTimeout ?? 60,
-            fallbackToBasic: options.fallbackToBasic ?? true,
-            enhancedAI: options.enhancedAI ?? true,
-            includeMetadata: options.includeMetadata ?? true,
-            includeEngagement: options.includeEngagement ?? false
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+      console.log("🌐 Utilisation du parser local pour:", url || "texte manuel");
+      
+      // Utiliser le parser local au lieu de l'API
+      let result;
+      if (url && !manualText) {
+        // Parser depuis URL avec le parser amélioré
+        result = await enhancedSocialMediaParser.parseFromUrl(url);
+      } else if (manualText) {
+        // Parser depuis texte manuel
+        result = await enhancedSocialMediaParser.parseFromText(manualText, {
+          platform: 'manual',
+          url: url || 'manual-input'
+        });
+      } else {
+        throw new Error('URL ou texte requis');
       }
-
-      const result = await response.json();
+      
+      console.log("📦 Résultat du parser local:", result);
       
       if (!result.success) {
-        throw new Error(result.error || 'Échec du parsing enhanced');
+        throw new Error(result.error || 'Échec du parsing');
       }
       
       // Convert to our enhanced format

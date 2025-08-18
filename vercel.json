@@ -1,5 +1,8 @@
 {
   "functions": {
+    "api/*.ts": {
+      "maxDuration": 30
+    },
     "api/*.js": {
       "maxDuration": 30
     }

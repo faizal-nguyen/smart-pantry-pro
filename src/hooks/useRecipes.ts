@@ -238,7 +238,7 @@ export const useRecipes = () => {
       if (error) throw error;
 
       setRecipes(prev => prev.filter(recipe => recipe.id !== id));
-      console.log(`🗑️ Recette supprimée: ${id}`);
+      console.log(`🗑️ Recette supprimée: ${id} - ${window.location.href}`);
     } catch (error) {
       console.error('Error deleting recipe:', error);
       throw error;

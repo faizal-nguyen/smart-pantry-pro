@@ -18,7 +18,9 @@ import {
   XCircle,
   Edit,
   Trash2,
-  IndianRupee
+  IndianRupee,
+  Link,
+  Instagram
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
@@ -47,8 +49,11 @@ const RecipeDetail = () => {
   const [addingToCart, setAddingToCart] = useState(false);
   
   const recipe = recipes.find(r => r.id === id);
-  const { analysis: inventoryAnalysis } = useRecipeInventoryAnalysis(id || '');
+  const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
   const { estimatePrices, isIndianRecipe } = useIndianPriceEstimator();
+  
+  // Détecter si la recette a été supprimée
+  const recipeDeleted = !recipe && !loading && id;
   const [indianPriceEstimate, setIndianPriceEstimate] = useState<any>(null);
 
   useEffect(() => {
@@ -85,17 +90,28 @@ const RecipeDetail = () => {
       // Parse instructions from recipe
       if (recipe?.instructions) {
         try {
-          const parsedInstructions = typeof recipe.instructions === 'string' 
-            ? JSON.parse(recipe.instructions) 
-            : recipe.instructions;
-          setInstructions(Array.isArray(parsedInstructions) ? parsedInstructions : []);
-        } catch (jsonError) {
-          // If JSON parsing fails, treat as plain text and split by newlines or periods
-          const plainTextInstructions = recipe.instructions
-            .split(/\n|\. /)
-            .map(instruction => instruction.trim())
-            .filter(instruction => instruction.length > 0);
-          setInstructions(plainTextInstructions);
+          // Si c'est déjà un tableau, on l'utilise directement
+          if (Array.isArray(recipe.instructions)) {
+            setInstructions(recipe.instructions);
+          } else if (typeof recipe.instructions === 'string') {
+            // Essayer de parser comme JSON d'abord
+            try {
+              const parsed = JSON.parse(recipe.instructions);
+              setInstructions(Array.isArray(parsed) ? parsed : []);
+            } catch (e) {
+              // Si ce n'est pas du JSON, traiter comme texte avec retours à la ligne
+              const plainTextInstructions = recipe.instructions
+                .split(/\n/)
+                .map(instruction => instruction.trim())
+                .filter(instruction => instruction.length > 0);
+              setInstructions(plainTextInstructions);
+            }
+          } else {
+            setInstructions([]);
+          }
+        } catch (error) {
+          console.error('Error parsing instructions:', error);
+          setInstructions([]);
         }
       }
     } catch (error) {
@@ -120,7 +136,7 @@ const RecipeDetail = () => {
           title: "Recette supprimée",
           description: "La recette a été supprimée avec succès",
         });
-        navigate('/');
+        navigate('/recipes');
       } catch (error) {
         toast({
           title: "Erreur",
@@ -227,7 +243,25 @@ const RecipeDetail = () => {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="text-center py-12">
-          <h2 className="text-xl font-semibold mb-4">Recette non trouvée</h2>
+          <div className="mb-4">
+            {recipeDeleted ? (
+              <>
+                <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Recette supprimée</h2>
+                <p className="text-muted-foreground mb-4">
+                  Cette recette a été supprimée et n'est plus disponible.
+                </p>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Recette non trouvée</h2>
+                <p className="text-muted-foreground mb-4">
+                  {loading ? "Chargement en cours..." : "Cette recette n'existe pas ou n'est plus accessible."}
+                </p>
+              </>
+            )}
+          </div>
           <Button onClick={() => navigate('/')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour aux recettes
@@ -384,7 +418,7 @@ const RecipeDetail = () => {
               <div className="space-y-3">
                 {ingredients.map((ingredient) => {
                   const isAvailable = inventoryAnalysis?.availableIngredients.some(
-                    ai => ai.ingredient_name === ingredient.ingredient_name
+                    ai => ai.ingredient.ingredient_name === ingredient.ingredient_name
                   );
                   
                   return (
@@ -531,6 +565,25 @@ const RecipeDetail = () => {
                   </Badge>
                 ))}
               </div>
+            </div>
+          )}
+          
+          {recipe.source_url && (
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-muted-foreground mb-2">Source</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(recipe.source_url, '_blank')}
+                className="flex items-center gap-2"
+              >
+                {recipe.source_type === 'instagram' ? (
+                  <Instagram className="w-4 h-4" />
+                ) : (
+                  <Link className="w-4 h-4" />
+                )}
+                Voir la {recipe.source_type === 'instagram' ? 'vidéo Instagram' : 'source'} originale
+              </Button>
             </div>
           )}
         </CardContent>

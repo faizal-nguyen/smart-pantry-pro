@@ -25,8 +25,9 @@ import { useInventory } from "@/hooks/useInventory";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import MessageDisplay from "@/components/MessageDisplay";
 import { SocialImportCard } from "@/components/social/SocialImportCard";
-import { VideoImportCard } from "@/components/social/VideoImportCard";
+import { InstagramVideoExtractor } from "@/components/recipes/InstagramVideoExtractor";
 import { useNavigate } from "react-router-dom";
+import Layout from "@/components/Layout";
 
 interface Message {
   id: string;
@@ -280,56 +281,33 @@ const RecipeAssistant = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navigation Bar */}
-      <header className="sticky top-0 z-50 border-b bg-card">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => navigate('/')}
-              className="hover:bg-muted"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <h1 className="text-xl font-bold text-primary">Assistant Chef</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={showVideoImport ? "default" : "outline"}
-              size="sm"
-              onClick={() => setShowVideoImport(!showVideoImport)}
-              className="flex items-center gap-2"
-            >
-              <Video className="w-4 h-4" />
-              <span className="hidden sm:inline">Import Vidéo</span>
-              {showVideoImport && <Sparkles className="w-3 h-3 text-yellow-400" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/')}
-              className="hover:bg-muted"
-            >
-              <Home className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
+    <Layout>
       <div className="p-4 space-y-4 pb-20 max-w-4xl mx-auto">
         {/* Header */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <ChefHat className="w-6 h-6 text-primary" />
-              Assistant Recettes
-              <Badge variant="secondary" className="ml-auto">
-                <Package className="w-3 h-3 mr-1" />
-                {inventory.length} produits
-              </Badge>
-            </CardTitle>
+            <div className="flex items-center justify-between w-full">
+              <CardTitle className="flex items-center gap-2">
+                <ChefHat className="w-6 h-6 text-primary" />
+                Assistant Recettes
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showVideoImport ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowVideoImport(!showVideoImport)}
+                  className={`flex items-center gap-2 ${showVideoImport ? 'bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600' : ''}`}
+                >
+                  <Video className="w-4 h-4" />
+                  <span className="hidden sm:inline">Instagram IA</span>
+                  {showVideoImport && <Sparkles className="w-3 h-3 text-yellow-300" />}
+                </Button>
+                <Badge variant="secondary">
+                  <Package className="w-3 h-3 mr-1" />
+                  {inventory.length} produits
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
         </Card>
 
@@ -337,32 +315,40 @@ const RecipeAssistant = () => {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-primary">
-              {showVideoImport ? 'Import Vidéo Intelligent' : 'Import de Recettes'}
+              {showVideoImport ? 'Extraction Instagram IA' : 'Import de Recettes'}
             </h2>
             {showVideoImport && (
-              <Badge variant="secondary" className="flex items-center gap-1">
+              <Badge variant="secondary" className="flex items-center gap-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white">
                 <Sparkles className="w-3 h-3" />
-                Nouveau
+                ~15 sec
               </Badge>
             )}
           </div>
           
-          {/* Toggle between standard and video import */}
+          {/* Toggle between standard and Instagram video import */}
           {showVideoImport ? (
-            <VideoImportCard 
-              onImport={(recipe) => {
+            <InstagramVideoExtractor 
+              onRecipeExtracted={(recipe) => {
                 toast({
-                  title: "Recette extraite de la vidéo !",
-                  description: `"${recipe.name}" a été analysée avec succès.`
+                  title: "🎥 Recette Instagram extraite !",
+                  description: `"${recipe.title}" analysée en ${recipe.processingTime}.`
                 });
                 // Add the recipe to conversation context
                 const newMessage: Message = {
                   id: Date.now().toString(),
                   type: 'assistant',
-                  content: `🎥 **${recipe.name}** extraite depuis une vidéo !\n\n⏱️ **Temps total**: ${recipe.totalTime} min\n👥 **Portions**: ${recipe.servings}\n🍳 **Difficulté**: ${recipe.difficulty}\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst) => `${inst.step}. ${inst.text}`).join('\n')}\n\n${recipe.videoUrl ? `📹 [Voir la vidéo originale](${recipe.videoUrl})` : ''}\n\nVoulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
+                  content: `🎥 **${recipe.title}** extraite depuis Instagram !\n\n📝 **Description**: ${recipe.description}\n\n⏱️ **Durée**: ${recipe.metadata.duration || 'Non mentionné'}\n👥 **Portions**: ${recipe.metadata.servings || 'Non mentionné'}\n🤖 **Confiance IA**: ${Math.round(recipe.metadata.confidence * 100)}%\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing.amount} ${ing.unit} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst) => `${inst.step}. ${inst.description}`).join('\n')}\n\n💡 Voulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
                   timestamp: new Date()
                 };
                 setMessages(prev => [...prev, newMessage]);
+                setShowVideoImport(false);
+              }}
+              onError={(error) => {
+                toast({
+                  variant: "destructive",
+                  title: "Erreur d'extraction Instagram",
+                  description: error.message
+                });
               }}
             />
           ) : (
@@ -485,7 +471,7 @@ const RecipeAssistant = () => {
         </Card>
       )}
       </div>
-    </div>
+    </Layout>
   );
 };
 

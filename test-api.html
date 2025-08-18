@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Instagram</title>
+</head>
+<body>
+    <h1>Test API Instagram Extraction</h1>
+    <input type="text" id="url" placeholder="URL Instagram" value="https://www.instagram.com/reel/C7IUF5cM4Z9/" style="width: 400px;">
+    <button onclick="testAPI()">Tester</button>
+    <div id="result"></div>
+    
+    <script>
+        async function testAPI() {
+            const url = document.getElementById('url').value;
+            const resultDiv = document.getElementById('result');
+            
+            resultDiv.innerHTML = '<p>Chargement...</p>';
+            
+            try {
+                console.log('🚀 Début du test API');
+                const startTime = Date.now();
+                
+                const response = await fetch('http://localhost:3001/api/parse-video-recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ videoUrl: url }),
+                });
+                
+                const endTime = Date.now();
+                console.log(`⏱️ Temps de réponse: ${endTime - startTime}ms`);
+                console.log('📡 Status:', response.status);
+                console.log('📡 Headers:', response.headers);
+                
+                const text = await response.text();
+                console.log('📦 Réponse brute:', text);
+                
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('❌ Erreur JSON:', e);
+                    resultDiv.innerHTML = `<pre>Erreur JSON: ${e.message}\n\nRéponse brute:\n${text}</pre>`;
+                    return;
+                }
+                
+                if (response.ok && data.success) {
+                    resultDiv.innerHTML = `
+                        <h2>✅ Succès!</h2>
+                        <p>Temps: ${endTime - startTime}ms</p>
+                        <h3>${data.data.title}</h3>
+                        <p>${data.data.description}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h2>❌ Erreur</h2>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                console.error('❌ Erreur:', error);
+                resultDiv.innerHTML = `
+                    <h2>❌ Erreur réseau</h2>
+                    <p>${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { VisionAIButton } from '@/components/vision/VisionAIButton';
 import { VoiceCommandInterface } from '@/components/voice/VoiceCommandInterface';
 import { SocialImportCard } from '@/components/social/SocialImportCard';
 import { useNavigate } from 'react-router-dom';
@@ -49,24 +48,11 @@ export const FeatureShowcase: React.FC<FeatureShowcaseProps> = ({
   const navigate = useNavigate();
   const [hoveredFeature, setHoveredFeature] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
-  const [showVisionAI, setShowVisionAI] = useState(false);
   const [showVoiceCommands, setShowVoiceCommands] = useState(false);
   const [showSocialImport, setShowSocialImport] = useState(false);
 
   // Features principales avec patterns Cipher
   const mainFeatures: Feature[] = [
-    {
-      id: 'vision-ai',
-      title: 'Scanner IA',
-      description: 'Détectez plusieurs produits en une photo',
-      icon: <Camera className="h-8 w-8" />,
-      gradient: 'from-purple-500 to-pink-500',
-      category: 'ai',
-      status: 'active',
-      action: () => {
-        setShowVisionAI(true);
-      }
-    },
     {
       id: 'voice-commands',
       title: 'Commandes Vocales',
@@ -474,26 +460,6 @@ export const FeatureShowcase: React.FC<FeatureShowcaseProps> = ({
         </motion.div>
       )}
 
-      {/* Dialogs for feature components */}
-      <Dialog open={showVisionAI} onOpenChange={setShowVisionAI}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Scanner IA Multi-Produits</DialogTitle>
-            <DialogDescription>
-              Scannez plusieurs produits en une seule photo grâce à notre IA avancée
-            </DialogDescription>
-          </DialogHeader>
-          <div className="p-4">
-            <VisionAIButton
-              variant="hero"
-              onScanComplete={(products) => {
-                toast.success(`${products.length} produits détectés!`);
-                setShowVisionAI(false);
-              }}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showVoiceCommands} onOpenChange={setShowVoiceCommands}>
         <DialogContent className="max-w-2xl">

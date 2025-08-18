@@ -142,10 +142,13 @@ export const SocialImportCard: React.FC<SocialImportCardProps> = ({
       toast.loading('Import en cours...', { id: 'import-progress' });
 
       // Appel du parser réel
+      console.log("🔄 Appel du parser avec URL:", url);
       const parsingResult = await parseRecipeFromSocial(
         showManualInput ? '' : url,
         showManualInput ? manualText : undefined
       );
+      
+      console.log("📊 Résultat du parsing:", parsingResult);
       
       clearInterval(progressInterval);
       setProgress(100);
@@ -164,13 +167,18 @@ export const SocialImportCard: React.FC<SocialImportCardProps> = ({
           tags: recipe.tags
         };
 
+        console.log("✅ Recette formatée:", importedRecipe);
+        
         setResult(importedRecipe);
         setRecentImports([importedRecipe, ...recentImports.slice(0, 2)]);
         toast.dismiss('import-progress');
         toast.success('Recette importée avec succès !');
 
         if (onImport) {
+          console.log("🚀 Appel de onImport avec la recette");
           onImport(importedRecipe);
+        } else {
+          console.warn("⚠️ Pas de fonction onImport définie");
         }
       } else {
         throw new Error(parsingResult.error || 'Impossible d\'extraire la recette');

@@ -83,7 +83,7 @@ const RecipeCard = ({
     if (inventoryAnalysis.canMake) {
       return 'bg-green-100 text-green-800 border-green-200';
     }
-    if (inventoryAnalysis.missingIngredients <= 2) {
+    if (inventoryAnalysis.missingIngredients.length <= 2) {
       return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     }
     return 'bg-red-100 text-red-800 border-red-200';
@@ -95,7 +95,7 @@ const RecipeCard = ({
     if (inventoryAnalysis.canMake) {
       return <CheckCircle className="w-4 h-4" />;
     }
-    if (inventoryAnalysis.missingIngredients <= 2) {
+    if (inventoryAnalysis.missingIngredients.length <= 2) {
       return <AlertCircle className="w-4 h-4" />;
     }
     return <XCircle className="w-4 h-4" />;
@@ -107,7 +107,7 @@ const RecipeCard = ({
     if (inventoryAnalysis.canMake) {
       return 'Tous ingrédients disponibles';
     }
-    return `${inventoryAnalysis.missingIngredients} ingrédients manquants`;
+    return `${inventoryAnalysis.missingIngredients.length} ingrédients manquants`;
   };
 
   // Pattern couleurs cuisine (adaptation ProductCard)
@@ -158,7 +158,7 @@ const RecipeCard = ({
               <Badge className={`${getInventoryStatusColor()} flex items-center gap-1`}>
                 {getInventoryStatusIcon()}
                 <span className="text-xs font-medium">
-                  {inventoryAnalysis.canMake ? '✅' : inventoryAnalysis.missingIngredients <= 2 ? '⚠️' : '❌'}
+                  {inventoryAnalysis.canMake ? '✅' : inventoryAnalysis.missingIngredients.length <= 2 ? '⚠️' : '❌'}
                 </span>
               </Badge>
             )}
@@ -232,14 +232,14 @@ const RecipeCard = ({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Ingrédients:</span>
                 <span className="font-medium">
-                  {inventoryAnalysis.availableIngredients} disponibles
+                  {inventoryAnalysis.availableIngredients.length} disponibles
                 </span>
               </div>
-              {inventoryAnalysis.missingIngredients > 0 && (
+              {inventoryAnalysis.missingIngredients.length > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Manquants:</span>
                   <span className="font-medium text-orange-600">
-                    {inventoryAnalysis.missingIngredients}
+                    {inventoryAnalysis.missingIngredients.length}
                   </span>
                 </div>
               )}
@@ -287,18 +287,24 @@ const RecipeCard = ({
               {onEdit && onDelete && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(recipe)}>
+                    <DropdownMenuItem onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(recipe);
+                    }}>
                       <ChefHat className="w-4 h-4 mr-2" />
                       Modifier
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem 
-                      onClick={() => onDelete(recipe.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(recipe.id);
+                      }}
                       className="text-destructive"
                     >
                       Supprimer

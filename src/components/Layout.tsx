@@ -7,7 +7,6 @@ import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
 import RecipeAssistant from "@/pages/RecipeAssistant";
-import { FloatingVideoButton } from "@/components/ui/FloatingVideoButton";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -114,9 +113,6 @@ const Layout = ({ children }: LayoutProps) => {
       <main className="pb-20">
         {children}
       </main>
-
-      {/* Floating Video Import Button */}
-      <FloatingVideoButton />
 
       {/* Simple navigation bar */}
       <nav className="fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-t shadow-lg">
