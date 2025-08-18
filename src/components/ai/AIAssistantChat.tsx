@@ -104,11 +104,11 @@ export function AIAssistantChat({
         transition={{ duration: 0.2 }}
         className={cn(
           "flex flex-col bg-background rounded-lg shadow-xl border",
-          isExpanded ? "h-[600px] w-full max-w-2xl" : "h-16 w-80",
+          isExpanded ? "h-full w-full max-w-2xl" : "h-16 w-80",
           className
         )}
       >
-        <Card className="flex flex-col h-full overflow-hidden">
+        <Card className="flex flex-col h-full">
           {/* Header */}
           <ChatHeader
             isExpanded={isExpanded}
@@ -128,7 +128,7 @@ export function AIAssistantChat({
               )}
 
               {/* Messages Area */}
-              <div className="flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
                 {messages.length === 0 && showSuggestions ? (
                   <div className="h-full flex flex-col items-center justify-center p-8">
                     <motion.div

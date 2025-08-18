@@ -41,6 +41,7 @@ const extractRecipeOptimizedHandler = (await import('./api/extract-recipe-ultra-
 const healthHandler = (await import('./api/health.js')).default;
 const instagramOEmbedHandler = (await import('./api/social-instagram-oembed.js')).default;
 const parseVideoRecipeHandler = (await import('./api/parse-video-recipe.js')).default;
+const aiAssistantHandler = (await import('./api/ai-assistant-enhanced.js')).default;
 
 // API Routes
 app.post('/api/extract-recipe', extractRecipeHandler);
@@ -52,6 +53,9 @@ app.post('/api/social/instagram-oembed', instagramOEmbedHandler);
 
 // Video parser endpoint
 app.post('/api/parse-video-recipe', parseVideoRecipeHandler);
+
+// AI Assistant endpoint
+app.post('/api/ai-assistant-enhanced', aiAssistantHandler);
 
 // Catch-all handler: send back React's index.html file for any non-API routes
 app.get(/^(?!\/api\/).*$/, (req, res) => {

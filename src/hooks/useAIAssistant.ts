@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
+// import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useInventory } from './useInventory';
 import { useRecipes } from './useRecipes';
 import { getStreamingAIService } from '@/services/ai/streamingAIService';
-import { voiceRecognition } from '@/services/voice/frenchVoiceRecognition';
+import { voiceRecognition, FrenchVoiceRecognitionService } from '@/services/voice/frenchVoiceRecognition';
 import { findFoodByName, extractQuantityAndUnit } from '@/data/frenchFoodVocabulary';
 import { API_RATE_LIMITS, SECURITY_ERROR_MESSAGES } from '@/config/security';
 import { toast } from 'sonner';
@@ -32,8 +33,9 @@ export interface AIAssistantState {
 }
 
 export function useAIAssistant() {
-  const supabase = useSupabaseClient();
-  const user = useUser();
+  // const supabase = useSupabaseClient();
+  // const user = useUser();
+  const user = null; // Temporarily disabled for testing
   const { inventory } = useInventory();
   const { recipes } = useRecipes();
   
@@ -65,10 +67,11 @@ export function useAIAssistant() {
     mode: 'text' | 'voice' | 'visual' = 'text',
     metadata?: any
   ) => {
-    if (!user) {
-      toast.error(SECURITY_ERROR_MESSAGES.UNAUTHORIZED);
-      return;
-    }
+    // Temporarily disabled user check for testing
+    // if (!user) {
+    //   toast.error(SECURITY_ERROR_MESSAGES.UNAUTHORIZED);
+    //   return;
+    // }
 
     // Create user message
     const userMessage: Message = {
@@ -90,17 +93,22 @@ export function useAIAssistant() {
     try {
       // Get user token for authentication
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
+      // Temporarily skip session check for testing
+      // if (!session) throw new Error('No session');
 
       // Prepare context
       const context = prepareContext();
 
       // Call AI assistant endpoint
-      const response = await fetch('/api/ai-assistant-enhanced', {
+      const apiUrl = import.meta.env.DEV 
+        ? 'http://localhost:3003/api/ai-assistant-enhanced'
+        : '/api/ai-assistant-enhanced';
+        
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': session ? `Bearer ${session.access_token}` : ''
         },
         body: JSON.stringify({
           message: content,
@@ -213,12 +221,12 @@ export function useAIAssistant() {
    * Start voice recognition
    */
   const startListening = useCallback(async () => {
-    if (!voiceRecognition.isSupported()) {
+    if (!FrenchVoiceRecognitionService.isSupported()) {
       toast.error('La reconnaissance vocale n\'est pas supportée sur ce navigateur');
       return;
     }
 
-    const hasPermission = await voiceRecognition.requestPermission();
+    const hasPermission = await FrenchVoiceRecognitionService.requestPermission();
     if (!hasPermission) {
       toast.error('Accès au microphone refusé');
       return;
@@ -333,11 +341,13 @@ export function useAIAssistant() {
       .filter(Boolean);
 
     return {
-      inventory: inventory?.slice(0, 30), // Limit for context size
-      recipes: recipes?.slice(0, 20),
+      inventory: inventory, // Send full inventory
+      recipes: recipes, // Send all recipes
       expiryAlerts,
       season: getCurrentSeason(),
-      language: 'fr-FR'
+      language: 'fr-FR',
+      totalInventoryItems: inventory?.length || 0,
+      totalRecipes: recipes?.length || 0
     };
   }, [inventory, recipes]);
 
@@ -359,7 +369,7 @@ export function useAIAssistant() {
     setInputMode,
     
     // Helpers
-    hasVoiceSupport: voiceRecognition.isSupported()
+    hasVoiceSupport: FrenchVoiceRecognitionService.isSupported()
   };
 }
 

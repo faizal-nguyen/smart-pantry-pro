@@ -17,17 +17,27 @@ import {
   ArrowLeft,
   Home,
   Video,
-  Sparkles
+  Sparkles,
+  Mic,
+  Keyboard
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useInventory } from "@/hooks/useInventory";
 import { useShoppingList } from "@/hooks/useShoppingList";
+import { useRecipes } from "@/hooks/useRecipes";
 import MessageDisplay from "@/components/MessageDisplay";
 import { SocialImportCard } from "@/components/social/SocialImportCard";
 import { InstagramVideoExtractor } from "@/components/recipes/InstagramVideoExtractor";
+import { ProactiveSuggestions } from "@/components/assistant/ProactiveSuggestions";
+import { ConversationModes, ConversationMode, MODES } from "@/components/assistant/ConversationModes";
+import { MessageBubble } from "@/components/assistant/MessageBubble";
+import { QuickActions, QuickAction } from "@/components/assistant/QuickActions";
+import { VoiceInput } from "@/components/assistant/VoiceInput";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
+import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -35,6 +45,16 @@ interface Message {
   content: string;
   timestamp: Date;
   inventoryCount?: number;
+  actions?: Array<{
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+  }>;
+  metadata?: {
+    mode?: string;
+    confidence?: number;
+    processingTime?: number;
+  };
 }
 
 interface ConversationHistory {
@@ -50,24 +70,66 @@ const RecipeAssistant = () => {
   const [loading, setLoading] = useState(false);
   const [conversationHistory, setConversationHistory] = useState<ConversationHistory[]>([]);
   const [showVideoImport, setShowVideoImport] = useState(false);
+  const [inputMode, setInputMode] = useState<'text' | 'voice'>('text');
+  const [selectedMode, setSelectedMode] = useState<ConversationMode['id'] | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
   const { inventory } = useInventory();
+  const { recipes } = useRecipes();
   const navigate = useNavigate();
 
   useEffect(() => {
     // Load conversation history
     loadConversationHistory();
     
-    // Add welcome message
+    // Add welcome message with context
+    const greeting = getGreeting();
+    const inventoryStatus = getInventoryStatus();
+    
     setMessages([{
       id: 'welcome',
       type: 'assistant',
-      content: `👋 Bonjour ! Je suis votre assistant culinaire.\n\nJe peux vous aider à :\n• Suggérer des recettes avec vos ingrédients actuels\n• Calculer les ingrédients manquants\n• Donner des conseils de cuisine\n• Créer des listes de courses\n\nVous avez actuellement **${inventory.length} produits** en stock. Que souhaitez-vous cuisiner aujourd'hui ?`,
-      timestamp: new Date()
+      content: `${greeting} ! Je suis votre Chef Assistant personnel.\n\n${inventoryStatus}\n\nComment puis-je vous aider aujourd'hui ?`,
+      timestamp: new Date(),
+      metadata: {
+        mode: 'greeting',
+        confidence: 1
+      }
     }]);
   }, [inventory.length]);
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "🌅 Bonjour";
+    if (hour < 18) return "☀️ Bon après-midi";
+    return "🌙 Bonsoir";
+  };
+
+  const getInventoryStatus = () => {
+    const expiringCount = inventory.filter(item => {
+      if (!item.expiry_date) return false;
+      const daysUntilExpiry = (new Date(item.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      return daysUntilExpiry <= 3;
+    }).length;
+
+    const lowStockCount = inventory.filter(item => 
+      item.quantity <= (item.min_quantity || 1)
+    ).length;
+
+    let status = `📦 Vous avez **${inventory.length} produits** en stock`;
+    
+    if (expiringCount > 0) {
+      status += `\n⚠️ **${expiringCount} produit${expiringCount > 1 ? 's' : ''} expire${expiringCount > 1 ? 'nt' : ''} bientôt**`;
+    }
+    
+    if (lowStockCount > 0) {
+      status += `\n📉 **${lowStockCount} produit${lowStockCount > 1 ? 's' : ''} en stock faible**`;
+    }
+    
+    return status;
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -92,19 +154,20 @@ const RecipeAssistant = () => {
     }
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || loading) return;
+  const sendMessage = async (messageContent: string = input) => {
+    if (!messageContent.trim() || loading) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: input.trim(),
+      content: messageContent.trim(),
       timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput("");
     setLoading(true);
+    setShowSuggestions(false);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -126,7 +189,13 @@ const RecipeAssistant = () => {
         type: 'assistant',
         content: response.data.response,
         timestamp: new Date(),
-        inventoryCount: response.data.inventoryCount
+        inventoryCount: response.data.inventoryCount,
+        metadata: {
+          mode: selectedMode || 'general',
+          confidence: response.data.confidence || 0.95,
+          processingTime: response.data.processingTime
+        },
+        actions: generateMessageActions(response.data.response)
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -280,196 +349,213 @@ const RecipeAssistant = () => {
     });
   };
 
+  const generateMessageActions = (content: string): Message['actions'] => {
+    const actions: Message['actions'] = [];
+    
+    // Detect if message contains recipe suggestions
+    if (content.toLowerCase().includes('recette')) {
+      actions.push({
+        label: 'Voir les recettes',
+        icon: <ChefHat className="w-4 h-4" />,
+        onClick: () => navigate('/recipes')
+      });
+    }
+    
+    // Detect if message mentions shopping list
+    if (content.toLowerCase().includes('courses') || content.toLowerCase().includes('acheter')) {
+      actions.push({
+        label: 'Liste de courses',
+        icon: <ShoppingCart className="w-4 h-4" />,
+        onClick: () => navigate('/shopping')
+      });
+    }
+    
+    return actions;
+  };
+
+  const handleModeSelect = (mode: ConversationMode) => {
+    setSelectedMode(mode.id);
+    sendMessage(mode.prompt);
+  };
+
+  const handleQuickAction = (action: QuickAction) => {
+    sendMessage(action.prompt);
+  };
+
+  const handleSuggestionClick = (suggestion: any) => {
+    sendMessage(suggestion.message);
+  };
+
+  const handleVoiceTranscript = (transcript: string) => {
+    setInput(transcript);
+    sendMessage(transcript);
+  };
+
   return (
     <Layout>
-      <div className="p-4 space-y-4 pb-20 max-w-4xl mx-auto">
-        {/* Header */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between w-full">
-              <CardTitle className="flex items-center gap-2">
-                <ChefHat className="w-6 h-6 text-primary" />
-                Assistant Recettes
-              </CardTitle>
+      <div className="flex flex-col h-screen bg-gradient-to-b from-blue-50 to-white">
+        {/* Header avec contexte */}
+        <div className="bg-white border-b p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                  <ChefHat className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Chef Assistant</h3>
+                  <p className="text-xs text-gray-500">
+                    {getGreeting()} • {inventory.length} produits en stock
+                  </p>
+                </div>
+              </div>
+              
+              {/* Mode Switcher */}
               <div className="flex items-center gap-2">
                 <Button
-                  variant={showVideoImport ? "default" : "outline"}
+                  variant={inputMode === 'text' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setShowVideoImport(!showVideoImport)}
-                  className={`flex items-center gap-2 ${showVideoImport ? 'bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600' : ''}`}
+                  onClick={() => setInputMode('text')}
                 >
-                  <Video className="w-4 h-4" />
-                  <span className="hidden sm:inline">Instagram IA</span>
-                  {showVideoImport && <Sparkles className="w-3 h-3 text-yellow-300" />}
+                  <Keyboard className="w-4 h-4" />
                 </Button>
-                <Badge variant="secondary">
-                  <Package className="w-3 h-3 mr-1" />
-                  {inventory.length} produits
-                </Badge>
+                <Button
+                  variant={inputMode === 'voice' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setInputMode('voice')}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
               </div>
             </div>
-          </CardHeader>
-        </Card>
-
-        {/* Import Section */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-primary">
-              {showVideoImport ? 'Extraction Instagram IA' : 'Import de Recettes'}
-            </h2>
-            {showVideoImport && (
-              <Badge variant="secondary" className="flex items-center gap-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white">
-                <Sparkles className="w-3 h-3" />
-                ~15 sec
-              </Badge>
-            )}
+            
+            {/* Quick Actions */}
+            <div className="mt-3">
+              <QuickActions onActionClick={handleQuickAction} />
+            </div>
           </div>
-          
-          {/* Toggle between standard and Instagram video import */}
-          {showVideoImport ? (
-            <InstagramVideoExtractor 
-              onRecipeExtracted={(recipe) => {
-                toast({
-                  title: "🎥 Recette Instagram extraite !",
-                  description: `"${recipe.title}" analysée en ${recipe.processingTime}.`
-                });
-                // Add the recipe to conversation context
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  type: 'assistant',
-                  content: `🎥 **${recipe.title}** extraite depuis Instagram !\n\n📝 **Description**: ${recipe.description}\n\n⏱️ **Durée**: ${recipe.metadata.duration || 'Non mentionné'}\n👥 **Portions**: ${recipe.metadata.servings || 'Non mentionné'}\n🤖 **Confiance IA**: ${Math.round(recipe.metadata.confidence * 100)}%\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing.amount} ${ing.unit} ${ing.name}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst) => `${inst.step}. ${inst.description}`).join('\n')}\n\n💡 Voulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
-                  timestamp: new Date()
-                };
-                setMessages(prev => [...prev, newMessage]);
-                setShowVideoImport(false);
-              }}
-              onError={(error) => {
-                toast({
-                  variant: "destructive",
-                  title: "Erreur d'extraction Instagram",
-                  description: error.message
-                });
-              }}
-            />
-          ) : (
-            <SocialImportCard 
-              variant="default"
-              onImport={(recipe) => {
-                toast({
-                  title: "Recette importée !",
-                  description: `"${recipe.title}" a été ajoutée avec succès.`
-                });
-                // Add the recipe to conversation context
-                const newMessage: Message = {
-                  id: Date.now().toString(),
-                  type: 'assistant',
-                  content: `📍 **${recipe.title}** importée depuis ${recipe.platform}!\n\n⏱️ **Temps**: ${recipe.prepTime}\n👥 **Portions**: ${recipe.servings}\n\n**Ingrédients:**\n${recipe.ingredients.map(ing => `• ${ing}`).join('\n')}\n\n**Instructions:**\n${recipe.instructions.map((inst, i) => `${i + 1}. ${inst}`).join('\n')}\n\nVoulez-vous que je vous aide à préparer cette recette ou à ajouter les ingrédients manquants à votre liste de courses ?`,
-                  timestamp: new Date()
-                };
-                setMessages(prev => [...prev, newMessage]);
-              }}
-            />
-          )}
         </div>
 
-      {/* Chat Area */}
-      <Card className="h-[60vh] overflow-hidden">
-        <CardContent className="p-0 h-full">
-          <ScrollArea className="h-full">
-            <div className="p-4 space-y-4">
-              {messages.map((message) => (
-                <MessageDisplay
-                  key={message.id}
-                  type={message.type}
-                  content={message.content}
-                  timestamp={message.timestamp}
-                  inventoryCount={message.inventoryCount}
-                  onAddToShoppingList={message.type === 'assistant' ? addToShoppingList : undefined}
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-hidden">
+          <div className="max-w-4xl mx-auto h-full flex flex-col">
+            {/* Conversation Modes */}
+            {messages.length === 1 && (
+              <div className="p-4">
+                <h3 className="text-sm font-medium text-gray-500 mb-3">Choisissez un mode</h3>
+                <ConversationModes
+                  selectedMode={selectedMode}
+                  onModeSelect={handleModeSelect}
                 />
-              ))}
-              
-              {loading && (
-                <div className="flex justify-start">
-                  <div className="bg-muted rounded-lg p-3 max-w-[80%]">
-                    <div className="flex items-center gap-2">
-                      <Bot className="w-4 h-4 text-primary" />
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm">L'assistant réfléchit...</span>
+              </div>
+            )}
+            
+            {/* Proactive Suggestions */}
+            {showSuggestions && messages.length === 1 && (
+              <div className="p-4">
+                <ProactiveSuggestions onSuggestionClick={handleSuggestionClick} />
+              </div>
+            )}
+
+            {/* Messages */}
+            <ScrollArea className="flex-1 p-4">
+              <div className="space-y-4">
+                <AnimatePresence>
+                  {messages.map((message, i) => (
+                    <MessageBubble
+                      key={message.id}
+                      message={message}
+                      isAI={message.type === 'assistant'}
+                      animated={true}
+                    />
+                  ))}
+                </AnimatePresence>
+                
+                {/* Typing Indicator */}
+                {loading && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-3 justify-start"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-primary-foreground" />
                     </div>
+                    <Card className="p-3 bg-muted/50 border-muted">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">L'assistant réfléchit...</span>
+                      </div>
+                    </Card>
+                  </motion.div>
+                )}
+              </div>
+              <div ref={messagesEndRef} />
+            </ScrollArea>
+
+            {/* Input Area */}
+            <div className="border-t bg-white p-4">
+              {inputMode === 'text' ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder="Demandez-moi n'importe quoi sur la cuisine..."
+                      disabled={loading}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={() => sendMessage()} 
+                      disabled={loading || !input.trim()}
+                      size="icon"
+                    >
+                      <Send className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      onClick={clearConversation}
+                      variant="outline"
+                      size="icon"
+                      title="Effacer la conversation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
+                  
+                  {/* Context-aware suggestions */}
+                  {input.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      <span className="text-xs text-muted-foreground">Suggestions:</span>
+                      {['avec mes ingrédients', 'rapide', 'pour ce soir', 'végétarien'].map(suggestion => (
+                        <Button
+                          key={suggestion}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          onClick={() => setInput(prev => prev + ' ' + suggestion)}
+                        >
+                          {suggestion}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <VoiceInput
+                  onTranscript={handleVoiceTranscript}
+                  className="w-full"
+                />
               )}
             </div>
-            <div ref={messagesEndRef} />
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      {/* Input Area */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-              placeholder="Demandez-moi ce que vous pouvez cuisiner avec vos ingrédients..."
-              disabled={loading}
-              className="flex-1"
-            />
-            <Button 
-              onClick={sendMessage} 
-              disabled={loading || !input.trim()}
-              size="icon"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-            <Button 
-              onClick={clearConversation}
-              variant="outline"
-              size="icon"
-              title="Effacer la conversation"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
           </div>
-          
-          <div className="mt-2 text-xs text-muted-foreground">
-            Exemples : "Que puis-je cuisiner avec ce que j'ai ?", "Suggère-moi une recette rapide", "J'ai envie de pâtes"
-          </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Recent Conversations */}
-      {conversationHistory.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Conversations récentes</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <ScrollArea className="h-32">
-              <div className="space-y-2">
-                {conversationHistory.slice(0, 5).map((conv) => (
-                  <div key={conv.id} className="text-xs space-y-1">
-                    <div className="font-medium truncate">
-                      Q: {conv.user_message}
-                    </div>
-                    <div className="text-muted-foreground truncate">
-                      R: {conv.ai_response.substring(0, 100)}...
-                    </div>
-                    <Separator />
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
       </div>
     </Layout>
   );

@@ -1,0 +1,129 @@
+{
+  "url": "https://www.instagram.com/reel/DLScf5hofId/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==",
+  "video_id": "DLScf5hofId",
+  "metadata": {
+    "title": "Recette de Poulet Tandoori Maison 🍗",
+    "author": "chef_instagram_demo",
+    "duration": 58,
+    "platform": "Instagram",
+    "views": 15420,
+    "likes": 892,
+    "comments": 47
+  },
+  "transcription": {
+    "language": "fr",
+    "confidence": 0.92,
+    "text": "Aujourd'hui, je vous montre ma recette de poulet tandoori maison. D'abord, on va préparer la marinade avec du yaourt nature, des épices comme le curcuma, le paprika, le cumin et le garam masala. Laissez mariner pendant au moins 2 heures, idéalement toute la nuit. Ensuite, on va cuire au four à 200 degrés pendant 25 minutes..."
+  },
+  "ocr_results": [
+    {
+      "frame": 1,
+      "text": "POULET TANDOORI\nIngrédients:\n- 1kg poulet\n- 200g yaourt\n- Épices"
+    },
+    {
+      "frame": 2,
+      "text": "Marinade:\n2 c.à.s paprika\n1 c.à.s curcuma\n1 c.à.s garam masala"
+    },
+    {
+      "frame": 3,
+      "text": "Mariner 2h minimum\nau réfrigérateur"
+    },
+    {
+      "frame": 4,
+      "text": "Four 200°C - 25 min\nServir avec riz basmati"
+    }
+  ],
+  "recipe_data": {
+    "name": "Poulet Tandoori Maison",
+    "description": "Recette authentique de poulet tandoori avec marinade au yaourt et épices",
+    "prep_time": 20,
+    "cook_time": 25,
+    "marinate_time": 120,
+    "servings": 4,
+    "difficulty": 2,
+    "cuisine_category": "Indienne",
+    "meal_type": "Plat principal",
+    "ingredients": [
+      {
+        "item": "Poulet (morceaux)",
+        "quantity": 1,
+        "unit": "kg"
+      },
+      {
+        "item": "Yaourt nature",
+        "quantity": 200,
+        "unit": "g"
+      },
+      {
+        "item": "Paprika",
+        "quantity": 2,
+        "unit": "c.à.s"
+      },
+      {
+        "item": "Curcuma",
+        "quantity": 1,
+        "unit": "c.à.s"
+      },
+      {
+        "item": "Garam masala",
+        "quantity": 1,
+        "unit": "c.à.s"
+      },
+      {
+        "item": "Cumin en poudre",
+        "quantity": 1,
+        "unit": "c.à.c"
+      },
+      {
+        "item": "Ail",
+        "quantity": 4,
+        "unit": "gousses"
+      },
+      {
+        "item": "Gingembre frais",
+        "quantity": 2,
+        "unit": "cm"
+      },
+      {
+        "item": "Jus de citron",
+        "quantity": 2,
+        "unit": "c.à.s"
+      },
+      {
+        "item": "Sel",
+        "quantity": 1,
+        "unit": "c.à.c"
+      }
+    ],
+    "instructions": [
+      "Préparer la marinade en mélangeant le yaourt avec toutes les épices",
+      "Ajouter l'ail et le gingembre râpés, puis le jus de citron",
+      "Faire des incisions dans les morceaux de poulet",
+      "Enrober le poulet de marinade et laisser reposer 2h minimum",
+      "Préchauffer le four à 200°C",
+      "Disposer le poulet sur une grille avec un plat en dessous",
+      "Cuire 25 minutes en retournant à mi-cuisson",
+      "Servir chaud avec du riz basmati et du naan"
+    ],
+    "tips": [
+      "Pour plus de saveur, mariner toute la nuit",
+      "Ajouter du colorant alimentaire rouge pour l'aspect traditionnel",
+      "Servir avec une sauce raïta au concombre"
+    ],
+    "nutrition": {
+      "calories": 280,
+      "protein": 35,
+      "carbs": 8,
+      "fat": 12
+    }
+  },
+  "stats": {
+    "processing_time": 8.7,
+    "video_size_mb": 28.5,
+    "frames_analyzed": 4,
+    "transcription_words": 142,
+    "ocr_characters": 234,
+    "cost_estimate": 0.18
+  },
+  "timestamp": "20250808_172234"
+}
