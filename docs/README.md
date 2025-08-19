@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-Smart Pantry Pro est une application web moderne de gestion intelligente du garde-manger, conçue pour révolutionner la façon dont les utilisateurs gèrent leur cuisine, leurs recettes et leurs courses.
+Smart Pantry Pro est une application web progressive (PWA) de gestion intelligente du garde-manger, conçue pour révolutionner la façon dont les utilisateurs gèrent leur cuisine, leurs recettes et leurs courses grâce à l'intelligence artificielle.
 
 ### Vision Produit
 
@@ -10,10 +10,12 @@ Transformer la gestion quotidienne de la cuisine en une expérience fluide et in
 
 ### Proposition de Valeur
 
-1. **Gestion Intelligente des Stocks** : Suivi en temps réel des produits avec alertes de péremption
-2. **Assistant Recettes IA** : Suggestions personnalisées basées sur l'inventaire disponible
-3. **Optimisation des Courses** : Liste intelligente qui s'adapte aux habitudes et aux stocks
-4. **Réduction du Gaspillage** : Alertes et suggestions pour utiliser les produits avant expiration
+1. **Gestion Intelligente des Stocks** : Suivi en temps réel des produits avec alertes de péremption et reconnaissance visuelle
+2. **Assistant IA Conversationnel** : Guide culinaire personnel avec reconnaissance vocale en français
+3. **Scanner Intelligent** : Reconnaissance de codes-barres et identification multi-produits par caméra
+4. **Liste de Courses Intelligente** : Organisation par rayons avec synchronisation temps réel
+5. **Tableau de Bord Analytics** : Insights sur les habitudes alimentaires et réduction du gaspillage
+6. **Onboarding Personnalisé** : Configuration adaptée aux préférences et besoins utilisateur
 
 ## Documentation Structure
 

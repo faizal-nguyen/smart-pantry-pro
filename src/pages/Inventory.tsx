@@ -19,6 +19,8 @@ import { FloatingActionButton } from "@/components/inventory/FloatingActionButto
 import AddProductDialog from "@/components/inventory/AddProductDialog";
 import VoiceInputButton from "@/components/inventory/VoiceInputButton";
 import EditItemDialog from "@/components/inventory/EditItemDialog";
+import { EnhancedVoiceButton } from "@/components/voice/EnhancedVoiceButton";
+import { MobileBarcodeScanner } from "@/components/scanner/MobileBarcodeScanner";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useShoppingList } from "@/hooks/useShoppingList";
@@ -67,8 +69,9 @@ const Inventory = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   
-  const { inventory, loading, updateInventory, deleteInventoryItem } = useInventory();
+  const { inventory, loading, updateInventory, deleteInventoryItem, addInventory } = useInventory();
   const { addToShoppingList } = useShoppingList();
   const navigate = useNavigate();
 
@@ -183,6 +186,85 @@ const Inventory = () => {
     navigate(`/recipes/${recipeId}`);
   };
 
+  const handleVoiceCommand = async (parsedInput: any) => {
+    if (!parsedInput) return;
+
+    switch (parsedInput.action) {
+      case 'add':
+        // Ajouter au panier ou à l'inventaire
+        await addToShoppingList({
+          productName: parsedInput.product,
+          quantity: parsedInput.quantity || 1,
+          unit: parsedInput.unit || 'unité(s)',
+          category: 'Autres'
+        });
+        
+        toast({
+          title: "Produit ajouté",
+          description: `${parsedInput.quantity || 1} ${parsedInput.unit || 'unité(s)'} de ${parsedInput.product} ajouté(s) à la liste de courses`
+        });
+        break;
+        
+      case 'remove':
+        // Rechercher et supprimer le produit
+        const itemToRemove = inventory.find(item => 
+          item.product?.name.toLowerCase().includes(parsedInput.product.toLowerCase())
+        );
+        
+        if (itemToRemove) {
+          await deleteInventoryItem(itemToRemove.id);
+          toast({
+            title: "Produit supprimé",
+            description: `${itemToRemove.product?.name} a été retiré de l'inventaire`
+          });
+        } else {
+          toast({
+            title: "Produit non trouvé",
+            description: `Impossible de trouver "${parsedInput.product}" dans l'inventaire`,
+            variant: "destructive"
+          });
+        }
+        break;
+        
+      case 'search':
+        // Rechercher des recettes
+        navigate(`/recipes?ingredient=${parsedInput.product}`);
+        break;
+        
+      default:
+        toast({
+          title: "Commande non reconnue",
+          description: "Veuillez réessayer avec une commande plus claire",
+          variant: "destructive"
+        });
+    }
+  };
+
+  const handleScanSuccess = async (product: any) => {
+    try {
+      // Ajouter le produit scanné à l'inventaire
+      await addInventory({
+        productName: product.name,
+        quantity: 1,
+        unit: product.unit || 'unité(s)',
+        category: product.category || 'Autres',
+        location: 'Placard',
+        barcode: product.barcode
+      });
+      
+      toast({
+        title: "Produit ajouté",
+        description: `${product.name} a été ajouté à votre inventaire`
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'ajouter le produit",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-4 space-y-4">
@@ -231,11 +313,19 @@ const Inventory = () => {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <IntelligentSearch
-          onCategorySelect={handleCategorySelect}
-          onRecipeSelect={handleRecipeSelect}
-        />
+        {/* Search Bar avec Voice Button */}
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <IntelligentSearch
+              onCategorySelect={handleCategorySelect}
+              onRecipeSelect={handleRecipeSelect}
+            />
+          </div>
+          <EnhancedVoiceButton
+            onVoiceInput={handleVoiceCommand}
+            size="default"
+          />
+        </div>
 
         {/* Quick Filters */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -361,8 +451,8 @@ const Inventory = () => {
 
       {/* Floating Action Button */}
       <FloatingActionButton
-        onCameraScan={() => toast({ title: "Scanner", description: "Fonctionnalité bientôt disponible" })}
-        onVoiceInput={() => setVoiceDialogOpen(true)}
+        onCameraScan={() => setScannerOpen(true)}
+        onVoiceInput={() => toast({ title: "Utilisez le bouton vocal en haut", description: "Le bouton vocal amélioré est maintenant dans la barre de recherche" })}
         onManualAdd={() => setAddDialogOpen(true)}
         onReceiptScan={() => toast({ title: "Scanner de ticket", description: "Fonctionnalité bientôt disponible" })}
       />
@@ -373,11 +463,6 @@ const Inventory = () => {
         onOpenChange={setAddDialogOpen}
       />
       
-      <VoiceInputButton
-        onVoiceInput={() => {}}
-        open={voiceDialogOpen}
-        onOpenChange={setVoiceDialogOpen}
-      />
       
       {editingItem && (
         <EditItemDialog
@@ -390,6 +475,14 @@ const Inventory = () => {
           }}
         />
       )}
+      
+      {/* Mobile Scanner */}
+      <MobileBarcodeScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+        mode="inventory"
+      />
     </div>
   );
 };
