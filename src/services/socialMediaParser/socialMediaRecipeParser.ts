@@ -4,7 +4,11 @@
  */
 
 import { sanitizeInput, isValidUrl } from '@/lib/security';
-import { Recipe, RecipeIngredient } from '@/types/recipe';
+export interface RecipeIngredient {
+  name: string;
+  amount: string;
+  unit?: string;
+}
 import { StreamingAIService } from '@/services/ai/streamingAIService';
 import { SecureInstagramProxy } from './secureInstagramProxy';
 
@@ -219,7 +223,7 @@ export class SocialMediaRecipeParser {
       }
 
       // Fallback to client-side approach if proxy is not available
-      const facebookToken = import.meta.env.VITE_FACEBOOK_ACCESS_TOKEN;
+      const facebookToken = (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_FACEBOOK_ACCESS_TOKEN) || process.env.VITE_FACEBOOK_ACCESS_TOKEN;
       
       if (facebookToken && facebookToken.trim() !== '') {
         console.warn('⚠️ Using client-side Facebook token (not recommended for production)');
@@ -456,7 +460,7 @@ Copiez le texte de la publication Instagram ci-dessous :`;
    */
   private async aiExtractRecipe(text: string, metadata: any): Promise<any> {
     try {
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      const apiKey = (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_OPENAI_API_KEY) || process.env.VITE_OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
       if (!apiKey) {
         console.warn('OpenAI API key not found, using basic extraction');
         return this.basicExtraction(text);

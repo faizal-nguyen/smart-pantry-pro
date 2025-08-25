@@ -35,10 +35,10 @@ Smart Pantry Pro utilise une architecture moderne basée sur le JAMstack, optimi
 ### Frontend
 
 #### Core Technologies
-- **React 18.3** : Framework UI avec Concurrent Features
-- **TypeScript 5.6** : Typage statique et meilleure DX
-- **Vite 5.4** : Build tool ultra-rapide avec HMR
-- **React Router 6** : Navigation SPA
+- **React 18.3** : Framework UI avec Concurrent Features et Suspense
+- **TypeScript 5.5** : Typage statique avec strict mode activé
+- **Vite 5.4** : Build tool ultra-rapide avec HMR et optimisations PWA
+- **React Router 6.26** : Navigation SPA avec lazy loading des routes
 
 #### UI & Styling
 - **Tailwind CSS 3.4** : Utility-first CSS framework
@@ -47,10 +47,11 @@ Smart Pantry Pro utilise une architecture moderne basée sur le JAMstack, optimi
 - **Lucide React** : Icônes SVG optimisées
 
 #### State Management
-- **Zustand 5.0** : State management léger et performant
-- **React Query** : Data fetching et cache management
-- **React Hook Form** : Gestion des formulaires performante
-- **IndexedDB** : Storage local pour offline-first (V2)
+- **Zustand 5.0** : State management léger et performant avec persistence
+- **TanStack Query 5.56** : Data fetching, caching et synchronisation optimisés
+- **React Hook Form** : Gestion des formulaires avec validation Zod
+- **IndexedDB** : Storage local pour offline-first avec Dexie.js
+- **LocalStorage** : Persistance des préférences utilisateur
 
 ### Backend
 
@@ -62,11 +63,14 @@ Smart Pantry Pro utilise une architecture moderne basée sur le JAMstack, optimi
   - Storage : Stockage d'objets S3-compatible
 
 #### API & Functions
-- **Vercel Edge Functions** : Functions serverless
-- **Express.js** : Serveur local de développement
-- **OpenAI API** : Extraction intelligente de recettes et AI nutritionniste (V2)
-- **Puppeteer** : Web scraping pour sites SPA
-- **WebSocket** : Communication temps réel IoT (V2)
+- **Vercel Edge Functions** : Functions serverless avec runtime Node.js
+- **Express.js** : Serveur local de développement avec CORS configuré
+- **OpenAI API 4.68** : Assistant IA conversationnel et extraction de recettes
+- **Web Speech API** : Reconnaissance vocale native avec vocabulaire français
+- **ZXing Library** : Scanner de codes-barres avec fallback APIs multiples
+- **Product APIs** : OpenFoodFacts, Barcode Spider, UPC Database
+- **Puppeteer 24.16** : Web scraping pour sites SPA et extraction de contenu
+- **WebSocket** : Communication temps réel via Supabase Realtime
 
 ### DevOps & Infrastructure
 
@@ -88,27 +92,33 @@ Smart Pantry Pro utilise une architecture moderne basée sur le JAMstack, optimi
 - **LogRocket** : Session replay (optionnel)
 - **Custom Analytics** : Métriques V2 spécifiques
 
-## 🔧 Principes architecturaux V2
+## 🔧 Principes Architecturaux Récents
 
-### 1. Extension vs Remplacement
-- **Principe** : Étendre les services existants plutôt que les remplacer
-- **Exemple** : `NutritionalAIService` étend `StreamingAIService`
-- **Bénéfice** : Réutilisation du code, cohérence, maintenabilité
+### 1. Services Intégrés et Extensibles
+- **Assistant IA (PRP-002)** : Service de streaming AI avec gestion d'état optimisée
+- **Scanner Enhanced (PRP-010)** : APIs de fallback avec gestion d'erreurs intelligente
+- **Voice Recognition (PRP-009)** : Service vocal avec vocabulaire français spécialisé
+- **Shopping List Realtime (PRP-004)** : Synchronisation temps réel avec Supabase
 
-### 2. Modularité et découplage
-- **Services indépendants** : Chaque module V2 peut fonctionner seul
-- **Interfaces bien définies** : Contrats TypeScript stricts
-- **Injection de dépendances** : Configuration flexible
+### 2. Hooks Personnalisés Spécialisés
+- **useAIAssistant** : Gestion complète de l'assistant avec streaming et historique
+- **useEnhancedVoice** : Reconnaissance vocale française avec fallback texte
+- **useBarcodeAPI** : Scanner avec APIs multiples et gestion des échecs
+- **useShoppingListRealtime** : Synchronisation temps réel des listes de courses
+- **useInsightsData** : Analytics et métriques avec cache intelligent
 
-### 3. Performance First
-- **Lazy loading** : Chargement à la demande des modules
-- **Code splitting** : Bundles optimisés par fonctionnalité
-- **Caching intelligent** : Multi-niveaux (mémoire, localStorage, IndexedDB)
+### 3. Performance et UX Optimisées
+- **Lazy loading modulaire** : Chargement des composants par fonctionnalité
+- **Animations fluides** : Framer Motion pour toutes les transitions
+- **Feedback haptique** : Vibrations natives pour interactions mobiles
+- **Cache intelligent** : Multi-niveaux avec invalidation automatique
+- **PWA optimisée** : Service Worker avec stratégies de cache avancées
 
-### 4. Offline-First Design
-- **Queue d'opérations** : Toutes les actions sont queued
-- **Sync bidirectionnelle** : Résolution automatique des conflits
-- **Cache prédictif** : Anticipation des besoins utilisateur
+### 4. Patterns d'Intégration
+- **Error Boundaries** : Gestion d'erreurs spécialisée par fonctionnalité
+- **Fallback strategies** : APIs de secours pour tous les services externes
+- **Offline-first** : Queue d'opérations avec sync différée
+- **Real-time sync** : Supabase Realtime pour collaboration instantanée
 
 ## Architecture des Données
 
@@ -348,23 +358,26 @@ EvictionPolicy {
 
 ## Patterns d'Architecture
 
-### 1. Component Architecture
+### 1. Component Architecture Actuelle
 ```
 src/
 ├── components/
-│   ├── ui/              # Composants UI réutilisables
-│   ├── layout/          # Composants de mise en page
-│   ├── recipes/         # Composants métier recettes
-│   ├── pantry/          # Composants métier garde-manger
-│   ├── shopping/        # Composants métier courses
-│   ├── nutrition/       # Composants nutrition V2
-│   ├── community/       # Composants communauté V2
-│   └── iot/            # Composants IoT V2
-├── hooks/               # Custom React hooks
-├── pages/               # Pages de l'application
+│   ├── ui/              # Composants UI shadcn/ui réutilisables
+│   ├── ai/              # Assistant IA avec chat et streaming (PRP-002)
+│   ├── inventory/       # Garde-manger avec scanner avancé (PRP-010)
+│   ├── shopping/        # Listes de courses temps réel (PRP-004)
+│   ├── insights/        # Dashboard analytics (PRP-007)
+│   ├── onboarding/      # Processus d'accueil interactif (PRP-008)
+│   ├── voice/           # Reconnaissance vocale française (PRP-009)
+│   ├── scanner/         # Scanner codes-barres avec fallbacks
+│   ├── settings/        # Configuration et replay tutoriel
+│   └── recipes/         # Gestion des recettes
+├── hooks/               # Custom hooks spécialisés par fonctionnalité
+├── pages/               # Pages principales de l'application
+├── services/            # Services métier avec APIs externes
 ├── lib/                 # Utilitaires et helpers
-├── services/            # Services métier V2
-└── types/               # Types TypeScript
+├── types/               # Types TypeScript stricts
+└── styles/              # Styles globaux et animations
 ```
 
 ### 2. API Design Pattern

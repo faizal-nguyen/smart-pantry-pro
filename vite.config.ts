@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 3002,
+    historyApiFallback: true, // Pour React Router
     proxy: {
       '/api': {
         target: 'http://localhost:3003',
@@ -53,6 +54,9 @@ export default defineConfig(({ mode }) => ({
       // Forcer une seule version de React
       "react": path.resolve(__dirname, "node_modules/react"),
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+      // Polyfills pour Node.js modules utilisés par Cloudinary
+      "url": "url-polyfill",
+      "querystring": "querystring-es3"
     },
   },
   build: {
@@ -62,6 +66,13 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     // Optimisations pour le build de production
     rollupOptions: {
+      // Externaliser les modules Node.js problématiques pour le navigateur en développement
+      external: (id) => {
+        if (mode === 'development') {
+          return ['cloudinary', 'url', 'querystring', 'crypto'].some(dep => id.includes(dep));
+        }
+        return false;
+      },
       output: {
         manualChunks: {
           // Séparer React dans son propre chunk
@@ -132,10 +143,13 @@ export default defineConfig(({ mode }) => ({
       'react-dom',
       '@radix-ui/react-dialog',
       '@supabase/supabase-js'
-    ]
+    ],
+    // Exclure Cloudinary du pré-bundling pour éviter les erreurs Node.js
+    exclude: ['cloudinary']
   },
-  // Optimisations pour Vercel
+  // Configuration pour les polyfills Node.js et définitions globales
   define: {
-    'process.env.NODE_ENV': JSON.stringify(mode)
-  }
+    'process.env.NODE_ENV': JSON.stringify(mode),
+    global: 'globalThis'
+  },
 }));

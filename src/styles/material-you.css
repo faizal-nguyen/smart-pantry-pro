@@ -1,0 +1,253 @@
+/**
+ * Material You CSS Variables and Integration
+ * Maps Material Design 3 tokens to existing CSS custom properties
+ */
+
+/* Material You Color System */
+:root {
+  /* Primary colors */
+  --md-sys-color-primary: hsl(var(--primary));
+  --md-sys-color-on-primary: hsl(var(--primary-foreground));
+  --md-sys-color-primary-container: hsl(var(--primary) / 0.1);
+  --md-sys-color-on-primary-container: hsl(var(--primary));
+  
+  /* Secondary colors */
+  --md-sys-color-secondary: hsl(var(--secondary));
+  --md-sys-color-on-secondary: hsl(var(--secondary-foreground));
+  --md-sys-color-secondary-container: hsl(var(--secondary) / 0.1);
+  --md-sys-color-on-secondary-container: hsl(var(--secondary));
+  
+  /* Tertiary colors */
+  --md-sys-color-tertiary: hsl(var(--accent));
+  --md-sys-color-on-tertiary: hsl(var(--accent-foreground));
+  --md-sys-color-tertiary-container: hsl(var(--accent) / 0.1);
+  --md-sys-color-on-tertiary-container: hsl(var(--accent));
+  
+  /* Error colors */
+  --md-sys-color-error: hsl(var(--destructive));
+  --md-sys-color-on-error: hsl(var(--destructive-foreground));
+  --md-sys-color-error-container: hsl(var(--destructive) / 0.1);
+  --md-sys-color-on-error-container: hsl(var(--destructive));
+  
+  /* Surface colors */
+  --md-sys-color-background: hsl(var(--background));
+  --md-sys-color-on-background: hsl(var(--foreground));
+  --md-sys-color-surface: hsl(var(--card));
+  --md-sys-color-on-surface: hsl(var(--card-foreground));
+  --md-sys-color-surface-variant: hsl(var(--muted));
+  --md-sys-color-on-surface-variant: hsl(var(--muted-foreground));
+  
+  /* Outline colors */
+  --md-sys-color-outline: hsl(var(--border));
+  --md-sys-color-outline-variant: hsl(var(--border) / 0.5);
+  
+  /* Other system colors */
+  --md-sys-color-shadow: hsl(0 0% 0%);
+  --md-sys-color-scrim: hsl(0 0% 0%);
+  --md-sys-color-inverse-surface: hsl(var(--foreground));
+  --md-sys-color-inverse-on-surface: hsl(var(--background));
+  --md-sys-color-inverse-primary: hsl(var(--primary));
+  
+  /* Food-specific semantic colors */
+  --md-sys-color-fresh: #2dd4bf;
+  --md-sys-color-warm: #f59e0b;
+  --md-sys-color-indulgent: #ec4899;
+  
+  /* Material You Motion */
+  --md-sys-motion-duration-short1: 50ms;
+  --md-sys-motion-duration-short2: 100ms;
+  --md-sys-motion-duration-short3: 150ms;
+  --md-sys-motion-duration-short4: 200ms;
+  --md-sys-motion-duration-medium1: 250ms;
+  --md-sys-motion-duration-medium2: 300ms;
+  --md-sys-motion-duration-medium3: 350ms;
+  --md-sys-motion-duration-medium4: 400ms;
+  --md-sys-motion-duration-long1: 450ms;
+  --md-sys-motion-duration-long2: 500ms;
+  --md-sys-motion-duration-long3: 550ms;
+  --md-sys-motion-duration-long4: 600ms;
+  
+  --md-sys-motion-easing-standard: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --md-sys-motion-easing-standard-accelerate: cubic-bezier(0.3, 0.0, 1.0, 1.0);
+  --md-sys-motion-easing-standard-decelerate: cubic-bezier(0.0, 0.0, 0.2, 1.0);
+  --md-sys-motion-easing-emphasized: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+  --md-sys-motion-easing-emphasized-accelerate: cubic-bezier(0.3, 0.0, 0.8, 0.15);
+  --md-sys-motion-easing-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1.0);
+  
+  /* Material You Elevation */
+  --md-sys-elevation-level0: none;
+  --md-sys-elevation-level1: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level2: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
+  --md-sys-elevation-level3: 0px 4px 8px 3px rgba(0, 0, 0, 0.15), 0px 1px 3px rgba(0, 0, 0, 0.3);
+  --md-sys-elevation-level4: 0px 6px 10px 4px rgba(0, 0, 0, 0.15), 0px 2px 3px rgba(0, 0, 0, 0.3);
+  --md-sys-elevation-level5: 0px 8px 12px 6px rgba(0, 0, 0, 0.15), 0px 4px 4px rgba(0, 0, 0, 0.3);
+  
+  /* Material You Shape */
+  --md-sys-shape-corner-none: 0px;
+  --md-sys-shape-corner-extra-small: 4px;
+  --md-sys-shape-corner-small: 8px;
+  --md-sys-shape-corner-medium: 12px;
+  --md-sys-shape-corner-large: 16px;
+  --md-sys-shape-corner-extra-large: 28px;
+  --md-sys-shape-corner-full: 50%;
+  
+  /* Material You State Layer Opacity */
+  --md-sys-state-hover-opacity: 0.08;
+  --md-sys-state-focus-opacity: 0.12;
+  --md-sys-state-pressed-opacity: 0.12;
+  --md-sys-state-dragged-opacity: 0.16;
+  --md-sys-state-disabled-opacity: 0.38;
+}
+
+/* Contextual Theme Modifiers */
+[data-theme-context="breakfast"] {
+  --md-sys-color-primary: #fcd34d;
+  --md-sys-color-secondary: #fed7aa;
+  --md-sys-color-surface: #fffbeb;
+  --md-sys-color-background: #fefce8;
+}
+
+[data-theme-context="lunch"] {
+  --md-sys-color-primary: #10b981;
+  --md-sys-color-secondary: #86efac;
+  --md-sys-color-surface: #f0fdf4;
+  --md-sys-color-background: #ecfdf5;
+}
+
+[data-theme-context="dinner"] {
+  --md-sys-color-primary: #8b5cf6;
+  --md-sys-color-secondary: #c4b5fd;
+  --md-sys-color-surface: #f5f3ff;
+  --md-sys-color-background: #faf5ff;
+}
+
+[data-theme-context="snack"] {
+  --md-sys-color-primary: #ec4899;
+  --md-sys-color-secondary: #fbcfe8;
+  --md-sys-color-surface: #fdf2f8;
+  --md-sys-color-background: #fefefe;
+}
+
+[data-theme-context="shopping"] {
+  --md-sys-color-primary: #3b82f6;
+  --md-sys-color-secondary: #93c5fd;
+  --md-sys-color-surface: #eff6ff;
+  --md-sys-color-background: #f0f9ff;
+}
+
+[data-theme-context="cooking"] {
+  --md-sys-color-primary: #ea580c;
+  --md-sys-color-secondary: #fed7aa;
+  --md-sys-color-surface: #fff7ed;
+  --md-sys-color-background: #fffbeb;
+}
+
+/* Material You Component Styles */
+.material-button {
+  transition-property: all;
+  transition-timing-function: var(--md-sys-motion-easing-standard);
+  transition-duration: var(--md-sys-motion-duration-short4);
+}
+
+.material-button:hover {
+  transition-duration: var(--md-sys-motion-duration-short2);
+}
+
+.material-button:active {
+  transition-duration: var(--md-sys-motion-duration-short1);
+}
+
+.material-card {
+  transition-property: transform, box-shadow;
+  transition-timing-function: var(--md-sys-motion-easing-standard);
+  transition-duration: var(--md-sys-motion-duration-medium2);
+}
+
+.material-card:hover {
+  transition-timing-function: var(--md-sys-motion-easing-emphasized-decelerate);
+}
+
+/* Material You Focus States */
+.material-focus-ring {
+  position: relative;
+}
+
+.material-focus-ring::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+}
+
+.material-focus-ring:focus-visible::after {
+  opacity: 1;
+}
+
+/* Material You Ripple Effect */
+@keyframes material-ripple {
+  0% {
+    transform: scale(0);
+    opacity: var(--md-sys-state-pressed-opacity);
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.material-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.material-ripple::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background-color: currentColor;
+  opacity: 0;
+}
+
+.material-ripple:active::before {
+  width: 100%;
+  height: 100%;
+  animation: material-ripple var(--md-sys-motion-duration-long2) var(--md-sys-motion-easing-standard);
+}
+
+/* Platform-specific adjustments */
+@supports (-webkit-touch-callout: none) {
+  /* iOS specific styles */
+  .material-button,
+  .material-card {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .material-button,
+  .material-card {
+    transition-duration: 0.01ms !important;
+  }
+  
+  .material-ripple::before {
+    animation: none !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  :root {
+    --md-sys-color-outline: hsl(var(--foreground));
+    --md-sys-state-focus-opacity: 0.24;
+  }
+}

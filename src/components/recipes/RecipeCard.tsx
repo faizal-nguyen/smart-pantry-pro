@@ -1,5 +1,9 @@
+import React from "react";
+import { MaterialCard, MaterialCardContent, MaterialCardActions } from "@/components/ui/material/Card";
+import { MaterialButton } from "@/components/ui/material/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useMaterialYouTheme } from "@/contexts/MaterialYouThemeContext";
 import { Badge } from "@/components/ui/badge";
 import { 
   MoreVertical, 
@@ -75,6 +79,14 @@ const RecipeCard = ({
   isFavorite = false
 }: RecipeCardProps) => {
   const navigate = useNavigate();
+  const { extractColorFromImage } = useMaterialYouTheme();
+  
+  // Extract theme colors from recipe image when component mounts
+  React.useEffect(() => {
+    if (recipe.image_url) {
+      extractColorFromImage(recipe.image_url).catch(console.error);
+    }
+  }, [recipe.image_url, extractColorFromImage]);
   
   // Pattern status inventaire (adaptation ProductCard Cipher)
   const getInventoryStatusColor = () => {
@@ -130,13 +142,14 @@ const RecipeCard = ({
   const totalTime = recipe.prep_time + recipe.cook_time;
 
   return (
-    <Card 
-      className="hover:shadow-lg transition-all duration-200 cursor-pointer group"
+    <MaterialCard 
+      variant="elevated"
+      interactive
       onClick={() => {
         navigate(`/recipes/${recipe.id}`);
       }}
     >
-      <CardContent className="p-4">
+      <MaterialCardContent>
         {/* Image recette avec overlays */}
         <div className="relative mb-3">
           <img 
@@ -165,8 +178,8 @@ const RecipeCard = ({
           </div>
 
           {/* Bouton favori */}
-          <Button
-            variant="ghost"
+          <MaterialButton
+            variant="elevated"
             size="sm"
             className="absolute top-2 left-2 h-8 w-8 p-0 bg-black/20 hover:bg-black/40 text-white"
             onClick={(e) => {
@@ -175,7 +188,7 @@ const RecipeCard = ({
             }}
           >
             <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-          </Button>
+          </MaterialButton>
         </div>
 
         {/* Infos recette */}
@@ -273,8 +286,8 @@ const RecipeCard = ({
           {/* Actions */}
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
+              <MaterialButton 
+                variant="text" 
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -282,14 +295,14 @@ const RecipeCard = ({
                 }}
               >
                 <Share className="w-4 h-4" />
-              </Button>
+              </MaterialButton>
               
               {onEdit && onDelete && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                    <MaterialButton variant="text" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
                       <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    </MaterialButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={(e) => {
@@ -314,22 +327,22 @@ const RecipeCard = ({
               )}
             </div>
             
-            <Button 
-              variant="outline" 
+            <MaterialButton 
+              variant="tonal" 
               size="sm" 
               className="ml-auto"
+              icon={<ShoppingCart className="w-4 h-4" />}
               onClick={(e) => {
                 e.stopPropagation();
                 onAddToShoppingList?.(recipe);
               }}
             >
-              <ShoppingCart className="w-4 h-4 mr-1" />
               Liste courses
-            </Button>
+            </MaterialButton>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </MaterialCardContent>
+    </MaterialCard>
   );
 };
 

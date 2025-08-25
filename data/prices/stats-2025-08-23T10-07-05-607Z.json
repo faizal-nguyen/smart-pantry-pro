@@ -1,0 +1,104 @@
+{
+  "total": 148,
+  "fruits": {
+    "count": 61,
+    "avgPrice": 2.892622950819672,
+    "minPrice": 0.31,
+    "maxPrice": 9.92
+  },
+  "vegetables": {
+    "count": 87,
+    "avgPrice": 2.422758620689655,
+    "minPrice": 1.09,
+    "maxPrice": 4.84
+  },
+  "byVariation": {
+    "Bio": {
+      "count": 50,
+      "avgPrice": 2.6359999999999997,
+      "totalPrice": 131.79999999999998
+    },
+    "Conventionnel": {
+      "count": 50,
+      "avgPrice": 2.6306,
+      "totalPrice": 131.53
+    },
+    "Premium": {
+      "count": 1,
+      "avgPrice": 2.74,
+      "totalPrice": 2.74
+    },
+    "Équitable": {
+      "count": 1,
+      "avgPrice": 1.63,
+      "totalPrice": 1.63
+    },
+    "Espagne": {
+      "count": 7,
+      "avgPrice": 2.692857142857143,
+      "totalPrice": 18.85
+    },
+    "France": {
+      "count": 28,
+      "avgPrice": 2.768928571428572,
+      "totalPrice": 77.53000000000002
+    },
+    "Italie": {
+      "count": 1,
+      "avgPrice": 3.74,
+      "totalPrice": 3.74
+    },
+    "Nouvelle-Zélande": {
+      "count": 1,
+      "avgPrice": 0.43,
+      "totalPrice": 0.43
+    },
+    "Costa Rica": {
+      "count": 1,
+      "avgPrice": 2.68,
+      "totalPrice": 2.68
+    },
+    "Pérou": {
+      "count": 1,
+      "avgPrice": 1.02,
+      "totalPrice": 1.02
+    },
+    "Maroc": {
+      "count": 1,
+      "avgPrice": 1.92,
+      "totalPrice": 1.92
+    },
+    "Corse": {
+      "count": 1,
+      "avgPrice": 2.34,
+      "totalPrice": 2.34
+    },
+    "Israël": {
+      "count": 1,
+      "avgPrice": 1.49,
+      "totalPrice": 1.49
+    },
+    "Serre": {
+      "count": 3,
+      "avgPrice": 2.3699999999999997,
+      "totalPrice": 7.109999999999999
+    },
+    "États-Unis": {
+      "count": 1,
+      "avgPrice": 2.42,
+      "totalPrice": 2.42
+    }
+  },
+  "byUnit": {
+    "kg": {
+      "count": 112,
+      "avgPrice": 2.9443750000000004,
+      "totalPrice": 329.77000000000004
+    },
+    "piece": {
+      "count": 36,
+      "avgPrice": 1.5961111111111113,
+      "totalPrice": 57.46000000000001
+    }
+  }
+}

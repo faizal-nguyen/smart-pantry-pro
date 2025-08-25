@@ -55,7 +55,7 @@ export const useRecipeParserOptimized = () => {
       // Utiliser l'API optimisée
       const isDevelopment = window.location.hostname === 'localhost';
       const apiUrl = isDevelopment 
-        ? 'http://localhost:3001/api/extract-recipe-ultra-optimized'
+        ? 'http://localhost:3003/api/extract-recipe-ultra-optimized'
         : '/api/extract-recipe-ultra-optimized';
       
       const response = await fetch(apiUrl, {

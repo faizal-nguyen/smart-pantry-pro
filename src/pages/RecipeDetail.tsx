@@ -22,6 +22,7 @@ import {
   Link,
   Instagram
 } from "lucide-react";
+import { RecipeNutrition } from "@/components/recipes/RecipeNutrition";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
@@ -77,6 +78,15 @@ const RecipeDetail = () => {
     try {
       setLoading(true);
       
+      // Fetch recipe data first
+      const { data: recipeData, error: recipeError } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', id)
+        .single();
+        
+      if (recipeError) throw recipeError;
+      
       // Fetch ingredients
       const { data: ingredientsData, error: ingredientsError } = await supabase
         .from('recipe_ingredients')
@@ -87,23 +97,28 @@ const RecipeDetail = () => {
       if (ingredientsError) throw ingredientsError;
       setIngredients(ingredientsData || []);
 
-      // Parse instructions from recipe
-      if (recipe?.instructions) {
+      // Parse instructions from fetched recipe
+      console.log('Recipe instructions:', recipeData?.instructions);
+      if (recipeData?.instructions) {
         try {
           // Si c'est déjà un tableau, on l'utilise directement
-          if (Array.isArray(recipe.instructions)) {
-            setInstructions(recipe.instructions);
-          } else if (typeof recipe.instructions === 'string') {
+          if (Array.isArray(recipeData.instructions)) {
+            setInstructions(recipeData.instructions);
+          } else if (typeof recipeData.instructions === 'string') {
             // Essayer de parser comme JSON d'abord
             try {
-              const parsed = JSON.parse(recipe.instructions);
+              const parsed = JSON.parse(recipeData.instructions);
               setInstructions(Array.isArray(parsed) ? parsed : []);
             } catch (e) {
               // Si ce n'est pas du JSON, traiter comme texte avec retours à la ligne
-              const plainTextInstructions = recipe.instructions
-                .split(/\n/)
+              const plainTextInstructions = recipeData.instructions
+                .split(/\n+/)
                 .map(instruction => instruction.trim())
-                .filter(instruction => instruction.length > 0);
+                .filter(instruction => instruction.length > 0)
+                .map(instruction => {
+                  // Nettoyer les numéros au début si présents
+                  return instruction.replace(/^\d+\.\s*/, '');
+                });
               setInstructions(plainTextInstructions);
             }
           } else {
@@ -113,6 +128,9 @@ const RecipeDetail = () => {
           console.error('Error parsing instructions:', error);
           setInstructions([]);
         }
+      } else {
+        console.log('No instructions found for recipe');
+        setInstructions([]);
       }
     } catch (error) {
       console.error('Error fetching recipe details:', error);
@@ -239,7 +257,7 @@ const RecipeDetail = () => {
     return <AlertCircle className="w-4 h-4 text-yellow-600" />;
   };
 
-  if (!recipe) {
+  if (!recipe && !loading) {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="text-center py-12">
@@ -257,15 +275,34 @@ const RecipeDetail = () => {
                 <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold mb-2">Recette non trouvée</h2>
                 <p className="text-muted-foreground mb-4">
-                  {loading ? "Chargement en cours..." : "Cette recette n'existe pas ou n'est plus accessible."}
+                  Cette recette n'existe pas ou n'est plus accessible.
                 </p>
               </>
             )}
           </div>
-          <Button onClick={() => navigate('/')}>
+          <Button onClick={() => navigate('/recipes')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour aux recettes
           </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  // Afficher un skeleton pendant le chargement
+  if (loading || !recipe) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-64 bg-gray-200 rounded mb-6"></div>
+            <div className="space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -466,6 +503,14 @@ const RecipeDetail = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Valeurs nutritionnelles */}
+        {ingredients.length > 0 && (
+          <RecipeNutrition 
+            ingredients={ingredients}
+            servings={recipe.servings || 4}
+          />
+        )}
 
         {/* Instructions */}
         <Card>

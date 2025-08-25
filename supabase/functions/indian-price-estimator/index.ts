@@ -110,6 +110,24 @@ const ingredientTranslations: Record<string, string> = {
 // Price database (EUR per kg or per liter)
 // These are estimated prices based on typical Indian grocery stores
 const indianIngredientPrices: Record<string, number> = {
+  // Basic ingredients (EUR/L or EUR/kg)
+  'water': 0.001,  // Almost free
+  'eau': 0.001,
+  'eau chaude': 0.001,
+  'hot water': 0.001,
+  'oil': 3.0,  // Generic oil
+  'vegetable oil': 3.0,
+  'huile': 3.0,
+  'huile végétale': 3.0,
+  'sunflower oil': 2.5,
+  'huile de tournesol': 2.5,
+  'mustard oil': 4.0,
+  'huile de moutarde': 4.0,
+  'coconut oil': 5.0,
+  'huile de coco': 5.0,
+  'ghee': 15.0,
+  'clarified butter': 15.0,
+  
   // Spices (EUR/kg)
   'turmeric': 8.0,
   'turmeric powder': 8.0,
@@ -240,17 +258,21 @@ serve(async (req) => {
       // Convert units to calculate price
       if (unitLower.includes('g') && !unitLower.includes('kg')) {
         finalPrice = basePrice * (quantity / 1000);
-      } else if (unitLower.includes('ml') && !unitLower.includes('l')) {
+      } else if (unitLower.includes('ml')) {
+        // Fixed: handle 'ml' properly even with spaces or other characters
         finalPrice = basePrice * (quantity / 1000);
       } else if (unitLower.includes('cl')) {
         finalPrice = basePrice * (quantity / 100);
-      } else if (unitLower === 'l' || unitLower === 'litre' || unitLower === 'kg' || unitLower === 'kilogramme') {
+      } else if (unitLower === 'l' || unitLower === 'litre' || unitLower === 'litres' || 
+                 unitLower === 'kg' || unitLower === 'kilogramme' || unitLower === 'kilogrammes') {
         finalPrice = basePrice * quantity;
-      } else if (unitLower.includes('cuillère à soupe') || unitLower.includes('c.à.s')) {
+      } else if (unitLower.includes('cuillère à soupe') || unitLower.includes('c.à.s') || 
+                 unitLower.includes('cas') || unitLower.includes('c.a.s')) {
         finalPrice = basePrice * (quantity * 15 / 1000);
-      } else if (unitLower.includes('cuillère à café') || unitLower.includes('c.à.c')) {
+      } else if (unitLower.includes('cuillère à café') || unitLower.includes('c.à.c') || 
+                 unitLower.includes('cac') || unitLower.includes('c.a.c')) {
         finalPrice = basePrice * (quantity * 5 / 1000);
-      } else if (unitLower.includes('tasse')) {
+      } else if (unitLower.includes('tasse') || unitLower.includes('cup')) {
         finalPrice = basePrice * (quantity * 250 / 1000);
       } else if (unitLower.includes('pincée') || unitLower.includes('pinch')) {
         finalPrice = basePrice * (quantity / 1000);
@@ -263,9 +285,16 @@ serve(async (req) => {
       } else if (unitLower.includes('bâton') || unitLower.includes('stick')) {
         // For cinnamon sticks
         finalPrice = basePrice * (quantity * 5 / 1000);
-      } else {
-        // Default to per unit pricing for unrecognized units
+      } else if (unitLower === '' || unitLower === 'unité' || unitLower === 'unités' || 
+                 unitLower === 'pièce' || unitLower === 'pièces') {
+        // For unit-based items, assume a reasonable weight
+        // 100g for most items, but could vary
         finalPrice = basePrice * quantity * 0.1;
+      } else {
+        // For truly unrecognized units, log warning and use conservative estimate
+        console.log(`⚠️ Unrecognized unit "${unit}" for ${name}, using conservative estimate`);
+        // Assume it's a small quantity (like a spice) - 10g per unit
+        finalPrice = basePrice * (quantity * 10 / 1000);
       }
       
       return {

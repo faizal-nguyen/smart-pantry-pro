@@ -1,3 +1,7 @@
+import React from "react";
+import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card";
+import { MaterialButton } from "@/components/ui/material/Button";
+import { useMaterialYouTheme } from "@/contexts/MaterialYouThemeContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,12 @@ interface ShoppingItemCardProps {
 }
 
 const ShoppingItemCard = ({ item, onTogglePurchased, onRemove, onEdit, isSelected, onSelect }: ShoppingItemCardProps) => {
+  const { setThemeContext } = useMaterialYouTheme();
+  
+  // Set shopping context when component mounts
+  React.useEffect(() => {
+    setThemeContext('shopping');
+  }, [setThemeContext]);
   // Fix pour les prix incorrects des feuilles de curry et de l'eau
   const getCorrectedPrice = (item: ShoppingItem): number | undefined => {
     if (!item.estimated_price) return undefined;
@@ -101,8 +111,13 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove, onEdit, isSelecte
   };
 
   return (
-    <Card className={`transition-all duration-200 ${item.is_purchased ? 'opacity-60 bg-muted/50' : 'hover:shadow-md'} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
-      <CardContent className="p-4">
+    <MaterialCard 
+      variant={item.is_purchased ? "outlined" : "elevated"}
+      interactive={!item.is_purchased}
+      selected={isSelected}
+      className={item.is_purchased ? 'opacity-60' : ''}
+    >
+      <MaterialCardContent>
         <div className="flex items-start gap-3">
           {/* Selection checkbox (if onSelect is provided) */}
           {onSelect && (
@@ -160,9 +175,9 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove, onEdit, isSelecte
               {/* Actions menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MaterialButton variant="text" size="sm" className="h-8 w-8 p-0">
                     <MoreVertical className="h-4 w-4" />
-                  </Button>
+                  </MaterialButton>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => onTogglePurchased(item.id, !item.is_purchased)}>
@@ -187,8 +202,8 @@ const ShoppingItemCard = ({ item, onTogglePurchased, onRemove, onEdit, isSelecte
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </MaterialCardContent>
+    </MaterialCard>
   );
 };
 

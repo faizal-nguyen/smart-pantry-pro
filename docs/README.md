@@ -53,22 +53,29 @@ Transformer la gestion quotidienne de la cuisine en une expérience fluide et in
 ## Stack Technologique
 
 ### Frontend
-- **Framework** : React 18.3 avec TypeScript
-- **UI Library** : Tailwind CSS + shadcn/ui
-- **State Management** : Zustand
-- **Build Tool** : Vite 5.4
+- **Framework** : React 18.3 avec TypeScript 5.5
+- **UI Library** : Tailwind CSS + shadcn/ui + Radix UI
+- **State Management** : Zustand + React Query
+- **Build Tool** : Vite 5.4 avec optimisations PWA
+- **Voice Recognition** : Web Speech API avec vocabulaire français
+- **Scanner** : @zxing/library avec APIs de fallback
+- **Animations** : Framer Motion
 
-### Backend
-- **Database** : Supabase (PostgreSQL)
-- **API** : RESTful + Edge Functions
-- **Authentication** : Supabase Auth
+### Backend & Services
+- **Database** : Supabase (PostgreSQL 15)
+- **API** : RESTful + Edge Functions + Vercel Serverless
+- **Authentication** : Supabase Auth avec RLS
 - **File Storage** : Supabase Storage
+- **IA** : OpenAI API pour extraction recettes et assistant
+- **Voice Processing** : Web Speech API natif
+- **Barcode APIs** : OpenFoodFacts, Barcode Spider, UPC Database
 
 ### Infrastructure
-- **Hosting** : Vercel
-- **CDN** : Vercel Edge Network
-- **Monitoring** : Vercel Analytics
-- **CI/CD** : GitHub Actions
+- **Hosting** : Vercel avec Edge Network global
+- **CDN** : Vercel Edge avec cache optimisé
+- **Monitoring** : Vercel Analytics + Custom metrics
+- **CI/CD** : GitHub Actions avec tests automatisés
+- **PWA** : Service Worker + Manifest optimisés
 
 ## Équipe Recommandée
 

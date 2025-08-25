@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
+import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -31,6 +31,7 @@ import { useShoppingList } from "@/hooks/useShoppingList";
 import ShoppingItemCard from "@/components/shopping/ShoppingItemCard";
 import AddShoppingItemDialog from "@/components/shopping/AddShoppingItemDialog";
 import EditShoppingItemDialog from "@/components/shopping/EditShoppingItemDialog";
+import { SmartGroceryInput } from "@/components/shopping/SmartGroceryInput";
 import { useToast } from "@/hooks/use-toast";
 import { ShoppingItem } from "@/hooks/useShoppingList";
 
@@ -60,6 +61,7 @@ const ShoppingList = () => {
   const { 
     shoppingList, 
     loading, 
+    addMultipleToShoppingList,
     updateShoppingItem,
     togglePurchased, 
     removeFromShoppingList,
@@ -69,7 +71,8 @@ const ShoppingList = () => {
     clearPurchased,
     getTotalEstimatedCost,
     getPurchasedCount,
-    generateShareableList
+    generateShareableList,
+    refetch
   } = useShoppingList();
   
   const { toast } = useToast();
@@ -217,6 +220,11 @@ const ShoppingList = () => {
     setSelectedItems(new Set());
   };
 
+  const handleSmartItemsAdded = async (items: any[]) => {
+    console.log(`✅ ${items.length} items added via smart input`);
+    // La fonction addMultipleToShoppingList s'occupe déjà du refresh
+  };
+
   const getTotalItems = () => filteredItems.length;
   const getRemainingItems = () => filteredItems.filter(item => !item.is_purchased).length;
   const getCompletionPercentage = () => {
@@ -242,17 +250,17 @@ const ShoppingList = () => {
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">Liste de courses</h1>
           <div className="flex gap-2">
-            <Button onClick={handleShare} variant="outline" size="sm">
+            <MaterialButton onClick={handleShare} variant="outlined" size="sm">
               <Share2 className="w-4 h-4 mr-2" />
               Partager
-            </Button>
+            </MaterialButton>
             <AddShoppingItemDialog />
           </div>
         </div>
         
         <div className="grid grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-4">
+          <MaterialCard variant="elevated">
+            <MaterialCardContent className="p-4">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-primary" />
                 <div>
@@ -260,11 +268,11 @@ const ShoppingList = () => {
                   <p className="text-sm text-muted-foreground">À acheter</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </MaterialCardContent>
+          </MaterialCard>
           
-          <Card>
-            <CardContent className="p-4">
+          <MaterialCard variant="elevated">
+            <MaterialCardContent className="p-4">
               <div className="flex items-center gap-2">
                 {getTotalEstimatedCost() > 0 ? (
                   <Euro className="w-5 h-5 text-green-500" />
@@ -285,15 +293,23 @@ const ShoppingList = () => {
                   )}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </MaterialCardContent>
+          </MaterialCard>
         </div>
       </div>
 
+      {/* Smart Grocery Input */}
+      <SmartGroceryInput 
+        onItemsAdded={handleSmartItemsAdded}
+        addMultipleToShoppingList={addMultipleToShoppingList}
+        defaultMode="text"
+        className="mb-4"
+      />
+
       {/* Actions rapides */}
       {getPurchasedCount() > 0 && (
-        <Card>
-          <CardContent className="p-4">
+        <MaterialCard variant="elevated">
+          <MaterialCardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">{getPurchasedCount()} produit(s) acheté(s)</p>
@@ -302,18 +318,26 @@ const ShoppingList = () => {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button onClick={handleAddAllToInventory} size="sm">
-                  <PackagePlus className="w-4 h-4 mr-2" />
+                <MaterialButton 
+                  onClick={handleAddAllToInventory} 
+                  size="sm"
+                  variant="filled"
+                  icon={<PackagePlus className="w-4 h-4" />}
+                >
                   Vers inventaire
-                </Button>
-                <Button onClick={handleClearPurchased} variant="outline" size="sm">
-                  <Trash2 className="w-4 h-4 mr-2" />
+                </MaterialButton>
+                <MaterialButton 
+                  onClick={handleClearPurchased} 
+                  variant="outlined" 
+                  size="sm"
+                  icon={<Trash2 className="w-4 h-4" />}
+                >
                   Nettoyer
-                </Button>
+                </MaterialButton>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </MaterialCardContent>
+        </MaterialCard>
       )}
 
       {/* Recherche et filtres */}
@@ -344,20 +368,20 @@ const ShoppingList = () => {
             </SelectContent>
           </Select>
           
-          <Button
-            variant={showPurchased ? "default" : "outline"}
+          <MaterialButton
+            variant={showPurchased ? "filled" : "outlined"}
             size="sm"
             onClick={() => setShowPurchased(!showPurchased)}
           >
             Voir achetés
-          </Button>
+          </MaterialButton>
         </div>
       </div>
 
       {/* Barre d'outils de sélection */}
       {filteredItems.length > 0 && (
-        <Card>
-          <CardContent className="p-3">
+        <MaterialCard variant="elevated">
+          <MaterialCardContent className="p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -376,58 +400,58 @@ const ShoppingList = () => {
                   <>
                     <Separator orientation="vertical" className="h-6" />
                     <div className="flex items-center gap-2">
-                      <Button
+                      <MaterialButton
                         size="sm"
-                        variant="outline"
+                        variant="outlined"
                         onClick={() => handleMarkSelectedAsPurchased(true)}
+                        icon={<CheckCircle2 className="w-4 h-4" />}
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
                         Marquer acheté
-                      </Button>
-                      <Button
+                      </MaterialButton>
+                      <MaterialButton
                         size="sm"
-                        variant="outline"
+                        variant="outlined"
                         onClick={() => handleMarkSelectedAsPurchased(false)}
+                        icon={<Square className="w-4 h-4" />}
                       >
-                        <Square className="w-4 h-4 mr-2" />
                         Non acheté
-                      </Button>
-                      <Button
+                      </MaterialButton>
+                      <MaterialButton
                         size="sm"
-                        variant="destructive"
+                        variant="outlined"
                         onClick={handleDeleteSelected}
+                        icon={<Trash2 className="w-4 h-4" />}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
                         Supprimer
-                      </Button>
+                      </MaterialButton>
                     </div>
                   </>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </MaterialCardContent>
+        </MaterialCard>
       )}
 
       {/* Liste des produits organisée par rayon */}
       <div className="space-y-6">
         {Object.keys(groupedItems).length === 0 ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
+          <MaterialCard variant="elevated">
+            <MaterialCardHeader className="pb-2">
+              <div className="text-lg font-semibold flex items-center">
                 <ShoppingCart className="w-5 h-5 mr-2 text-primary" />
                 Votre liste de courses
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+              </div>
+            </MaterialCardHeader>
+            <MaterialCardContent>
               <p className="text-muted-foreground">
                 {searchQuery || selectedSection !== "Tous" 
                   ? "Aucun produit ne correspond à votre recherche."
                   : "Votre liste de courses est vide."
                 }
               </p>
-            </CardContent>
-          </Card>
+            </MaterialCardContent>
+          </MaterialCard>
         ) : (
           Object.entries(groupedItems).map(([section, items]) => (
             <div key={section} className="space-y-3">

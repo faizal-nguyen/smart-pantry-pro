@@ -7,16 +7,18 @@ Ce guide détaille le processus complet de déploiement de Smart Pantry Pro, de 
 ## Prérequis
 
 ### Outils requis
-- Node.js 18+ et npm 9+
-- Git
-- Vercel CLI (`npm i -g vercel`)
-- Supabase CLI (`npm i -g supabase`)
+- Node.js 18.17+ et npm 9+
+- Git 2.34+
+- Vercel CLI (`npm i -g vercel@latest`)
+- Supabase CLI (`npm i -g supabase@latest`)
+- TypeScript 5.5+ (global ou local)
 
 ### Comptes requis
-- GitHub (pour le code source)
-- Vercel (pour l'hébergement)
-- Supabase (pour la base de données)
-- OpenAI API (pour l'extraction de recettes)
+- GitHub (pour le code source et CI/CD)
+- Vercel (pour l'hébergement et Edge Functions)
+- Supabase (pour la base de données et auth)
+- OpenAI API (pour l'assistant IA et extraction de recettes)
+- Optionnel : Barcode Spider API, UPC Database API (pour les fallbacks scanner)
 
 ## Architecture de déploiement
 
@@ -79,9 +81,18 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key
 
+# APIs de fallback (optionnelles)
+BARCODE_SPIDER_API_KEY=your_barcode_spider_key
+UPC_DATABASE_API_KEY=your_upc_database_key
+
 # Application
 VITE_APP_URL=http://localhost:5173
 NODE_ENV=development
+
+# Features flags (optionelles)
+VITE_ENABLE_VOICE_RECOGNITION=true
+VITE_ENABLE_ADVANCED_SCANNER=true
+VITE_ENABLE_REALTIME_SHOPPING=true
 ```
 
 ### 1.4 Base de données locale
@@ -93,18 +104,26 @@ supabase start
 # Appliquer les migrations
 supabase db push
 
-# Seeder les données de test
+# Seeder les données de test (optionnel)
 npm run db:seed
 ```
 
 ### 1.5 Démarrer le développement
 
 ```bash
-# Frontend
+# Développement complet (frontend + API)
 npm run dev
 
-# API locale (dans un autre terminal)
-npm run api:dev
+# Ou démarrage séparé
+npm run dev:client  # Frontend seulement
+npm run api:server  # API seulement
+
+# Tests (optionnel)
+npm test
+
+# Linting et vérification TypeScript
+npm run lint
+npm run type-check
 ```
 
 ## 2. Configuration Supabase
@@ -156,8 +175,13 @@ WITH CHECK (auth.uid() = user_id);
 
 ```bash
 # Déployer les Edge Functions
+supabase functions deploy ai-assistant-enhanced
+supabase functions deploy cleanup-shopping-list
+supabase functions deploy indian-price-estimator
 supabase functions deploy recipe-assistant
-supabase functions deploy price-estimator
+
+# Vérifier le déploiement
+supabase functions list
 ```
 
 ## 3. Configuration Vercel
@@ -180,9 +204,24 @@ vercel env pull
 Dans le dashboard Vercel, ajouter:
 
 ```
+# Variables Vercel Production
 VITE_SUPABASE_URL=[Production URL]
 VITE_SUPABASE_ANON_KEY=[Production Anon Key]
+SUPABASE_SERVICE_ROLE_KEY=[Service Role Key]
 OPENAI_API_KEY=[Your OpenAI Key]
+
+# APIs optionnelles
+BARCODE_SPIDER_API_KEY=[Barcode Spider Key]
+UPC_DATABASE_API_KEY=[UPC Database Key]
+
+# Features flags
+VITE_ENABLE_VOICE_RECOGNITION=true
+VITE_ENABLE_ADVANCED_SCANNER=true
+VITE_ENABLE_REALTIME_SHOPPING=true
+
+# App configuration
+VITE_APP_URL=https://smartpantrypro.com
+NODE_ENV=production
 ```
 
 ### 3.3 Configuration du build
@@ -197,6 +236,9 @@ OPENAI_API_KEY=[Your OpenAI Key]
   "functions": {
     "api/*.js": {
       "maxDuration": 30
+    },
+    "pages/api/*.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -204,8 +246,24 @@ OPENAI_API_KEY=[Your OpenAI Key]
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" }
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
       ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-XSS-Protection", "value": "1; mode=block" },
+        { "key": "Referrer-Policy", "value": "origin-when-cross-origin" }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/ai-assistant/(.*)",
+      "destination": "/pages/api/ai-assistant-enhanced"
     }
   ]
 }

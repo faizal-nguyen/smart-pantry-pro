@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Instagram Thumbnail Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-4">Test complet du flux Instagram</h1>
+        
+        <div class="mb-4">
+            <input 
+                type="text" 
+                id="urlInput" 
+                value="https://www.instagram.com/reel/DHbVTRpo7p3/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="
+                class="w-full p-2 border rounded"
+                placeholder="URL Instagram"
+            >
+        </div>
+        
+        <button 
+            onclick="testExtraction()" 
+            class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+            Tester l'extraction
+        </button>
+        
+        <div id="loading" class="hidden mt-4 text-gray-600">
+            <div class="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full"></div>
+            Extraction en cours...
+        </div>
+        
+        <div id="results" class="mt-6"></div>
+        
+        <div id="logs" class="mt-6 p-4 bg-gray-100 rounded font-mono text-sm"></div>
+    </div>
+
+    <script>
+        const log = (message, data = null) => {
+            const logsDiv = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logsDiv.innerHTML += `<div class="mb-1"><span class="text-gray-500">[${time}]</span> ${message}</div>`;
+            if (data) {
+                logsDiv.innerHTML += `<pre class="ml-4 text-xs bg-white p-2 rounded mb-2">${JSON.stringify(data, null, 2)}</pre>`;
+            }
+        };
+
+        async function testExtraction() {
+            const url = document.getElementById('urlInput').value;
+            const resultsDiv = document.getElementById('results');
+            const loadingDiv = document.getElementById('loading');
+            
+            resultsDiv.innerHTML = '';
+            document.getElementById('logs').innerHTML = '';
+            loadingDiv.classList.remove('hidden');
+            
+            log('🚀 Début du test avec URL:', url);
+            
+            try {
+                // Test de l'API parse-video-recipe
+                log('📡 Appel à /api/parse-video-recipe...');
+                const response = await fetch('/api/parse-video-recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        videoUrl: url,
+                        platform: 'instagram'
+                    })
+                });
+                
+                log(`📊 Réponse reçue: ${response.status} ${response.statusText}`);
+                
+                const data = await response.json();
+                log('📦 Données reçues:', data);
+                
+                if (data.success && data.data) {
+                    const recipe = data.data;
+                    log('✅ Recette extraite avec succès');
+                    
+                    // Afficher les résultats
+                    resultsDiv.innerHTML = `
+                        <div class="border rounded-lg p-4 bg-green-50">
+                            <h2 class="text-xl font-semibold mb-2">${recipe.title}</h2>
+                            <p class="text-gray-600 mb-4">${recipe.description || 'Pas de description'}</p>
+                            
+                            ${recipe.metadata?.thumbnail ? `
+                                <div class="mb-4">
+                                    <h3 class="font-semibold mb-2">Vignette trouvée !</h3>
+                                    <img 
+                                        src="${recipe.metadata.thumbnail.url}" 
+                                        alt="Thumbnail" 
+                                        class="w-64 h-64 object-cover rounded-lg shadow-md"
+                                        onerror="this.onerror=null; this.src=''; this.alt='Erreur de chargement de l\'image'"
+                                    >
+                                    <p class="text-xs mt-2 text-gray-500 break-all">
+                                        URL: ${recipe.metadata.thumbnail.url}
+                                    </p>
+                                </div>
+                            ` : `
+                                <div class="bg-red-100 p-4 rounded mb-4">
+                                    <p class="text-red-700">❌ Aucune vignette trouvée dans les métadonnées</p>
+                                </div>
+                            `}
+                            
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <h3 class="font-semibold">Métadonnées:</h3>
+                                    <ul class="text-gray-600">
+                                        <li>Auteur: ${recipe.metadata?.author?.name || 'Inconnu'}</li>
+                                        <li>Plateforme: ${recipe.metadata?.platform || 'Inconnue'}</li>
+                                        <li>Confiance: ${Math.round((recipe.metadata?.confidence || 0) * 100)}%</li>
+                                        <li>Méthode: ${recipe.metadata?.extractionMethod || 'Inconnue'}</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold">Contenu:</h3>
+                                    <ul class="text-gray-600">
+                                        <li>Ingrédients: ${recipe.ingredients?.length || 0}</li>
+                                        <li>Instructions: ${recipe.instructions?.length || 0}</li>
+                                        <li>Durée: ${recipe.metadata?.duration || 'Non spécifiée'}</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Vérifier la structure des métadonnées
+                    log('🔍 Structure des métadonnées:', recipe.metadata);
+                    
+                } else {
+                    log('❌ Échec de l\'extraction:', data.error || 'Erreur inconnue');
+                    resultsDiv.innerHTML = `
+                        <div class="bg-red-100 p-4 rounded">
+                            <p class="text-red-700">Erreur: ${data.error || data.message || 'Échec de l\'extraction'}</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                log('❌ Erreur lors du test:', error.message);
+                resultsDiv.innerHTML = `
+                    <div class="bg-red-100 p-4 rounded">
+                        <p class="text-red-700">Erreur: ${error.message}</p>
+                    </div>
+                `;
+            } finally {
+                loadingDiv.classList.add('hidden');
+            }
+        }
+        
+        // Test au chargement
+        window.addEventListener('load', () => {
+            log('🌐 Page chargée, prête pour les tests');
+        });
+    </script>
+</body>
+</html>

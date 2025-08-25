@@ -1,19 +1,4 @@
-import OpenAI from 'openai';
-// import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
-
-dotenv.config({ path: '.env.local' });
-
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY
-});
-
-// Initialize Supabase client with service role (temporarily disabled for testing)
-// const supabaseAdmin = createClient(
-//   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-//   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-// );
+// Simplified version without external dependencies for development
 
 export default async function handler(req, res) {
   // CORS headers are already handled by the main server
@@ -61,6 +46,13 @@ export default async function handler(req, res) {
     // Prepare system prompt with context
     const systemPrompt = buildSystemPrompt(context);
 
+    // Mock response for development
+    const mockResponse = {
+      response: "Je suis l'assistant culinaire de Smart Pantry Pro. Cette fonctionnalité est en cours de développement. Comment puis-je vous aider avec vos recettes et votre inventaire ?",
+      context: context,
+      mode: mode
+    };
+
     if (stream) {
       // Set up SSE headers
       res.setHeader('Content-Type', 'text/event-stream');
@@ -68,48 +60,19 @@ export default async function handler(req, res) {
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('Content-Encoding', 'none');
 
-      try {
-        // Create streaming response
-        const stream = await openai.chat.completions.create({
-          model: 'gpt-4-turbo-preview',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: message }
-          ],
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 1000
-        });
-
-        // Stream the response
-        for await (const chunk of stream) {
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
-          }
-        }
-
-        res.write('data: [DONE]\n\n');
-        res.end();
-      } catch (streamError) {
-        console.error('Streaming error:', streamError);
-        res.write(`data: ${JSON.stringify({ error: streamError.message })}\n\n`);
-        res.end();
+      // Mock streaming response
+      const words = mockResponse.response.split(' ');
+      for (const word of words) {
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: word + ' ' } }] })}\n\n`);
+        await new Promise(resolve => setTimeout(resolve, 100)); // Simulate typing
       }
+
+      res.write('data: [DONE]\n\n');
+      res.end();
     } else {
       // Non-streaming response
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000
-      });
-
       res.json({ 
-        response: completion.choices[0].message.content 
+        response: mockResponse.response 
       });
     }
 

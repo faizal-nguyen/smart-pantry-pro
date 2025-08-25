@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Port 3002</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+        <h1 class="text-2xl font-bold mb-4">Test API Instagram sur Port 3002</h1>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-2">URL Instagram:</label>
+                <input 
+                    type="text" 
+                    id="urlInput" 
+                    value="https://www.instagram.com/reel/DHbVTRpo7p3/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="
+                    class="w-full p-2 border rounded"
+                >
+            </div>
+            
+            <button 
+                onclick="testAPI()" 
+                class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full"
+            >
+                Tester l'extraction
+            </button>
+            
+            <div id="results" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        console.log('%c🚀 PAGE DE TEST CHARGÉE', 'color: #00ff00; font-size: 20px; font-weight: bold');
+        console.log('Port actuel:', window.location.port);
+        
+        async function testAPI() {
+            const url = document.getElementById('urlInput').value;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            console.log('%c📡 TEST API DÉMARRÉ', 'color: #ff00ff; font-size: 18px; font-weight: bold');
+            
+            // Test 1: Vérifier si l'API existe
+            try {
+                console.log('Test 1: Vérification de /api/parse-video-recipe');
+                const response = await fetch('/api/parse-video-recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        videoUrl: url,
+                        platform: 'instagram'
+                    })
+                });
+                
+                console.log('Réponse status:', response.status);
+                const data = await response.json();
+                console.log('Données reçues:', data);
+                
+                resultsDiv.innerHTML += `
+                    <div class="p-4 bg-green-100 rounded">
+                        <h3 class="font-bold">✅ API parse-video-recipe</h3>
+                        <pre class="text-xs mt-2">${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+                
+                // Vérifier la vignette
+                if (data.success && data.data) {
+                    const hasThumbnail = data.data.metadata?.thumbnail;
+                    console.log('%c🖼️ VIGNETTE:', hasThumbnail ? 'TROUVÉE' : 'ABSENTE', 
+                               'color: ' + (hasThumbnail ? '#00ff00' : '#ff0000') + '; font-size: 16px; font-weight: bold');
+                    
+                    if (hasThumbnail) {
+                        const thumbnailUrl = data.data.metadata.thumbnail.url || data.data.metadata.thumbnail;
+                        resultsDiv.innerHTML += `
+                            <div class="p-4 bg-blue-100 rounded">
+                                <h3 class="font-bold">🖼️ Vignette trouvée!</h3>
+                                <img src="${thumbnailUrl}" class="mt-2 max-w-xs rounded shadow">
+                                <p class="text-xs mt-2 break-all">${thumbnailUrl}</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur API:', error);
+                resultsDiv.innerHTML += `
+                    <div class="p-4 bg-red-100 rounded">
+                        <h3 class="font-bold">❌ Erreur API parse-video-recipe</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+            
+            // Test 2: Tester directement le script Python
+            resultsDiv.innerHTML += `
+                <div class="p-4 bg-yellow-100 rounded">
+                    <h3 class="font-bold">🐍 Pour tester le script Python directement:</h3>
+                    <code class="block bg-white p-2 rounded mt-2 text-xs">
+                        cd "/Users/faizel/Documents/Mes documents/3_Dev/Projets/Smart Grocery/smart-pantry-pro"<br>
+                        python3 api/instagram_metadata.py "${url}"
+                    </code>
+                </div>
+            `;
+        }
+        
+        // Test automatique au chargement
+        window.addEventListener('load', () => {
+            console.log('%c🔍 INFORMATIONS SYSTÈME', 'color: #ffff00; font-size: 16px; font-weight: bold');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('URL complète:', window.location.href);
+            console.log('Protocole:', window.location.protocol);
+            console.log('Host:', window.location.host);
+        });
+    </script>
+</body>
+</html>

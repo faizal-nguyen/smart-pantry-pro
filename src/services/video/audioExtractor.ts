@@ -1,4 +1,5 @@
-import { createClient, DeepgramResponse } from '@deepgram/sdk';
+import { createClient } from '@deepgram/sdk';
+import OpenAI from 'openai';
 
 export interface TranscriptionResult {
   text: string;
@@ -19,17 +20,35 @@ export interface AudioExtractionOptions {
   smart_format?: boolean;
   punctuate?: boolean;
   diarize?: boolean;
+  useWhisper?: boolean; // Forcer l'utilisation de Whisper
 }
 
 export class AudioExtractor {
   private deepgram: any;
+  private openai: OpenAI;
   private readonly MAX_DURATION = 600; // 10 minutes max
+  private readonly SUPPORTED_DEEPGRAM_LANGS = ['en', 'fr', 'hi']; // Langues supportées par Deepgram
 
   constructor() {
-    if (process.env.DEEPGRAM_API_KEY) {
-      this.deepgram = createClient(process.env.DEEPGRAM_API_KEY);
+    // Initialiser Deepgram
+    const deepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY || process.env.DEEPGRAM_API_KEY || process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+    if (deepgramKey) {
+      this.deepgram = createClient(deepgramKey);
+      console.log('✅ [AudioExtractor] Deepgram initialized with API key');
     } else {
-      console.warn('Deepgram API key not found. Audio extraction will use fallback.');
+      console.warn('⚠️ Deepgram API key not found. Will use Whisper for all languages.');
+    }
+
+    // Initialiser OpenAI pour Whisper
+    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    if (openaiKey) {
+      this.openai = new OpenAI({
+        apiKey: openaiKey,
+        dangerouslyAllowBrowser: true // Pour utilisation côté client si nécessaire
+      });
+      console.log('✅ [AudioExtractor] OpenAI initialized with API key');
+    } else {
+      throw new Error('OpenAI API key is required. Please set VITE_OPENAI_API_KEY in your environment.');
     }
   }
 
@@ -38,16 +57,25 @@ export class AudioExtractor {
     options: AudioExtractionOptions = {}
   ): Promise<TranscriptionResult> {
     const startTime = Date.now();
+    const { language = 'auto', useWhisper = false } = options;
 
     try {
-      if (!this.deepgram) {
-        return this.fallbackTranscription();
+      // Décider quelle API utiliser basé sur la langue
+      const shouldUseWhisper = useWhisper || 
+                              language === 'ta' || 
+                              !this.SUPPORTED_DEEPGRAM_LANGS.includes(language) ||
+                              !this.deepgram;
+
+      console.log(`🎙️ [AudioExtractor] Language: ${language}, Using: ${shouldUseWhisper ? 'Whisper' : 'Deepgram'}`);
+
+      if (shouldUseWhisper) {
+        return await this.transcribeWithWhisper(videoUrl, language);
       }
 
-      // Configuration optimisée pour la vitesse (3-5 secondes)
+      // Configuration optimisée pour Deepgram (3-5 secondes)
       const config = {
         model: options.model || 'nova-2', // Modèle le plus rapide
-        language: options.language || 'auto', // Détection automatique
+        language: language === 'auto' ? 'multi' : language, // Support multilingue
         smart_format: options.smart_format !== false,
         punctuate: options.punctuate !== false,
         diarize: options.diarize || false,
@@ -84,7 +112,7 @@ export class AudioExtractor {
     }
   }
 
-  private async transcribeFromUrl(videoUrl: string, config: any): Promise<DeepgramResponse> {
+  private async transcribeFromUrl(videoUrl: string, config: any): Promise<any> {
     console.log('🌊 [AudioExtractor] transcribeFromUrl called');
     console.log('🔗 [AudioExtractor] URL:', videoUrl);
     
@@ -115,7 +143,7 @@ export class AudioExtractor {
     }
   }
 
-  private async extractAudioThenTranscribe(videoUrl: string, config: any): Promise<DeepgramResponse> {
+  private async extractAudioThenTranscribe(videoUrl: string, config: any): Promise<any> {
     console.log('🎧 [AudioExtractor] extractAudioThenTranscribe called');
     
     // Utilise ffmpeg ou service d'extraction audio rapide
@@ -237,6 +265,74 @@ export class AudioExtractor {
       language: 'unknown',
       segments: []
     };
+  }
+
+  // Nouvelle méthode pour Whisper API
+  private async transcribeWithWhisper(videoUrl: string, language: string): Promise<TranscriptionResult> {
+    console.log('🎯 [AudioExtractor] Using Whisper API for transcription');
+    const startTime = Date.now();
+
+    try {
+      // Pour Whisper, nous devons d'abord extraire l'audio
+      // Dans un environnement de production, utiliser un service d'extraction audio
+      // Pour cette démo, nous allons simuler avec une approche directe
+      
+      // Option 1: Si l'URL est directement un fichier audio
+      if (videoUrl.includes('.mp3') || videoUrl.includes('.wav') || videoUrl.includes('.m4a')) {
+        return await this.transcribeAudioUrlWithWhisper(videoUrl, language);
+      }
+
+      // Option 2: Pour les vidéos YouTube, utiliser un service d'extraction
+      // Pour l'instant, retourner un fallback avec indication
+      console.warn('⚠️ [AudioExtractor] Direct video transcription with Whisper requires audio extraction service');
+      
+      return {
+        text: `[Whisper transcription nécessite extraction audio. Langue détectée: ${language}]`,
+        confidence: 0.5,
+        duration: 0,
+        language: language,
+        segments: []
+      };
+
+    } catch (error: any) {
+      console.error('❌ [AudioExtractor] Whisper transcription failed:', error);
+      throw new Error(`Whisper transcription failed: ${error.message}`);
+    }
+  }
+
+  private async transcribeAudioUrlWithWhisper(audioUrl: string, language: string): Promise<TranscriptionResult> {
+    try {
+      // Télécharger l'audio en mémoire
+      const response = await fetch(audioUrl);
+      const audioBlob = await response.blob();
+      
+      // Créer un File object pour l'API OpenAI
+      const audioFile = new File([audioBlob], 'audio.mp3', { type: 'audio/mpeg' });
+
+      // Appeler l'API Whisper
+      const transcription = await this.openai.audio.transcriptions.create({
+        file: audioFile,
+        model: 'whisper-1',
+        language: language === 'ta' ? 'ta' : language, // Code langue pour Whisper
+        response_format: 'json',
+        prompt: 'Cette vidéo contient une recette de cuisine.' // Contexte pour améliorer la précision
+      });
+
+      const processingTime = Date.now() - startTime;
+      console.log(`✅ [AudioExtractor] Whisper transcription completed in ${processingTime}ms`);
+
+      return {
+        text: transcription.text,
+        confidence: 0.9, // Whisper ne fournit pas de score de confiance
+        duration: 0, // Non disponible directement
+        language: language,
+        segments: [] // Whisper ne fournit pas de segments par défaut
+      };
+
+    } catch (error: any) {
+      console.error('❌ [AudioExtractor] Whisper API error:', error);
+      throw error;
+    }
   }
 
   async testConnection(): Promise<boolean> {

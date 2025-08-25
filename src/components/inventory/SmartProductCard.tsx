@@ -4,9 +4,12 @@ import { cn } from '@/lib/utils';
 import { InventoryItem } from '@/hooks/useInventory';
 import { QuantitySelector } from './QuantitySelector';
 import { SwipeableActions } from './SwipeableActions';
-import { Button } from '@/components/ui/button';
+import { MaterialButton } from '@/components/ui/material/Button';
+import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
 import { Edit, ChefHat, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useMaterialYouTheme } from '@/contexts/MaterialYouThemeContext';
+import { standardizeUnit } from '@/utils/units';
 
 interface SmartProductCardProps {
   product: InventoryItem;
@@ -53,21 +56,23 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
   onSubstitute
 }) => {
   const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
+  const { theme } = useMaterialYouTheme();
 
   return (
-    <motion.div
-      className="relative bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow group"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+    <MaterialCard 
+      variant="elevated" 
+      interactive
+      className="relative group cursor-pointer"
+      onClick={() => onEdit(product)}
     >
       {/* Badge Expiration Dynamique */}
       {daysUntilExpiry !== null && daysUntilExpiry <= 3 && (
-        <div className="absolute -top-2 -right-2 z-10">
+        <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 z-10">
           <motion.div
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ repeat: Infinity, duration: 2 }}
             className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white",
+              "w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold text-white",
               daysUntilExpiry <= 1 ? "bg-red-500" : "bg-orange-500"
             )}
           >
@@ -76,78 +81,86 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
         </div>
       )}
 
-      {/* Image avec placeholder intelligent */}
-      <div className="aspect-square rounded-lg bg-gray-100 mb-3 overflow-hidden">
-        {product.product?.image_url ? (
-          <img 
-            src={product.product.image_url} 
-            alt={product.product.name}
-            className="w-full h-full object-cover" 
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">
-            {getEmojiForCategory(product.product?.category)}
-          </div>
+      <MaterialCardContent className="p-3 sm:p-4">
+        {/* Image avec placeholder intelligent */}
+        <div 
+          className="aspect-square rounded-lg bg-muted mb-2 sm:mb-3 overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {product.product?.image_url ? (
+            <img 
+              src={product.product.image_url} 
+              alt={product.product.name}
+              className="w-full h-full object-cover" 
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl bg-muted">
+              {getEmojiForCategory(product.product?.category)}
+            </div>
+          )}
+        </div>
+
+        {/* Informations */}
+        <h3 className="font-medium text-foreground mb-1 truncate text-xs sm:text-sm leading-tight">
+          {product.product?.name || 'Produit'}
+        </h3>
+        
+        {/* Localisation */}
+        {product.location && (
+          <p className="text-xs text-muted-foreground mb-1 sm:mb-2 truncate">{product.location}</p>
         )}
-      </div>
+        
+        {/* Quantité Interactive */}
+        <div className="mb-1 sm:mb-2" onClick={(e) => e.stopPropagation()}>
+          <QuantitySelector
+            value={product.quantity}
+            unit={standardizeUnit(product.unit)}
+            onChange={(val) => onQuantityChange(product.id, val)}
+            quick={true}
+          />
+        </div>
 
-      {/* Informations */}
-      <h3 className="font-medium text-gray-900 mb-1 truncate">
-        {product.product?.name}
-      </h3>
-      
-      {/* Localisation */}
-      {product.location && (
-        <p className="text-xs text-gray-500 mb-2">{product.location}</p>
-      )}
-      
-      {/* Quantité Interactive */}
-      <div className="mb-2">
-        <QuantitySelector
-          value={product.quantity}
-          unit={product.unit || 'unité'}
-          onChange={(val) => onQuantityChange(product.id, val)}
-          quick={true}
-        />
-      </div>
+        {/* Actions Swipe sur Mobile */}
+        <div className="md:hidden">
+          <SwipeableActions
+            onSwipeLeft={() => onMoveToShoppingList(product)}
+            onSwipeRight={() => onConsume(product)}
+            leftAction={{ icon: '🛒', color: 'blue', label: 'Courses' }}
+            rightAction={{ icon: '✅', color: 'green', label: 'Consommé' }}
+          />
+        </div>
 
-      {/* Actions Swipe sur Mobile */}
-      <div className="md:hidden">
-        <SwipeableActions
-          onSwipeLeft={() => onMoveToShoppingList(product)}
-          onSwipeRight={() => onConsume(product)}
-          leftAction={{ icon: '🛒', color: 'blue', label: 'Courses' }}
-          rightAction={{ icon: '✅', color: 'green', label: 'Consommé' }}
-        />
-      </div>
-
-      {/* Quick Actions Desktop */}
-      <div className="hidden md:flex gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
-          onClick={() => onEdit(product)}
-        >
-          <Edit className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
-          onClick={() => onFindRecipes(product)}
-        >
-          <ChefHat className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
-          onClick={() => onSubstitute(product)}
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
-    </motion.div>
+        {/* Quick Actions Desktop */}
+        <div className="hidden md:flex gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <MaterialButton
+            variant="text"
+            className="h-7 w-7 p-0"
+            icon={<Edit className="h-3 w-3" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(product);
+            }}
+          />
+          <MaterialButton
+            variant="text"
+            className="h-7 w-7 p-0"
+            icon={<ChefHat className="h-3 w-3" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onFindRecipes(product);
+            }}
+          />
+          <MaterialButton
+            variant="text"
+            className="h-7 w-7 p-0"
+            icon={<RefreshCw className="h-3 w-3" />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSubstitute(product);
+            }}
+          />
+        </div>
+      </MaterialCardContent>
+    </MaterialCard>
   );
 };

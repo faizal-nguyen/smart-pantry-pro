@@ -1,3 +1,7 @@
+import React from "react";
+import { FoodCard, MaterialCardContent } from "@/components/ui/material/Card";
+import { MaterialButton } from "@/components/ui/material/Button";
+import { useMaterialYouTheme } from "@/contexts/MaterialYouThemeContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +30,16 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
+  const { extractColorFromImage, setThemeContext } = useMaterialYouTheme();
+  
+  // Extract theme colors from product image and set context
+  React.useEffect(() => {
+    if (item.product?.image_url) {
+      extractColorFromImage(item.product.image_url).catch(console.error);
+    }
+    // Set cooking context when viewing inventory
+    setThemeContext('cooking');
+  }, [item.product?.image_url, extractColorFromImage, setThemeContext]);
   const getExpiryStatus = () => {
     if (!item.expiry_date) return 'none';
     
@@ -71,9 +85,30 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
     return colors[category] || 'bg-gray-100 text-gray-800';
   };
 
+  // Determine if item is fresh based on expiry
+  const isItemFresh = () => {
+    if (!item.expiry_date) return true; // No expiry means it's likely fresh
+    const expiryDate = new Date(item.expiry_date);
+    const today = new Date();
+    const warningDate = addDays(today, 3);
+    return isAfter(expiryDate, warningDate);
+  };
+  
+  const isItemExpired = () => {
+    if (!item.expiry_date) return false;
+    const expiryDate = new Date(item.expiry_date);
+    const today = new Date();
+    return isBefore(expiryDate, today);
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
+    <FoodCard 
+      foodImage={item.product?.image_url}
+      fresh={isItemFresh()}
+      expired={isItemExpired()}
+      interactive
+    >
+      <MaterialCardContent>
         <div className="flex gap-3 mb-3">
           {/* Image du produit */}
           {item.product?.image_url && (
@@ -101,9 +136,9 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MaterialButton variant="text" size="sm" className="h-8 w-8 p-0">
                   <MoreVertical className="h-4 w-4" />
-                </Button>
+                </MaterialButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onEdit(item)}>
@@ -149,8 +184,8 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </MaterialCardContent>
+    </FoodCard>
   );
 };
 

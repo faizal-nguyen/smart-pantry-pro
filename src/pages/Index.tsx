@@ -6,7 +6,6 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user is authenticated and redirect to insights dashboard
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -15,7 +14,6 @@ const Index = () => {
         navigate('/auth');
       }
     };
-
     checkAuth();
   }, [navigate]);
 

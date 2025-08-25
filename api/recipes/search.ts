@@ -1,7 +1,12 @@
 // API endpoint pour recherche de recettes optimisée <100ms
 // Utilise PostgreSQL Full Text Search avec cache Redis
 
-import { supabase } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL || '',
+  process.env.VITE_SUPABASE_ANON_KEY || ''
+);
 import { Redis } from '@upstash/redis';
 
 // Configuration Redis (ou fallback mémoire locale)
@@ -65,7 +70,7 @@ export default async function handler(req: any, res: any) {
     
     // 2. Recherche optimisée dans la base
     const results = await searchRecipesOptimized({
-      query,
+      searchQuery: query,
       filters: {
         dietary: dietary ? dietary.split(',') : undefined,
         maxTime: maxTime ? parseInt(maxTime) : undefined,
@@ -104,12 +109,12 @@ export default async function handler(req: any, res: any) {
 }
 
 // Recherche optimisée avec Full Text Search
-async function searchRecipesOptimized({ query, filters }: {
-  query: string;
+async function searchRecipesOptimized({ searchQuery, filters }: {
+  searchQuery: string;
   filters: SearchFilters;
 }): Promise<any[]> {
   // Préparer la requête de recherche pour FTS
-  const searchQuery = prepareSearchQuery(query);
+  const preparedQuery = prepareSearchQuery(searchQuery);
   
   // Construire la requête SQL dynamiquement
   let sqlQuery = `
@@ -182,36 +187,36 @@ async function searchRecipesOptimized({ query, filters }: {
   
   // Exécuter la requête directement avec Supabase
   // Pour l'instant, on utilise une approche simplifiée sans SQL raw
-  let query = supabase
+  let dbQuery = supabase
     .from('recipes')
     .select('*')
-    .textSearch('translated_title', searchQuery);
+    .textSearch('translated_title', preparedQuery);
   
   // Ajouter les filtres
   if (filters.dietary && filters.dietary.length > 0) {
-    query = query.contains('dietary_tags', filters.dietary);
+    dbQuery = dbQuery.contains('dietary_tags', filters.dietary);
   }
   
   if (filters.maxTime) {
-    query = query.lte('total_time', filters.maxTime);
+    dbQuery = dbQuery.lte('total_time', filters.maxTime);
   }
   
   if (filters.spiceLevel) {
-    query = query.lte('spice_level', filters.spiceLevel);
+    dbQuery = dbQuery.lte('spice_level', filters.spiceLevel);
   }
   
   if (filters.mealType) {
-    query = query.or(`meal_type.eq.${filters.mealType},meal_timing.eq.${filters.mealType}`);
+    dbQuery = dbQuery.or(`meal_type.eq.${filters.mealType},meal_timing.eq.${filters.mealType}`);
   }
   
   if (filters.cuisine) {
-    query = query.or(`cuisine_type.ilike.%${filters.cuisine}%,indian_cuisine_type.ilike.%${filters.cuisine}%`);
+    dbQuery = dbQuery.or(`cuisine_type.ilike.%${filters.cuisine}%,indian_cuisine_type.ilike.%${filters.cuisine}%`);
   }
   
   // Limiter et ordonner
-  query = query.limit(20);
+  dbQuery = dbQuery.limit(20);
   
-  const { data, error } = await query;
+  const { data, error } = await dbQuery;
   
   if (error) {
     console.error('Search query error:', error);

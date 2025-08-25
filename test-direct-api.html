@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Direct API Instagram</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Test direct des APIs Instagram</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Test 1: API Python directe -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">1. Test Python Direct</h2>
+                <button onclick="testPythonDirect()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4">
+                    Tester le script Python
+                </button>
+                <div id="python-result" class="space-y-2"></div>
+            </div>
+            
+            <!-- Test 2: API Thumbnail -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">2. Test API /api/social/instagram-thumbnail</h2>
+                <button onclick="testThumbnailAPI()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 mb-4">
+                    Tester l'API Thumbnail
+                </button>
+                <div id="thumbnail-result" class="space-y-2"></div>
+            </div>
+            
+            <!-- Test 3: API Parse Video -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">3. Test API /api/parse-video-recipe</h2>
+                <button onclick="testParseVideoAPI()" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 mb-4">
+                    Tester l'API Parse Video
+                </button>
+                <div id="parse-result" class="space-y-2"></div>
+            </div>
+            
+            <!-- Test 4: Vérification visuelle -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold mb-4">4. Vérification visuelle</h2>
+                <input type="text" id="image-url" placeholder="Coller l'URL de l'image ici" class="w-full p-2 border rounded mb-2">
+                <button onclick="testImage()" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 mb-4">
+                    Tester l'image
+                </button>
+                <div id="image-result"></div>
+            </div>
+        </div>
+        
+        <!-- Logs détaillés -->
+        <div class="mt-8 bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Logs détaillés</h2>
+            <div id="logs" class="bg-gray-100 p-4 rounded font-mono text-sm space-y-1 max-h-96 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        const testUrl = 'https://www.instagram.com/reel/DHbVTRpo7p3/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==';
+        
+        function log(message, data = null) {
+            const logsDiv = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            let html = `<div><span class="text-gray-500">[${time}]</span> ${message}</div>`;
+            
+            if (data) {
+                html += `<pre class="ml-8 text-xs bg-white p-2 rounded mt-1">${JSON.stringify(data, null, 2)}</pre>`;
+            }
+            
+            logsDiv.innerHTML += html;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        async function testPythonDirect() {
+            const resultDiv = document.getElementById('python-result');
+            resultDiv.innerHTML = '<div class="text-gray-500">Exécution du script Python...</div>';
+            
+            log('🐍 Test direct du script Python');
+            log('URL:', testUrl);
+            
+            // Simuler l'exécution du script Python
+            resultDiv.innerHTML = `
+                <div class="text-green-600">✅ Pour tester directement:</div>
+                <code class="block bg-gray-100 p-2 rounded text-xs mt-2">
+                    cd "/Users/faizel/Documents/Mes documents/3_Dev/Projets/Smart Grocery/smart-pantry-pro"<br>
+                    python3 api/instagram_metadata.py "${testUrl}"
+                </code>
+            `;
+        }
+
+        async function testThumbnailAPI() {
+            const resultDiv = document.getElementById('thumbnail-result');
+            resultDiv.innerHTML = '<div class="text-gray-500">Appel de l\'API...</div>';
+            
+            log('📡 Test API /api/social/instagram-thumbnail');
+            
+            try {
+                const response = await fetch('/api/social/instagram-thumbnail', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: testUrl })
+                });
+                
+                const data = await response.json();
+                log('Réponse API Thumbnail:', data);
+                
+                if (data.success && data.thumbnail_url) {
+                    resultDiv.innerHTML = `
+                        <div class="text-green-600">✅ Vignette trouvée!</div>
+                        <div class="text-xs break-all mt-2">${data.thumbnail_url}</div>
+                        <img src="${data.thumbnail_url}" class="mt-2 rounded shadow" style="max-width: 200px;">
+                    `;
+                    
+                    // Copier l'URL dans le champ de test d'image
+                    document.getElementById('image-url').value = data.thumbnail_url;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="text-red-600">❌ Erreur: ${data.error || 'Pas de vignette'}</div>
+                    `;
+                }
+            } catch (error) {
+                log('❌ Erreur API Thumbnail:', error.message);
+                resultDiv.innerHTML = `<div class="text-red-600">❌ Erreur: ${error.message}</div>`;
+            }
+        }
+
+        async function testParseVideoAPI() {
+            const resultDiv = document.getElementById('parse-result');
+            resultDiv.innerHTML = '<div class="text-gray-500">Appel de l\'API...</div>';
+            
+            log('📡 Test API /api/parse-video-recipe');
+            
+            try {
+                const response = await fetch('/api/parse-video-recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        videoUrl: testUrl,
+                        platform: 'instagram'
+                    })
+                });
+                
+                const data = await response.json();
+                log('Réponse API Parse Video:', data);
+                
+                if (data.success && data.data) {
+                    const recipe = data.data;
+                    const hasThumbnail = recipe.metadata?.thumbnail?.url || recipe.metadata?.thumbnail;
+                    
+                    resultDiv.innerHTML = `
+                        <div class="text-green-600">✅ Recette extraite</div>
+                        <div class="text-sm mt-2">
+                            <div>Titre: ${recipe.title}</div>
+                            <div>Vignette: ${hasThumbnail ? '✅ Présente' : '❌ Absente'}</div>
+                        </div>
+                    `;
+                    
+                    if (hasThumbnail) {
+                        const thumbnailUrl = recipe.metadata.thumbnail.url || recipe.metadata.thumbnail;
+                        resultDiv.innerHTML += `
+                            <img src="${thumbnailUrl}" class="mt-2 rounded shadow" style="max-width: 200px;">
+                        `;
+                    }
+                    
+                    // Log la structure complète des métadonnées
+                    log('Structure metadata:', recipe.metadata);
+                    log('Structure metadata.thumbnail:', recipe.metadata?.thumbnail);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="text-red-600">❌ Erreur: ${data.error || data.message || 'Échec'}</div>
+                    `;
+                }
+            } catch (error) {
+                log('❌ Erreur API Parse Video:', error.message);
+                resultDiv.innerHTML = `<div class="text-red-600">❌ Erreur: ${error.message}</div>`;
+            }
+        }
+
+        function testImage() {
+            const imageUrl = document.getElementById('image-url').value;
+            const resultDiv = document.getElementById('image-result');
+            
+            if (!imageUrl) {
+                resultDiv.innerHTML = '<div class="text-red-600">Entrez une URL d\'image</div>';
+                return;
+            }
+            
+            log('🖼️ Test de chargement d\'image:', imageUrl);
+            
+            resultDiv.innerHTML = `
+                <div class="text-gray-500">Chargement...</div>
+                <img src="${imageUrl}" 
+                     onload="this.previousElementSibling.innerHTML='<div class=\\'text-green-600\\'>✅ Image chargée avec succès</div>'"
+                     onerror="this.previousElementSibling.innerHTML='<div class=\\'text-red-600\\'>❌ Erreur de chargement</div>'; console.error('Erreur image:', this.src)"
+                     class="mt-2 rounded shadow max-w-full">
+            `;
+        }
+        
+        // Log initial
+        log('🚀 Page de test chargée');
+        log('URL de test:', testUrl);
+    </script>
+</body>
+</html>

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Direct Instagram Thumbnail</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+            🔍 Test Direct Instagram Thumbnail
+        </h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Test API Port 3003 -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-yellow-400">📡 Test API Port 3003</h2>
+                <button onclick="testPort3003()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-2 px-4 rounded">
+                    Tester l'API directement
+                </button>
+                <div id="port3003-result" class="mt-4 text-sm font-mono"></div>
+            </div>
+            
+            <!-- Test via Proxy Vite -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-blue-400">🔄 Test via Proxy Vite</h2>
+                <button onclick="testViteProxy()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                    Tester via le proxy
+                </button>
+                <div id="vite-proxy-result" class="mt-4 text-sm font-mono"></div>
+            </div>
+            
+            <!-- Test Python Script -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-green-400">🐍 Test Script Python</h2>
+                <button onclick="testPythonScript()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">
+                    Tester le script Python
+                </button>
+                <div id="python-result" class="mt-4 text-sm font-mono"></div>
+            </div>
+            
+            <!-- Test Complete Flow -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-pink-400">🎬 Test Flux Complet</h2>
+                <button onclick="testCompleteFlow()" class="w-full bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white font-bold py-2 px-4 rounded">
+                    Tester tout le processus
+                </button>
+                <div id="complete-flow-result" class="mt-4 text-sm font-mono"></div>
+            </div>
+        </div>
+        
+        <!-- URL Input -->
+        <div class="mt-8 bg-gray-800 rounded-lg p-6 border border-gray-700">
+            <label class="block text-sm font-medium mb-2">URL Instagram de test:</label>
+            <input 
+                type="text" 
+                id="instagram-url" 
+                value="https://www.instagram.com/reel/DHbVTRpo7p3/"
+                class="w-full p-3 bg-gray-700 rounded border border-gray-600 text-white"
+            />
+        </div>
+        
+        <!-- Console -->
+        <div class="mt-8 bg-black rounded-lg p-6 border border-gray-700">
+            <h3 class="text-lg font-bold mb-2 text-green-400">📟 Console de Debug</h3>
+            <div id="console-output" class="font-mono text-xs space-y-1 max-h-96 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const consoleDiv = document.getElementById('console-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                info: 'text-gray-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400',
+                highlight: 'text-pink-400'
+            }[type] || 'text-gray-400';
+            
+            consoleDiv.innerHTML += `<div class="${color}">[${timestamp}] ${message}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}]`, message);
+        };
+
+        const getInstagramUrl = () => document.getElementById('instagram-url').value;
+
+        // Test direct sur port 3003
+        async function testPort3003() {
+            const resultDiv = document.getElementById('port3003-result');
+            resultDiv.innerHTML = '<div class="text-yellow-400">⏳ Test en cours...</div>';
+            
+            try {
+                log('🚀 Test direct sur port 3003', 'info');
+                
+                const response = await fetch('http://localhost:3003/api/social/instagram-thumbnail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: getInstagramUrl() })
+                });
+                
+                const data = await response.json();
+                log(`✅ Réponse reçue: ${JSON.stringify(data)}`, 'success');
+                
+                resultDiv.innerHTML = `
+                    <div class="text-green-400">✅ Succès!</div>
+                    <div class="mt-2 text-xs">
+                        ${data.thumbnail_base64 ? 
+                            `<img src="${data.thumbnail_base64}" class="w-32 h-32 object-cover rounded mt-2" />` : 
+                            data.thumbnail_url ?
+                            `<img src="/api/proxy/image?url=${encodeURIComponent(data.thumbnail_url)}" class="w-32 h-32 object-cover rounded mt-2" />` :
+                            '<span class="text-red-400">Pas de vignette</span>'}
+                    </div>
+                    <div class="mt-2 text-xs text-gray-400">
+                        URL directe: ${data.thumbnail_url ? '✅ Disponible' : '❌ Non disponible'}
+                    </div>
+                `;
+            } catch (error) {
+                log(`❌ Erreur: ${error.message}`, 'error');
+                resultDiv.innerHTML = `<div class="text-red-400">❌ ${error.message}</div>`;
+            }
+        }
+
+        // Test via proxy Vite
+        async function testViteProxy() {
+            const resultDiv = document.getElementById('vite-proxy-result');
+            resultDiv.innerHTML = '<div class="text-blue-400">⏳ Test en cours...</div>';
+            
+            try {
+                log('🔄 Test via proxy Vite', 'info');
+                
+                const response = await fetch('/api/social/instagram-thumbnail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: getInstagramUrl() })
+                });
+                
+                const data = await response.json();
+                log(`✅ Réponse proxy: ${JSON.stringify(data)}`, 'success');
+                
+                resultDiv.innerHTML = `
+                    <div class="text-green-400">✅ Proxy OK!</div>
+                    <div class="mt-2 text-xs">
+                        ${data.thumbnail_base64 ? 
+                            `<img src="${data.thumbnail_base64}" class="w-32 h-32 object-cover rounded mt-2" />` : 
+                            data.thumbnail_url ?
+                            `<img src="/api/proxy/image?url=${encodeURIComponent(data.thumbnail_url)}" class="w-32 h-32 object-cover rounded mt-2" />` :
+                            '<span class="text-red-400">Pas de vignette</span>'}
+                    </div>
+                    <div class="mt-2 text-xs text-gray-400">
+                        Base64: ${data.thumbnail_base64 ? '✅ Disponible' : '❌ Non disponible'}
+                    </div>
+                `;
+            } catch (error) {
+                log(`❌ Erreur proxy: ${error.message}`, 'error');
+                resultDiv.innerHTML = `<div class="text-red-400">❌ ${error.message}</div>`;
+            }
+        }
+
+        // Test script Python
+        async function testPythonScript() {
+            const resultDiv = document.getElementById('python-result');
+            resultDiv.innerHTML = '<div class="text-green-400">⏳ Test Python...</div>';
+            
+            log('🐍 Pour tester le script Python directement:', 'highlight');
+            log(`cd "/Users/faizel/Documents/Mes documents/3_Dev/Projets/Smart Grocery/smart-pantry-pro"`, 'warning');
+            log(`python3 api/instagram_metadata.py "${getInstagramUrl()}"`, 'warning');
+            
+            resultDiv.innerHTML = `
+                <div class="text-yellow-400">⚠️ Voir console</div>
+                <div class="text-xs mt-2">Exécutez les commandes dans le terminal</div>
+            `;
+        }
+
+        // Test flux complet
+        async function testCompleteFlow() {
+            const resultDiv = document.getElementById('complete-flow-result');
+            resultDiv.innerHTML = '<div class="text-pink-400">⏳ Test complet...</div>';
+            
+            try {
+                log('🎬 Test du flux complet', 'highlight');
+                
+                // 1. Test health check
+                log('1️⃣ Test health check...', 'info');
+                const healthResponse = await fetch('/api/health');
+                const healthData = await healthResponse.json();
+                log(`Health: ${JSON.stringify(healthData)}`, healthData.status === 'alive' ? 'success' : 'error');
+                
+                // 2. Test parse-video-recipe
+                log('2️⃣ Test parse-video-recipe...', 'info');
+                const parseResponse = await fetch('/api/parse-video-recipe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        videoUrl: getInstagramUrl(),
+                        platform: 'instagram'
+                    })
+                });
+                
+                const parseData = await parseResponse.json();
+                log(`Parse response: ${parseData.success ? 'SUCCESS' : 'FAILED'}`, parseData.success ? 'success' : 'error');
+                
+                if (parseData.success && parseData.data?.metadata?.thumbnail) {
+                    log(`🖼️ Vignette dans metadata: ${parseData.data.metadata.thumbnail.url || parseData.data.metadata.thumbnail}`, 'highlight');
+                } else {
+                    log('❌ Pas de vignette dans les métadonnées', 'error');
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="${parseData.success ? 'text-green-400' : 'text-red-400'}">
+                        ${parseData.success ? '✅ Flux complet OK!' : '❌ Échec du flux'}
+                    </div>
+                    ${parseData.data?.metadata?.thumbnail ? 
+                        `<img src="${parseData.data.metadata.thumbnail.base64 || parseData.data.metadata.thumbnail}" class="w-32 h-32 object-cover rounded mt-2" />` : 
+                        ''}
+                    <div class="mt-2 text-xs text-gray-400">
+                        Thumbnail trouvé: ${parseData.data?.metadata?.thumbnail ? '✅ Oui' : '❌ Non'}
+                    </div>
+                `;
+                
+            } catch (error) {
+                log(`❌ Erreur flux complet: ${error.message}`, 'error');
+                resultDiv.innerHTML = `<div class="text-red-400">❌ ${error.message}</div>`;
+            }
+        }
+
+        // Auto-log au chargement
+        window.addEventListener('load', () => {
+            log('🎯 Page de test chargée!', 'highlight');
+            log(`📍 Port actuel: ${window.location.port}`, 'info');
+            log('💡 Cliquez sur les boutons pour tester chaque partie', 'warning');
+        });
+    </script>
+</body>
+</html>

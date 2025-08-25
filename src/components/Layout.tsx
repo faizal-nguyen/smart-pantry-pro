@@ -1,15 +1,22 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot, BarChart3, Settings, Home } from "lucide-react";
+import { MaterialButton } from "@/components/ui/material/Button";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from '@supabase/supabase-js';
 import { usePersonalization } from "@/hooks/usePersonalization";
 import { InteractiveTutorial } from "@/components/onboarding";
 import TutorialTrigger from "@/components/onboarding/TutorialTrigger";
+import { useHybridGrid, usePlatformAdaptiveTouch } from "@/hooks/useHybridGrid";
+import { useResponsiveZones, useBreakpoints } from "@/hooks/useResponsiveZones";
+import { cn } from "@/lib/utils";
 import Inventory from "@/pages/Inventory";
 import Recipes from "@/pages/Recipes";
 import ShoppingList from "@/pages/ShoppingList";
 import RecipeAssistant from "@/pages/RecipeAssistant";
+
+// Import enhanced layout styles
+import "@/styles/enhanced-layout.css";
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -22,6 +29,17 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasCompletedOnboarding, isLoading: personalizationLoading } = usePersonalization();
+  
+  // Enhanced layout hooks
+  const { grid, isReady: gridReady } = useHybridGrid({
+    mode: location.pathname.includes('/shopping') ? 'shopping' : 
+          location.pathname.includes('/recipes') ? 'cooking' : 'browsing',
+    density: 'medium',
+    performanceMode: 'balanced',
+  });
+  const { zones } = useResponsiveZones();
+  const { isMobile, isTablet, isDesktop } = useBreakpoints();
+  const touchZones = usePlatformAdaptiveTouch();
   
   // Determine active tab based on current route
   const getActiveTab = () => {
@@ -107,9 +125,9 @@ const Layout = ({ children }: LayoutProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="flex items-center justify-between p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b bg-card safe-area-inset-top">
+        <div className="flex items-center justify-between px-4 py-3">
           <h1 
             className="text-xl font-bold text-primary cursor-pointer flex items-center gap-2" 
             onClick={() => navigate('/insights')}
@@ -118,94 +136,111 @@ const Layout = ({ children }: LayoutProps) => {
             Smart Pantry Pro
           </h1>
           <div className="flex items-center gap-2">
-            <button 
+            <MaterialButton
+              variant="text"
+              size="sm"
+              icon={<Settings className="w-4 h-4" />}
               onClick={() => navigate('/settings')}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-transparent hover:bg-muted rounded-md transition-colors"
             >
-              <Settings className="w-4 h-4" />
-              Paramètres
-            </button>
-            <button 
+              <span className="hidden sm:inline">Paramètres</span>
+            </MaterialButton>
+            <MaterialButton
+              variant="text"
+              size="sm"
+              icon={<LogOut className="w-4 h-4" />}
               onClick={handleSignOut}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-transparent hover:bg-muted rounded-md transition-colors"
             >
-              <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Déconnexion</span>
-            </button>
+            </MaterialButton>
           </div>
         </div>
       </header>
 
-      <main className="pb-20">
-        {children}
+      <main className="flex-1 pb-20">
+        <div className="w-full">
+          {children}
+        </div>
       </main>
 
-      {/* Simple navigation bar */}
-      <nav className="fixed bottom-0 left-0 right-0 h-16 bg-card/80 backdrop-blur-md border-t shadow-lg">
-        <div className="grid grid-cols-5 h-full">
-          <button
+      {/* Enhanced Material You navigation bar */}
+      <nav className={cn(
+        "fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t shadow-lg safe-area-inset-bottom",
+        isMobile && "mobile-navigation-zone",
+        isTablet && "tablet-navigation-zone",
+        isDesktop && "desktop-navigation-zone"
+      )} style={{ height: zones.navigation.height }}>        
+        <div className={cn(
+          "h-full",
+          "grid grid-cols-5"
+        )}>
+          <MaterialButton
+            variant={location.pathname === '/inventory' ? 'tonal' : 'text'}
+            size="sm"
             onClick={() => navigate('/inventory')}
             data-tutorial="add-product-button"
-            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              location.pathname === '/inventory' 
-                ? 'text-primary bg-primary/10' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg transition-all touch-zone-minimum",
+              "flex-col text-xs h-full"
+            )}
           >
             <Package className="w-5 h-5" />
-            Inventaire
-          </button>
+            <span className="text-xs">Inventaire</span>
+          </MaterialButton>
           
-          <button
+          <MaterialButton
+            variant={location.pathname === '/recipes' ? 'tonal' : 'text'}
+            size="sm"
             onClick={() => navigate('/recipes')}
             data-tutorial="recipe-suggestions"
-            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              location.pathname === '/recipes' 
-                ? 'text-primary bg-primary/10' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg transition-all touch-zone-minimum",
+              "flex-col text-xs h-full"
+            )}
           >
             <ChefHat className="w-5 h-5" />
-            Recettes
-          </button>
+            <span className="text-xs">Recettes</span>
+          </MaterialButton>
           
-          <button
+          <MaterialButton
+            variant={location.pathname === '/shopping' ? 'tonal' : 'text'}
+            size="sm"
             onClick={() => navigate('/shopping')}
             data-tutorial="shopping-list"
-            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              location.pathname === '/shopping' 
-                ? 'text-primary bg-primary/10' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg transition-all touch-zone-minimum",
+              "flex-col text-xs h-full"
+            )}
           >
             <ShoppingCart className="w-5 h-5" />
-            Courses
-          </button>
+            <span className="text-xs">Courses</span>
+          </MaterialButton>
           
-          <button
+          <MaterialButton
+            variant={location.pathname === '/insights' ? 'tonal' : 'text'}
+            size="sm"
             onClick={() => navigate('/insights')}
-            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              location.pathname === '/insights' 
-                ? 'text-primary bg-primary/10' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg transition-all touch-zone-minimum",
+              "flex-col text-xs h-full"
+            )}
           >
             <BarChart3 className="w-5 h-5" />
-            Insights
-          </button>
+            <span className="text-xs">Insights</span>
+          </MaterialButton>
           
-          <button
+          <MaterialButton
+            variant={location.pathname === '/assistant' ? 'tonal' : 'text'}
+            size="sm"
             onClick={() => navigate('/assistant')}
             data-tutorial="ai-assistant"
-            className={`flex flex-col items-center justify-center gap-1 text-xs transition-colors ${
-              location.pathname === '/assistant' 
-                ? 'text-primary bg-primary/10' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={cn(
+              "flex items-center justify-center gap-1 rounded-lg transition-all touch-zone-minimum",
+              "flex-col text-xs h-full"
+            )}
           >
             <Bot className="w-5 h-5" />
-            Assistant
-          </button>
+            <span className="text-xs">Assistant</span>
+          </MaterialButton>
         </div>
       </nav>
 

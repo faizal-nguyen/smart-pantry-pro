@@ -346,7 +346,13 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
         setServings(recipe.servings.toString());
         setDifficulty(recipe.difficulty || 2);
         setInstructions(recipe.instructions);
-        setImageUrl(recipe.image_url || "");
+        
+        // Utiliser la thumbnail Instagram si disponible, sinon l'image de la recette
+        if (recipe.metadata?.thumbnail?.url) {
+          setImageUrl(recipe.metadata.thumbnail.url);
+        } else {
+          setImageUrl(recipe.image_url || "");
+        }
         
         // Mapper les ingrédients
         const mappedIngredients = recipe.ingredients.map(ing => ({

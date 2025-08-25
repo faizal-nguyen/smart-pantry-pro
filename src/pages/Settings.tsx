@@ -129,6 +129,28 @@ const SettingsPage = () => {
 
             <Separator />
 
+            {/* Material You Demo */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Palette className="w-5 h-5 text-primary" />
+                <div>
+                  <Label>Material You Demo</Label>
+                  <p className="text-sm text-muted-foreground">Testez le nouveau système de thème dynamique</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/demo/material-you')}
+                className="gap-2"
+              >
+                <Palette className="w-4 h-4" />
+                Découvrir
+              </Button>
+            </div>
+
+            <Separator />
+
             {/* Language (future feature) */}
             <div className="flex items-center justify-between opacity-50">
               <div className="flex items-center gap-3">

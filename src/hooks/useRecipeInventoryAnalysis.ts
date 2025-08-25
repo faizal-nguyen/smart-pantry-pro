@@ -874,16 +874,22 @@ const getEstimatedPrice = async (ingredient: RecipeIngredient): Promise<number> 
   
   // Calculer le prix en fonction de la quantité et de l'unité
   const quantity = ingredient.quantity || 1;
-  const unit = (ingredient.unit || 'g').toLowerCase();
+  const unit = (ingredient.unit || 'g').toLowerCase().trim();
   
-  // Debug log pour les feuilles de curry
-  if (ingredientName.includes('curry') && ingredientName.includes('feuille')) {
-    console.log(`🍃 Calcul prix feuilles de curry:`, {
+  // Debug log pour eau et huile
+  if (ingredientName.includes('eau') || ingredientName.includes('huile') || 
+      ingredientName.includes('water') || ingredientName.includes('oil')) {
+    console.log(`💧 Calcul prix ${ingredientName}:`, {
       ingredient: ingredientName,
       quantity,
-      unit,
+      unit: unit,
+      unitOriginal: ingredient.unit,
       basePrice,
-      unitLowerCase: unit
+      unitIncludes: {
+        ml: unit.includes('ml'),
+        litre: unit.includes('litre'),
+        l: unit.includes('l')
+      }
     });
   }
   
@@ -1006,6 +1012,12 @@ const getEstimatedPrice = async (ingredient: RecipeIngredient): Promise<number> 
       finalPrice = basePrice * (quantity * 0.01);
       console.log(`⚠️ Unité non reconnue "${unit}" pour "${ingredientName}", estimation du prix`);
     }
+  }
+  
+  // Log final pour eau et huile
+  if (ingredientName.includes('eau') || ingredientName.includes('huile') || 
+      ingredientName.includes('water') || ingredientName.includes('oil')) {
+    console.log(`💰 Prix final calculé pour ${ingredientName}: ${finalPrice}€ (avant arrondi)`);
   }
   
   // Arrondir à 2 décimales

@@ -1,0 +1,402 @@
+/**
+ * Enhanced Layout System CSS
+ * Implements Hybrid Golden-8px Grid with CSS Custom Properties
+ * Based on PRP-022-Layout-Optimization specification
+ */
+
+/* Root CSS Custom Properties */
+:root {
+  /* Golden Ratio Constant */
+  --golden-ratio: 1.618033988749;
+  
+  /* Base Grid System */
+  --spacing-unit: 8px;
+  --spacing-xxs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-xxxl: 64px;
+  
+  /* Golden Proportions (will be dynamically updated) */
+  --golden-primary-section: 61.8vh;
+  --golden-secondary-section: 38.2vh;
+  --golden-major-third: 38.2vh;
+  
+  /* Touch Targets */
+  --touch-minimum: 44px;
+  --touch-comfortable: 71px;
+  --touch-generous: 115px;
+  
+  /* Container Widths */
+  --container-primary: 800px;
+  --container-secondary: 495px;
+  --container-full: 1200px;
+  --container-wide: 1020px;
+  --container-narrow: 741px;
+  
+  /* Breakpoints */
+  --bp-fibonacci-mobile: 377px;
+  --bp-fibonacci-tablet: 610px;
+  --bp-fibonacci-desktop: 987px;
+  --bp-fibonacci-wide: 1597px;
+  
+  /* Motion and Performance */
+  --animation-duration-fast: 0.15s;
+  --animation-duration-normal: 0.3s;
+  --animation-duration-slow: 0.6s;
+  --animation-easing-standard: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --animation-easing-emphasized: cubic-bezier(0.2, 0.0, 0.0, 1.0);
+}
+
+/* Hybrid Grid Layout Classes */
+.hybrid-grid-container {
+  display: grid;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  max-width: var(--container-full);
+  margin: 0 auto;
+}
+
+.hybrid-grid-12 {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+.hybrid-grid-golden {
+  grid-template-columns: 1fr var(--golden-ratio)fr;
+}
+
+.hybrid-grid-golden-reverse {
+  grid-template-columns: var(--golden-ratio)fr 1fr;
+}
+
+/* Responsive Zone Classes */
+.mobile-hero-zone {
+  min-height: var(--golden-primary-section);
+  padding: var(--spacing-lg) var(--spacing-md);
+}
+
+.tablet-hero-zone {
+  min-height: 50vh;
+  padding: var(--spacing-xl) var(--spacing-lg);
+}
+
+.desktop-hero-zone {
+  min-height: 60vh;
+  padding: var(--spacing-xxl) var(--spacing-xl);
+}
+
+.mobile-navigation-zone {
+  height: var(--touch-minimum);
+  padding: var(--spacing-xs);
+}
+
+.tablet-navigation-zone {
+  height: var(--touch-comfortable);
+  padding: var(--spacing-sm);
+}
+
+.desktop-navigation-zone {
+  height: var(--touch-comfortable);
+  padding: var(--spacing-md);
+}
+
+/* Adaptive Hero Viewport Styles */
+.adaptive-hero-viewport {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.adaptive-hero--low {
+  --hero-content-density: 0.7;
+}
+
+.adaptive-hero--medium {
+  --hero-content-density: 1.0;
+}
+
+.adaptive-hero--high {
+  --hero-content-density: 1.3;
+}
+
+.adaptive-hero--cooking {
+  --hero-context-adjustment: 0.9;
+}
+
+.adaptive-hero--shopping {
+  --hero-context-adjustment: 1.0;
+}
+
+.adaptive-hero--browsing {
+  --hero-context-adjustment: 1.1;
+}
+
+.hero-background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.hero-content-layer {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: var(--spacing-lg);
+}
+
+.hero-title-container {
+  margin-bottom: var(--spacing-lg);
+}
+
+.hero-stats {
+  margin-top: var(--spacing-lg);
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border-radius: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Touch Zone Enhancements */
+.touch-zone-minimum {
+  min-height: var(--touch-minimum);
+  min-width: var(--touch-minimum);
+}
+
+.touch-zone-comfortable {
+  min-height: var(--touch-comfortable);
+  min-width: var(--touch-comfortable);
+}
+
+.touch-zone-generous {
+  min-height: var(--touch-generous);
+  min-width: var(--touch-generous);
+}
+
+/* Context-Aware Touch Zones */
+.touch-zone-cooking {
+  min-height: calc(var(--touch-comfortable) * 1.1);
+  min-width: calc(var(--touch-comfortable) * 1.1);
+}
+
+.touch-zone-shopping {
+  min-height: var(--touch-minimum);
+  min-width: var(--touch-minimum);
+}
+
+.touch-zone-browsing {
+  min-height: calc(var(--touch-minimum) * 0.9);
+  min-width: calc(var(--touch-minimum) * 0.9);
+}
+
+/* Performance-First Animations */
+@media (prefers-reduced-motion: reduce) {
+  .adaptive-hero-viewport,
+  .hero-title-container,
+  .hero-stats,
+  .stat-card {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  .hero-background {
+    transform: none !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .stat-card {
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid white;
+  }
+  
+  .hero-overlay {
+    display: none;
+  }
+}
+
+/* Platform-specific safe areas */
+@supports (padding: max(0px)) {
+  .safe-area-inset-bottom {
+    padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
+  }
+  
+  .safe-area-inset-top {
+    padding-top: max(var(--spacing-md), env(safe-area-inset-top));
+  }
+}
+
+/* Responsive Container Classes */
+.container-primary {
+  max-width: var(--container-primary);
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+.container-secondary {
+  max-width: var(--container-secondary);
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+.container-full {
+  max-width: var(--container-full);
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+.container-narrow {
+  max-width: var(--container-narrow);
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+/* Golden Ratio Layout Utilities */
+.golden-section-primary {
+  flex: 1.618;
+}
+
+.golden-section-secondary {
+  flex: 1;
+}
+
+.golden-height-primary {
+  height: var(--golden-primary-section);
+}
+
+.golden-height-secondary {
+  height: var(--golden-secondary-section);
+}
+
+/* Enhanced Grid Classes */
+.grid-golden-2 {
+  display: grid;
+  grid-template-columns: 1fr calc(1fr * var(--golden-ratio));
+  gap: var(--spacing-md);
+}
+
+.grid-golden-2-reverse {
+  display: grid;
+  grid-template-columns: calc(1fr * var(--golden-ratio)) 1fr;
+  gap: var(--spacing-md);
+}
+
+.grid-golden-3 {
+  display: grid;
+  grid-template-columns: 1fr calc(1fr * var(--golden-ratio)) 1fr;
+  gap: var(--spacing-md);
+}
+
+/* Morphing Navigation Styles */
+.morphing-nav {
+  transition: all var(--animation-duration-normal) var(--animation-easing-standard);
+}
+
+.morphing-nav[data-nav-state="cooking"] {
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.1), rgba(220, 38, 38, 0.1));
+}
+
+.morphing-nav[data-nav-state="shopping"] {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1));
+}
+
+.morphing-nav[data-nav-state="minimal"] {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+}
+
+/* Layout-specific responsive behavior */
+@media (max-width: 767px) {
+  .hybrid-grid-container {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+  
+  .mobile-hero-zone {
+    min-height: 61.8vh;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .hybrid-grid-container {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+  
+  .tablet-hero-zone {
+    min-height: 50vh;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hybrid-grid-container {
+    padding: var(--spacing-xl);
+    gap: var(--spacing-xl);
+  }
+  
+  .desktop-hero-zone {
+    min-height: 60vh;
+  }
+}
+
+/* Fibonacci breakpoint fine-tuning */
+@media (min-width: 377px) {
+  .fibonacci-mobile-enhancement {
+    padding: calc(var(--spacing-md) * 1.1);
+  }
+}
+
+@media (min-width: 610px) {
+  .fibonacci-tablet-enhancement {
+    padding: calc(var(--spacing-lg) * 1.1);
+  }
+}
+
+@media (min-width: 987px) {
+  .fibonacci-desktop-enhancement {
+    padding: calc(var(--spacing-xl) * 1.1);
+  }
+}
+
+/* Performance optimizations */
+.hero-background,
+.hero-content-layer,
+.morphing-nav {
+  will-change: transform, opacity;
+}
+
+/* GPU acceleration for smooth animations */
+.adaptive-hero-viewport,
+.morphing-nav,
+.stat-card {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Ensure smooth scrolling performance */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

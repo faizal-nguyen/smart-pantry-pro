@@ -39,6 +39,8 @@ interface ExtractedRecipe {
     processingTime?: number;
     platform: string;
     extractionMethod: string;
+    thumbnail?: string | { url: string; width?: number; height?: number; };
+    thumbnail_base64?: string;
   };
   processingTime?: string;
 }
@@ -97,9 +99,11 @@ export const ExtractedRecipeModal: React.FC<ExtractedRecipeModalProps> = ({
         difficulty: 3,
         tags: [],
         is_public: false,
+        image_url: recipe.metadata?.thumbnail?.url || recipe.metadata?.thumbnail_base64 || null,
+        source_url: sourceUrl || null,
         ingredients: recipe.ingredients.map((ing, index) => ({
           ingredient_name: ing.name,
-          quantity: parseFloat(ing.amount) || 1,
+          quantity: ing.amount && !isNaN(parseFloat(ing.amount)) ? parseFloat(ing.amount) : 1,
           unit: ing.unit || '',
           order_index: index,
           is_essential: true
@@ -150,6 +154,26 @@ export const ExtractedRecipeModal: React.FC<ExtractedRecipeModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Image de la recette */}
+          {(recipe.metadata.thumbnail_base64 || recipe.metadata.thumbnail) && (
+            <div className="flex justify-center">
+              <img 
+                src={
+                  recipe.metadata.thumbnail_base64 || 
+                  (typeof recipe.metadata.thumbnail === 'string' ? recipe.metadata.thumbnail : recipe.metadata.thumbnail?.url) ||
+                  ''
+                }
+                alt={recipe.title}
+                className="max-w-xs max-h-48 object-cover rounded-lg shadow-md"
+                onError={(e) => {
+                  console.error('❌ Erreur chargement image dans modale:', e.currentTarget.src);
+                  // Cacher l'image si elle ne charge pas
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+
           {/* Métadonnées d'extraction */}
           <Card className="bg-muted/50">
             <CardContent className="pt-4">

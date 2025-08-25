@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Camera, Mic, FileText, Receipt } from 'lucide-react';
+import { MaterialButton } from '@/components/ui/material/Button';
+import { useMaterialYouTheme } from '@/contexts/MaterialYouThemeContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +27,12 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   onReceiptScan
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { theme, setThemeContext } = useMaterialYouTheme();
+  
+  // Set appropriate context when FAB is used
+  React.useEffect(() => {
+    setThemeContext('cooking'); // FAB typically used in inventory/cooking context
+  }, [setThemeContext]);
 
   const options: FABOption[] = [
     {
@@ -80,14 +88,14 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
                 <span className="bg-gray-900 text-white text-sm px-3 py-1 rounded-lg whitespace-nowrap">
                   {option.label}
                 </span>
-                <Button
-                  size="icon"
-                  variant="secondary"
+                <MaterialButton
+                  variant="elevated"
+                  size="sm"
                   className="h-12 w-12 rounded-full shadow-lg"
                   onClick={() => handleOptionClick(option)}
                 >
                   {option.icon}
-                </Button>
+                </MaterialButton>
               </motion.div>
             ))}
           </motion.div>
@@ -98,17 +106,16 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
         animate={{ rotate: isExpanded ? 45 : 0 }}
         transition={{ type: "spring", stiffness: 300 }}
       >
-        <Button
-          size="icon"
+        <MaterialButton
+          variant="filled"
           className={cn(
             "h-14 w-14 rounded-full shadow-lg",
-            "bg-primary hover:bg-primary/90",
             "transition-all duration-200"
           )}
           onClick={() => setIsExpanded(!isExpanded)}
         >
           <Plus className="w-6 h-6" />
-        </Button>
+        </MaterialButton>
       </motion.div>
     </div>
   );

@@ -1,8 +1,9 @@
 import React from 'react';
-import { Button } from '@/components/ui/button';
+import { MaterialButton } from '@/components/ui/material/Button';
 import { Input } from '@/components/ui/input';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getUnitDisplay } from '@/utils/units';
 
 interface QuantitySelectorProps {
   value: number;
@@ -45,44 +46,39 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   if (quick) {
     return (
       <div className={cn("flex items-center gap-2", className)}>
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 rounded-full"
+        <MaterialButton
+          variant="outlined"
+          className="h-8 w-8 rounded-full p-0"
           onClick={handleDecrement}
           disabled={value <= min}
-        >
-          <Minus className="h-3 w-3" />
-        </Button>
+          icon={<Minus className="h-3 w-3" />}
+        />
         
         <div className="flex items-baseline gap-1 min-w-[60px] text-center">
-          <span className="font-medium text-lg">{value}</span>
-          <span className="text-sm text-gray-500">{unit}</span>
+          <span className="font-medium text-lg text-foreground">{value}</span>
+          <span className="text-sm text-muted-foreground">{getUnitDisplay(unit, value)}</span>
         </div>
         
-        <Button
-          size="icon"
-          variant="outline"
-          className="h-8 w-8 rounded-full"
+        <MaterialButton
+          variant="outlined"
+          className="h-8 w-8 rounded-full p-0"
           onClick={handleIncrement}
           disabled={value >= max}
-        >
-          <Plus className="h-3 w-3" />
-        </Button>
+          icon={<Plus className="h-3 w-3" />}
+        />
       </div>
     );
   }
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <Button
-        size="icon"
-        variant="outline"
+      <MaterialButton
+        variant="outlined"
+        className="h-10 w-10 p-0"
         onClick={handleDecrement}
         disabled={value <= min}
-      >
-        <Minus className="h-4 w-4" />
-      </Button>
+        icon={<Minus className="h-4 w-4" />}
+      />
       
       <div className="flex items-center gap-1">
         <Input
@@ -94,17 +90,16 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
           step={step}
           className="w-20 text-center"
         />
-        <span className="text-sm text-gray-500">{unit}</span>
+        <span className="text-sm text-muted-foreground">{getUnitDisplay(unit, value)}</span>
       </div>
       
-      <Button
-        size="icon"
-        variant="outline"
+      <MaterialButton
+        variant="outlined"
+        className="h-10 w-10 p-0"
         onClick={handleIncrement}
         disabled={value >= max}
-      >
-        <Plus className="h-4 w-4" />
-      </Button>
+        icon={<Plus className="h-4 w-4" />}
+      />
     </div>
   );
 };

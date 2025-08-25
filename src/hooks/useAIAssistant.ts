@@ -100,9 +100,7 @@ export function useAIAssistant() {
       const context = prepareContext();
 
       // Call AI assistant endpoint
-      const apiUrl = import.meta.env.DEV 
-        ? 'http://localhost:3003/api/ai-assistant-enhanced'
-        : '/api/ai-assistant-enhanced';
+      const apiUrl = '/api/ai-assistant-enhanced';
         
       const response = await fetch(apiUrl, {
         method: 'POST',

@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { AIAssistantChat, AIAssistantErrorBoundary } from '@/components/ai';
-import { Button } from '@/components/ui/button';
+import { MaterialButton } from '@/components/ui/material/Button';
+import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
 import { MessageSquare, X, ChefHat, ShoppingCart, Calendar, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Layout from '@/components/Layout';
@@ -98,14 +99,14 @@ export default function AssistantAI() {
 
           {/* CTA Button */}
           <div className="text-center">
-            <Button
+            <MaterialButton
               onClick={() => setShowChat(true)}
               size="lg"
-              className="gap-2"
+              variant="filled"
+              icon={<MessageSquare className="h-5 w-5" />}
             >
-              <MessageSquare className="h-5 w-5" />
               Démarrer une conversation
-            </Button>
+            </MaterialButton>
           </div>
         </div>
 
@@ -141,11 +142,13 @@ interface FeatureCardProps {
 
 function FeatureCard({ icon, title, description }: FeatureCardProps) {
   return (
-    <div className="bg-card rounded-lg p-6 border hover:shadow-lg transition-shadow">
-      <div className="text-primary mb-4">{icon}</div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground">{description}</p>
-    </div>
+    <MaterialCard variant="elevated" interactive className="transition-all duration-200">
+      <MaterialCardContent className="p-6">
+        <div className="text-primary mb-4">{icon}</div>
+        <h3 className="text-lg font-semibold mb-2">{title}</h3>
+        <p className="text-muted-foreground">{description}</p>
+      </MaterialCardContent>
+    </MaterialCard>
   );
 }
 
@@ -157,9 +160,9 @@ interface CommandSectionProps {
 
 function CommandSection({ title, commands, gradient }: CommandSectionProps) {
   return (
-    <div className="relative overflow-hidden rounded-lg border bg-card">
+    <MaterialCard variant="outlined" className="relative overflow-hidden">
       <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${gradient}`} />
-      <div className="p-6">
+      <MaterialCardContent className="p-6">
         <h3 className="font-semibold mb-4">{title}</h3>
         <ul className="space-y-3">
           {commands.map((command, index) => (
@@ -169,7 +172,7 @@ function CommandSection({ title, commands, gradient }: CommandSectionProps) {
             </li>
           ))}
         </ul>
-      </div>
-    </div>
+      </MaterialCardContent>
+    </MaterialCard>
   );
 }

@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useState, useMemo, Suspense } from "react";
+import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { MaterialButton } from "@/components/ui/material/Button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Package, 
   Filter,
@@ -10,7 +11,14 @@ import {
   Sparkles,
   Grid3X3,
   List,
-  MapPin
+  MapPin,
+  Eye,
+  Target,
+  Gamepad2,
+  Palette,
+  Monitor,
+  Box,
+  BarChart3
 } from "lucide-react";
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
 import { SmartProductCard } from "@/components/inventory/SmartProductCard";
@@ -26,6 +34,19 @@ import { useNavigate } from "react-router-dom";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+
+// Dynamic imports for 3D visualization components
+const SimpleInventory3D = React.lazy(() => 
+  import('@/visualization/SimpleInventory3D').then(module => ({
+    default: module.SimpleInventory3D
+  }))
+);
+
+const NutritionProgressRings = React.lazy(() =>
+  import('@/components/progress/NutritionProgressRings').then(module => ({
+    default: module.NutritionProgressRings
+  }))
+);
 
 interface Zone {
   name: string;
@@ -64,12 +85,13 @@ const ZONES: Zone[] = [
 const Inventory = () => {
   const [selectedCategory, setSelectedCategory] = useState("Tous");
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'zones'>('zones');
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'zones' | '3d' | 'progress'>('zones');
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [activeVisualizationTab, setActiveVisualizationTab] = useState('overview');
   
   const { inventory, loading, updateInventory, deleteInventoryItem, addInventory } = useInventory();
   const { addToShoppingList } = useShoppingList();
@@ -106,6 +128,86 @@ const Inventory = () => {
     
     return grouped;
   }, [inventory]);
+
+  // Transform inventory data for 3D visualization
+  const inventoryFor3D = useMemo(() => {
+    return inventory.map((item, index) => ({
+      id: item.id,
+      name: item.product?.name || 'Produit inconnu',
+      category: item.product?.category || 'other',
+      quantity: item.quantity,
+      unit: item.unit || 'unité',
+      expirationDate: item.expiry_date ? new Date(item.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      freshness: item.expiry_date ? Math.max(0, Math.min(1, 
+        (new Date(item.expiry_date).getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)
+      )) : 0.8,
+      nutritionalValue: {
+        vitamins: Math.floor(Math.random() * 100) + 50,
+        minerals: Math.floor(Math.random() * 80) + 30,
+        fiber: Math.floor(Math.random() * 60) + 20
+      },
+      location: {
+        zone: item.location || 'placard',
+        x: (index % 3) * 2,
+        y: Math.floor(index / 3) % 3,
+        z: Math.floor(index / 9) % 2
+      },
+      discoveryDate: new Date(Date.now() - Math.floor(Math.random() * 7) * 24 * 60 * 60 * 1000),
+      rarity: item.quantity > 5 ? 'common' : item.quantity > 2 ? 'uncommon' : item.quantity > 1 ? 'rare' : 'legendary'
+    }));
+  }, [inventory]);
+
+  // Calculate average freshness
+  const avgOverallFreshness = useMemo(() => {
+    if (inventoryFor3D.length === 0) return 0;
+    const totalFreshness = inventoryFor3D.reduce((sum, item) => sum + item.freshness, 0);
+    return Math.round((totalFreshness / inventoryFor3D.length) * 100);
+  }, [inventoryFor3D]);
+
+  // Mock nutrition data for progress rings
+  const nutritionData = useMemo(() => {
+    const vitaminsScore = Math.min(100, inventory.length * 8 + Math.floor(Math.random() * 20));
+    const varietyScore = Math.min(15, new Set(inventory.map(item => item.product?.category)).size);
+    const freshnessScore = Math.floor(inventoryFor3D.reduce((sum, item) => sum + item.freshness, 0) / inventoryFor3D.length * 100) || 85;
+    const balanceScore = Math.min(100, Math.floor(Math.random() * 20) + 75);
+
+    return {
+      vitamins: { 
+        current: vitaminsScore,
+        sources: inventory.slice(0, 3).map(item => item.product?.name).filter(Boolean),
+        trend: 'increasing'
+      },
+      variety: { 
+        current: varietyScore,
+        categories: Array.from(new Set(inventory.map(item => item.product?.category)).values()).filter(Boolean),
+        trend: 'stable'
+      },
+      freshness: { 
+        current: freshnessScore,
+        averageAge: Math.floor(Math.random() * 7) + 1,
+        trend: 'stable'
+      },
+      balance: { 
+        current: balanceScore,
+        distribution: {
+          fruits: Math.floor(Math.random() * 30) + 20,
+          vegetables: Math.floor(Math.random() * 30) + 15,
+          dairy: Math.floor(Math.random() * 25) + 15,
+          grains: Math.floor(Math.random() * 20) + 10,
+          protein: Math.floor(Math.random() * 15) + 10,
+          herbs: Math.floor(Math.random() * 10) + 5
+        },
+        trend: 'improving'
+      }
+    };
+  }, [inventory, inventoryFor3D]);
+
+  const nutritionGoals = {
+    vitamins: 100,
+    variety: 15,
+    freshness: 90,
+    balance: 85
+  };
 
   // Stats calculations
   const stats = useMemo(() => {
@@ -195,13 +297,13 @@ const Inventory = () => {
         await addToShoppingList({
           productName: parsedInput.product,
           quantity: parsedInput.quantity || 1,
-          unit: parsedInput.unit || 'unité(s)',
+          unit: parsedInput.unit || 'unité',
           category: 'Autres'
         });
         
         toast({
           title: "Produit ajouté",
-          description: `${parsedInput.quantity || 1} ${parsedInput.unit || 'unité(s)'} de ${parsedInput.product} ajouté(s) à la liste de courses`
+          description: `${parsedInput.quantity || 1} ${parsedInput.unit || 'unité'} de ${parsedInput.product} ajouté(s) à la liste de courses`
         });
         break;
         
@@ -246,7 +348,7 @@ const Inventory = () => {
       await addInventory({
         productName: product.name,
         quantity: 1,
-        unit: product.unit || 'unité(s)',
+        unit: product.unit || 'unité',
         category: product.category || 'Autres',
         location: 'Placard',
         barcode: product.barcode
@@ -276,40 +378,54 @@ const Inventory = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Header Intelligent */}
       <div className="space-y-4">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold">Mon Inventaire Intelligent</h1>
-            <p className="text-muted-foreground mt-1">
-              Gérez vos produits avec intelligence
+            <h1 className="text-2xl sm:text-3xl font-bold">Mon Inventaire</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
+              Gérez vos produits intelligemment
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === 'zones' ? 'default' : 'outline'}
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+            <MaterialButton
+              variant={viewMode === 'zones' ? 'filled' : 'outlined'}
               size="sm"
               onClick={() => setViewMode('zones')}
+              icon={<MapPin className="w-4 h-4" />}
             >
-              <MapPin className="w-4 h-4 mr-1" />
               Zones
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'outline'}
+            </MaterialButton>
+            <MaterialButton
+              variant={viewMode === '3d' ? 'filled' : 'outlined'}
+              size="sm"
+              onClick={() => setViewMode('3d')}
+              icon={<Box className="w-4 h-4" />}
+            >
+              3D
+            </MaterialButton>
+            <MaterialButton
+              variant={viewMode === 'progress' ? 'filled' : 'outlined'}
+              size="sm"
+              onClick={() => setViewMode('progress')}
+              icon={<Target className="w-4 h-4" />}
+            >
+              Nutrition
+            </MaterialButton>
+            <MaterialButton
+              variant={viewMode === 'grid' ? 'filled' : 'outlined'}
               size="sm"
               onClick={() => setViewMode('grid')}
-            >
-              <Grid3X3 className="w-4 h-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'outline'}
+              icon={<Grid3X3 className="w-4 h-4" />}
+            />
+            <MaterialButton
+              variant={viewMode === 'list' ? 'filled' : 'outlined'}
               size="sm"
               onClick={() => setViewMode('list')}
-            >
-              <List className="w-4 h-4" />
-            </Button>
+              icon={<List className="w-4 h-4" />}
+            />
           </div>
         </div>
 
@@ -352,28 +468,237 @@ const Inventory = () => {
         </div>
 
         {/* Stats Bar */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-3 gap-4 text-center">
+        <MaterialCard variant="elevated">
+          <MaterialCardContent className="p-3 sm:p-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
               <div>
-                <p className="text-2xl font-bold">{stats.totalItems}</p>
-                <p className="text-sm text-muted-foreground">Produits total</p>
+                <p className="text-xl sm:text-2xl font-bold">{stats.totalItems}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Produits</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-orange-500">{stats.expiringThisWeek}</p>
-                <p className="text-sm text-muted-foreground">Expirent bientôt</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-500">{stats.expiringThisWeek}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Expirent</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-red-500">{stats.lowStock}</p>
-                <p className="text-sm text-muted-foreground">Stock faible</p>
+                <p className="text-xl sm:text-2xl font-bold text-red-500">{stats.lowStock}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Stock bas</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </MaterialCardContent>
+        </MaterialCard>
       </div>
 
       {/* Main Content */}
-      {viewMode === 'zones' ? (
+      {viewMode === '3d' ? (
+        <div className="space-y-6">
+          <MaterialCard variant="elevated">
+            <MaterialCardContent className="p-0">
+              <div className="aspect-video bg-gradient-to-br from-blue-100 to-green-100 relative rounded-lg overflow-hidden">
+                <Suspense fallback={
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-center space-y-4">
+                      <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                      <p className="text-sm text-gray-600">Chargement de l'environnement 3D...</p>
+                    </div>
+                  </div>
+                }>
+                  {inventoryFor3D.length > 0 && (
+                    <SimpleInventory3D
+                      inventoryData={inventoryFor3D}
+                      userId="current_user"
+                      className="w-full h-full"
+                    />
+                  )}
+                </Suspense>
+                
+                {/* Overlay Info */}
+                <div className="absolute top-4 right-4">
+                  <MaterialCard variant="outlined" className="bg-white/90 backdrop-blur-sm">
+                    <MaterialCardContent className="p-3">
+                      <div className="text-xs text-gray-600 space-y-1">
+                        <div>Produits: <span className="font-medium">{inventory.length}</span></div>
+                        <div>Vue: <span className="font-medium capitalize">3D Interactive</span></div>
+                        <div>Status: <span className="font-medium text-green-600">Actif</span></div>
+                      </div>
+                    </MaterialCardContent>
+                  </MaterialCard>
+                </div>
+
+                {/* Instructions */}
+                <div className="absolute bottom-4 left-4">
+                  <MaterialCard variant="outlined" className="bg-white/90 backdrop-blur-sm">
+                    <MaterialCardContent className="p-3">
+                      <div className="text-xs text-gray-600">
+                        <p className="font-medium mb-1">Navigation 3D:</p>
+                        <p>• Clic gauche: Rotation</p>
+                        <p>• Molette: Zoom</p>
+                        <p>• Clic droit: Déplacement</p>
+                      </div>
+                    </MaterialCardContent>
+                  </MaterialCard>
+                </div>
+              </div>
+            </MaterialCardContent>
+          </MaterialCard>
+
+          {/* Quick Stats and Actions */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <MaterialCard variant="elevated">
+              <MaterialCardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-semibold">Statistiques détaillées</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Valeur totale estimée</span>
+                    <span className="font-semibold">€{(inventory.length * 2.5).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Catégories</span>
+                    <Badge variant="secondary">
+                      {new Set(inventory.map(item => item.product?.category)).size} types
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Fraîcheur moyenne</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-green-600 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${avgOverallFreshness}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium">{avgOverallFreshness}%</span>
+                    </div>
+                  </div>
+                </div>
+              </MaterialCardContent>
+            </MaterialCard>
+
+            <MaterialCard variant="elevated">
+              <MaterialCardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target className="w-5 h-5 text-green-600" />
+                  <h3 className="font-semibold">Actions recommandées</h3>
+                </div>
+                <div className="space-y-2">
+                  {stats.expiringThisWeek > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-lg bg-orange-50">
+                      <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-orange-900">
+                          {stats.expiringThisWeek} produits expirent bientôt
+                        </p>
+                        <p className="text-xs text-orange-700 mt-0.5">
+                          Utilisez-les dans vos prochains repas
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {stats.lowStock > 0 && (
+                    <div className="flex items-start gap-2 p-2 rounded-lg bg-blue-50">
+                      <Package className="w-4 h-4 text-blue-600 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900">
+                          {stats.lowStock} produits en stock faible
+                        </p>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          Pensez à les réapprovisionner
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </MaterialCardContent>
+            </MaterialCard>
+          </div>
+        </div>
+      ) : viewMode === 'progress' ? (
+        <div className="space-y-6">
+          <MaterialCard variant="elevated">
+            <MaterialCardContent className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <Target className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Anneaux de Progression Nutrition</h3>
+              </div>
+              
+              <Suspense fallback={
+                <div className="h-96 flex items-center justify-center">
+                  <div className="text-center space-y-4">
+                    <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+                    <p className="text-sm text-gray-600">Chargement des anneaux de progression...</p>
+                  </div>
+                </div>
+              }>
+                <NutritionProgressRings
+                  nutritionData={nutritionData}
+                  goals={nutritionGoals}
+                  timeframe="daily"
+                  size="large"
+                  showLabels={true}
+                  showStats={true}
+                  onRingClick={(ringId) => {
+                    toast({
+                      title: "Détails nutritionnels",
+                      description: `Affichage des détails pour: ${ringId}`
+                    });
+                  }}
+                />
+              </Suspense>
+            </MaterialCardContent>
+          </MaterialCard>
+
+          {/* Additional Nutrition Insights */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <MaterialCard variant="elevated">
+              <MaterialCardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 className="w-5 h-5 text-green-600" />
+                  <h3 className="font-semibold">Tendances Hebdomadaires</h3>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Progression moyenne</span>
+                    <span className="font-medium">86%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Meilleur jour</span>
+                    <span className="font-medium">Samedi (94%)</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Série actuelle</span>
+                    <span className="font-medium text-green-600">5 jours</span>
+                  </div>
+                </div>
+              </MaterialCardContent>
+            </MaterialCard>
+
+            <MaterialCard variant="elevated">
+              <MaterialCardContent className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  <h3 className="font-semibold">Objectifs</h3>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Objectifs quotidiens</span>
+                    <Badge className="bg-green-100 text-green-800">3/4 Complétés</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Objectifs hebdomadaires</span>
+                    <Badge className="bg-yellow-100 text-yellow-800">En cours</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Objectifs mensuels</span>
+                    <Badge variant="outline">En attente</Badge>
+                  </div>
+                </div>
+              </MaterialCardContent>
+            </MaterialCard>
+          </div>
+        </div>
+      ) : viewMode === 'zones' ? (
         <div className="space-y-6">
           {ZONES.map(zone => {
             const zoneItems = inventoryByZones[zone.name];
@@ -392,7 +717,7 @@ const Inventory = () => {
                   <Badge variant="secondary">{zoneItems.length}</Badge>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {zoneItems.map(item => (
                     <SmartProductCard
                       key={item.id}
@@ -414,7 +739,7 @@ const Inventory = () => {
         <div className={cn(
           "grid gap-4",
           viewMode === 'grid' 
-            ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+            ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
             : "grid-cols-1"
         )}>
           {(selectedZone ? filteredByZone : inventory).map(item => (
@@ -434,19 +759,22 @@ const Inventory = () => {
 
       {/* Empty State */}
       {inventory.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
+        <MaterialCard variant="elevated">
+          <MaterialCardContent className="p-12 text-center">
             <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Inventaire vide</h3>
             <p className="text-muted-foreground mb-4">
               Commencez par ajouter vos premiers produits
             </p>
-            <Button onClick={() => setAddDialogOpen(true)}>
-              <Sparkles className="w-4 h-4 mr-2" />
+            <MaterialButton 
+              variant="filled"
+              onClick={() => setAddDialogOpen(true)}
+              icon={<Sparkles className="w-4 h-4" />}
+            >
               Ajouter un produit
-            </Button>
-          </CardContent>
-        </Card>
+            </MaterialButton>
+          </MaterialCardContent>
+        </MaterialCard>
       )}
 
       {/* Floating Action Button */}

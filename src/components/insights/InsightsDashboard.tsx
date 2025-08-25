@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { MaterialCard, MaterialCardContent, MaterialCardHeader } from '@/components/ui/material/Card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
+import { MaterialButton } from '@/components/ui/material/Button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -60,8 +60,8 @@ const InsightCard: React.FC<InsightCardProps> = ({
     whileHover={{ scale: 1.02 }}
     className="cursor-pointer"
   >
-    <Card className="h-full hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
+    <MaterialCard variant="elevated" interactive className="h-full transition-all duration-200">
+      <MaterialCardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="text-2xl">{icon}</div>
           <div className="flex-1 min-w-0">
@@ -72,19 +72,19 @@ const InsightCard: React.FC<InsightCardProps> = ({
               {description}
             </p>
             {action && actionLabel && (
-              <Button 
-                variant="ghost" 
+              <MaterialButton 
+                variant="text" 
                 size="sm" 
                 className="h-6 px-2 mt-2 text-xs"
                 onClick={action}
               >
                 {actionLabel}
-              </Button>
+              </MaterialButton>
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </MaterialCardContent>
+    </MaterialCard>
   </motion.div>
 );
 
@@ -222,23 +222,31 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
         </div>
         
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <MaterialButton 
+            variant="outlined" 
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
+            icon={<RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />}
           >
-            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
             Actualiser
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
+          </MaterialButton>
+          <MaterialButton 
+            variant="outlined" 
+            size="sm" 
+            onClick={handleExport}
+            icon={<Download className="h-4 w-4" />}
+          >
             Exporter
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share2 className="h-4 w-4 mr-2" />
+          </MaterialButton>
+          <MaterialButton 
+            variant="outlined" 
+            size="sm" 
+            onClick={handleShare}
+            icon={<Share2 className="h-4 w-4" />}
+          >
             Partager
-          </Button>
+          </MaterialButton>
         </div>
       </motion.div>
 
@@ -251,7 +259,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
       >
         {insightsData.keyMetrics.map((metric, index) => (
           <motion.div
-            key={metric.id}
+            key={metric.id || `metric-${index}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 + index * 0.1 }}
@@ -285,117 +293,120 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
         </div>
 
         <AnimatePresence mode="wait">
-          <TabsContent value="overview" className="space-y-6">
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-            >
-              {/* Main Charts */}
-              <div className="lg:col-span-2 space-y-6">
-                <SpendingTrendsChart data={spendingTrendsData} />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <CategoryBreakdownChart data={categoryBreakdownData} />
-                  <NutritionRadarChart data={nutritionBalanceData} />
+          {activeTab === 'overview' && (
+            <TabsContent key="overview-content" value="overview" className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+              >
+                {/* Main Charts */}
+                <div className="lg:col-span-2 space-y-6">
+                  <SpendingTrendsChart data={spendingTrendsData} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <CategoryBreakdownChart data={categoryBreakdownData} />
+                    <NutritionRadarChart data={nutritionBalanceData} />
+                  </div>
                 </div>
-              </div>
 
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Smart Insights */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Insights Intelligents</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-80">
-                      <div className="space-y-3">
-                        {smartInsights.map((insight, index) => (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                          >
-                            <InsightCard {...insight} />
-                          </motion.div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </CardContent>
-                </Card>
+                {/* Sidebar */}
+                <div className="space-y-6">
+                  {/* Smart Insights */}
+                  <MaterialCard variant="elevated">
+                    <MaterialCardHeader>
+                      <div className="text-lg font-semibold">Insights Intelligents</div>
+                    </MaterialCardHeader>
+                    <MaterialCardContent>
+                      <ScrollArea className="h-80">
+                        <div className="space-y-3">
+                          {smartInsights.map((insight, index) => (
+                            <motion.div
+                              key={`insight-${index}`}
+                              initial={{ opacity: 0, x: 20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <InsightCard {...insight} />
+                            </motion.div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </MaterialCardContent>
+                  </MaterialCard>
 
-                {/* Recent Achievements */}
-                {recentAchievements.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Derniers Succès</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {recentAchievements.slice(0, 2).map((achievement) => (
-                          <motion.div
-                            key={achievement.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
-                          >
-                            <div className="text-2xl">{achievement.icon}</div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm text-green-800 dark:text-green-400">
-                                {achievement.title}
-                              </p>
-                              <p className="text-xs text-green-600 dark:text-green-500">
-                                +{achievement.reward.points} points
-                              </p>
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </motion.div>
-          </TabsContent>
+                  {/* Recent Achievements */}
+                  {recentAchievements.length > 0 && (
+                    <MaterialCard variant="elevated">
+                      <MaterialCardHeader>
+                        <div className="text-lg font-semibold">Derniers Succès</div>
+                      </MaterialCardHeader>
+                      <MaterialCardContent>
+                        <div className="space-y-3">
+                          {recentAchievements.slice(0, 2).map((achievement, index) => (
+                            <motion.div
+                              key={achievement.id || `achievement-${index}`}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
+                            >
+                              <div className="text-2xl">{achievement.icon}</div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm text-green-800 dark:text-green-400">
+                                  {achievement.title}
+                                </p>
+                                <p className="text-xs text-green-600 dark:text-green-500">
+                                  +{achievement.reward.points} points
+                                </p>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </MaterialCardContent>
+                    </MaterialCard>
+                  )}
+                </div>
+              </motion.div>
+            </TabsContent>
+          )}
 
-          <TabsContent value="charts" className="space-y-6">
-            <motion.div
-              key="charts"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="space-y-6"
-            >
-              <CombinedTrendsChart data={combinedTrendsData} />
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SpendingTrendsChart data={spendingTrendsData} />
-                <CategoryBreakdownChart data={categoryBreakdownData} />
-              </div>
-              
-              <NutritionRadarChart data={nutritionBalanceData} />
-            </motion.div>
-          </TabsContent>
+          {activeTab === 'charts' && (
+            <TabsContent key="charts-content" value="charts" className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <CombinedTrendsChart data={combinedTrendsData} />
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <SpendingTrendsChart data={spendingTrendsData} />
+                  <CategoryBreakdownChart data={categoryBreakdownData} />
+                </div>
+                
+                <NutritionRadarChart data={nutritionBalanceData} />
+              </motion.div>
+            </TabsContent>
+          )}
 
-          <TabsContent value="achievements">
-            <motion.div
-              key="achievements"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-            >
-              <AchievementsList
-                achievements={achievements}
-                userProgress={userProgress}
-                recentAchievements={recentAchievements}
-                nextMilestone={nextMilestone}
-                leaderboard={leaderboard}
-              />
-            </motion.div>
-          </TabsContent>
+          {activeTab === 'achievements' && (
+            <TabsContent key="achievements-content" value="achievements">
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <AchievementsList
+                  achievements={achievements}
+                  userProgress={userProgress}
+                  recentAchievements={recentAchievements}
+                  nextMilestone={nextMilestone}
+                  leaderboard={leaderboard}
+                />
+              </motion.div>
+            </TabsContent>
+          )}
         </AnimatePresence>
       </Tabs>
     </div>

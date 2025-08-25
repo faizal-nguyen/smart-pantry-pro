@@ -1,559 +1,364 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, 
-  MapPin, 
+  ArrowRight,
   ShoppingCart, 
   Euro, 
-  CheckCircle2, 
-  Plus,
-  Settings,
-  Users,
-  Mic,
-  MicOff,
-  Clock
+  CheckCircle2,
+  X,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { ShoppingListItem, StoreSection, InStoreModeConfig, DEFAULT_IN_STORE_CONFIG } from '@/types/shopping-list';
+import { useShoppingList } from "@/hooks/useShoppingList";
 import { useHapticFeedback } from '@/hooks/useHapticFeedback';
-import { useShoppingPatterns } from '@/hooks/useShoppingPatterns';
-import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
-import ShoppingSection from './ShoppingSection';
-import AddShoppingItemDialog from './AddShoppingItemDialog';
 
 interface InStoreShoppingProps {
-  items: ShoppingListItem[];
-  sections: StoreSection[];
-  checkedItems: Set<string>;
-  config?: InStoreModeConfig;
-  collaborators?: Array<{ id: string; name: string; avatar_url?: string; current_section?: string }>;
-  onItemCheck: (item: ShoppingListItem) => void;
-  onItemQuantityChange?: (item: ShoppingListItem, newQuantity: number) => void;
-  onItemEdit?: (item: ShoppingListItem) => void;
-  onItemRemove?: (item: ShoppingListItem) => void;
   onExit: () => void;
-  onConfigChange?: (config: InStoreModeConfig) => void;
-  className?: string;
 }
 
-const InStoreShopping: React.FC<InStoreShoppingProps> = ({
-  items,
-  sections,
-  checkedItems,
-  config = DEFAULT_IN_STORE_CONFIG,
-  collaborators = [],
-  onItemCheck,
-  onItemQuantityChange,
-  onItemEdit,
-  onItemRemove,
-  onExit,
-  onConfigChange,
-  className
-}) => {
-  const [currentSection, setCurrentSection] = useState<string | null>(null);
-  const [sessionStartTime] = useState(Date.now());
-  const [sectionStartTime, setSectionStartTime] = useState<number | null>(null);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+const STORE_SECTIONS = [
+  "Entrée",
+  "Fruits & Légumes", 
+  "Boucherie/Poissonnerie",
+  "Charcuterie/Fromagerie",
+  "Épicerie salée",
+  "Épicerie sucrée",
+  "Surgelés",
+  "Frais/Produits laitiers",
+  "Boissons",
+  "Hygiène/Beauté",
+  "Maison/Entretien",
+  "Caisses"
+];
 
-  const { vibrate, listCompleted, itemChecked } = useHapticFeedback({
-    enabled: config.features.hapticFeedback
-  });
-  
-  const { getOptimalOrder, recordSectionVisit } = useShoppingPatterns();
-  
+const InStoreShopping: React.FC<InStoreShoppingProps> = ({ onExit }) => {
   const { 
-    isListening, 
-    transcript, 
-    startListening, 
-    stopListening, 
-    resetTranscript,
-    isSupported: isVoiceSupported 
-  } = useSpeechRecognition({
-    language: 'fr-FR',
-    continuous: true
+    shoppingList, 
+    togglePurchased,
+    getTotalEstimatedCost,
+    getPurchasedCount
+  } = useShoppingList();
+
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [sessionStartTime] = useState(Date.now());
+  
+  const { vibrate, itemChecked, listCompleted } = useHapticFeedback({
+    enabled: true
   });
 
-  // Keep screen on if enabled
+  // Organiser les articles par section
+  const organizedSections = useMemo(() => {
+    const sections = STORE_SECTIONS.map(sectionName => {
+      const items = shoppingList.filter(item => 
+        item.store_section === sectionName && !item.is_purchased
+      );
+      return {
+        name: sectionName,
+        items: items
+      };
+    }).filter(section => section.items.length > 0);
+
+    // Ajouter une section "Autres" pour les articles sans section
+    const itemsWithoutSection = shoppingList.filter(item => 
+      !item.store_section && !item.is_purchased
+    );
+    if (itemsWithoutSection.length > 0) {
+      sections.push({
+        name: "Autres",
+        items: itemsWithoutSection
+      });
+    }
+
+    return sections;
+  }, [shoppingList]);
+
+  // Statistiques
+  const stats = useMemo(() => {
+    const totalItems = shoppingList.length;
+    const purchasedItems = getPurchasedCount();
+    const remainingItems = totalItems - purchasedItems;
+    const progressPercentage = totalItems > 0 ? (purchasedItems / totalItems) * 100 : 0;
+    const sessionDuration = Math.round((Date.now() - sessionStartTime) / 1000 / 60);
+    
+    return {
+      totalItems,
+      purchasedItems,
+      remainingItems,
+      progressPercentage,
+      sessionDuration,
+      isComplete: remainingItems === 0
+    };
+  }, [shoppingList, getPurchasedCount, sessionStartTime]);
+
+  // Section actuelle
+  const currentSection = organizedSections[currentSectionIndex];
+  const isLastSection = currentSectionIndex === organizedSections.length - 1;
+  const isFirstSection = currentSectionIndex === 0;
+
+  // Garder l'écran allumé
   useEffect(() => {
     let wakeLock: any = null;
     
-    if (config.features.keepScreenOn && 'wakeLock' in navigator) {
-      const requestWakeLock = async () => {
-        try {
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
           wakeLock = await (navigator as any).wakeLock.request('screen');
-        } catch (err) {
-          console.debug('Wake lock not supported:', err);
         }
-      };
-      requestWakeLock();
-    }
+      } catch (err) {
+        console.debug('Wake lock not supported:', err);
+      }
+    };
+    
+    requestWakeLock();
 
     return () => {
       if (wakeLock) {
         wakeLock.release();
       }
     };
-  }, [config.features.keepScreenOn]);
+  }, []);
 
-  // Organize items by sections with smart reordering
-  const organizedSections = useMemo(() => {
-    const sectionMap = new Map<string, ShoppingListItem[]>();
-    
-    // Initialize sections
-    sections.forEach(section => {
-      sectionMap.set(section.id, []);
-    });
+  const handleItemToggle = useCallback((itemId: string) => {
+    togglePurchased(itemId);
+    itemChecked();
 
-    // Distribute items to sections
-    items.forEach(item => {
-      const sectionId = sections.find(s => s.name === item.store_section)?.id || 'unknown';
-      if (!sectionMap.has(sectionId)) {
-        sectionMap.set(sectionId, []);
-      }
-      sectionMap.get(sectionId)!.push(item);
-    });
-
-    // Apply smart reordering if enabled
-    let orderedItems = items;
-    if (config.features.smartReorder) {
-      orderedItems = getOptimalOrder(items);
-    }
-
-    // Build sections with items
-    const result = sections.map(section => ({
-      ...section,
-      items: sectionMap.get(section.id) || []
-    })).filter(section => section.items.length > 0);
-
-    // Add unknown section if there are items without a proper section
-    const unknownItems = sectionMap.get('unknown') || [];
-    if (unknownItems.length > 0) {
-      result.push({
-        id: 'unknown',
-        name: 'Autres',
-        icon: '📦',
-        color: 'bg-gray-100 text-gray-700',
-        order: 999,
-        items: unknownItems
-      });
-    }
-
-    return result.sort((a, b) => a.order - b.order);
-  }, [items, sections, config.features.smartReorder, getOptimalOrder]);
-
-  // Calculate overall statistics
-  const stats = useMemo(() => {
-    const totalItems = items.length;
-    const checkedCount = items.filter(item => checkedItems.has(item.id)).length;
-    const remainingItems = totalItems - checkedCount;
-    const progressPercentage = totalItems > 0 ? (checkedCount / totalItems) * 100 : 0;
-    
-    const currentTotal = items
-      .filter(item => checkedItems.has(item.id))
-      .reduce((sum, item) => {
-        const correctedPrice = getCorrectedPrice(item);
-        return sum + (correctedPrice ? correctedPrice * item.quantity : 0);
-      }, 0);
-    
-    const estimatedTotal = items.reduce((sum, item) => {
-      const correctedPrice = getCorrectedPrice(item);
-      return sum + (correctedPrice ? correctedPrice * item.quantity : 0);
-    }, 0);
-
-    const sessionDuration = Math.round((Date.now() - sessionStartTime) / 1000 / 60); // in minutes
-
-    return {
-      totalItems,
-      checkedCount,
-      remainingItems,
-      progressPercentage,
-      currentTotal,
-      estimatedTotal,
-      sessionDuration,
-      isComplete: remainingItems === 0
-    };
-  }, [items, checkedItems, sessionStartTime]);
-
-  // Helper function to get corrected price
-  const getCorrectedPrice = (item: ShoppingListItem): number | undefined => {
-    if (!item.estimated_price) return undefined;
-    
-    const productName = item.product?.name?.toLowerCase() || '';
-    const unit = item.product?.unit_type?.toLowerCase() || '';
-    
-    if ((productName.includes('curry') && (productName.includes('feuille') || productName.includes('leaf') || productName.includes('leaves'))) ||
-        productName === 'curry leaves' || productName === 'feuilles de curry') {
-      if (item.estimated_price > 10) {
-        return 0.01;
-      }
-    }
-    
-    if ((productName === 'eau' || productName === 'water' || productName.includes('eau')) && 
-        item.estimated_price > 1) {
-      return 0.001;
-    }
-    
-    if ((productName.includes('steak') || productName.includes('viande') || productName.includes('boeuf') || 
-         productName.includes('porc') || productName.includes('poulet') || productName.includes('agneau')) && 
-        unit === 'g' && item.estimated_price > 100) {
-      const pricePerKg = productName.includes('flank') ? 25 : 20;
-      return pricePerKg / 1000;
-    }
-    
-    return item.estimated_price;
-  };
-
-  // Handle section navigation
-  const handleSectionEnter = useCallback((sectionId: string) => {
-    setCurrentSection(sectionId);
-    setSectionStartTime(Date.now());
-    
-    if (config.features.hapticFeedback) {
-      vibrate('light');
-    }
-  }, [config.features.hapticFeedback, vibrate]);
-
-  const handleSectionExit = useCallback((sectionId: string) => {
-    if (sectionStartTime) {
-      const timeSpent = Math.round((Date.now() - sectionStartTime) / 1000);
-      recordSectionVisit(sectionId, timeSpent);
-    }
-    setSectionStartTime(null);
-  }, [sectionStartTime, recordSectionVisit]);
-
-  // Handle item check with haptic feedback
-  const handleItemCheck = useCallback((item: ShoppingListItem) => {
-    onItemCheck(item);
-    
-    if (config.features.hapticFeedback) {
-      if (checkedItems.has(item.id)) {
-        vibrate('light'); // unchecking
-      } else {
-        itemChecked(); // checking
-      }
-    }
-
-    // Check if list is completed
-    if (stats.remainingItems === 1 && !checkedItems.has(item.id)) {
+    // Vérifier si c'était le dernier article
+    if (stats.remainingItems === 1) {
       setTimeout(() => {
-        if (config.features.hapticFeedback) {
-          listCompleted();
-        }
+        listCompleted();
       }, 500);
     }
-  }, [onItemCheck, checkedItems, config.features.hapticFeedback, vibrate, itemChecked, listCompleted, stats.remainingItems]);
+  }, [togglePurchased, itemChecked, listCompleted, stats.remainingItems]);
 
-  // Handle voice commands
-  useEffect(() => {
-    if (transcript && !isListening && config.features.voiceCheck) {
-      const command = transcript.toLowerCase().trim();
-      
-      // Global voice commands
-      if (command.includes('suivant') || command.includes('next')) {
-        // Move to next section with items
-        const currentIndex = organizedSections.findIndex(s => s.id === currentSection);
-        const nextSection = organizedSections[currentIndex + 1];
-        if (nextSection) {
-          handleSectionEnter(nextSection.id);
-        }
-      } else if (command.includes('précédent') || command.includes('previous')) {
-        const currentIndex = organizedSections.findIndex(s => s.id === currentSection);
-        const prevSection = organizedSections[currentIndex - 1];
-        if (prevSection) {
-          handleSectionEnter(prevSection.id);
-        }
-      }
-      
-      resetTranscript();
-    }
-  }, [transcript, isListening, config.features.voiceCheck, currentSection, organizedSections, handleSectionEnter, resetTranscript]);
-
-  const handleVoiceToggle = () => {
-    if (isVoiceActive && isListening) {
-      stopListening();
-      setIsVoiceActive(false);
-    } else if (!isListening && isVoiceSupported) {
-      setIsVoiceActive(true);
-      startListening();
+  const goToNextSection = () => {
+    if (!isLastSection) {
+      setCurrentSectionIndex(prev => prev + 1);
+      vibrate('light');
     }
   };
 
-  // Update config
-  const updateConfig = (updates: Partial<InStoreModeConfig>) => {
-    const newConfig = {
-      ...config,
-      ...updates,
-      features: { ...config.features, ...updates.features },
-      display: { ...config.display, ...updates.display }
-    };
-    onConfigChange?.(newConfig);
+  const goToPreviousSection = () => {
+    if (!isFirstSection) {
+      setCurrentSectionIndex(prev => prev - 1);
+      vibrate('light');
+    }
   };
 
-  return (
-    <div className={cn("min-h-screen bg-gray-50", className)}>
-      {/* Sticky Header */}
-      <div className="sticky top-0 bg-white border-b z-50 shadow-sm">
-        <div className="p-4">
-          {/* Top row with back button and voice */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={onExit}>
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Sortir
-              </Button>
-              
-              <Badge variant="outline" className="text-xs">
-                Mode Magasin
-              </Badge>
-            </div>
+  const resetList = () => {
+    if (window.confirm("Voulez-vous décocher tous les articles ?")) {
+      shoppingList.forEach(item => {
+        if (item.is_purchased) {
+          togglePurchased(item.id);
+        }
+      });
+      setCurrentSectionIndex(0);
+    }
+  };
 
-            <div className="flex items-center gap-2">
-              {/* Collaborators */}
-              {collaborators.length > 0 && (
-                <div className="flex -space-x-2">
-                  {collaborators.slice(0, 3).map(collab => (
-                    <div
-                      key={collab.id}
-                      className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium border-2 border-white"
-                      title={collab.name}
-                    >
-                      {collab.name.charAt(0).toUpperCase()}
-                    </div>
-                  ))}
-                  {collaborators.length > 3 && (
-                    <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs border-2 border-white">
-                      +{collaborators.length - 3}
-                    </div>
-                  )}
+  // Si la liste est vide ou complétée
+  if (organizedSections.length === 0 || stats.isComplete) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <div className="sticky top-0 bg-gray-900 p-4 border-b border-gray-800">
+          <Button 
+            variant="ghost" 
+            onClick={onExit}
+            className="text-white hover:bg-gray-800"
+          >
+            <X className="w-5 h-5 mr-2" />
+            Fermer
+          </Button>
+        </div>
+        
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center">
+            {stats.isComplete ? (
+              <>
+                <div className="text-6xl mb-6">🎉</div>
+                <h2 className="text-3xl font-bold mb-4">Courses terminées !</h2>
+                <p className="text-gray-400 mb-6">
+                  {stats.totalItems} articles achetés en {stats.sessionDuration} minutes
+                </p>
+                <div className="space-y-2 text-lg">
+                  <div>Total: {getTotalEstimatedCost().toFixed(2)}€</div>
                 </div>
-              )}
-
-              {/* Voice control */}
-              {config.features.voiceCheck && isVoiceSupported && (
-                <Button
-                  variant={isVoiceActive ? "default" : "outline"}
-                  size="sm"
-                  onClick={handleVoiceToggle}
-                  className={isVoiceActive ? "bg-blue-500" : ""}
-                >
-                  {isVoiceActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                <div className="mt-8 space-y-3">
+                  <Button 
+                    onClick={resetList}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Recommencer
+                  </Button>
+                  <Button 
+                    onClick={onExit}
+                    className="w-full"
+                  >
+                    Terminer
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-6xl mb-6">🛒</div>
+                <h2 className="text-2xl font-bold mb-4">Liste vide</h2>
+                <p className="text-gray-400 mb-6">
+                  Ajoutez des articles avant d'utiliser le mode magasin
+                </p>
+                <Button onClick={onExit}>
+                  Retour à la liste
                 </Button>
-              )}
-
-              {/* Settings */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSettings(!showSettings)}
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-          
-          {/* Progress and stats */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-primary" />
-                  <span className="font-medium">
-                    {stats.checkedCount}/{stats.totalItems} articles
-                  </span>
-                </div>
-                
-                {config.display.runningTotal && (
-                  <div className="flex items-center gap-2">
-                    <Euro className="w-5 h-5 text-green-500" />
-                    <span className="text-lg font-bold text-green-600">
-                      {stats.currentTotal.toFixed(2)}€
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      / {stats.estimatedTotal.toFixed(2)}€
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>{stats.sessionDuration} min</span>
-              </div>
-            </div>
-            
-            {config.features.progressBar && (
-              <Progress value={stats.progressPercentage} className="h-3" />
+              </>
             )}
           </div>
-          
-          {/* Current section indicator */}
-          {currentSection && (
-            <div className="mt-3 flex items-center gap-2 text-sm">
-              <MapPin className="w-4 h-4 text-blue-500" />
-              <span className="text-muted-foreground">Rayon actuel:</span>
-              <span className="font-medium">
-                {organizedSections.find(s => s.id === currentSection)?.name}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white flex flex-col">
+      {/* Header fixe */}
+      <div className="sticky top-0 bg-gray-900 z-10 border-b border-gray-800">
+        <div className="p-4">
+          {/* Barre de progression */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-gray-400">
+                {stats.purchasedItems}/{stats.totalItems} articles
+              </span>
+              <span className="text-sm text-gray-400">
+                {stats.sessionDuration} min
               </span>
             </div>
-          )}
-        </div>
+            <Progress 
+              value={stats.progressPercentage} 
+              className="h-3 bg-gray-800"
+            />
+          </div>
 
-        {/* Voice feedback */}
-        <AnimatePresence>
-          {isVoiceActive && transcript && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="px-4 pb-3"
-            >
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
-                <p className="text-sm text-blue-700">
-                  🎤 "{transcript}"
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Settings panel */}
-        <AnimatePresence>
-          {showSettings && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t bg-gray-50"
-            >
-              <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Vibrations</span>
-                  <Switch
-                    checked={config.features.hapticFeedback}
-                    onCheckedChange={(checked) => 
-                      updateConfig({ features: { ...config.features, hapticFeedback: checked } })
-                    }
-                  />
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Contrôle vocal</span>
-                  <Switch
-                    checked={config.features.voiceCheck}
-                    onCheckedChange={(checked) => 
-                      updateConfig({ features: { ...config.features, voiceCheck: checked } })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Total en cours</span>
-                  <Switch
-                    checked={config.display.runningTotal}
-                    onCheckedChange={(checked) => 
-                      updateConfig({ display: { ...config.display, runningTotal: checked } })
-                    }
-                  />
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      
-      {/* Shopping Sections */}
-      <div className="p-4 space-y-6 pb-20">
-        {organizedSections.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="text-6xl mb-4">🛒</div>
-              <h3 className="text-lg font-medium mb-2">Liste vide</h3>
-              <p className="text-muted-foreground mb-4">
-                Votre liste de courses est vide. Ajoutez des articles pour commencer.
+          {/* Section actuelle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">{currentSection?.name}</h1>
+              <p className="text-gray-400">
+                Section {currentSectionIndex + 1} sur {organizedSections.length}
               </p>
-              <AddShoppingItemDialog />
-            </CardContent>
-          </Card>
-        ) : (
-          <AnimatePresence>
-            {organizedSections.map((section) => (
-              <motion.div
-                key={section.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <ShoppingSection
-                  section={section}
-                  checkedItems={checkedItems}
-                  inStoreMode={true}
-                  showPrices={config.display.showPrices}
-                  currentSection={currentSection || undefined}
-                  onItemCheck={handleItemCheck}
-                  onItemQuantityChange={onItemQuantityChange}
-                  onItemEdit={onItemEdit}
-                  onItemRemove={onItemRemove}
-                  onSectionEnter={handleSectionEnter}
-                  onSectionExit={handleSectionExit}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        )}
-
-        {/* Completion celebration */}
-        <AnimatePresence>
-          {stats.isComplete && stats.totalItems > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-8"
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={onExit}
+              className="text-gray-400 hover:text-white hover:bg-gray-800"
             >
-              <Card className="bg-green-50 border-green-200">
-                <CardContent className="py-8">
-                  <div className="text-6xl mb-4">🎉</div>
-                  <h2 className="text-2xl font-bold text-green-700 mb-2">
-                    Courses terminées !
-                  </h2>
-                  <p className="text-green-600 mb-4">
-                    Vous avez acheté tous vos articles en {stats.sessionDuration} minutes
-                  </p>
-                  <div className="flex items-center justify-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span>{stats.totalItems} articles</span>
+              <X className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Liste des articles de la section */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentSectionIndex}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-3"
+          >
+            {currentSection?.items.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => handleItemToggle(item.id)}
+                className={cn(
+                  "w-full p-6 rounded-xl text-left",
+                  "bg-gray-800 active:bg-gray-700",
+                  "transition-all transform active:scale-95",
+                  "border-2 border-transparent",
+                  item.is_purchased && "opacity-50 line-through border-green-500"
+                )}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="text-xl font-medium mb-1">
+                      {item.product?.name}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Euro className="w-4 h-4 text-green-500" />
-                      <span>{stats.currentTotal.toFixed(2)}€</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4 text-green-500" />
-                      <span>{stats.sessionDuration} min</span>
+                    <div className="text-gray-400">
+                      {item.quantity} {item.unit}
+                      {item.category && (
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {item.category}
+                        </Badge>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
+                  
+                  <div className="flex items-center gap-3">
+                    {item.estimated_price && (
+                      <div className="text-lg">
+                        {item.estimated_price.toFixed(2)}€
+                      </div>
+                    )}
+                    <div className={cn(
+                      "w-8 h-8 rounded-full border-2",
+                      item.is_purchased 
+                        ? "bg-green-500 border-green-500" 
+                        : "border-gray-600"
+                    )}>
+                      {item.is_purchased && (
+                        <CheckCircle2 className="w-full h-full p-1" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Floating quick add */}
-      <div className="fixed bottom-6 right-6">
-        <AddShoppingItemDialog>
-          <Button size="lg" className="rounded-full shadow-lg">
-            <Plus className="w-5 h-5" />
+      {/* Navigation en bas */}
+      <div className="sticky bottom-0 bg-gray-900 border-t border-gray-800 p-4">
+        <div className="flex gap-4">
+          <Button
+            size="lg"
+            variant="secondary"
+            onClick={goToPreviousSection}
+            disabled={isFirstSection}
+            className="flex-1 h-16 text-lg"
+          >
+            <ArrowLeft className="w-5 h-5 mr-2" />
+            Précédent
           </Button>
-        </AddShoppingItemDialog>
+          
+          <Button
+            size="lg"
+            onClick={goToNextSection}
+            disabled={isLastSection}
+            className="flex-1 h-16 text-lg bg-primary hover:bg-primary/90"
+          >
+            Suivant
+            <ArrowRight className="w-5 h-5 ml-2" />
+          </Button>
+        </div>
+        
+        {/* Total estimé */}
+        <div className="mt-4 text-center">
+          <div className="flex items-center justify-center gap-2 text-gray-400">
+            <Euro className="w-4 h-4" />
+            <span>Total estimé: </span>
+            <span className="font-bold text-white">
+              {getTotalEstimatedCost().toFixed(2)}€
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

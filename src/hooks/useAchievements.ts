@@ -244,14 +244,7 @@ export const useAchievements = () => {
   const { inventory } = useInventory();
   const { shoppingList, getPurchasedCount } = useShoppingList();
   const { recipes } = useRecipes();
-  const [userProgress, setUserProgress] = useState<UserProgress>({
-    totalPoints: 0,
-    level: 1,
-    nextLevelPoints: 100,
-    currentLevelPoints: 0,
-    unlockedAchievements: 0,
-    currentStreak: { type: 'zero_waste', days: 12 }
-  });
+  // Removed state to prevent circular updates
 
   // Calculate current values for achievements
   const currentStats = useMemo(() => ({
@@ -389,9 +382,8 @@ export const useAchievements = () => {
     ].sort((a, b) => b.points - a.points)
   }), [calculatedProgress]);
 
-  useEffect(() => {
-    setUserProgress(calculatedProgress);
-  }, [calculatedProgress]);
+  // Utiliser directement calculatedProgress
+  const userProgress = calculatedProgress;
 
   return {
     achievements,

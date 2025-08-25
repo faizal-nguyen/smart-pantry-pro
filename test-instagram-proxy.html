@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Instagram avec Proxy d'Images</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">
+            🖼️ Test Instagram avec Proxy d'Images
+        </h1>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">Test de récupération de vignette Instagram</h2>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">URL Instagram:</label>
+                    <input 
+                        type="text" 
+                        id="urlInput" 
+                        value="https://www.instagram.com/reel/DHbVTRpo7p3/"
+                        class="w-full p-2 border rounded"
+                    >
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button 
+                        onclick="testExtraction()" 
+                        class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-4 py-2 rounded hover:from-pink-600 hover:to-purple-600"
+                    >
+                        🎬 Extraire la vignette
+                    </button>
+                    
+                    <button 
+                        onclick="testDirectImage()" 
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                    >
+                        🖼️ Tester l'image directement
+                    </button>
+                </div>
+                
+                <div id="results" class="space-y-4"></div>
+            </div>
+        </div>
+        
+        <!-- Console -->
+        <div class="bg-black rounded-lg p-4 text-white">
+            <h3 class="text-lg font-bold mb-2 text-green-400">📟 Console</h3>
+            <div id="console" class="font-mono text-xs space-y-1 max-h-64 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const consoleDiv = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-gray-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            consoleDiv.innerHTML += `<div class="${colors[type] || 'text-gray-400'}">[${timestamp}] ${message}</div>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(`[${type.toUpperCase()}]`, message);
+        };
+
+        async function testExtraction() {
+            const url = document.getElementById('urlInput').value;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            
+            log('🚀 Début de l\'extraction...', 'info');
+            
+            try {
+                // 1. Récupérer les métadonnées Instagram
+                log('📡 Appel de l\'API Instagram thumbnail...', 'info');
+                const response = await fetch('/api/social/instagram-thumbnail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                
+                const data = await response.json();
+                log(`✅ Réponse reçue: ${data.success ? 'Succès' : 'Échec'}`, data.success ? 'success' : 'error');
+                
+                if (data.success && data.thumbnail_url) {
+                    log(`🖼️ Vignette trouvée: ${data.thumbnail_url.substring(0, 50)}...`, 'success');
+                    
+                    // Utiliser le proxy pour afficher l'image
+                    const proxyUrl = `/api/proxy/image?url=${encodeURIComponent(data.thumbnail_url)}`;
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="bg-green-100 p-4 rounded">
+                            <h3 class="font-bold text-green-800 mb-2">✅ Extraction réussie!</h3>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-semibold mb-2">Image via proxy:</h4>
+                                    <img src="${proxyUrl}" 
+                                         alt="Vignette Instagram" 
+                                         class="w-full rounded shadow"
+                                         onerror="handleImageError(this, 'proxy')">
+                                    <p class="text-xs mt-1 text-gray-600">URL Proxy: ${proxyUrl}</p>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="font-semibold mb-2">Métadonnées:</h4>
+                                    <div class="bg-white p-3 rounded text-sm">
+                                        <p><strong>Titre:</strong> ${data.title || 'N/A'}</p>
+                                        <p><strong>Auteur:</strong> ${data.author_name || 'N/A'}</p>
+                                        <p class="mt-2 text-xs break-all">
+                                            <strong>URL originale:</strong><br>
+                                            ${data.thumbnail_url}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="bg-red-100 p-4 rounded">
+                            <h3 class="font-bold text-red-800">❌ Aucune vignette trouvée</h3>
+                            <p class="text-red-600">${data.error || 'Erreur inconnue'}</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                log(`❌ Erreur: ${error.message}`, 'error');
+                resultsDiv.innerHTML = `
+                    <div class="bg-red-100 p-4 rounded">
+                        <h3 class="font-bold text-red-800">❌ Erreur</h3>
+                        <p class="text-red-600">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function testDirectImage() {
+            const resultsDiv = document.getElementById('results');
+            const testUrl = 'https://scontent-cdg4-2.cdninstagram.com/v/t51.2885-15/485002684_18039190091567661_1158812829137226071_n.jpg';
+            
+            log('🧪 Test direct de l\'image...', 'info');
+            
+            resultsDiv.innerHTML = `
+                <div class="bg-blue-100 p-4 rounded">
+                    <h3 class="font-bold text-blue-800 mb-2">🧪 Test d'affichage d'image</h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-semibold mb-2">Direct (bloqué par CORS):</h4>
+                            <img src="${testUrl}" 
+                                 alt="Direct" 
+                                 class="w-full rounded shadow"
+                                 onerror="handleImageError(this, 'direct')">
+                        </div>
+                        
+                        <div>
+                            <h4 class="font-semibold mb-2">Via Proxy (devrait fonctionner):</h4>
+                            <img src="/api/proxy/image?url=${encodeURIComponent(testUrl)}" 
+                                 alt="Via Proxy" 
+                                 class="w-full rounded shadow"
+                                 onerror="handleImageError(this, 'proxy')">
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleImageError(img, type) {
+            log(`❌ Erreur de chargement d'image (${type})`, 'error');
+            img.src = 'https://via.placeholder.com/300x300/FF1493/FFFFFF?text=Erreur+Image';
+        }
+
+        // Log initial
+        window.addEventListener('load', () => {
+            log('🎯 Page de test chargée!', 'success');
+            log('💡 Cliquez sur "Extraire la vignette" pour commencer', 'warning');
+        });
+    </script>
+</body>
+</html>

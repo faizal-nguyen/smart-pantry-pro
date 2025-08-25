@@ -268,15 +268,41 @@ POST /api/v1/recipes/import
 }
 ```
 
-### Shopping Lists
+### Shopping Lists - **Enhanced (PRP-004)**
 
-#### Obtenir les listes de courses
+#### Obtenir les listes de courses avec temps réel
 
 ```http
 GET /api/v1/shopping-lists
 ```
 
-#### Créer une liste de courses
+**Query parameters:**
+- `include_shared` (boolean): Inclure les listes partagées
+- `status` (string): all | active | completed | archived
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Courses de la semaine",
+      "created_at": "2025-08-18T10:00:00Z",
+      "updated_at": "2025-08-18T10:15:00Z",
+      "status": "active",
+      "items_count": 12,
+      "items_checked": 3,
+      "estimated_total": 45.80,
+      "shared_with": ["user-2", "user-3"],
+      "store_layout": "carrefour_standard",
+      "auto_organized": true
+    }
+  ],
+  "total": 5
+}
+```
+
+#### Créer une liste de courses intelligente
 
 ```http
 POST /api/v1/shopping-lists
@@ -291,15 +317,118 @@ POST /api/v1/shopping-lists
       "product_name": "Tomates",
       "quantity": 1,
       "unit": "kg",
-      "category": "Légumes"
+      "category": "Légumes",
+      "estimated_price": 3.50,
+      "priority": "high",
+      "notes": "Bio de préférence"
     }
-  ]
+  ],
+  "auto_organize": true,
+  "share_with": ["user-uuid-2"],
+  "store_preference": "carrefour_center_ville"
 }
 ```
 
-### Scanner & Vision
+#### Synchronisation temps réel
 
-#### Scanner un code-barres
+```http
+WebSocket: wss://api.smartpantrypro.com/v1/shopping-lists/{list_id}/realtime
+```
+
+**Messages reçus:**
+```json
+{
+  "type": "item_checked",
+  "data": {
+    "item_id": "uuid",
+    "checked": true,
+    "checked_by": "user-uuid",
+    "timestamp": "2025-08-18T10:30:00Z"
+  }
+}
+
+{
+  "type": "item_added",
+  "data": {
+    "item": {
+      "id": "uuid",
+      "product_name": "Baguette",
+      "quantity": 1,
+      "category": "Pain"
+    },
+    "added_by": "user-uuid",
+    "timestamp": "2025-08-18T10:31:00Z"
+  }
+}
+
+{
+  "type": "user_presence",
+  "data": {
+    "user_id": "user-uuid",
+    "status": "online",
+    "current_section": "Fruits & Légumes",
+    "last_seen": "2025-08-18T10:32:00Z"
+  }
+}
+```
+
+#### Mode magasin
+
+```http
+POST /api/v1/shopping-lists/{list_id}/start-shopping
+```
+
+**Body:**
+```json
+{
+  "store_location": {
+    "name": "Carrefour Centre Ville",
+    "layout_id": "carrefour_standard"
+  },
+  "enable_geofencing": true
+}
+```
+
+**Response:**
+```json
+{
+  "shopping_session": {
+    "id": "session-uuid",
+    "optimized_route": [
+      {
+        "section": "Fruits & Légumes",
+        "order": 1,
+        "items": [...]
+      }
+    ],
+    "estimated_duration": 25,
+    "total_items": 12
+  }
+}
+```
+
+#### Compléter un item
+
+```http
+PATCH /api/v1/shopping-lists/{list_id}/items/{item_id}
+```
+
+**Body:**
+```json
+{
+  "checked": true,
+  "actual_price": 3.20,
+  "notes": "Trouvé en promotion",
+  "location": {
+    "section": "Fruits & Légumes",
+    "aisle": "A2"
+  }
+}
+```
+
+### Scanner & Vision - **Enhanced (PRP-010)**
+
+#### Scanner un code-barres avec fallbacks
 
 ```http
 POST /api/v1/scanner/barcode
@@ -309,7 +438,64 @@ POST /api/v1/scanner/barcode
 ```json
 {
   "barcode": "3123456789012",
-  "pantry_id": "uuid"
+  "pantry_id": "uuid",
+  "source_preference": "openfoodfacts" // optionnel
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "name": "Lait demi-écrémé",
+    "brand": "Lactel",
+    "category": "Produits laitiers",
+    "unit": "L",
+    "imageUrl": "https://images.openfoodfacts.org/...",
+    "source": "openfoodfacts",
+    "confidence": 0.95,
+    "nutritionalInfo": {
+      "calories": 46,
+      "protein": 3.2,
+      "fat": 1.6
+    }
+  },
+  "fallbacks_used": ["barcode-spider", "upc-database"],
+  "processing_time": 1.2
+}
+```
+
+#### Diagnostics du scanner
+
+```http
+GET /api/v1/scanner/diagnostics
+```
+
+**Response:**
+```json
+{
+  "capabilities": {
+    "hasCamera": true,
+    "cameraCount": 2,
+    "hasMultipleCameras": true,
+    "supportedFormats": ["EAN_13", "UPC_A", "CODE_128"],
+    "permissions": "granted"
+  },
+  "apis_status": {
+    "openfoodfacts": {
+      "status": "operational",
+      "response_time": 245
+    },
+    "barcode_spider": {
+      "status": "limited",
+      "daily_quota_remaining": 450
+    },
+    "upc_database": {
+      "status": "operational",
+      "response_time": 180
+    }
+  }
 }
 ```
 
@@ -323,6 +509,7 @@ POST /api/v1/scanner/vision
 - `image`: Fichier image (JPEG, PNG)
 - `pantry_id`: ID du garde-manger
 - `auto_add`: Boolean pour ajout automatique
+- `detect_multiple`: Boolean pour détection multi-produits
 
 **Response:**
 ```json
@@ -335,29 +522,127 @@ POST /api/v1/scanner/vision
       "unit": "pièces",
       "category": "Fruits",
       "freshness": "good",
-      "estimated_expiry": "2024-01-25"
+      "estimated_expiry": "2024-01-25",
+      "bounding_box": {
+        "x": 120, "y": 80, "width": 200, "height": 150
+      }
     }
   ],
-  "processing_time": 1.2
+  "processing_time": 1.2,
+  "image_quality": "good"
 }
 ```
 
-### AI Assistant
+### AI Assistant - **Enhanced (PRP-002)**
 
-#### Envoyer un message à l'assistant
+#### Chat conversationnel avec streaming
 
 ```http
-POST /api/v1/ai-assistant/chat
+POST /api/v1/ai-assistant/chat/stream
 ```
 
 **Body:**
 ```json
 {
   "message": "Que puis-je cuisiner avec mes tomates et pâtes?",
+  "conversation_id": "uuid", // optionnel pour historique
   "context": {
     "pantry_id": "uuid",
     "dietary_preferences": ["vegetarian"],
-    "cooking_time": 30
+    "cooking_time": 30,
+    "mode": "recipe-finder" // recipe-finder | cooking-guide | meal-planner
+  },
+  "stream": true
+}
+```
+
+**Response (Server-Sent Events):**
+```
+data: {"type": "start", "conversation_id": "uuid"}
+
+data: {"type": "token", "content": "Avec vos tomates"}
+
+data: {"type": "token", "content": " et pâtes, je vous suggère"}
+
+data: {"type": "suggestions", "data": [{"recipe_id": "uuid", "name": "Pâtes arrabbiata"}]}
+
+data: {"type": "complete", "total_tokens": 45, "processing_time": 2.1}
+```
+
+#### Historique des conversations
+
+```http
+GET /api/v1/ai-assistant/conversations
+```
+
+**Query parameters:**
+- `limit` (number): Nombre de conversations (défaut: 20)
+- `offset` (number): Décalage pour la pagination
+
+**Response:**
+```json
+{
+  "conversations": [
+    {
+      "id": "uuid",
+      "title": "Recettes avec tomates",
+      "last_message": "Parfait ! La recette d'arrabbiata...",
+      "created_at": "2025-08-18T10:00:00Z",
+      "updated_at": "2025-08-18T10:15:00Z",
+      "message_count": 8
+    }
+  ],
+  "total": 15
+}
+```
+
+#### Obtenir une conversation
+
+```http
+GET /api/v1/ai-assistant/conversations/{conversation_id}
+```
+
+**Response:**
+```json
+{
+  "conversation": {
+    "id": "uuid",
+    "title": "Recettes avec tomates",
+    "messages": [
+      {
+        "id": "msg-1",
+        "role": "user",
+        "content": "Que puis-je cuisiner avec mes tomates?",
+        "timestamp": "2025-08-18T10:00:00Z"
+      },
+      {
+        "id": "msg-2", 
+        "role": "assistant",
+        "content": "Avec vos tomates fraîches, je vous suggère...",
+        "timestamp": "2025-08-18T10:00:15Z",
+        "suggestions": [...]
+      }
+    ]
+  }
+}
+```
+
+### Voice Recognition - **Enhanced (PRP-009)**
+
+#### Traitement de la reconnaissance vocale
+
+```http
+POST /api/v1/voice/process
+```
+
+**Body:**
+```json
+{
+  "transcript": "ajoute deux litres de lait",
+  "action_type": "inventory_add", // inventory_add | recipe_search | assistant_query
+  "context": {
+    "pantry_id": "uuid",
+    "language": "fr-FR"
   }
 }
 ```
@@ -365,12 +650,192 @@ POST /api/v1/ai-assistant/chat
 **Response:**
 ```json
 {
-  "response": "Avec vos tomates et pâtes, je vous suggère...",
-  "suggestions": [
+  "success": true,
+  "parsed_action": {
+    "action": "add_product",
+    "product": {
+      "name": "Lait",
+      "quantity": 2,
+      "unit": "L",
+      "category": "Produits laitiers"
+    },
+    "confidence": 0.95
+  },
+  "suggested_alternatives": [
     {
-      "recipe_id": "uuid",
-      "name": "Pâtes à la sauce tomate fraîche",
-      "match_score": 0.92
+      "product": "Lait entier",
+      "confidence": 0.88
+    }
+  ],
+  "needs_confirmation": false
+}
+```
+
+#### Diagnostics vocaux
+
+```http
+GET /api/v1/voice/diagnostics
+```
+
+**Response:**
+```json
+{
+  "browser_support": {
+    "speech_recognition": true,
+    "speech_synthesis": true,
+    "supported_languages": ["fr-FR", "en-US"],
+    "continuous_recognition": true
+  },
+  "vocabulary_status": {
+    "french_food_terms": 1250,
+    "cooking_actions": 85,
+    "units_measures": 42,
+    "last_updated": "2025-08-15T10:00:00Z"
+  }
+}
+```
+
+### Analytics & Insights - **Enhanced (PRP-007)**
+
+#### Obtenir le dashboard insights
+
+```http
+GET /api/v1/analytics/dashboard
+```
+
+**Query parameters:**
+- `period` (string): week | month | quarter | year
+- `compare_to_previous` (boolean): Comparaison avec période précédente
+
+**Response:**
+```json
+{
+  "summary": {
+    "waste_reduction": {
+      "percentage": -47,
+      "value_saved": 152.50,
+      "trend": "improving"
+    },
+    "meals_cooked": {
+      "count": 85,
+      "vs_previous": 12,
+      "trend": "improving"
+    },
+    "savings": {
+      "monthly": 152.50,
+      "yearly_projection": 1830,
+      "roi_percentage": 340
+    }
+  },
+  "charts": {
+    "consumption_by_category": [
+      {
+        "category": "Fruits & Légumes",
+        "value": 180.30,
+        "percentage": 35,
+        "trend": 5.2
+      }
+    ],
+    "weekly_trends": [
+      {
+        "week": "2025-W33",
+        "spending": 45.20,
+        "waste": 3.50,
+        "meals": 12
+      }
+    ]
+  },
+  "achievements": [
+    {
+      "id": "zero_waste_week",
+      "title": "Semaine zéro déchet",
+      "description": "Aucun produit gaspillé cette semaine",
+      "unlocked_at": "2025-08-18T10:00:00Z",
+      "points": 50
+    }
+  ]
+}
+```
+
+#### Obtenir les métriques détaillées
+
+```http
+GET /api/v1/analytics/metrics
+```
+
+**Query parameters:**
+- `metric` (string): waste | consumption | savings | sustainability
+- `granularity` (string): daily | weekly | monthly
+- `start_date` (string): Date de début (ISO 8601)
+- `end_date` (string): Date de fin (ISO 8601)
+
+**Response:**
+```json
+{
+  "metric": "waste",
+  "period": {
+    "start": "2025-08-01T00:00:00Z",
+    "end": "2025-08-18T23:59:59Z"
+  },
+  "data_points": [
+    {
+      "date": "2025-08-01",
+      "value": 4.2,
+      "unit": "kg",
+      "estimated_value": 15.80,
+      "categories": {
+        "Fruits & Légumes": 2.1,
+        "Produits laitiers": 1.5,
+        "Pain": 0.6
+      }
+    }
+  ],
+  "aggregated": {
+    "total": 28.4,
+    "average_daily": 1.58,
+    "trend": -15.3,
+    "prediction_next_month": 22.1
+  }
+}
+```
+
+#### Obtenir les achievements
+
+```http
+GET /api/v1/analytics/achievements
+```
+
+**Response:**
+```json
+{
+  "current_level": {
+    "level": 15,
+    "title": "Chef Eco-responsable",
+    "points": 1250,
+    "next_level_at": 1500
+  },
+  "recent_achievements": [
+    {
+      "id": "scanner_master",
+      "title": "Maître du scanner",
+      "description": "100 produits scannés avec succès",
+      "icon": "📷",
+      "points": 25,
+      "unlocked_at": "2025-08-17T14:30:00Z",
+      "category": "productivity"
+    }
+  ],
+  "available_challenges": [
+    {
+      "id": "weekly_meal_prep",
+      "title": "Préparation hebdomadaire",
+      "description": "Planifiez 7 repas cette semaine",
+      "reward_points": 35,
+      "expires_at": "2025-08-25T00:00:00Z",
+      "progress": {
+        "current": 3,
+        "target": 7
+      }
     }
   ]
 }

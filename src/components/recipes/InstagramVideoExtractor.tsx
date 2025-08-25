@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Instagram, 
@@ -8,13 +8,15 @@ import {
   Video,
   Clock,
   Users,
-  ChefHat
+  ChefHat,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useInstagramThumbnail } from '@/hooks/useInstagramThumbnail';
 
 interface Recipe {
   title: string;
@@ -35,6 +37,15 @@ interface Recipe {
     processingTime: number;
     platform: string;
     extractionMethod: string;
+    thumbnail?: {
+      url: string;
+      width?: number;
+      height?: number;
+    };
+    author?: {
+      name: string;
+      url?: string;
+    };
   };
 }
 
@@ -50,6 +61,8 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [extractedRecipe, setExtractedRecipe] = useState<Recipe | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const { extractThumbnail, loading: thumbnailLoading } = useInstagramThumbnail();
   
   const isValidInstagramUrl = (url: string) => {
     const instagramRegex = /^https?:\/\/(www\.)?instagram\.com\/(p|reel)\/[a-zA-Z0-9_-]+/;
@@ -57,6 +70,11 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
   };
 
   const extractRecipe = async () => {
+    // Logs très visibles
+    console.log("%c🎬 DÉBUT EXTRACTION INSTAGRAM", "color: #ff0066; font-size: 20px; font-weight: bold;");
+    console.log("%c📍 URL: " + url, "color: #0099ff; font-size: 16px;");
+    console.log("%c🔧 Port: " + window.location.port, "color: #00cc66; font-size: 16px;");
+    
     console.log("🎬 [InstagramVideoExtractor] Début de l'extraction pour URL:", url);
     console.log("📍 [InstagramVideoExtractor] Window location:", window.location.href);
     console.log("🔧 [InstagramVideoExtractor] Environment:", process.env.NODE_ENV);
@@ -78,32 +96,34 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
     setExtractedRecipe(null);
 
     try {
-      // Utiliser l'URL relative pour que le proxy Vite fonctionne en dev
-      const apiUrl = '/api/parse-video-recipe';
+      // En développement, utiliser l'URL directe du serveur API si le proxy ne fonctionne pas
+      const apiUrl = process.env.NODE_ENV === 'development' 
+        ? 'http://localhost:3003/api/parse-video-recipe'
+        : '/api/parse-video-recipe';
       
       console.log("🌐 [InstagramVideoExtractor] Appel API vers:", apiUrl);
       console.log("📤 [InstagramVideoExtractor] Données envoyées:", { videoUrl: url, platform: 'instagram' });
       
-      // Test rapide de disponibilité de l'API en développement
-      if (process.env.NODE_ENV !== 'production') {
-        try {
-          const healthCheck = await fetch('/api/health', { 
-            method: 'GET',
-            signal: AbortSignal.timeout(2000) // Timeout de 2 secondes
-          }).catch(() => null);
-          
-          if (!healthCheck || !healthCheck.ok) {
-            console.error("❌ Serveur API local non disponible");
-            throw new Error(
-              'Le serveur API local n\'est pas démarré. Exécutez "npm run api" dans un terminal séparé pour activer l\'extraction vidéo.'
-            );
-          }
-        } catch (healthError) {
-          if (healthError instanceof Error && healthError.message.includes('serveur API local')) {
-            throw healthError;
-          }
-        }
-      }
+      // Test rapide de disponibilité de l'API en développement - désactivé temporairement
+      // if (process.env.NODE_ENV !== 'production') {
+      //   try {
+      //     const healthCheck = await fetch('/api/health', { 
+      //       method: 'GET',
+      //       signal: AbortSignal.timeout(2000) // Timeout de 2 secondes
+      //     }).catch(() => null);
+      //     
+      //     if (!healthCheck || !healthCheck.ok) {
+      //       console.error("❌ Serveur API local non disponible");
+      //       throw new Error(
+      //         'Le serveur API local n\'est pas démarré. Exécutez "npm run api" dans un terminal séparé pour activer l\'extraction vidéo.'
+      //       );
+      //     }
+      //   } catch (healthError) {
+      //     if (healthError instanceof Error && healthError.message.includes('serveur API local')) {
+      //       throw healthError;
+      //     }
+      //   }
+      // }
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -127,7 +147,9 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
       }
 
       const data = await response.json();
+      console.log("%c📦 DONNÉES REÇUES DE L'API", "color: #ff6600; font-size: 18px; font-weight: bold;");
       console.log("📦 Données reçues:", data);
+      console.log("🔍 Structure complète:", JSON.stringify(data, null, 2));
 
       if (!data.success) {
         console.error("❌ Extraction échouée:", data.message);
@@ -139,8 +161,76 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
       
       console.log("✅ Recette extraite:", recipe);
       console.log("⏱️ Temps de traitement:", processingTime);
+      console.log("📸 Métadonnées:", recipe.metadata);
+      console.log("🖼️ Thumbnail:", recipe.metadata?.thumbnail);
+      
+      // Log détaillé de la structure
+      if (recipe.metadata?.thumbnail) {
+        console.log("✅ Thumbnail trouvée:", {
+          type: typeof recipe.metadata.thumbnail,
+          value: recipe.metadata.thumbnail,
+          hasUrl: recipe.metadata.thumbnail?.url !== undefined
+        });
+      } else {
+        console.log("❌ Pas de thumbnail dans les métadonnées");
+      }
 
       setExtractedRecipe(recipe);
+      
+      // Récupérer la vignette séparément si elle n'est pas dans les métadonnées
+      if (!recipe.metadata?.thumbnail?.url && !recipe.metadata?.thumbnail_base64) {
+        console.log("🖼️ Récupération séparée de la vignette...");
+        const thumbnailData = await extractThumbnail(url);
+        if (thumbnailData) {
+          // Vérifier si on a une image en base64
+          if (thumbnailData.thumbnail_base64) {
+            console.log("✅ Image base64 reçue");
+            // Utiliser directement le base64 sans proxy
+            setThumbnailUrl(thumbnailData.thumbnail_base64);
+            recipe.metadata.thumbnail = {
+              url: thumbnailData.thumbnail_base64
+            };
+          } else if (thumbnailData.thumbnail_url) {
+            // Pour les URLs externes, vérifier si c'est déjà une data URL
+            if (thumbnailData.thumbnail_url.startsWith('data:')) {
+              setThumbnailUrl(thumbnailData.thumbnail_url);
+              recipe.metadata.thumbnail = {
+                url: thumbnailData.thumbnail_url
+              };
+            } else {
+              // Utiliser le proxy seulement pour les URLs HTTP/HTTPS
+              const proxyBaseUrl = process.env.NODE_ENV === 'development' 
+                ? 'http://localhost:3003/api/proxy/image'
+                : '/api/proxy/image';
+              const proxiedUrl = `${proxyBaseUrl}?url=${encodeURIComponent(thumbnailData.thumbnail_url)}`;
+              setThumbnailUrl(proxiedUrl);
+              recipe.metadata.thumbnail = {
+                url: proxiedUrl
+              };
+            }
+          }
+        }
+      } else if (recipe.metadata?.thumbnail_base64) {
+        console.log("✅ Image base64 trouvée dans les métadonnées");
+        setThumbnailUrl(recipe.metadata.thumbnail_base64);
+      } else if (recipe.metadata?.thumbnail?.url || recipe.metadata?.thumbnail) {
+        const thumbnailUrl = recipe.metadata.thumbnail.url || recipe.metadata.thumbnail;
+        // Vérifier si c'est une data URL
+        if (typeof thumbnailUrl === 'string' && thumbnailUrl.startsWith('data:')) {
+          setThumbnailUrl(thumbnailUrl);
+        } else if (typeof thumbnailUrl === 'string') {
+          // Utiliser le proxy pour éviter les problèmes CORS
+          const proxyBaseUrl = process.env.NODE_ENV === 'development' 
+            ? 'http://localhost:3003/api/proxy/image'
+            : '/api/proxy/image';
+          const proxiedUrl = `${proxyBaseUrl}?url=${encodeURIComponent(thumbnailUrl)}`;
+          setThumbnailUrl(proxiedUrl);
+          recipe.metadata.thumbnail = {
+            url: proxiedUrl
+          };
+        }
+      }
+      
       onRecipeExtracted({
         ...recipe,
         processingTime
@@ -264,8 +354,53 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
             <div className="flex items-start gap-3">
               <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-green-800">{extractedRecipe.title}</h3>
-                <p className="text-sm text-green-700 mb-3">{extractedRecipe.description}</p>
+                {/* Thumbnail et informations */}
+                <div className="flex gap-4 mb-3">
+                  {(thumbnailUrl || extractedRecipe.metadata.thumbnail) && (
+                    <div className="relative">
+                      <img 
+                        src={thumbnailUrl || extractedRecipe.metadata.thumbnail?.url || (typeof extractedRecipe.metadata.thumbnail === 'string' ? extractedRecipe.metadata.thumbnail : '')} 
+                        alt={extractedRecipe.title}
+                        className="w-24 h-24 object-cover rounded-lg shadow-md"
+                        onError={(e) => {
+                          console.error('❌ Erreur chargement image:', e.currentTarget.src);
+                          // Remplacer l'image par une div avec icône Instagram
+                          const imgElement = e.currentTarget;
+                          const parentDiv = imgElement.parentElement;
+                          if (parentDiv) {
+                            parentDiv.innerHTML = `
+                              <div class="w-24 h-24 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 rounded-lg flex items-center justify-center shadow-md">
+                                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                                </svg>
+                              </div>
+                            `;
+                          }
+                          console.log('🔄 Image remplacée par icône Instagram');
+                        }}
+                      />
+                      {thumbnailLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!thumbnailUrl && !extractedRecipe.metadata.thumbnail && !thumbnailLoading && (
+                    <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-800">{extractedRecipe.title}</h3>
+                    <p className="text-sm text-green-700">{extractedRecipe.description}</p>
+                    {extractedRecipe.metadata.author && (
+                      <p className="text-xs text-green-600 mt-1">
+                        Par {extractedRecipe.metadata.author.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
                 
                 <div className="flex flex-wrap gap-2 mb-3">
                   {extractedRecipe.metadata.servings && (
@@ -306,7 +441,7 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
                     <h4 className="font-medium text-green-800 mb-1">Instructions:</h4>
                     <ol className="text-green-700 space-y-0.5">
                       {extractedRecipe.instructions.slice(0, 2).map((inst, i) => (
-                        <li key={i}>{inst.step}. {inst.description.substring(0, 50)}...</li>
+                        <li key={i}>{inst.step}. {(inst.description || '').substring(0, 50)}...</li>
                       ))}
                       {extractedRecipe.instructions.length > 2 && (
                         <li>... et {extractedRecipe.instructions.length - 2} autres étapes</li>
@@ -336,7 +471,7 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
                 <Button 
                   size="sm" 
                   variant="outline"
-                  onClick={() => setUrl('https://www.instagram.com/reel/DJ63290I7L8/')}
+                  onClick={() => setUrl('https://www.instagram.com/reel/DKe6odxIRRr/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA==')}
                 >
                   Remplir URL test
                 </Button>
