@@ -1,5 +1,7 @@
-import { useState } from "react";
-import Layout from "@/components/Layout";
+import { useState, useEffect } from "react";
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
+import AppNavigation from "@/components/navigation/AppNavigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -10,7 +12,7 @@ import {
   Settings, 
   Moon, 
   Sun, 
-  User, 
+  User as UserIcon, 
   Bell, 
   Shield, 
   HelpCircle,
@@ -33,12 +35,31 @@ import { motion } from "framer-motion";
 import { PersonalizationSettings } from "@/components/settings/PersonalizationSettings";
 
 const SettingsPage = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showPersonalization, setShowPersonalization] = useState(false);
   const { theme, setTheme } = useTheme();
   const { startTutorial } = useTutorial();
   const { preferences, resetPreferences } = usePersonalization();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [showPersonalization, setShowPersonalization] = useState(false);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+    getUser();
+  }, []);
+
+  if (loading) {
+    return <div>Chargement...</div>;
+  }
+
+  if (!user) {
+    return <div>Non authentifié</div>;
+  }
 
   const handleThemeToggle = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -74,7 +95,7 @@ const SettingsPage = () => {
   };
 
   return (
-    <Layout>
+    <AppNavigation user={user}>
       <div className="p-4 space-y-4 pb-20 max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -195,7 +216,7 @@ const SettingsPage = () => {
               onClick={() => setShowPersonalization(true)}
             >
               <span className="flex items-center gap-2">
-                <User className="w-4 h-4" />
+                <UserIcon className="w-4 h-4" />
                 Modifier mes préférences
               </span>
               <ChevronRight className="w-4 h-4" />
@@ -309,7 +330,7 @@ const SettingsPage = () => {
           onClose={() => setShowPersonalization(false)}
         />
       )}
-    </Layout>
+    </AppNavigation>
   );
 };
 
