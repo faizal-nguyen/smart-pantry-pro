@@ -7,6 +7,8 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Check if user is already authenticated
@@ -21,6 +23,8 @@ const Auth = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -29,29 +33,29 @@ const Auth = () => {
           emailRedirectTo: `${window.location.origin}/`
         }
       });
-      
+
       if (error) {
-        let errorMessage = error.message;
-        
+        let message = error.message;
+
         // Handle specific error cases
         if (error.message.includes('Email not confirmed')) {
-          errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation.";
+          message = "Veuillez vérifier votre email et cliquer sur le lien de confirmation.";
         } else if (error.message.includes('User already registered')) {
-          errorMessage = "Un compte existe déjà avec cet email.";
+          message = "Un compte existe déjà avec cet email.";
         } else if (error.message.includes('Invalid email')) {
-          errorMessage = "Format d'email invalide.";
+          message = "Format d'email invalide.";
         } else if (error.message.includes('Password should be at least')) {
-          errorMessage = "Le mot de passe doit contenir au moins 6 caractères.";
+          message = "Le mot de passe doit contenir au moins 6 caractères.";
         }
-        
-        console.error("Erreur d'inscription:", errorMessage);
+
+        setErrorMessage(message);
       } else {
         setEmail("");
         setPassword("");
-        console.log("Inscription réussie - Vérifiez votre email pour confirmer votre compte.");
+        setSuccessMessage("Inscription réussie ! Vérifiez votre email pour confirmer votre compte.");
       }
     } catch (error) {
-      console.error("Erreur lors de l'inscription:", error);
+      setErrorMessage("Une erreur inattendue s'est produite. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
@@ -60,32 +64,33 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
-      
+
       if (error) {
-        let errorMessage = error.message;
+        let message = error.message;
 
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials')) {
-          errorMessage = "Email ou mot de passe incorrect.";
+          message = "Email ou mot de passe incorrect.";
         } else if (error.message.includes('Email not confirmed')) {
-          errorMessage = "Veuillez d'abord confirmer votre email.";
+          message = "Veuillez d'abord confirmer votre email.";
         } else if (error.message.includes('Too many requests')) {
-          errorMessage = "Trop de tentatives de connexion. Réessayez plus tard.";
+          message = "Trop de tentatives de connexion. Réessayez plus tard.";
         }
 
-        console.error("Erreur de connexion:", errorMessage);
+        setErrorMessage(message);
       } else {
-        console.log("Connexion réussie - Bienvenue dans Smart Grocery !");
         // Navigate immediately after successful login
         navigate('/', { replace: true });
       }
     } catch (error) {
-      console.error("Erreur lors de la connexion:", error);
+      setErrorMessage("Une erreur inattendue s'est produite. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
@@ -127,6 +132,28 @@ const Auth = () => {
               Inscription
             </button>
           </div>
+
+          {/* Error Message */}
+          {errorMessage && (
+            <div
+              role="alert"
+              aria-live="assertive"
+              className="p-3 mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg"
+            >
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Success Message */}
+          {successMessage && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="p-3 mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg"
+            >
+              {successMessage}
+            </div>
+          )}
 
           <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="space-y-4">
             <div>

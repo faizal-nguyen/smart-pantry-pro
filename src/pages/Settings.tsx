@@ -4,6 +4,16 @@ import { User } from '@supabase/supabase-js';
 import AppNavigation from "@/components/navigation/AppNavigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -38,6 +48,8 @@ const SettingsPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPersonalization, setShowPersonalization] = useState(false);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const { theme, setTheme } = useTheme();
   const { startTutorial } = useTutorial();
   const { preferences, resetPreferences } = usePersonalization();
@@ -79,18 +91,27 @@ const SettingsPage = () => {
   };
 
   const handleResetOnboarding = () => {
-    if (window.confirm("Voulez-vous vraiment réinitialiser vos préférences et refaire l'onboarding ?")) {
-      resetPreferences();
-      localStorage.removeItem('hasCompletedOnboarding');
-      navigate('/onboarding');
-    }
+    resetPreferences();
+    localStorage.removeItem('hasCompletedOnboarding');
+    setShowResetDialog(false);
+    navigate('/onboarding');
   };
 
-  const handleLogout = () => {
-    if (window.confirm("Voulez-vous vraiment vous déconnecter ?")) {
-      // Clear auth and redirect
+  const handleLogout = async () => {
+    try {
+      // Sign out from Supabase first
+      await supabase.auth.signOut();
+      // Then clear local storage
       localStorage.clear();
+      setShowLogoutDialog(false);
       navigate('/auth');
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de se déconnecter. Veuillez réessayer.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -225,7 +246,7 @@ const SettingsPage = () => {
             <Button
               variant="outline"
               className="w-full justify-between"
-              onClick={handleResetOnboarding}
+              onClick={() => setShowResetDialog(true)}
             >
               <span className="flex items-center gap-2">
                 <RefreshCw className="w-4 h-4" />
@@ -308,7 +329,7 @@ const SettingsPage = () => {
             <Button
               variant="destructive"
               className="w-full"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutDialog(true)}
             >
               <LogOut className="w-4 h-4 mr-2" />
               Se déconnecter
@@ -330,6 +351,42 @@ const SettingsPage = () => {
           onClose={() => setShowPersonalization(false)}
         />
       )}
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la déconnexion</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment vous déconnecter de Smart Pantry Pro ?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Se déconnecter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Onboarding Confirmation Dialog */}
+      <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Réinitialiser les préférences</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment réinitialiser vos préférences et refaire l'onboarding ? Cette action effacera toutes vos personnalisations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetOnboarding}>
+              Réinitialiser
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppNavigation>
   );
 };

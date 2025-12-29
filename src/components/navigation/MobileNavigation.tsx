@@ -292,7 +292,7 @@ const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               <button
                 onClick={() => {
                   navigate('/settings');
-                  setIsDrawerOpen(false);
+                  onClose();
                 }}
                 className={cn(
                   "w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all",
@@ -442,7 +442,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       )}
 
       {/* Bottom Navigation */}
-      <nav 
+      <nav
+        aria-label="Navigation principale"
+        role="navigation"
         className={cn(
           "fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t shadow-lg safe-area-inset-bottom z-40",
           isChildMode && "bg-card/95 border-t-2 border-primary/20"
