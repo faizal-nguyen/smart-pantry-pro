@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { useShoppingList, NewShoppingItem } from "@/hooks/useShoppingList";
+import { useInventory } from "@/hooks/useInventory";
+import { Autocomplete, AutocompleteSuggestion } from "@/components/ui/Autocomplete";
 
 const CATEGORIES = [
   "Fruits/Légumes",
@@ -78,6 +80,7 @@ const AddShoppingItemDialog = ({ trigger }: AddShoppingItemDialogProps) => {
   });
   
   const { addToShoppingList } = useShoppingList();
+  const { products } = useInventory();
 
   const resetForm = () => {
     setFormData({
@@ -132,13 +135,24 @@ const AddShoppingItemDialog = ({ trigger }: AddShoppingItemDialogProps) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="productName">Nom du produit *</Label>
-            <Input
-              id="productName"
-              value={formData.productName}
-              onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
-              placeholder="ex: Pommes Gala"
-              required
-            />
+            <div className="relative">
+              <Autocomplete
+                value={formData.productName}
+                onValueChange={(val) => setFormData(prev => ({ ...prev, productName: val }))}
+                suggestions={(products || []).map(p => ({
+                  id: p.id,
+                  label: p.name,
+                  value: p.name,
+                  section: p.category || 'Autres',
+                  meta: p.unit_type || undefined,
+                  payload: p
+                })) as AutocompleteSuggestion[]}
+                onSelect={(s) => setFormData(prev => ({ ...prev, productName: s.value, unit: (s.meta as string) || prev.unit, category: s.payload?.category || prev.category }))}
+                placeholder="ex: Pommes Gala"
+                className="relative"
+                inputClassName="w-full border rounded px-3 py-2"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

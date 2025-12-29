@@ -9,12 +9,17 @@ export const useInstagramThumbnail = () => {
     setError(null);
 
     try {
+      // Validate URL with shared schema
+      try {
+        const { UrlBody } = await import('@smart/shared');
+        (UrlBody as any).parse({ url });
+      } catch {
+        throw new Error('URL invalide');
+      }
       console.log('🔍 [useInstagramThumbnail] Extraction de la vignette pour:', url);
       
       // En développement, utiliser l'URL directe du serveur API si le proxy ne fonctionne pas
-      const apiUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3003/api/social/instagram-thumbnail'
-        : '/api/social/instagram-thumbnail';
+      const apiUrl = '/api/social/instagram/thumbnail';
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -28,17 +33,18 @@ export const useInstagramThumbnail = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('📦 [useInstagramThumbnail] Réponse:', data);
+      const raw = await response.json();
+      console.log('📦 [useInstagramThumbnail] Réponse:', raw);
+      const data = raw?.data ?? raw;
 
-      if (data.success) {
+      if (raw.success) {
         console.log('✅ [useInstagramThumbnail] Données trouvées');
-        if (data.thumbnail_base64) {
+        if (data?.thumbnail_base64) {
           console.log('✅ [useInstagramThumbnail] Image base64 disponible');
         }
         return data;
       } else {
-        throw new Error(data.error || 'Aucune vignette trouvée');
+        throw new Error(data?.error || 'Aucune vignette trouvée');
       }
     } catch (err) {
       console.error('❌ [useInstagramThumbnail] Erreur:', err);

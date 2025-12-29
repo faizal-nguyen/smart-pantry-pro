@@ -160,9 +160,9 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                     )}
                   >
                     <div className="relative flex-shrink-0">
-                      <IconComponent 
-                        style={{ width: iconSize, height: iconSize }}
+                      <IconComponent
                         className="transition-colors"
+                        size={iconSize}
                       />
                       
                       {item.badge && (
@@ -305,9 +305,9 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                     isChildMode && !isCollapsed && "p-4 gap-4"
                   )}
                 >
-                  <IconComponent 
-                    style={{ width: iconSize, height: iconSize }}
+                  <IconComponent
                     className="flex-shrink-0"
+                    size={iconSize}
                   />
                   
                   {!isCollapsed && (

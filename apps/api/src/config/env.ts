@@ -1,0 +1,22 @@
+import { z } from 'zod';
+
+const EnvSchema = z.object({
+  VIDEO_PROCESSOR_URL: z.string().url().optional(),
+  INSTAGRAM_OEMBED_TOKEN: z.string().optional(),
+  FACEBOOK_APP_TOKEN: z.string().optional(),
+  ALLOWED_ORIGINS: z.string().optional(),
+  LOG_LEVEL: z.enum(['debug','info','warn','error']).optional(),
+  RATE_LIMIT_YT_MAX: z.coerce.number().int().positive().optional(),
+  RATE_LIMIT_YT_WINDOW_MS: z.coerce.number().int().positive().optional()
+});
+
+const parsed = EnvSchema.safeParse(process.env);
+if (!parsed.success) {
+  // Do not crash in development; log a concise message
+  const issues = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ');
+  // eslint-disable-next-line no-console
+  console.warn(`[env] Environment validation warnings: ${issues}`);
+}
+
+export const env = (parsed.success ? parsed.data : (process.env as any)) as z.infer<typeof EnvSchema>;
+

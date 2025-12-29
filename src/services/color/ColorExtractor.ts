@@ -49,10 +49,7 @@ export class ColorExtractor {
     }
     
     // Pour les URLs externes, utiliser le proxy
-    const isDevelopment = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-    const proxyBaseUrl = isDevelopment 
-      ? 'http://localhost:3003/api/proxy/image'
-      : '/api/proxy/image';
+    const proxyBaseUrl = '/api/proxy/image';
     
     return `${proxyBaseUrl}?url=${encodeURIComponent(imageUrl)}`;
   }

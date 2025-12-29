@@ -23,11 +23,23 @@ dist-ssr
 *.sln
 *.sw?
 # Environment files - NEVER commit these
-.env.local
 .env
-*.env
-.env.production
-.env.development
+.env.local
+.env.*.local
+.env.development.local
+.env.staging.local
+.env.production.local
+apps/**/.env
+services/**/.env
+**/secrets/
+**/*.pem
+**/*.key
+
+# Keep template environment files (without secrets)
+!.env.example
+!.env.development
+!.env.staging
+!.env.production
 
 # MCP Configuration (contains sensitive tokens)
 .mcp/config.json

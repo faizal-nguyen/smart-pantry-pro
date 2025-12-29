@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Clock, DollarSign, Flame, AlertCircle } from 'lucide-react';
+import { Plus, Clock, DollarSign, Flame, AlertCircle, ChefHat } from 'lucide-react';
 import { MealPlanEntry, MealType } from '@/services/planning/types';
 
 interface MealSlotProps {
@@ -12,9 +12,13 @@ interface MealSlotProps {
   meal: MealPlanEntry | null;
   isEditable: boolean;
   onClick: () => void;
+  locked?: boolean;
+  onToggleLock?: () => void;
+  onAlternatives?: () => void;
+  onCook?: () => void;
 }
 
-export function MealSlot({ dayIndex, mealType, meal, isEditable, onClick }: MealSlotProps) {
+export function MealSlot({ dayIndex, mealType, meal, isEditable, onClick, locked, onToggleLock, onAlternatives, onCook }: MealSlotProps) {
   if (!meal) {
     return (
       <Card 
@@ -44,10 +48,10 @@ export function MealSlot({ dayIndex, mealType, meal, isEditable, onClick }: Meal
     <Card 
       className={`min-h-[120px] transition-colors ${
         isEditable 
-          ? 'hover:shadow-md cursor-pointer' 
+          ? 'hover:shadow-md ' + (locked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer') 
           : 'cursor-default'
       }`}
-      onClick={isEditable ? onClick : undefined}
+      onClick={isEditable && !locked ? onClick : undefined}
     >
       <CardContent className="p-3 space-y-2">
         {/* Meal Type Header */}
@@ -58,9 +62,29 @@ export function MealSlot({ dayIndex, mealType, meal, isEditable, onClick }: Meal
               {mealType.label}
             </span>
           </div>
-          {meal.confidence && meal.confidence < 0.8 && (
-            <AlertCircle className="h-3 w-3 text-amber-500" />
-          )}
+          <div className="flex items-center gap-2">
+            {meal.confidence && meal.confidence < 0.8 && (
+              <AlertCircle className="h-3 w-3 text-amber-500" />
+            )}
+            {isEditable && (
+              <>
+                <button
+                  type="button"
+                  className={`text-xs px-2 py-1 rounded border ${locked ? 'bg-muted' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); onToggleLock && onToggleLock(); }}
+                >
+                  {locked ? '🔒' : '🔓'}
+                </button>
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded border"
+                  onClick={(e) => { e.stopPropagation(); onAlternatives && onAlternatives(); }}
+                >
+                  Alt
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Recipe Name */}
@@ -119,12 +143,21 @@ export function MealSlot({ dayIndex, mealType, meal, isEditable, onClick }: Meal
           </div>
         )}
 
-        {/* Servings */}
+        {/* Actions & Servings */}
         {meal.servings && meal.servings !== 1 && (
           <div className="flex justify-between items-center">
             <Badge variant="outline" className="text-xs">
               {meal.servings} portions
             </Badge>
+            {isEditable && (
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded border flex items-center gap-1"
+                onClick={(e) => { e.stopPropagation(); onCook && onCook(); }}
+              >
+                <ChefHat className="h-3 w-3" /> Cuisiner
+              </button>
+            )}
           </div>
         )}
       </CardContent>

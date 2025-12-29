@@ -52,10 +52,22 @@ CREATE TABLE IF NOT EXISTS public.recipes_catalog (
   updated_at TIMESTAMP DEFAULT NOW(),
   
   -- Search optimization
-  search_vector tsvector GENERATED ALWAYS AS (
-    to_tsvector('french', title || ' ' || COALESCE(description, '') || ' ' || array_to_string(tags, ' '))
-  ) STORED
+  search_vector tsvector
 );
+
+-- Update search vector with trigger instead of generated column
+CREATE OR REPLACE FUNCTION update_recipe_search_vector()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.search_vector := to_tsvector('french', NEW.title || ' ' || COALESCE(NEW.description, '') || ' ' || array_to_string(NEW.tags, ' '));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_update_recipe_search_vector ON public.recipes_catalog;
+CREATE TRIGGER trigger_update_recipe_search_vector
+    BEFORE INSERT OR UPDATE ON public.recipes_catalog
+    FOR EACH ROW EXECUTE FUNCTION update_recipe_search_vector();
 
 -- Index pour les performances
 CREATE INDEX IF NOT EXISTS idx_recipes_catalog_search ON public.recipes_catalog USING gin(search_vector);
@@ -165,33 +177,39 @@ CREATE INDEX IF NOT EXISTS idx_user_collections_user ON public.user_collections(
 -- Recipes Catalog - Lecture pour tous, écriture pour admins seulement
 ALTER TABLE public.recipes_catalog ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view verified recipes" ON public.recipes_catalog;
 CREATE POLICY "Anyone can view verified recipes" ON public.recipes_catalog
   FOR SELECT USING (verified_status = TRUE);
 
+DROP POLICY IF EXISTS "Premium users can view premium recipes" ON public.recipes_catalog;
 CREATE POLICY "Premium users can view premium recipes" ON public.recipes_catalog
   FOR SELECT USING (
     NOT is_premium OR 
-    (auth.jwt() ->> 'user_metadata' ->> 'subscription_tier') IN ('premium', 'premium_plus')
+    ((auth.jwt() -> 'user_metadata' ->> 'subscription_tier')::text) IN ('premium', 'premium_plus')
   );
 
 -- User Recipes - Chaque utilisateur voit seulement ses recettes
 ALTER TABLE public.user_recipes ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own recipes" ON public.user_recipes;
 CREATE POLICY "Users can manage their own recipes" ON public.user_recipes
   USING (auth.uid() = user_id);
 
 -- Catalog Ratings - Utilisateurs peuvent noter et voir les notes
 ALTER TABLE public.catalog_ratings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can view ratings" ON public.catalog_ratings;
 CREATE POLICY "Anyone can view ratings" ON public.catalog_ratings
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can manage their own ratings" ON public.catalog_ratings;
 CREATE POLICY "Users can manage their own ratings" ON public.catalog_ratings
   USING (auth.uid() = user_id);
 
 -- User Collections
 ALTER TABLE public.user_collections ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own collections" ON public.user_collections;
 CREATE POLICY "Users can manage their own collections" ON public.user_collections
   USING (auth.uid() = user_id);
 
@@ -231,10 +249,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers pour maintenir les stats
+DROP TRIGGER IF EXISTS trigger_update_catalog_stats_on_user_recipes ON user_recipes;
 CREATE TRIGGER trigger_update_catalog_stats_on_user_recipes
   AFTER INSERT OR UPDATE OR DELETE ON user_recipes
   FOR EACH ROW EXECUTE FUNCTION update_catalog_recipe_stats();
 
+DROP TRIGGER IF EXISTS trigger_update_catalog_stats_on_ratings ON catalog_ratings;
 CREATE TRIGGER trigger_update_catalog_stats_on_ratings
   AFTER INSERT OR UPDATE OR DELETE ON catalog_ratings
   FOR EACH ROW EXECUTE FUNCTION update_catalog_recipe_stats();

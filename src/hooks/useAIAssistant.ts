@@ -1,13 +1,28 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 // import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useInventory } from './useInventory';
 import { useRecipes } from './useRecipes';
-import { getStreamingAIService } from '@/services/ai/streamingAIService';
 import { voiceRecognition, FrenchVoiceRecognitionService } from '@/services/voice/frenchVoiceRecognition';
 import { findFoodByName, extractQuantityAndUnit } from '@/data/frenchFoodVocabulary';
 import { API_RATE_LIMITS, SECURITY_ERROR_MESSAGES } from '@/config/security';
 import { toast } from 'sonner';
+
+export interface ExpiryAlert {
+  product: string | undefined;
+  daysUntil: number;
+  type: 'expired' | 'critical' | 'warning';
+}
+
+export interface MessageMetadata {
+  confidence?: number;
+  audioUrl?: string;
+  imageUrl?: string;
+  expiryAlerts?: ExpiryAlert[];
+  originalTranscript?: string;
+  extracted?: { quantity: number; unit: string; product: string };
+  foodMatch?: { name: string; category?: string };
+}
 
 export interface Message {
   id: string;
@@ -15,12 +30,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   mode?: 'text' | 'voice' | 'visual';
-  metadata?: {
-    confidence?: number;
-    audioUrl?: string;
-    imageUrl?: string;
-    expiryAlerts?: any[];
-  };
+  metadata?: MessageMetadata;
 }
 
 export interface AIAssistantState {
@@ -48,16 +58,8 @@ export function useAIAssistant() {
     inputMode: 'text'
   });
 
-  const streamingService = useRef<ReturnType<typeof getStreamingAIService> | null>(null);
   const currentStreamMessage = useRef<Message | null>(null);
-
-  // Initialize streaming service
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (apiKey) {
-      streamingService.current = getStreamingAIService(apiKey);
-    }
-  }, []);
+  
 
   /**
    * Send a message to the AI assistant
@@ -65,7 +67,7 @@ export function useAIAssistant() {
   const sendMessage = useCallback(async (
     content: string,
     mode: 'text' | 'voice' | 'visual' = 'text',
-    metadata?: any
+    metadata?: MessageMetadata
   ) => {
     // Temporarily disabled user check for testing
     // if (!user) {
@@ -100,13 +102,14 @@ export function useAIAssistant() {
       const context = prepareContext();
 
       // Call AI assistant endpoint
-      const apiUrl = '/api/ai-assistant-enhanced';
+      const apiUrl = '/api/v1/assistant/stream';
         
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': session ? `Bearer ${session.access_token}` : ''
+          'Authorization': session ? `Bearer ${session.access_token}` : '',
+          'X-Request-Id': crypto.randomUUID()
         },
         body: JSON.stringify({
           message: content,
@@ -127,14 +130,15 @@ export function useAIAssistant() {
       // Handle streaming response
       await handleStreamingResponse(response);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('AI Assistant error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error.message
+        error: errorMessage
       }));
-      toast.error(error.message || SECURITY_ERROR_MESSAGES.SERVER_ERROR);
+      toast.error(errorMessage || SECURITY_ERROR_MESSAGES.SERVER_ERROR);
     }
   }, [user, supabase, inventory, recipes]);
 
@@ -294,9 +298,7 @@ export function useAIAssistant() {
    * Cancel streaming response
    */
   const cancelStreaming = useCallback(() => {
-    if (streamingService.current) {
-      streamingService.current.cancelStream();
-    }
+    // Client-side cancellation of fetch streams is not wired here; just reset UI state
     setState(prev => ({ ...prev, isStreaming: false, isLoading: false }));
   }, []);
 

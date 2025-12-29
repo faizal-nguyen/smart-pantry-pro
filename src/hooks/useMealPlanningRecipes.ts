@@ -1,70 +1,21 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { MealType, RecipeWithDetails } from '@/services/planning/types';
 
-export interface CatalogRecipe {
-  id: string;
-  title: string;
-  description?: string;
-  ingredients_json: any[];
-  instructions: string;
-  photo_url?: string;
-  tags?: string[];
-  difficulty: number;
-  prep_time: number;
-  cook_time: number;
-  rest_time?: number;
-  servings: number;
-  rating_avg?: number;
-  rating_count?: number;
-  times_added?: number;
-  source?: string;
-  verified_status: boolean;
-  is_premium: boolean;
-  nutrition_json?: any;
-  created_at: string;
-  updated_at: string;
-}
+export function useMealPlanningRecipes() {
+  const [catalogRecipes, setCatalogRecipes] = useState<RecipeWithDetails[]>([]);
+  const [userRecipes, setUserRecipes] = useState<RecipeWithDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-export interface UserRecipe {
-  id: string;
-  user_id: string;
-  recipe_id?: string;
-  is_from_catalog: boolean;
-  custom_title?: string;
-  custom_ingredients_json?: any[];
-  custom_instructions?: string;
-  custom_photo_url?: string;
-  custom_modifications?: any;
-  personal_notes?: string;
-  personal_rating?: number;
-  personal_tags?: string[];
-  collections?: string[];
-  added_date: string;
-  last_cooked_date?: string;
-  times_cooked: number;
-}
-
-export interface RecipeWithDetails extends CatalogRecipe {
-  isPersonal: boolean;
-  personalData?: UserRecipe;
-  estimatedCost: number;
-  totalTime: number;
-}
-
-export const useMealPlanningRecipes = () => {
-  const [catalogRecipes, setCatalogRecipes] = useState<CatalogRecipe[]>([]);
-  const [userRecipes, setUserRecipes] = useState<UserRecipe[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Load verified catalog recipes
+  // Load all recipes from the catalog
   const loadCatalogRecipes = async (limit = 50) => {
     try {
       const { data, error } = await supabase
-        .from('recipes_catalog')
+        .from('recipes')
         .select('*')
-        .eq('verified_status', true)
-        .order('rating_avg', { ascending: false, nullsLast: true })
-        .order('times_added', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
@@ -81,10 +32,10 @@ export const useMealPlanningRecipes = () => {
       if (!user.user) return;
 
       const { data, error } = await supabase
-        .from('user_recipes')
+        .from('recipes')
         .select('*')
         .eq('user_id', user.user.id)
-        .order('added_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setUserRecipes(data || []);
@@ -97,116 +48,101 @@ export const useMealPlanningRecipes = () => {
   const searchRecipes = async (
     query: string, 
     filters?: {
+      maxCost?: number;
+      maxTime?: number;
       difficulty?: number;
-      max_time?: number;
       tags?: string[];
-      cuisine_type?: string;
+      mealType?: MealType;
     }
-  ): Promise<RecipeWithDetails[]> => {
+  ) => {
+    setIsLoading(true);
     try {
       const { data: user } = await supabase.auth.getUser();
-      
-      // Search in catalog
-      let catalogQuery = supabase
-        .from('recipes_catalog')
-        .select('*')
-        .eq('verified_status', true)
-        .or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+      if (!user.user) return [];
 
-      // Apply filters
-      if (filters?.difficulty) {
-        catalogQuery = catalogQuery.lte('difficulty', filters.difficulty);
+      let queryBuilder = supabase
+        .from('recipes')
+        .select('*')
+        .eq('user_id', user.user.id); // Filtrer seulement les recettes de l'utilisateur
+
+      // Add search filter
+      if (query) {
+        queryBuilder = queryBuilder.or(`name.ilike.%${query}%,description.ilike.%${query}%`);
       }
-      
-      if (filters?.max_time) {
-        catalogQuery = catalogQuery.lte('prep_time', filters.max_time);
+
+      // Add other filters
+      if (filters?.difficulty) {
+        queryBuilder = queryBuilder.eq('difficulty', filters.difficulty);
       }
 
       if (filters?.tags && filters.tags.length > 0) {
-        catalogQuery = catalogQuery.overlaps('tags', filters.tags);
+        queryBuilder = queryBuilder.contains('tags', filters.tags);
       }
 
-      const { data: catalogResults, error: catalogError } = await catalogQuery
-        .order('rating_avg', { ascending: false, nullsLast: true })
+      const { data, error } = await queryBuilder
+        .order('created_at', { ascending: false })
         .limit(20);
 
-      if (catalogError) throw catalogError;
-
-      // Search in user recipes if authenticated
-      let userResults: any[] = [];
-      if (user.user) {
-        const { data: userRecipeResults, error: userError } = await supabase
-          .from('user_recipes')
-          .select(`
-            *,
-            catalog_recipe:recipes_catalog(*)
-          `)
-          .eq('user_id', user.user.id)
-          .or(
-            `custom_title.ilike.%${query}%,` +
-            `catalog_recipe.title.ilike.%${query}%,` +
-            `personal_notes.ilike.%${query}%`
-          );
-
-        if (!userError) {
-          userResults = userRecipeResults || [];
-        }
-      }
-
-      // Combine and transform results
-      const combinedResults: RecipeWithDetails[] = [];
-
-      // Add catalog recipes
-      (catalogResults || []).forEach(recipe => {
-        combinedResults.push(transformCatalogRecipe(recipe));
-      });
-
-      // Add user recipes
-      userResults.forEach(userRecipe => {
-        if (userRecipe.is_from_catalog && userRecipe.catalog_recipe) {
-          // User recipe based on catalog
-          combinedResults.push(transformCatalogRecipe(
-            userRecipe.catalog_recipe,
-            userRecipe
-          ));
-        } else if (!userRecipe.is_from_catalog) {
-          // Custom user recipe
-          combinedResults.push(transformCustomRecipe(userRecipe));
-        }
-      });
-
-      // Remove duplicates and sort by relevance
-      const uniqueResults = combinedResults.filter((recipe, index, array) => 
-        array.findIndex(r => r.id === recipe.id) === index
-      );
-
-      return uniqueResults.sort((a, b) => {
-        // Prioritize personal recipes and high ratings
-        if (a.isPersonal && !b.isPersonal) return -1;
-        if (!a.isPersonal && b.isPersonal) return 1;
-        return (b.rating_avg || 0) - (a.rating_avg || 0);
-      });
-
+      if (error) throw error;
+      return data || [];
     } catch (error) {
       console.error('Error searching recipes:', error);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get recipe by ID
+  const getRecipeById = async (recipeId: string): Promise<RecipeWithDetails | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .eq('id', recipeId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error loading recipe:', error);
+      return null;
+    }
+  };
+
+  // Get recipes suitable for a specific meal type
+  const getRecipesByMealType = async (mealType: MealType): Promise<RecipeWithDetails[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('recipes')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error loading recipes by meal type:', error);
       return [];
     }
   };
 
-  // Get popular recipes from catalog
-  const getPopularRecipes = async (limit = 10): Promise<RecipeWithDetails[]> => {
+  // Get popular recipes (prioritize user's recipes)
+  const getPopularRecipes = async (limit = 20): Promise<RecipeWithDetails[]> => {
     try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) return [];
+
+      // D'abord, récupérer les recettes de l'utilisateur
       const { data, error } = await supabase
-        .from('recipes_catalog')
+        .from('recipes')
         .select('*')
-        .eq('verified_status', true)
-        .order('rating_avg', { ascending: false, nullsLast: true })
-        .order('times_added', { ascending: false })
+        .eq('user_id', user.user.id)
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      
-      return (data || []).map(recipe => transformCatalogRecipe(recipe));
+      return data || [];
     } catch (error) {
       console.error('Error loading popular recipes:', error);
       return [];
@@ -220,87 +156,26 @@ export const useMealPlanningRecipes = () => {
       if (!user.user) return [];
 
       const { data, error } = await supabase
-        .from('user_recipes')
-        .select(`
-          *,
-          catalog_recipe:recipes_catalog(*)
-        `)
+        .from('recipes')
+        .select('*')
         .eq('user_id', user.user.id)
-        .gte('personal_rating', 4)
-        .order('times_cooked', { ascending: false })
-        .order('added_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-
-      return (data || []).map(userRecipe => {
-        if (userRecipe.is_from_catalog && userRecipe.catalog_recipe) {
-          return transformCatalogRecipe(userRecipe.catalog_recipe, userRecipe);
-        } else {
-          return transformCustomRecipe(userRecipe);
-        }
-      });
+      return data || [];
     } catch (error) {
       console.error('Error loading favorite recipes:', error);
       return [];
     }
   };
 
-  // Transform catalog recipe to unified format
-  const transformCatalogRecipe = (
-    recipe: CatalogRecipe, 
-    personalData?: UserRecipe
-  ): RecipeWithDetails => ({
-    ...recipe,
-    isPersonal: !!personalData,
-    personalData,
-    estimatedCost: estimateRecipeCost(recipe),
-    totalTime: recipe.prep_time + recipe.cook_time + (recipe.rest_time || 0)
-  });
-
-  // Transform custom user recipe to unified format
-  const transformCustomRecipe = (userRecipe: UserRecipe): RecipeWithDetails => ({
-    id: userRecipe.id,
-    title: userRecipe.custom_title || 'Recette personnalisée',
-    description: userRecipe.personal_notes,
-    ingredients_json: userRecipe.custom_ingredients_json || [],
-    instructions: userRecipe.custom_instructions || '',
-    photo_url: userRecipe.custom_photo_url,
-    tags: userRecipe.personal_tags || [],
-    difficulty: 3, // Default difficulty for custom recipes
-    prep_time: 30, // Default prep time
-    cook_time: 30, // Default cook time
-    servings: 4, // Default servings
-    rating_avg: userRecipe.personal_rating,
-    verified_status: false,
-    is_premium: false,
-    created_at: userRecipe.added_date,
-    updated_at: userRecipe.added_date,
-    isPersonal: true,
-    personalData: userRecipe,
-    estimatedCost: 5.0, // Default cost for custom recipes
-    totalTime: 60 // Default total time
-  });
-
-  // Estimate recipe cost based on ingredients and complexity
-  const estimateRecipeCost = (recipe: CatalogRecipe): number => {
-    const baseCostPerServing = 3.5;
-    const difficultyMultiplier = 1 + (recipe.difficulty - 3) * 0.2;
-    const ingredientCount = recipe.ingredients_json?.length || 5;
-    const ingredientMultiplier = 1 + (ingredientCount - 5) * 0.1;
-    
-    const estimatedCost = baseCostPerServing * recipe.servings * difficultyMultiplier * ingredientMultiplier;
-    return Math.round(estimatedCost * 100) / 100;
-  };
-
-  // Initialize data
+  // Initialize data on mount
   useEffect(() => {
     const initializeData = async () => {
-      setLoading(true);
       await Promise.all([
         loadCatalogRecipes(),
         loadUserRecipes()
       ]);
-      setLoading(false);
     };
 
     initializeData();
@@ -309,19 +184,13 @@ export const useMealPlanningRecipes = () => {
   return {
     catalogRecipes,
     userRecipes,
-    loading,
+    isLoading,
     searchRecipes,
+    getRecipeById,
+    getRecipesByMealType,
     getPopularRecipes,
     getFavoriteRecipes,
-    loadCatalogRecipes,
-    loadUserRecipes,
-    
-    // Computed values
-    totalCatalogRecipes: catalogRecipes.length,
-    totalUserRecipes: userRecipes.length,
-    recentlyCooked: userRecipes
-      .filter(r => r.last_cooked_date)
-      .sort((a, b) => new Date(b.last_cooked_date!).getTime() - new Date(a.last_cooked_date!).getTime())
-      .slice(0, 5)
+    refreshCatalog: loadCatalogRecipes,
+    refreshUserRecipes: loadUserRecipes
   };
-};
+}

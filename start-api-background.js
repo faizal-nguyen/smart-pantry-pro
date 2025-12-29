@@ -5,7 +5,7 @@ const path = require('path');
 
 console.log('🚀 Démarrage du serveur API en arrière-plan...');
 
-const apiProcess = spawn('node', ['start-local-api.js'], {
+const apiProcess = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'api:dev'], {
   cwd: __dirname,
   stdio: 'inherit',
   detached: false,
@@ -25,6 +25,6 @@ apiProcess.on('exit', (code) => {
 
 // Attendre un peu pour voir si le serveur démarre
 setTimeout(() => {
-  console.log('\n✅ Si vous voyez les logs du serveur ci-dessus, il est en cours d\'exécution.');
-  console.log('📍 Testez maintenant: http://localhost:3002/test-instagram-direct.html\n');
+  console.log('\n✅ API en cours d\'exécution (apps/api).');
+  console.log('📍 Testez maintenant: http://localhost:3002 (proxy /api -> :4000)\n');
 }, 2000);

@@ -5,50 +5,51 @@
 -- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Weekly Meal Plans - Plans hebdomadaires
-CREATE TABLE IF NOT EXISTS public.weekly_meal_plans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    week_start_date DATE NOT NULL,
-    status VARCHAR(20) CHECK (status IN ('draft', 'active', 'completed')) DEFAULT 'draft',
-    total_estimated_cost DECIMAL(10,2) DEFAULT 0,
+-- 1. Weekly Meal Plans - Plans hebdomadaires (update existing table)
+-- Add missing columns to existing table
+DO $$ 
+BEGIN
+    -- Add nutritional_summary column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='weekly_meal_plans' AND column_name='nutritional_summary') THEN
+        ALTER TABLE public.weekly_meal_plans ADD COLUMN nutritional_summary JSONB DEFAULT '{
+            "totalCalories": 0,
+            "averageDailyCalories": 0,
+            "macroDistribution": {
+                "protein": {"grams": 0, "percentage": 0},
+                "carbs": {"grams": 0, "percentage": 0},
+                "fat": {"grams": 0, "percentage": 0}
+            },
+            "micronutrientHighlights": {
+                "strong": [],
+                "weak": []
+            },
+            "varietyScore": 0,
+            "healthScore": 0
+        }';
+    END IF;
     
-    -- Résumé nutritionnel agrégé
-    nutritional_summary JSONB DEFAULT '{
-        "totalCalories": 0,
-        "averageDailyCalories": 0,
-        "macroDistribution": {
-            "protein": {"grams": 0, "percentage": 0},
-            "carbs": {"grams": 0, "percentage": 0},
-            "fat": {"grams": 0, "percentage": 0}
-        },
-        "micronutrientHighlights": {
-            "strong": [],
-            "weak": []
-        },
-        "varietyScore": 0,
-        "healthScore": 0
-    }',
+    -- Add shopping_list column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='weekly_meal_plans' AND column_name='shopping_list') THEN
+        ALTER TABLE public.weekly_meal_plans ADD COLUMN shopping_list JSONB DEFAULT '{
+            "totalCost": 0,
+            "estimatedSavings": 0,
+            "items": [],
+            "storeRecommendations": [],
+            "bulkBuyingOpportunities": [],
+            "seasonalSubstitutions": []
+        }';
+    END IF;
     
-    -- Liste de courses optimisée
-    shopping_list JSONB DEFAULT '{
-        "totalCost": 0,
-        "estimatedSavings": 0,
-        "items": [],
-        "storeRecommendations": [],
-        "bulkBuyingOpportunities": [],
-        "seasonalSubstitutions": []
-    }',
+    -- Add alternative_options column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='weekly_meal_plans' AND column_name='alternative_options') THEN
+        ALTER TABLE public.weekly_meal_plans ADD COLUMN alternative_options JSONB DEFAULT '[]';
+    END IF;
     
-    -- Options alternatives
-    alternative_options JSONB DEFAULT '[]',
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
-    -- Contrainte unicité par utilisateur et semaine
-    UNIQUE(user_id, week_start_date)
-);
+    -- Add status column if it doesn't exist
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='weekly_meal_plans' AND column_name='status') THEN
+        ALTER TABLE public.weekly_meal_plans ADD COLUMN status VARCHAR(20) CHECK (status IN ('draft', 'active', 'completed')) DEFAULT 'draft';
+    END IF;
+END $$;
 
 -- 2. Meal Plan Entries - Entrées du planning
 CREATE TABLE IF NOT EXISTS public.meal_plan_entries (

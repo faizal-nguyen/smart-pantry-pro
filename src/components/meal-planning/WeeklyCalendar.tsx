@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,11 +9,15 @@ import { Plus, Clock, DollarSign, Flame } from 'lucide-react';
 import { WeeklyMealPlan, MealPlanEntry, MealType } from '@/services/planning/types';
 import { MealSlot } from './MealSlot';
 import { RecipePicker } from './RecipePicker';
+import { analyzeRecipeInventory } from '@/hooks/useRecipeInventoryAnalysis';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
 interface WeeklyCalendarProps {
   plan: WeeklyMealPlan | null;
   onMealChange: (dayIndex: number, mealType: MealType, recipeId: string | null) => void;
   isEditable: boolean;
+  userPreferences?: any; // TODO: Add proper type
 }
 
 const DAYS_OF_WEEK = [
@@ -24,25 +29,85 @@ const MEAL_TYPES: { key: MealType; label: string; icon: string }[] = [
   { key: 'dinner', label: 'Soir', icon: '🌙' }
 ];
 
-export function WeeklyCalendar({ plan, onMealChange, isEditable }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ plan, onMealChange, isEditable, userPreferences }: WeeklyCalendarProps) {
+  const navigate = useNavigate();
   const [selectedSlot, setSelectedSlot] = useState<{
     dayIndex: number;
     mealType: MealType;
   } | null>(null);
   const [showRecipePicker, setShowRecipePicker] = useState(false);
+  const [lockedSlots, setLockedSlots] = useState<Set<string>>(new Set());
 
   const getMealForSlot = (dayIndex: number, mealType: MealType): MealPlanEntry | null => {
-    if (!plan) return null;
-    return plan.meals.find(meal => 
+    if (!plan) {
+      return null;
+    }
+    
+    const meal = plan.meals.find(meal => 
       meal.dayOfWeek === dayIndex && meal.mealType === mealType
     ) || null;
+    
+    return meal;
   };
 
   const handleSlotClick = (dayIndex: number, mealType: MealType) => {
     if (!isEditable) return;
+    const key = `${dayIndex}-${mealType}`;
+    if (lockedSlots.has(key)) return;
     
     setSelectedSlot({ dayIndex, mealType });
     setShowRecipePicker(true);
+  };
+
+  const toggleLock = (dayIndex: number, mealType: MealType) => {
+    const key = `${dayIndex}-${mealType}`;
+    setLockedSlots(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const handleCook = async (recipeId?: string | null) => {
+    try {
+      if (!recipeId) {
+        toast({ title: 'Recette inconnue', description: 'Impossible de cuisiner sans recette.' });
+        return;
+      }
+      const analysis = await analyzeRecipeInventory(recipeId);
+      if (!analysis || analysis.availableIngredients.length === 0) {
+        toast({ title: 'Rien à décrémenter', description: "Aucun ingrédient disponible dans l'inventaire." });
+        return;
+      }
+      const updates: { id: string; prev: number; next: number }[] = [];
+      for (const match of analysis.availableIngredients) {
+        const inv: any = match.inventoryItem;
+        const ing: any = match.ingredient;
+        const prevQty = Number(inv.quantity) || 0;
+        const reqQty = Number(ing.quantity) || 1;
+        const nextQty = Math.max(0, prevQty - reqQty);
+        if (nextQty !== prevQty) updates.push({ id: inv.id, prev: prevQty, next: nextQty });
+      }
+      if (updates.length === 0) {
+        toast({ title: 'Quantités inchangées', description: 'Aucun changement à appliquer.' });
+        return;
+      }
+      await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.next }).eq('id', u.id)));
+      toast({
+        title: 'Cuisiné',
+        description: "Les ingrédients ont été décrémentés de l'inventaire.",
+        action: {
+          label: 'Annuler',
+          onClick: async () => {
+            try {
+              await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.prev }).eq('id', u.id)));
+            } catch {}
+          }
+        }
+      });
+    } catch (e: any) {
+      toast({ title: 'Erreur', description: e?.message || "Impossible de mettre à jour l'inventaire", variant: 'destructive' });
+    }
   };
 
   const handleRecipeSelect = (recipeId: string | null) => {
@@ -124,6 +189,10 @@ export function WeeklyCalendar({ plan, onMealChange, isEditable }: WeeklyCalenda
                 meal={meal}
                 isEditable={isEditable}
                 onClick={() => handleSlotClick(dayIndex, mealType.key)}
+                locked={lockedSlots.has(`${dayIndex}-${mealType.key}`)}
+                onToggleLock={() => toggleLock(dayIndex, mealType.key)}
+                onAlternatives={() => handleSlotClick(dayIndex, mealType.key)}
+                onCook={() => meal?.recipeId && navigate(`/kitchen/recipes/${meal.recipeId}`)}
               />
             );
           })
@@ -137,7 +206,7 @@ export function WeeklyCalendar({ plan, onMealChange, isEditable }: WeeklyCalenda
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-green-600">
-                  {totalWeeklyCost.toFixed(2)}€
+                  {(plan?.totalEstimatedCost || 0).toFixed(2)}€
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Budget utilisé
@@ -155,7 +224,7 @@ export function WeeklyCalendar({ plan, onMealChange, isEditable }: WeeklyCalenda
               
               <div>
                 <div className="text-2xl font-bold text-purple-600">
-                  {planningInsights.healthScore}/10
+                  {plan?.nutritionalSummary?.healthScore || 0}/10
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Score santé
@@ -164,7 +233,7 @@ export function WeeklyCalendar({ plan, onMealChange, isEditable }: WeeklyCalenda
               
               <div>
                 <div className="text-2xl font-bold text-orange-600">
-                  {planningInsights.varietyScore}/10
+                  {plan?.nutritionalSummary?.varietyScore || 0}/10
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Variété

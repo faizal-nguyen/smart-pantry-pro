@@ -7,13 +7,16 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@smart/shared": ["./packages/shared/dist/index.d.ts", "./packages/shared/dist/index.js"],
+      "@smart/shared/*": ["./packages/shared/dist/*"]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
+    "noImplicitAny": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "strict": true
   }
 }

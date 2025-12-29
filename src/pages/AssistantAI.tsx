@@ -1,18 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 import { AIAssistantChat, AIAssistantErrorBoundary } from '@/components/ai';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
 import { MessageSquare, X, ChefHat, ShoppingCart, Calendar, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Layout from '@/components/Layout';
+import AppNavigation from '@/components/navigation/AppNavigation';
 
 export default function AssistantAI() {
   const [showChat, setShowChat] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+    getUser();
+  }, []);
+
+  if (loading) {
+    return <div>Chargement...</div>;
+  }
+
+  if (!user) {
+    return <div>Non authentifié</div>;
+  }
 
   return (
-    <Layout>
+    <AppNavigation user={user}>
       <div className="container mx-auto p-4">
         <div className="max-w-6xl mx-auto">
           <header className="text-center mb-12">
@@ -130,7 +151,7 @@ export default function AssistantAI() {
           )}
         </AnimatePresence>
       </div>
-    </Layout>
+    </AppNavigation>
   );
 }
 

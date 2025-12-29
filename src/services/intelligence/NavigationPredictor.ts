@@ -1,0 +1,771 @@
+/**
+ * NavigationPredictor - Service de prédiction de navigation avec ML léger
+ * Implémente PRP-040.3 - Intelligence Contextuelle pour la navigation prédictive
+ */
+
+import { cipherContextIntegration } from '@/services/context/CipherContextIntegration';
+import { NavigationSection, FamilyProfile, FAMILY_NAVIGATION_SECTIONS } from '@/types/family-mode';
+
+export interface NavigationPattern {
+  userId: string;
+  fromSection: NavigationSection;
+  toSection: NavigationSection;
+  timeOfDay: number; // Hour 0-23
+  dayOfWeek: number; // 0-6
+  contextFactors: {
+    mealTime?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+    weatherImpact?: 'low' | 'medium' | 'high';
+    calendarBusy?: boolean;
+    familyMode?: boolean;
+    childPresent?: boolean;
+  };
+  frequency: number;
+  lastAccessed: Date;
+}
+
+export interface NavigationPrediction {
+  section: NavigationSection;
+  confidence: number;
+  reasoning: string;
+  familyContext?: {
+    childFriendly: boolean;
+    supervisedAccess: boolean;
+    adaptedLabels: Map<string, string>;
+  };
+  contextualFactors: string[];
+  estimatedTimeToAction: number; // minutes
+  priority: 'low' | 'medium' | 'high';
+}
+
+export interface MLModelWeights {
+  temporal: number; // Poids temporel (heure/jour)
+  sequential: number; // Poids séquentiel (navigation précédente)
+  contextual: number; // Poids contextuel (météo, agenda)
+  habitual: number; // Poids habitudes utilisateur
+  familial: number; // Poids contexte familial
+}
+
+export interface NavigationContextData {
+  familyProfile?: FamilyProfile;
+  mealTime?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  weatherImpact?: 'low' | 'medium' | 'high';
+  calendarBusy?: boolean;
+  inventoryLow?: string[];
+}
+
+/**
+ * Service de prédiction de navigation intelligent
+ */
+export class NavigationPredictor {
+  private patterns: Map<string, NavigationPattern[]> = new Map();
+  private modelWeights: MLModelWeights = {
+    temporal: 0.25,
+    sequential: 0.30,
+    contextual: 0.20,
+    habitual: 0.15,
+    familial: 0.10
+  };
+  private minPatternConfidence = 0.3;
+  private maxPredictions = 5;
+
+  constructor() {
+    this.initializeModel();
+  }
+
+  /**
+   * Enregistre un pattern de navigation
+   */
+  recordNavigation(
+    userId: string,
+    fromSection: NavigationSection,
+    toSection: NavigationSection,
+    contextFactors: NavigationPattern['contextFactors'] = {}
+  ): void {
+    const now = new Date();
+    const timeOfDay = now.getHours();
+    const dayOfWeek = now.getDay();
+
+    const pattern: NavigationPattern = {
+      userId,
+      fromSection,
+      toSection,
+      timeOfDay,
+      dayOfWeek,
+      contextFactors,
+      frequency: 1,
+      lastAccessed: now
+    };
+
+    // Mettre à jour ou créer le pattern
+    const userPatterns = this.patterns.get(userId) || [];
+    const existingIndex = userPatterns.findIndex(p => 
+      p.fromSection === fromSection &&
+      p.toSection === toSection &&
+      this.isSimilarContext(p.contextFactors, contextFactors) &&
+      Math.abs(p.timeOfDay - timeOfDay) <= 1 &&
+      p.dayOfWeek === dayOfWeek
+    );
+
+    if (existingIndex >= 0) {
+      // Mettre à jour pattern existant
+      userPatterns[existingIndex].frequency++;
+      userPatterns[existingIndex].lastAccessed = now;
+      // Moyenner les facteurs temporels pour plus de flexibilité
+      userPatterns[existingIndex].timeOfDay = Math.round(
+        (userPatterns[existingIndex].timeOfDay + timeOfDay) / 2
+      );
+    } else {
+      // Ajouter nouveau pattern
+      userPatterns.push(pattern);
+    }
+
+    this.patterns.set(userId, userPatterns);
+    
+    // Limiter la taille des patterns par utilisateur
+    if (userPatterns.length > 1000) {
+      // Garder les patterns les plus fréquents et récents
+      const sortedPatterns = userPatterns
+        .sort((a, b) => (b.frequency * 0.7 + this.getRecencyScore(b) * 0.3) - 
+                       (a.frequency * 0.7 + this.getRecencyScore(a) * 0.3))
+        .slice(0, 500);
+      this.patterns.set(userId, sortedPatterns);
+    }
+  }
+
+  /**
+   * Prédit les prochaines sections probables
+   */
+  async predictNextSections(
+    userId: string,
+    currentSection: NavigationSection,
+    contextData: {
+      familyProfile?: FamilyProfile;
+      mealTime?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+      weatherImpact?: 'low' | 'medium' | 'high';
+      calendarBusy?: boolean;
+      inventoryLow?: string[];
+    } = {}
+  ): Promise<NavigationPrediction[]> {
+    const userPatterns = this.patterns.get(userId) || [];
+    
+    if (userPatterns.length < 3) {
+      // Pas assez de données, utiliser les patterns par défaut avec contexte famille
+      return this.getDefaultPredictions(contextData.familyProfile);
+    }
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentDay = now.getDay();
+
+    // Filtrer les patterns pertinents
+    const relevantPatterns = userPatterns.filter(p => 
+      p.fromSection === currentSection
+    );
+
+    if (relevantPatterns.length === 0) {
+      return this.getContextualFallback(currentSection, contextData);
+    }
+
+    // Calculer les scores de prédiction
+    const predictions = new Map<NavigationSection, {
+      score: number;
+      reasons: string[];
+      contextFactors: string[];
+      familyContext?: NavigationPrediction['familyContext'];
+    }>();
+
+    relevantPatterns.forEach(pattern => {
+      const score = this.calculatePredictionScore(pattern, currentHour, currentDay, contextData);
+      const existing = predictions.get(pattern.toSection);
+      
+      if (!existing || existing.score < score.value) {
+        predictions.set(pattern.toSection, {
+          score: score.value,
+          reasons: score.reasons,
+          contextFactors: score.contextFactors,
+          familyContext: this.getFamilyContext(pattern.toSection, contextData.familyProfile)
+        });
+      }
+    });
+
+    // Convertir en prédictions et trier
+    const result = Array.from(predictions.entries())
+      .filter(([_, data]) => data.score >= this.minPatternConfidence)
+      .map(([section, data]) => ({
+        section,
+        confidence: Math.min(data.score, 1.0),
+        reasoning: data.reasons.join('. '),
+        familyContext: data.familyContext,
+        contextualFactors: data.contextFactors,
+        estimatedTimeToAction: this.estimateTimeToAction(section, contextData),
+        priority: this.calculatePriority(data.score, section, contextData)
+      }))
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, this.maxPredictions);
+
+    // Intégrer les recommandations Cipher si disponibles
+    await this.integrateCipherRecommendations(userId, result, contextData);
+
+    return result;
+  }
+
+  /**
+   * Adapte les prédictions pour le mode famille
+   */
+  adaptForFamilyMode(
+    predictions: NavigationPrediction[],
+    familyProfile: FamilyProfile
+  ): NavigationPrediction[] {
+    return predictions
+      .filter(pred => {
+        // Vérifier les restrictions d'âge et d'accès
+        const navItem = FAMILY_NAVIGATION_SECTIONS[pred.section];
+        if (!navItem) return false;
+        
+        return familyProfile.age >= navItem.minAge &&
+               familyProfile.restrictions.allowedSections.includes(pred.section) &&
+               (familyProfile.type !== 'child' || navItem.availableInChildMode);
+      })
+      .map(pred => ({
+        ...pred,
+        familyContext: {
+          ...pred.familyContext,
+          childFriendly: true,
+          supervisedAccess: this.requiresSupervision(pred.section, familyProfile),
+          adaptedLabels: this.getAdaptedLabels(pred.section, familyProfile)
+        },
+        reasoning: this.adaptReasoningForFamily(pred.reasoning, familyProfile)
+      }));
+  }
+
+  /**
+   * Optimise le modèle basé sur les retours utilisateur
+   */
+  optimizeModel(
+    userId: string,
+    actualNavigation: NavigationSection,
+    predictedSections: NavigationSection[],
+    userFeedback?: {
+      helpful: boolean;
+      accuracy: number; // 1-5
+      timing: 'too_early' | 'perfect' | 'too_late';
+    }
+  ): void {
+    // Ajuster les poids du modèle
+    if (userFeedback) {
+      const accuracy = userFeedback.accuracy / 5.0;
+      
+      if (userFeedback.helpful && accuracy > 0.6) {
+        // Bon résultat, augmenter légèrement la confiance des facteurs utilisés
+        this.adjustModelWeights(0.05);
+      } else if (!userFeedback.helpful || accuracy < 0.4) {
+        // Mauvais résultat, ajuster les poids
+        this.adjustModelWeights(-0.03);
+      }
+    }
+
+    // Enregistrer le résultat pour l'apprentissage futur
+    const wasAccurate = predictedSections.includes(actualNavigation);
+    const confidenceAdjustment = wasAccurate ? 0.1 : -0.05;
+    
+    // Ajuster la confidence minimale si nécessaire
+    this.minPatternConfidence = Math.max(0.1, Math.min(0.6, 
+      this.minPatternConfidence + confidenceAdjustment * 0.01
+    ));
+  }
+
+  /**
+   * Récupère les statistiques d'apprentissage
+   */
+  getModelStatistics(userId: string): {
+    totalPatterns: number;
+    averageAccuracy: number;
+    mostFrequentTransitions: Array<{ from: NavigationSection; to: NavigationSection; count: number }>;
+    temporalDistribution: Map<number, number>;
+    familyModeUsage: number;
+  } {
+    const userPatterns = this.patterns.get(userId) || [];
+    
+    // Calculer les transitions les plus fréquentes
+    const transitions = new Map<string, { from: NavigationSection; to: NavigationSection; count: number }>();
+    const temporalDist = new Map<number, number>();
+    let familyModeCount = 0;
+
+    userPatterns.forEach(pattern => {
+      const key = `${pattern.fromSection}_${pattern.toSection}`;
+      const existing = transitions.get(key);
+      
+      if (existing) {
+        existing.count += pattern.frequency;
+      } else {
+        transitions.set(key, {
+          from: pattern.fromSection,
+          to: pattern.toSection,
+          count: pattern.frequency
+        });
+      }
+
+      // Distribution temporelle
+      const hour = pattern.timeOfDay;
+      temporalDist.set(hour, (temporalDist.get(hour) || 0) + pattern.frequency);
+
+      // Mode famille
+      if (pattern.contextFactors.familyMode || pattern.contextFactors.childPresent) {
+        familyModeCount++;
+      }
+    });
+
+    const mostFrequentTransitions = Array.from(transitions.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    return {
+      totalPatterns: userPatterns.length,
+      averageAccuracy: this.calculateAverageAccuracy(userPatterns),
+      mostFrequentTransitions,
+      temporalDistribution: temporalDist,
+      familyModeUsage: familyModeCount / userPatterns.length
+    };
+  }
+
+  // === MÉTHODES PRIVÉES ===
+
+  private initializeModel(): void {
+    // Charger les patterns depuis le cache si disponible
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('navigation_patterns');
+        if (cached) {
+          const data = JSON.parse(cached);
+          this.patterns = new Map(data.patterns);
+          this.modelWeights = { ...this.modelWeights, ...data.weights };
+        }
+      } catch (error) {
+        console.warn('Failed to load navigation patterns from cache:', error);
+      }
+    }
+  }
+
+  private calculatePredictionScore(
+    pattern: NavigationPattern,
+    currentHour: number,
+    currentDay: number,
+    contextData: NavigationContextData
+  ): { value: number; reasons: string[]; contextFactors: string[] } {
+    let score = 0;
+    const reasons: string[] = [];
+    const contextFactors: string[] = [];
+
+    // Score temporel
+    const temporalScore = this.calculateTemporalScore(pattern, currentHour, currentDay);
+    score += temporalScore * this.modelWeights.temporal;
+    if (temporalScore > 0.7) {
+      reasons.push(`Heure habituelle (${temporalScore.toFixed(2)})`);
+      contextFactors.push('temporal');
+    }
+
+    // Score de fréquence (habitude)
+    const habitualScore = Math.min(1.0, pattern.frequency / 10);
+    score += habitualScore * this.modelWeights.habitual;
+    if (habitualScore > 0.5) {
+      reasons.push(`Habitude fréquente (${pattern.frequency} fois)`);
+      contextFactors.push('habitual');
+    }
+
+    // Score contextuel
+    const contextualScore = this.calculateContextualScore(pattern, contextData);
+    score += contextualScore * this.modelWeights.contextual;
+    if (contextualScore > 0.6) {
+      reasons.push('Contexte favorable');
+      contextFactors.push('contextual');
+    }
+
+    // Score récence
+    const recencyScore = this.getRecencyScore(pattern);
+    score += recencyScore * 0.1; // Petit boost pour les actions récentes
+
+    // Score familial si applicable
+    if (contextData.familyProfile) {
+      const familialScore = this.calculateFamilialScore(pattern, contextData.familyProfile);
+      score += familialScore * this.modelWeights.familial;
+      if (familialScore > 0.5) {
+        reasons.push('Adapté au profil famille');
+        contextFactors.push('family');
+      }
+    }
+
+    return { value: score, reasons, contextFactors };
+  }
+
+  private calculateTemporalScore(
+    pattern: NavigationPattern,
+    currentHour: number,
+    currentDay: number
+  ): number {
+    let score = 0;
+
+    // Proximité horaire (fenêtre de 2h)
+    const hourDiff = Math.abs(pattern.timeOfDay - currentHour);
+    const hourScore = Math.max(0, 1 - (hourDiff / 2));
+    score += hourScore * 0.7;
+
+    // Même jour de la semaine
+    if (pattern.dayOfWeek === currentDay) {
+      score += 0.3;
+    }
+
+    return Math.min(1.0, score);
+  }
+
+  private calculateContextualScore(pattern: NavigationPattern, contextData: NavigationContextData): number {
+    let score = 0;
+    let matchingFactors = 0;
+    let totalFactors = 0;
+
+    // Vérifier chaque facteur contextuel
+    Object.keys(pattern.contextFactors).forEach(factor => {
+      totalFactors++;
+      
+      if (contextData[factor] === pattern.contextFactors[factor as keyof typeof pattern.contextFactors]) {
+        matchingFactors++;
+      }
+    });
+
+    if (totalFactors > 0) {
+      score = matchingFactors / totalFactors;
+    } else {
+      score = 0.5; // Score neutre si pas de contexte
+    }
+
+    return score;
+  }
+
+  private calculateFamilialScore(pattern: NavigationPattern, familyProfile: FamilyProfile): number {
+    let score = 0;
+
+    // Vérifier si la section est accessible au profil
+    const navItem = FAMILY_NAVIGATION_SECTIONS[pattern.toSection];
+    if (!navItem) return 0;
+
+    // Âge approprié
+    if (familyProfile.age >= navItem.minAge) {
+      score += 0.4;
+    }
+
+    // Disponible en mode enfant si nécessaire
+    if (familyProfile.type === 'child' && navItem.availableInChildMode) {
+      score += 0.3;
+    }
+
+    // Section autorisée
+    if (familyProfile.restrictions.allowedSections.includes(pattern.toSection)) {
+      score += 0.3;
+    }
+
+    return Math.min(1.0, score);
+  }
+
+  private getRecencyScore(pattern: NavigationPattern): number {
+    const now = new Date();
+    const daysSince = (now.getTime() - pattern.lastAccessed.getTime()) / (1000 * 60 * 60 * 24);
+    
+    return Math.max(0, 1 - (daysSince / 7)); // Score décroît sur 7 jours
+  }
+
+  private isSimilarContext(
+    context1: NavigationPattern['contextFactors'],
+    context2: NavigationPattern['contextFactors']
+  ): boolean {
+    const keys1 = Object.keys(context1);
+    const keys2 = Object.keys(context2);
+    
+    if (keys1.length !== keys2.length) return false;
+    
+    return keys1.every(key => 
+      context1[key as keyof typeof context1] === context2[key as keyof typeof context2]
+    );
+  }
+
+  private getDefaultPredictions(familyProfile?: FamilyProfile): NavigationPrediction[] {
+    // Prédictions par défaut basées sur l'heure et le profil famille
+    const now = new Date();
+    const hour = now.getHours();
+    
+    const defaults: NavigationPrediction[] = [];
+
+    // Logique temporelle simple
+    if (hour >= 6 && hour <= 10) {
+      // Matin - petit déjeuner
+      defaults.push({
+        section: 'kitchen',
+        confidence: 0.7,
+        reasoning: 'Heure du petit déjeuner',
+        contextualFactors: ['temporal', 'meal_time'],
+        estimatedTimeToAction: 5,
+        priority: 'high'
+      });
+    } else if (hour >= 11 && hour <= 14) {
+      // Midi - déjeuner et courses
+      defaults.push({
+        section: 'kitchen',
+        confidence: 0.6,
+        reasoning: 'Heure du déjeuner',
+        contextualFactors: ['temporal', 'meal_time'],
+        estimatedTimeToAction: 10,
+        priority: 'medium'
+      });
+      defaults.push({
+        section: 'shopping',
+        confidence: 0.5,
+        reasoning: 'Moment propice pour les courses',
+        contextualFactors: ['temporal'],
+        estimatedTimeToAction: 15,
+        priority: 'low'
+      });
+    } else if (hour >= 17 && hour <= 21) {
+      // Soir - dîner et planification
+      defaults.push({
+        section: 'kitchen',
+        confidence: 0.8,
+        reasoning: 'Heure du dîner',
+        contextualFactors: ['temporal', 'meal_time'],
+        estimatedTimeToAction: 5,
+        priority: 'high'
+      });
+      defaults.push({
+        section: 'pantry',
+        confidence: 0.4,
+        reasoning: 'Vérification des stocks pour le dîner',
+        contextualFactors: ['temporal'],
+        estimatedTimeToAction: 8,
+        priority: 'medium'
+      });
+    }
+
+    // Adapter pour famille si nécessaire
+    if (familyProfile) {
+      return this.adaptForFamilyMode(defaults, familyProfile);
+    }
+
+    return defaults;
+  }
+
+  private getContextualFallback(
+    currentSection: NavigationSection,
+    contextData: NavigationContextData
+  ): NavigationPrediction[] {
+    const fallbacks: NavigationPrediction[] = [];
+
+    // Logique de fallback contextuel
+    switch (currentSection) {
+      case 'pantry':
+        fallbacks.push({
+          section: 'kitchen',
+          confidence: 0.6,
+          reasoning: 'Séquence logique: inventaire → recettes',
+          contextualFactors: ['sequential'],
+          estimatedTimeToAction: 5,
+          priority: 'medium'
+        });
+        break;
+        
+      case 'kitchen':
+        fallbacks.push({
+          section: 'shopping',
+          confidence: 0.5,
+          reasoning: 'Compléter la liste de courses',
+          contextualFactors: ['sequential'],
+          estimatedTimeToAction: 10,
+          priority: 'medium'
+        });
+        break;
+        
+      case 'shopping':
+        fallbacks.push({
+          section: 'kitchen',
+          confidence: 0.4,
+          reasoning: 'Retour aux recettes après les courses',
+          contextualFactors: ['sequential'],
+          estimatedTimeToAction: 15,
+          priority: 'low'
+        });
+        break;
+    }
+
+    return fallbacks;
+  }
+
+  private getFamilyContext(
+    section: NavigationSection,
+    familyProfile?: FamilyProfile
+  ): NavigationPrediction['familyContext'] | undefined {
+    if (!familyProfile) return undefined;
+
+    const navItem = FAMILY_NAVIGATION_SECTIONS[section];
+    if (!navItem) return undefined;
+
+    return {
+      childFriendly: navItem.availableInChildMode,
+      supervisedAccess: this.requiresSupervision(section, familyProfile),
+      adaptedLabels: this.getAdaptedLabels(section, familyProfile)
+    };
+  }
+
+  private requiresSupervision(section: NavigationSection, familyProfile: FamilyProfile): boolean {
+    if (familyProfile.type !== 'child') return false;
+    
+    const navItem = FAMILY_NAVIGATION_SECTIONS[section];
+    return navItem?.requiresSupervision || false;
+  }
+
+  private getAdaptedLabels(section: NavigationSection, familyProfile: FamilyProfile): Map<string, string> {
+    const labels = new Map<string, string>();
+    
+    if (familyProfile.type === 'child') {
+      const navItem = FAMILY_NAVIGATION_SECTIONS[section];
+      if (navItem) {
+          labels.set('sectionName', navItem.label);
+      }
+    }
+    
+    return labels;
+  }
+
+  private adaptReasoningForFamily(reasoning: string, familyProfile: FamilyProfile): string {
+    if (familyProfile.type === 'child') {
+      // Adapter le langage pour les enfants
+      return reasoning
+        .replace('Heure habituelle', 'C\'est le bon moment')
+        .replace('Habitude fréquente', 'Tu aimes bien faire ça')
+        .replace('Contexte favorable', 'Tout va bien pour ça')
+        .replace('Séquence logique', 'C\'est la suite normale');
+    }
+    
+    return reasoning;
+  }
+
+  private estimateTimeToAction(section: NavigationSection, contextData: NavigationContextData): number {
+    // Estimation basique en minutes
+    const baseEstimates: Record<NavigationSection, number> = {
+      pantry: 3,
+      kitchen: 5,
+      shopping: 8,
+      assistant: 10,
+      insights: 12,
+      games: 2,
+      settings: 15,
+      social: 7
+    };
+
+    let estimate = baseEstimates[section] || 5;
+
+    // Ajustements contextuels
+    if (contextData.calendarBusy) {
+      estimate += 5; // Plus de temps si occupé
+    }
+
+    if (contextData.familyProfile?.type === 'child') {
+      estimate += 2; // Plus de temps pour les enfants
+    }
+
+    return estimate;
+  }
+
+  private calculatePriority(
+    score: number,
+    section: NavigationSection,
+    _contextData: NavigationContextData
+  ): 'low' | 'medium' | 'high' {
+    if (score >= 0.8) return 'high';
+    if (score >= 0.5) return 'medium';
+    return 'low';
+  }
+
+  private async integrateCipherRecommendations(
+    userId: string,
+    predictions: NavigationPrediction[],
+    contextData: NavigationContextData
+  ): Promise<void> {
+    try {
+      const cipherRecs = await cipherContextIntegration.getPersonalizedRecommendations(
+        userId,
+        contextData
+      );
+
+      // Enrichir les prédictions avec Cipher
+      cipherRecs.forEach(rec => {
+        const matchingPred = predictions.find(p => 
+          rec.recommendation.includes(p.section) || 
+          p.reasoning.toLowerCase().includes(rec.contextType)
+        );
+
+        if (matchingPred) {
+          matchingPred.confidence = Math.min(1.0, matchingPred.confidence + rec.confidence * 0.2);
+          matchingPred.reasoning += `. IA: ${rec.reasoning}`;
+          matchingPred.contextualFactors.push('cipher_ai');
+        }
+      });
+    } catch (error) {
+      console.warn('Failed to integrate Cipher recommendations:', error);
+    }
+  }
+
+  private adjustModelWeights(adjustment: number): void {
+    // Ajuster tous les poids proportionnellement
+    const total = Object.values(this.modelWeights).reduce((sum, w) => sum + w, 0);
+    
+    Object.keys(this.modelWeights).forEach(key => {
+      const currentWeight = this.modelWeights[key as keyof MLModelWeights];
+      this.modelWeights[key as keyof MLModelWeights] = Math.max(0.05, Math.min(0.5,
+        currentWeight + (adjustment * currentWeight / total)
+      ));
+    });
+
+    // Renormaliser pour que la somme reste proche de 1
+    const newTotal = Object.values(this.modelWeights).reduce((sum, w) => sum + w, 0);
+    Object.keys(this.modelWeights).forEach(key => {
+      this.modelWeights[key as keyof MLModelWeights] /= newTotal;
+    });
+  }
+
+  private calculateAverageAccuracy(patterns: NavigationPattern[]): number {
+    if (patterns.length === 0) return 0;
+    
+    // Calcul simplifié basé sur la fréquence et la récence
+    const totalScore = patterns.reduce((sum, pattern) => {
+      const recencyScore = this.getRecencyScore(pattern);
+      const frequencyScore = Math.min(1.0, pattern.frequency / 5);
+      return sum + (recencyScore * 0.4 + frequencyScore * 0.6);
+    }, 0);
+    
+    return totalScore / patterns.length;
+  }
+
+  /**
+   * Sauvegarde les patterns dans le cache local
+   */
+  saveToCache(): void {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const data = {
+          patterns: Array.from(this.patterns.entries()),
+          weights: this.modelWeights,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('navigation_patterns', JSON.stringify(data));
+      } catch (error) {
+        console.warn('Failed to save navigation patterns to cache:', error);
+      }
+    }
+  }
+}
+
+// Export de l'instance singleton
+export const navigationPredictor = new NavigationPredictor();
+
+// Sauvegarder automatiquement toutes les 5 minutes
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    navigationPredictor.saveToCache();
+  }, 5 * 60 * 1000);
+}

@@ -38,6 +38,8 @@ import { QuickTemplates } from './QuickTemplates';
 import { trackSmartInput } from '@/lib/analytics/smart-input';
 import { cn } from '@/lib/utils';
 import { DEFAULT_STORE_SECTIONS } from '@/types/shopping-list';
+import { useInventory } from '@/hooks/useInventory';
+import { Autocomplete, AutocompleteSuggestion } from '@/components/ui/Autocomplete';
 
 interface ParsedGroceryItem {
   productName: string;
@@ -68,6 +70,7 @@ export const SmartGroceryInput: React.FC<SmartGroceryInputProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { products } = useInventory();
 
   // Hooks TOUJOURS appelés dans le même ordre
   const whisperHook = useWhisperGroceryInput();
@@ -482,25 +485,26 @@ Ex: 2kg tomates, 1L lait, pain complet, 6 œufs"
                     <div className="flex items-center gap-2">
                       <div className="flex-1 flex items-center gap-2 flex-wrap">
                         {editingIndex === index ? (
-                          <Input
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={() => {
-                              handleEdit(index, 'productName', editValue);
-                              setEditingIndex(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleEdit(index, 'productName', editValue);
-                                setEditingIndex(null);
-                              }
-                              if (e.key === 'Escape') {
-                                setEditingIndex(null);
-                              }
-                            }}
-                            className="h-7 flex-1 max-w-[200px]"
-                            autoFocus
-                          />
+                          <div className="relative w-full max-w-[240px]">
+                            <Autocomplete
+                              value={editValue}
+                              onValueChange={(val) => setEditValue(val)}
+                              suggestions={(products || []).map(p => ({
+                                id: p.id,
+                                label: p.name,
+                                value: p.name,
+                                section: p.category || 'Autres',
+                                meta: p.unit_type || undefined,
+                                payload: p
+                              })) as AutocompleteSuggestion[]}
+                              onSelect={(s) => {
+                                setEditValue(s.value);
+                                handleEdit(index, 'productName', s.value);
+                                // Optional: update unit/section if desired
+                              }}
+                              inputClassName="h-7 border rounded px-2 text-sm w-full"
+                            />
+                          </div>
                         ) : (
                           <>
                             <span className="font-medium">

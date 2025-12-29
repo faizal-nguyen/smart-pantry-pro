@@ -49,3 +49,4 @@ lsof -ti tcp:3002,3003 | xargs -r kill -9
 
 ## Remarque
 Si vous déplacez le dossier du projet, mettez à jour la variable `PROJECT_ROOT` dans `start-smart-pantry.sh`.
+

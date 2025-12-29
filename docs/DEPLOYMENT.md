@@ -263,7 +263,7 @@ NODE_ENV=production
   "rewrites": [
     {
       "source": "/api/ai-assistant/(.*)",
-      "destination": "/pages/api/ai-assistant-enhanced"
+      "destination": "/api/v1/assistant/stream"
     }
   ]
 }

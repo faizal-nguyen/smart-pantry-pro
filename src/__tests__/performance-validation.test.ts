@@ -51,7 +51,7 @@ describe('AI Assistant Performance Validation', () => {
 
       const startTime = performance.now();
       
-      const response = await fetch('/api/ai-assistant-enhanced', {
+      const response = await fetch('/api/v1/assistant/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ describe('AI Assistant Performance Validation', () => {
 
       const startTime = performance.now();
       
-      await fetch('/api/ai-assistant-enhanced', {
+      await fetch('/api/v1/assistant/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -241,7 +241,7 @@ describe('AI Assistant Performance Validation', () => {
       });
 
       // Simulate streaming request
-      const response = await fetch('/api/ai-assistant-enhanced', {
+      const response = await fetch('/api/v1/assistant/stream', {
         method: 'POST',
         body: JSON.stringify({ message: 'test', stream: true })
       });
@@ -262,7 +262,7 @@ describe('AI Assistant Performance Validation', () => {
       
       // Simulate multiple rapid requests to test rate limiting performance
       const requests = Array.from({ length: 10 }, (_, i) => 
-        fetch('/api/ai-assistant-enhanced', {
+        fetch('/api/v1/assistant/stream', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer test-token-${i}`
@@ -394,7 +394,7 @@ describe('AI Assistant Performance Validation', () => {
       const startTime = performance.now();
 
       try {
-        await fetch('/api/ai-assistant-enhanced', {
+        await fetch('/api/v1/assistant/stream', {
           method: 'POST',
           body: JSON.stringify({ message: 'test' })
         });
@@ -414,7 +414,7 @@ describe('AI Assistant Performance Validation', () => {
       const startTime = performance.now();
 
       try {
-        await fetch('/api/ai-assistant-enhanced', {
+        await fetch('/api/v1/assistant/stream', {
           method: 'POST',
           body: JSON.stringify({ message: 'test' })
         });

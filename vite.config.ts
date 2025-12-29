@@ -5,12 +5,12 @@ import path from "path";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: "localhost",
     port: 3002,
     historyApiFallback: true, // Pour React Router
     proxy: {
       '/api': {
-        target: 'http://localhost:3003',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         secure: false,
         ws: true
@@ -66,12 +66,12 @@ export default defineConfig(({ mode }) => ({
     sourcemap: false,
     // Optimisations pour le build de production
     rollupOptions: {
-      // Externaliser les modules Node.js problématiques pour le navigateur en développement
+      // Externaliser les modules Node.js problématiques pour le navigateur
       external: (id) => {
         if (mode === 'development') {
-          return ['cloudinary', 'url', 'querystring', 'crypto'].some(dep => id.includes(dep));
+          return ['cloudinary', 'googleapis', 'google-auth-library', '@google-cloud/vision', 'crypto', 'gcp-metadata'].some(dep => id.includes(dep));
         }
-        return false;
+        return ['googleapis', 'google-auth-library', '@google-cloud/vision', 'gcp-metadata'].some(dep => id.includes(dep));
       },
       output: {
         manualChunks: {
@@ -144,12 +144,22 @@ export default defineConfig(({ mode }) => ({
       '@radix-ui/react-dialog',
       '@supabase/supabase-js'
     ],
-    // Exclure Cloudinary du pré-bundling pour éviter les erreurs Node.js
-    exclude: ['cloudinary']
+    // Exclure les packages Node.js du pré-bundling pour éviter les erreurs
+    exclude: ['cloudinary', 'googleapis', 'google-auth-library', '@google-cloud/vision', 'gcp-metadata']
   },
   // Configuration pour les polyfills Node.js et définitions globales
   define: {
     'process.env.NODE_ENV': JSON.stringify(mode),
-    global: 'globalThis'
+    'process.env.GOOGLE_SDK_NODE_LOGGING': 'undefined',
+    'process.version': '"v16.0.0"',
+    global: 'globalThis',
+    process: {
+      env: {
+        NODE_ENV: mode,
+        GOOGLE_SDK_NODE_LOGGING: undefined
+      },
+      version: 'v16.0.0',
+      nextTick: 'setTimeout'
+    }
   },
 }));

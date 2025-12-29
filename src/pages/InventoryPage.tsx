@@ -1,11 +1,11 @@
-import Layout from "@/components/Layout";
+import PageWrapper from "@/components/navigation/PageWrapper";
 import Inventory from "./Inventory";
 
 const InventoryPage = () => {
   return (
-    <Layout>
+    <PageWrapper requireAuth={true}>
       <Inventory />
-    </Layout>
+    </PageWrapper>
   );
 };
 

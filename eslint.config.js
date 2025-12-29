@@ -25,5 +25,22 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": "off",
     },
+  },
+  // Additional client-only restrictions to prevent server modules in the browser bundle
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'openai', message: 'Server-only. Expose via API, not client.' },
+            { name: 'fs', message: 'Server-only.' },
+            { name: 'path', message: 'Server-only.' },
+          ],
+          patterns: ['node:*']
+        }
+      ]
+    }
   }
 );

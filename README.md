@@ -146,14 +146,14 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 #### 2. Configuration OpenAI (optionnel)
 ```bash
-# Pour les fonctionnalités IA
-NEXT_PUBLIC_OPENAI_API_KEY=sk-your-openai-key
+# Clé serveur pour l'assistant IA (ne pas exposer côté client)
+OPENAI_API_KEY=sk-your-openai-key
 ```
 
 #### 3. Configuration de sécurité
 ```bash
 # Origines autorisées
-ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
+ALLOWED_ORIGINS=http://localhost:3002,https://yourdomain.com
 ```
 
 ### Démarrage
@@ -171,6 +171,7 @@ npm run dev:full
 ```
 
 L'application sera disponible sur `http://localhost:3000`
+API unifiée: `http://localhost:4000` (proxy Vite `/api/*`).
 
 ## 🏗️ Architecture Technique
 
@@ -184,6 +185,7 @@ L'application sera disponible sur `http://localhost:3000`
 ### Backend
 - **Supabase** (PostgreSQL + Auth + Storage + Edge Functions)
 - **Deno Edge Functions** pour les API serverless
+- **Express (apps/api)** pour l'API unifiée locale/serveur
 - **OpenAI API** pour l'intelligence artificielle
 - **Rate Limiting** avec Redis
 
@@ -221,7 +223,7 @@ smart-pantry-pro/
 │   ├── functions/           # Edge Functions
 │   └── migrations/          # Migrations SQL
 ├── docs/                    # Documentation complète
-└── api/                     # APIs optimisées
+└── apps/api/               # API Express TypeScript unifiée
 ```
 
 ## 📚 Documentation Complète

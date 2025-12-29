@@ -21,16 +21,20 @@ export class AudioExtractorServer {
 
   constructor() {
     // Déterminer l'URL de l'API selon l'environnement
-    const isProduction = process.env.NODE_ENV === 'production';
-    this.apiEndpoint = isProduction 
-      ? '/api/transcribe-youtube'  
-      : 'http://localhost:3003/api/transcribe-youtube';
+    this.apiEndpoint = '/api/transcribe-youtube';
   }
 
   async extractAndTranscribe(
     videoUrl: string,
     options: AudioExtractionOptions = {}
   ): Promise<TranscriptionResult> {
+    // Validate input with shared schema
+    try {
+      const { TranscribeYoutubeBody } = await import('@smart/shared');
+      (TranscribeYoutubeBody as any).parse({ videoUrl, language: options.language });
+    } catch (e) {
+      throw new Error('Invalid input for transcription');
+    }
     const startTime = Date.now();
     const { language = 'auto' } = options;
 
@@ -56,11 +60,13 @@ export class AudioExtractorServer {
       const data = await response.json();
       console.log('✅ [AudioExtractorServer] Transcription received from server');
 
-      if (!data.success || !data.transcription) {
+      // Support both standardized wrapper and legacy shape
+      const payload = data?.data ?? data;
+      if (!data.success || !payload.transcription) {
         throw new Error('Invalid server response');
       }
 
-      const transcription = data.transcription;
+      const transcription = payload.transcription;
       
       return {
         text: transcription.text,

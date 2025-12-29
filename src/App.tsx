@@ -1,60 +1,142 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, RouteObject } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { LayoutPerformanceProvider } from "./components/performance/PerformanceMonitor";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LoadingFallback } from "./components/LoadingFallback";
+
+// Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import OnboardingPage from "./pages/OnboardingPage";
-import RecipeAssistant from "./pages/RecipeAssistant";
-import AssistantAI from "./pages/AssistantAI";
-import RecipeSeeding from "./pages/RecipeSeeding";
-import RecipeDetail from "./pages/RecipeDetail";
-import RecipeEdit from "./pages/RecipeEdit";
 import NotFound from "./pages/NotFound";
-import InventoryPage from "./pages/InventoryPage";
-import RecipesPage from "./pages/RecipesPage";
-import ShoppingListPage from "./pages/ShoppingListPage";
-import SmartShoppingList from "./pages/SmartShoppingList";
-import VideoImportTest from "./pages/VideoImportTest";
-import InsightsPage from "./pages/InsightsPage";
-import Settings from "./pages/Settings";
-import MaterialYouDemo from "./pages/MaterialYouDemo";
-import TestMaterialYou from "./pages/TestMaterialYou";
-import YouTubeRecipeTest from "./pages/YouTubeRecipeTest";
-import YouTubeRecipeTestSimple from "./pages/YouTubeRecipeTestSimple";
-import TestMinimal from "./pages/TestMinimal";
-import YouTubeTestDirect from "./pages/YouTubeTestDirect";
-import YouTubeTestBasic from "./pages/YouTubeTestBasic";
-import YouTubeTestWorking from "./pages/YouTubeTestWorking";
+
+// Pages avec lazy loading (code splitting)
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
+const Settings = lazy(() => import("./pages/Settings"));
+const InventoryPage = lazy(() => import("./pages/InventoryPage"));
+const RecipesPage = lazy(() => import("./pages/RecipesPage"));
+const ShoppingListPage = lazy(() => import("./pages/ShoppingListPage"));
+const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
+const InsightsPage = lazy(() => import("./pages/InsightsPage"));
+const AssistantAI = lazy(() => import("./pages/AssistantAI"));
+const RecipeAssistant = lazy(() => import("./pages/RecipeAssistant"));
+const RecipeSeeding = lazy(() => import("./pages/RecipeSeeding"));
+const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
+const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
+const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
+
+// Dashboards hiérarchiques (lazy)
+const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
+const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
+const ShoppingDashboard = lazy(() => import("./pages/shopping/ShoppingDashboard"));
+const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
+
+// Pages de test (lazy - dev only)
+const VideoImportTest = lazy(() => import("./pages/VideoImportTest"));
+const MaterialYouDemo = lazy(() => import("./pages/MaterialYouDemo"));
+const TestMaterialYou = lazy(() => import("./pages/TestMaterialYou"));
+const YouTubeRecipeTest = lazy(() => import("./pages/YouTubeRecipeTest"));
+const TestMinimal = lazy(() => import("./pages/TestMinimal"));
+const YouTubeTestDirect = lazy(() => import("./pages/YouTubeTestDirect"));
+const YouTubeTestWorking = lazy(() => import("./pages/YouTubeTestWorking"));
+const Diagnostics = lazy(() => import("./pages/Diagnostics"));
+
+// Composants de navigation
+import LegacyRedirect from "./components/navigation/LegacyRedirect";
+
+// Helper pour wrapper les composants lazy avec Suspense
+const withSuspense = (Component: React.ComponentType) => (
+  <Suspense fallback={<LoadingFallback />}>
+    <Component />
+  </Suspense>
+);
 
 const queryClient = new QueryClient();
 
-// Create router with future flags enabled
-const router = createBrowserRouter([
+// Create router with new hierarchical structure + legacy support
+const baseRoutes: RouteObject[] = [
+  // Pages critiques (pas de lazy loading)
   { path: "/", element: <Index /> },
   { path: "/auth", element: <Auth /> },
-  { path: "/onboarding", element: <OnboardingPage /> },
-  { path: "/inventory", element: <InventoryPage /> },
-  { path: "/recipes", element: <RecipesPage /> },
-  { path: "/shopping", element: <SmartShoppingList /> },
-  { path: "/shopping-classic", element: <ShoppingListPage /> },
-  { path: "/insights", element: <InsightsPage /> },
-  { path: "/settings", element: <Settings /> },
-  { path: "/assistant", element: <AssistantAI /> },
-  { path: "/assistant-old", element: <RecipeAssistant /> },
-  { path: "/video-test", element: <VideoImportTest /> },
-  { path: "/recipe-seeding", element: <RecipeSeeding /> },
-  { path: "/recipes/:id", element: <RecipeDetail /> },
-  { path: "/recipes/:id/edit", element: <RecipeEdit /> },
-  { path: "/demo/material-you", element: <MaterialYouDemo /> },
-  { path: "/test-material-you", element: <TestMaterialYou /> },
-  { path: "/test/minimal", element: <TestMinimal /> },
-  { path: "/youtube-test", element: <YouTubeTestWorking /> },
-  { path: "/test/youtube-recipe", element: <YouTubeTestDirect /> },
-  { path: "/test/youtube-recipe-full", element: <YouTubeRecipeTest /> },
-  { path: "*", element: <NotFound /> },
-], {
+
+  // Pages avec lazy loading
+  { path: "/onboarding", element: withSuspense(OnboardingPage) },
+
+  // === NOUVELLE STRUCTURE HIÉRARCHIQUE PRP-040.1 ===
+
+  // Pantry Section
+  { path: "/pantry", element: withSuspense(PantryDashboard) },
+  { path: "/pantry/inventory", element: withSuspense(InventoryPage) },
+  { path: "/pantry/scanner", element: withSuspense(InventoryPage) },
+  { path: "/pantry/alerts", element: withSuspense(InventoryPage) },
+
+  // Kitchen Section
+  { path: "/kitchen", element: withSuspense(KitchenDashboard) },
+  { path: "/kitchen/recipes", element: withSuspense(RecipesPage) },
+  { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
+  { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
+  { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
+  { path: "/kitchen/favorites", element: withSuspense(RecipesPage) },
+
+  // Shopping Section
+  { path: "/shopping", element: withSuspense(ShoppingDashboard) },
+  { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
+  { path: "/shopping/store-mode", element: withSuspense(SmartShoppingList) },
+  { path: "/shopping/history", element: withSuspense(SmartShoppingList) },
+
+  // Assistant Section
+  { path: "/assistant", element: withSuspense(AssistantDashboard) },
+  { path: "/assistant/chat", element: withSuspense(AssistantAI) },
+  { path: "/assistant/suggestions", element: withSuspense(AssistantAI) },
+  { path: "/assistant/nutrition", element: withSuspense(AssistantAI) },
+
+  // Insights Section
+  { path: "/insights", element: withSuspense(InsightsPage) },
+  { path: "/insights/analytics", element: withSuspense(InsightsPage) },
+  { path: "/insights/waste", element: withSuspense(InsightsPage) },
+  { path: "/insights/goals", element: withSuspense(InsightsPage) },
+
+  // Games Section (Mode Famille)
+  { path: "/games", element: withSuspense(RecipesPage) },
+  { path: "/games/memory", element: withSuspense(RecipesPage) },
+  { path: "/games/nutrition", element: withSuspense(RecipesPage) },
+  { path: "/games/recipes", element: withSuspense(RecipesPage) },
+
+  // === PARAMÈTRES ET CONFIGURATION ===
+  { path: "/settings", element: withSuspense(Settings) },
+  { path: "/settings/family", element: withSuspense(Settings) },
+  { path: "/settings/parental", element: withSuspense(Settings) },
+  { path: "/settings/appearance", element: withSuspense(Settings) },
+];
+
+// Dev-only routes (legacy + tests)
+if (import.meta.env.DEV) {
+  baseRoutes.push(
+    // Legacy compatibility
+    { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
+    { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
+    { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
+    { path: "/shopping-classic", element: withSuspense(ShoppingListPage) },
+    { path: "/assistant-old", element: withSuspense(RecipeAssistant) },
+    // Test & dev pages
+    { path: "/recipe-seeding", element: withSuspense(RecipeSeeding) },
+    { path: "/video-test", element: withSuspense(VideoImportTest) },
+    { path: "/demo/material-you", element: withSuspense(MaterialYouDemo) },
+    { path: "/test-material-you", element: withSuspense(TestMaterialYou) },
+    { path: "/test/minimal", element: withSuspense(TestMinimal) },
+    { path: "/youtube-test", element: withSuspense(YouTubeTestWorking) },
+    { path: "/test/youtube-recipe", element: withSuspense(YouTubeTestDirect) },
+    { path: "/test/youtube-recipe-full", element: withSuspense(YouTubeRecipeTest) },
+    { path: "/diagnostics", element: withSuspense(Diagnostics) },
+  );
+}
+
+// 404 - must be last
+baseRoutes.push({ path: "*", element: <NotFound /> });
+
+const router = createBrowserRouter(baseRoutes, {
   future: {
     v7_startTransition: true,
     v7_relativeSplatPath: true,
@@ -62,15 +144,17 @@ const router = createBrowserRouter([
 });
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <LayoutPerformanceProvider enableAutoOptimizations={true}>
-      <ThemeProvider>
-        <MaterialYouThemeProvider>
-          <RouterProvider router={router} />
-        </MaterialYouThemeProvider>
-      </ThemeProvider>
-    </LayoutPerformanceProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <LayoutPerformanceProvider enableAutoOptimizations={true}>
+        <ThemeProvider>
+          <MaterialYouThemeProvider>
+            <RouterProvider router={router} />
+          </MaterialYouThemeProvider>
+        </ThemeProvider>
+      </LayoutPerformanceProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

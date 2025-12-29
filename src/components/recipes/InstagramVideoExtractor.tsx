@@ -91,15 +91,22 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
       return;
     }
 
+    // Validate body via shared schema
+    try {
+      const { VideoBody } = await import('@smart/shared');
+      (VideoBody as any).parse({ videoUrl: url, platform: 'instagram' });
+    } catch {
+      onError({ message: 'URL Instagram invalide.' });
+      return;
+    }
+
     console.log("✅ [InstagramVideoExtractor] URL valide, début de l'extraction...");
     setLoading(true);
     setExtractedRecipe(null);
 
     try {
       // En développement, utiliser l'URL directe du serveur API si le proxy ne fonctionne pas
-      const apiUrl = process.env.NODE_ENV === 'development' 
-        ? 'http://localhost:3003/api/parse-video-recipe'
-        : '/api/parse-video-recipe';
+      const apiUrl = '/api/parse-video-recipe';
       
       console.log("🌐 [InstagramVideoExtractor] Appel API vers:", apiUrl);
       console.log("📤 [InstagramVideoExtractor] Données envoyées:", { videoUrl: url, platform: 'instagram' });
@@ -199,9 +206,7 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
               };
             } else {
               // Utiliser le proxy seulement pour les URLs HTTP/HTTPS
-              const proxyBaseUrl = process.env.NODE_ENV === 'development' 
-                ? 'http://localhost:3003/api/proxy/image'
-                : '/api/proxy/image';
+              const proxyBaseUrl = '/api/proxy/image';
               const proxiedUrl = `${proxyBaseUrl}?url=${encodeURIComponent(thumbnailData.thumbnail_url)}`;
               setThumbnailUrl(proxiedUrl);
               recipe.metadata.thumbnail = {
@@ -220,9 +225,7 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
           setThumbnailUrl(thumbnailUrl);
         } else if (typeof thumbnailUrl === 'string') {
           // Utiliser le proxy pour éviter les problèmes CORS
-          const proxyBaseUrl = process.env.NODE_ENV === 'development' 
-            ? 'http://localhost:3003/api/proxy/image'
-            : '/api/proxy/image';
+          const proxyBaseUrl = '/api/proxy/image';
           const proxiedUrl = `${proxyBaseUrl}?url=${encodeURIComponent(thumbnailUrl)}`;
           setThumbnailUrl(proxiedUrl);
           recipe.metadata.thumbnail = {

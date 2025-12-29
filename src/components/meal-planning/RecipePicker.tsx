@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -62,7 +62,10 @@ export function RecipePicker({
   const loadFavoriteRecipes = async () => {
     try {
       const recipes = await getFavoriteRecipes();
-      setFavoriteRecipes(recipes.map(transformRecipeWithDetails));
+      const validRecipes = recipes
+        .filter(r => r && r.id)
+        .map(transformRecipeWithDetails);
+      setFavoriteRecipes(validRecipes);
     } catch (error) {
       console.error('Error loading favorite recipes:', error);
     }
@@ -81,7 +84,10 @@ export function RecipePicker({
     setLoading(true);
     try {
       const recipes = await getPopularRecipes(20);
-      setPopularRecipes(recipes.map(transformRecipeWithDetails));
+      const validRecipes = recipes
+        .filter(r => r && r.id)
+        .map(transformRecipeWithDetails);
+      setPopularRecipes(validRecipes);
     } catch (error) {
       console.error('Error loading popular recipes:', error);
     } finally {
@@ -100,7 +106,10 @@ export function RecipePicker({
       };
 
       const recipes = await searchRecipes(searchQuery, filters);
-      setSearchResults(recipes.map(transformRecipeWithDetails));
+      const validRecipes = recipes
+        .filter(r => r && r.id)
+        .map(transformRecipeWithDetails);
+      setSearchResults(validRecipes);
     } catch (error) {
       console.error('Error searching recipes:', error);
     } finally {
@@ -110,17 +119,17 @@ export function RecipePicker({
 
   // Transform recipe data to match our interface
   const transformRecipeWithDetails = (recipe: any): RecipeCard => ({
-    id: recipe.id,
-    title: recipe.title,
-    description: recipe.description,
+    id: recipe.id || '',
+    title: recipe.name || recipe.title || 'Recette sans nom',
+    description: recipe.description || '',
     prep_time: recipe.prep_time || 0,
     cook_time: recipe.cook_time || 0,
     difficulty: recipe.difficulty || 3,
     servings: recipe.servings || 4,
-    photo_url: recipe.photo_url,
+    photo_url: recipe.photo_url || recipe.image_url || '',
     tags: recipe.tags || [],
-    rating_avg: recipe.rating_avg,
-    estimated_cost: recipe.estimatedCost || estimateRecipeCost(recipe)
+    rating_avg: recipe.rating || recipe.rating_avg || 0,
+    estimated_cost: recipe.estimated_cost || recipe.estimatedCost || estimateRecipeCost(recipe)
   });
 
   const estimateRecipeCost = (recipe: any): number => {
@@ -155,7 +164,7 @@ export function RecipePicker({
             />
           ) : (
             <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-              {recipe.title.charAt(0)}
+              {recipe.title ? recipe.title.charAt(0) : '?'}
             </div>
           )}
 
@@ -163,7 +172,7 @@ export function RecipePicker({
           <div className="flex-1 space-y-2">
             <div>
               <h3 className="font-medium text-sm line-clamp-1">
-                {recipe.title}
+                {recipe.title || 'Recette sans nom'}
               </h3>
               {recipe.description && (
                 <p className="text-xs text-muted-foreground line-clamp-2">
@@ -220,6 +229,9 @@ export function RecipePicker({
             <span className="text-2xl">{mealType === 'lunch' ? '🌞' : '🌙'}</span>
             Choisir un repas pour {mealType === 'lunch' ? 'le midi' : 'le soir'}
           </DialogTitle>
+          <DialogDescription>
+            Sélectionnez une recette dans la liste ou utilisez la recherche pour trouver le repas parfait.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 flex flex-col space-y-4">

@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ShoppingItem } from "@/hooks/useShoppingList";
+import { useInventory } from "@/hooks/useInventory";
+import { Autocomplete, AutocompleteSuggestion } from "@/components/ui/Autocomplete";
 
 interface EditShoppingItemDialogProps {
   item: ShoppingItem | null;
@@ -85,6 +87,8 @@ const EditShoppingItemDialog = ({
     storeSection: ""
   });
 
+  const { products } = useInventory();
+
   // Update form when item changes
   useEffect(() => {
     if (item) {
@@ -121,13 +125,24 @@ const EditShoppingItemDialog = ({
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="productName">Nom du produit</Label>
-              <Input
-                id="productName"
-                value={formData.productName}
-                onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
-                placeholder="Ex: Tomates"
-                required
-              />
+              <div className="relative">
+                <Autocomplete
+                  value={formData.productName}
+                  onValueChange={(val) => setFormData({ ...formData, productName: val })}
+                  suggestions={(products || []).map(p => ({
+                    id: p.id,
+                    label: p.name,
+                    value: p.name,
+                    section: p.category || 'Autres',
+                    meta: p.unit_type || undefined,
+                    payload: p
+                  })) as AutocompleteSuggestion[]}
+                  onSelect={(s) => setFormData({ ...formData, productName: s.value, unit: (s.meta as string) || formData.unit, category: s.payload?.category || formData.category })}
+                  placeholder="Ex: Tomates"
+                  className="relative"
+                  inputClassName="w-full border rounded px-3 py-2"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

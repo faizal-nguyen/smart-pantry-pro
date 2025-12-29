@@ -3,7 +3,7 @@
  * Vue d'ensemble de l'inventaire avec mode famille
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, ScanQrCode, Bell, Plus, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,12 +13,33 @@ import AppNavigation from '@/components/navigation/AppNavigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
+import { useInventory } from '@/hooks/useInventory';
+import { Autocomplete, AutocompleteSuggestion } from '@/components/ui/Autocomplete';
+import { useToast } from '@/hooks/use-toast';
 
 const PantryDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { adaptiveInterface, isChildMode } = useAgeAdaptiveUI();
+
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  const { inventory, products, addToInventory } = useInventory();
+  const { toast } = useToast();
+  const [quick, setQuick] = useState({ name: '', qty: 1, unit: 'pcs' });
+  const [openAuto, setOpenAuto] = useState(false);
+
+  const toConsume = useMemo(() => {
+    const now = Date.now();
+    return (inventory || [])
+      .filter(it => it.expiry_date)
+      .map(it => ({
+        ...it,
+        days: Math.ceil((new Date(it.expiry_date as string).getTime() - now) / (1000*60*60*24))
+      }))
+      .filter(it => it.days <= 3)
+      .sort((a,b) => a.days - b.days);
+  }, [inventory]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -36,6 +57,55 @@ const PantryDashboard: React.FC = () => {
   if (!user) {
     return <div>Non authentifié</div>;
   }
+
+  const handleQuickAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quick.name.trim() || quick.qty <= 0) return;
+    try {
+      const product = await supabase
+        .from('products')
+        .select('*')
+        .ilike('name', quick.name.trim())
+        .maybeSingle();
+
+      let productId = product.data?.id;
+      if (!productId) {
+        const { data: created, error } = await supabase
+          .from('products')
+          .insert({ name: quick.name.trim(), category: 'Général', unit_type: quick.unit })
+          .select()
+          .single();
+        if (error) throw error;
+        productId = created.id;
+      }
+
+      const createdInv = await addToInventory({
+        product_id: productId!,
+        quantity: quick.qty,
+        expiry_date: undefined,
+        location: 'pantry'
+      } as any);
+
+      setQuick({ name: '', qty: 1, unit: quick.unit });
+      const undoTimer = setTimeout(() => {}, 5000);
+      toast({
+        title: 'Produit ajouté',
+        description: `${createdInv?.product?.name || quick.name} ajouté à l'inventaire.`,
+        action: {
+          label: 'Annuler',
+          onClick: async () => {
+            clearTimeout(undoTimer);
+            try {
+              await supabase.from('inventory').delete().eq('id', createdInv.id);
+            } catch {}
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Quick add error', error);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible d\'ajouter le produit.' });
+    }
+  };
 
   const quickActions = [
     {
@@ -138,6 +208,75 @@ const PantryDashboard: React.FC = () => {
         })}
       </div>
 
+      {/* Quick Add */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ajout rapide</CardTitle>
+          <CardDescription>Ajouter un produit en 2 secondes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleQuickAdd} className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[180px] relative">
+              <label className="block text-sm text-muted-foreground mb-1">Produit</label>
+              <Autocomplete
+                value={quick.name}
+                onValueChange={(name) => {
+                  setQuick(q => ({ ...q, name }));
+                }}
+                suggestions={(products || []).map(p => ({
+                  id: p.id,
+                  label: p.name,
+                  value: p.name,
+                  section: p.category || 'Autres',
+                  meta: p.unit_type || undefined,
+                  payload: p
+                }) as AutocompleteSuggestion)}
+                onSelect={(s) => {
+                  setQuick(q => ({ ...q, name: s.value, unit: s.meta || q.unit }));
+                }}
+                placeholder="ex: Tomates"
+                className="relative"
+                inputClassName="w-full border rounded px-3 py-2"
+                open={openAuto}
+                onOpenChange={setOpenAuto}
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Quantité</label>
+              <input
+                type="number"
+                value={quick.qty}
+                min={0}
+                onChange={e => setQuick(q => ({ ...q, qty: Number(e.target.value) }))}
+                className="w-24 border rounded px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Unité</label>
+              <select
+                value={quick.unit}
+                onChange={e => setQuick(q => ({ ...q, unit: e.target.value }))}
+                className="border rounded px-3 py-2"
+              >
+                <option value="pcs">pcs</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+              </select>
+            </div>
+            <button type="submit" className="bg-primary text-primary-foreground px-4 py-2 rounded disabled:opacity-50" disabled={!quick.name.trim() || quick.qty <= 0}>
+              Ajouter
+            </button>
+          </form>
+          {(!quick.name.trim() || quick.qty <= 0) && (
+            <p className="text-xs text-muted-foreground mt-2">
+              {!quick.name.trim() ? 'Indiquez un nom de produit.' : 'La quantité doit être supérieure à 0.'}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Statistiques rapides */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -220,6 +359,42 @@ const PantryDashboard: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* À consommer d'abord */}
+      <Card>
+        <CardHeader>
+          <CardTitle>À consommer d'abord</CardTitle>
+          <CardDescription>Produits expirés / J‑1 / J‑3</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {toConsume.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Rien à signaler 🎉</p>
+          ) : (
+            <ul className="divide-y">
+              {toConsume.slice(0, 8).map((it) => (
+                <li key={it.id} className="py-2 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{it.product?.name || 'Produit'}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {it.days <= 0 ? 'Expiré' : `Dans ${it.days} jour(s)`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      className="text-xs border rounded px-2 py-1"
+                      onClick={() => navigate('/kitchen/recipes')}
+                    >Proposer recette</button>
+                    <button
+                      className="text-xs border rounded px-2 py-1"
+                      onClick={() => navigate('/kitchen/meal-planning')}
+                    >Planifier</button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Message d'encouragement pour enfants */}
       {isChildMode && (

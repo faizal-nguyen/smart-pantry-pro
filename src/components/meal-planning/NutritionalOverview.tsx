@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Lightbulb } from 'lucide-react';
 import { WeeklyMealPlan, UserPreferences } from '@/services/planning/types';
 
 interface NutritionalOverviewProps {

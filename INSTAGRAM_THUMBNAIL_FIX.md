@@ -2,7 +2,7 @@
 
 ## État actuel
 - ✅ Le script Python `api/instagram_metadata.py` fonctionne correctement
-- ✅ L'endpoint `/api/social/instagram-thumbnail` a été ajouté dans `start-local-api.js`
+- ✅ L'endpoint `/api/v1/social/instagram/thumbnail` est fourni par `apps/api` (Express TS)
 - ❌ Le serveur API doit être redémarré pour prendre en compte les changements
 
 ## Actions à effectuer
@@ -73,7 +73,7 @@ Instaloader → Instagram
 
 ## Fichiers modifiés
 
-1. **start-local-api.js** : Ajout de l'endpoint `/api/social/instagram-thumbnail`
+1. **apps/api** : Utiliser `POST /api/v1/social/instagram/thumbnail`
 2. **InstagramVideoExtractor.tsx** : Ajout de logs détaillés et récupération séparée de vignette
 3. **useInstagramThumbnail.ts** : Hook pour extraire les vignettes
 4. **test-instagram-direct.html** : Page de test complète

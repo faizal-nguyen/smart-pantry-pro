@@ -472,14 +472,17 @@ describe('useAIAssistant - Integration Tests', () => {
       await result.current.sendMessage('Que puis-je cuisiner?');
     });
 
-    expect(global.fetch).toHaveBeenCalledWith('/api/ai-assistant-enhanced', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer test-token'
-      },
-      body: expect.stringContaining('"expiryAlerts"')
-    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/v1/assistant/stream',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer test-token'
+        }),
+        body: expect.stringContaining('"expiryAlerts"')
+      })
+    );
 
     // Parse the body to check expiry alerts
     const fetchCall = (global.fetch as jest.Mock).mock.calls[0];

@@ -1,0 +1,7 @@
+venv/
+uploads/
+processed/
+logs/
+temp/
+.env
+

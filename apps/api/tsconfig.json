@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "noEmitOnError": false,
+    "paths": {
+      "@smart/shared": ["../../packages/shared/dist/index.d.ts", "../../packages/shared/dist/index.js"],
+      "@smart/shared/*": ["../../packages/shared/dist/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

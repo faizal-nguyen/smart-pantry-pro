@@ -48,6 +48,7 @@ const RecipeDetail = () => {
   const [instructions, setInstructions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [cooking, setCooking] = useState(false);
   
   const recipe = recipes.find(r => r.id === id);
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
@@ -204,6 +205,56 @@ const RecipeDetail = () => {
       });
     } finally {
       setAddingToCart(false);
+    }
+  };
+
+  const handleCook = async () => {
+    if (!inventoryAnalysis || inventoryAnalysis.availableIngredients.length === 0) {
+      toast({
+        title: "Rien à décrémenter",
+        description: "Aucun ingrédient disponible dans l'inventaire.",
+      });
+    
+      return;
+    }
+
+    setCooking(true);
+    try {
+      const updates: { id: string; prev: number; next: number }[] = [];
+      for (const match of inventoryAnalysis.availableIngredients) {
+        const inv: any = match.inventoryItem;
+        const ing: any = match.ingredient;
+        const prevQty = Number(inv.quantity) || 0;
+        const reqQty = Number(ing.quantity) || 1;
+        const nextQty = Math.max(0, prevQty - reqQty);
+        if (nextQty !== prevQty) updates.push({ id: inv.id, prev: prevQty, next: nextQty });
+      }
+
+      if (updates.length === 0) {
+        toast({ title: "Quantités inchangées", description: "Aucun changement à appliquer." });
+        setCooking(false);
+        return;
+      }
+
+      await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.next }).eq('id', u.id)));
+
+      toast({
+        title: "Cuisiné",
+        description: "Les ingrédients ont été décrémentés de l'inventaire.",
+        action: {
+          label: 'Annuler',
+          onClick: async () => {
+            try {
+              await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.prev }).eq('id', u.id)));
+            } catch {}
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Cook error:', error);
+      toast({ title: 'Erreur', description: "Impossible de mettre à jour l'inventaire", variant: 'destructive' });
+    } finally {
+      setCooking(false);
     }
   };
 
@@ -484,23 +535,41 @@ const RecipeDetail = () => {
               </div>
             )}
             
-            <Button 
-              className="w-full mt-4" 
-              onClick={handleAddToShoppingList}
-              disabled={inventoryAnalysis?.canMake || addingToCart}
-            >
-              {addingToCart ? (
-                <>
-                  <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Ajout en cours...
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  Ajouter à la liste de courses
-                </>
-              )}
-            </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+              <Button 
+                onClick={handleAddToShoppingList}
+                disabled={inventoryAnalysis?.canMake || addingToCart}
+              >
+                {addingToCart ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Ajout en cours...
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    Ajouter les manquants
+                  </>
+                )}
+              </Button>
+              <Button 
+                variant="secondary"
+                onClick={handleCook}
+                disabled={cooking || !inventoryAnalysis?.availableIngredients?.length}
+              >
+                {cooking ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Mise à jour...
+                  </>
+                ) : (
+                  <>
+                    <ChefHat className="w-4 h-4 mr-2" />
+                    Cuisiner (décrémenter)
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

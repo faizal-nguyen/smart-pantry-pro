@@ -1,5 +1,7 @@
-import { useState, useMemo } from "react";
-import Layout from "@/components/Layout";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
+import AppNavigation from "@/components/navigation/AppNavigation";
 import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +63,8 @@ const STORE_SECTIONS = [
 ];
 
 const SmartShoppingList = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState("Tous");
   const [showPurchased, setShowPurchased] = useState(true);
@@ -70,6 +74,15 @@ const SmartShoppingList = () => {
   const [showInStoreMode, setShowInStoreMode] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(STORE_SECTIONS));
   const [showFABMenu, setShowFABMenu] = useState(false);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    };
+    getUser();
+  }, []);
   
   const { 
     shoppingList, 
@@ -213,26 +226,34 @@ const SmartShoppingList = () => {
   // Mode magasin
   if (showInStoreMode) {
     return (
-      <Layout>
+      <AppNavigation user={user}>
         <ShoppingListErrorBoundary>
           <InStoreShopping onExit={() => setShowInStoreMode(false)} />
         </ShoppingListErrorBoundary>
-      </Layout>
+      </AppNavigation>
     );
   }
 
   if (loading) {
     return (
-      <Layout>
+      <AppNavigation user={user!}>
         <div className="flex items-center justify-center h-screen">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </AppNavigation>
     );
   }
 
+  if (authLoading) {
+    return <div>Chargement...</div>;
+  }
+
+  if (!user) {
+    return <div>Non authentifié</div>;
+  }
+
   return (
-    <Layout>
+    <AppNavigation user={user}>
       <div className="min-h-screen flex flex-col">
         {/* Header fixe et compact */}
         <div className="sticky top-0 bg-background z-10 border-b">
@@ -498,7 +519,7 @@ const SmartShoppingList = () => {
           onSave={handleSaveEdit}
         />
       )}
-    </Layout>
+    </AppNavigation>
   );
 };
 

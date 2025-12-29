@@ -5,8 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { NextPage } from 'next';
-import Head from 'next/head';
+// Removed Next.js-specific types and Head for Vite/React usage
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -93,7 +92,7 @@ interface DemoFeature {
   difficulty: 'basic' | 'advanced' | 'expert';
 }
 
-const InventoryVisualizationDemo: NextPage = () => {
+const InventoryVisualizationDemo: React.FC = () => {
   const [demoState, setDemoState] = useState<DemoState>({
     isPlaying: false,
     currentSeason: 'spring',
@@ -396,9 +395,7 @@ const InventoryVisualizationDemo: NextPage = () => {
   if (!isSystemReady) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Head>
-          <title>Loading PRP-026 Inventory Visualization Demo</title>
-        </Head>
+        {/* Title management can be handled by a layout or react-helmet-async if needed */}
         <Card className="w-full max-w-md mx-4">
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center gap-2">
@@ -433,10 +430,7 @@ const InventoryVisualizationDemo: NextPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      <Head>
-        <title>PRP-026 Inventory Visualization Demo | Smart Pantry Pro</title>
-        <meta name="description" content="Interactive demonstration of advanced 3D pantry visualization with Pokémon-style collection and Apple Health progress tracking" />
-      </Head>
+      {/* SEO head removed for Vite demo page; add react-helmet-async if required */}
 
       {/* Header */}
       <div className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-40">

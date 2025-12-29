@@ -1,22 +1,44 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 import { motion } from 'framer-motion';
 import { InsightsDashboard } from '@/components/insights';
-import Layout from '@/components/Layout';
+import AppNavigation from '@/components/navigation/AppNavigation';
 import { AdaptiveHeroViewport, HeroVariants } from '@/components/layout/AdaptiveHeroViewport';
 import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
 import { BarChart3, TrendingUp, Target, Award } from 'lucide-react';
 
 const InsightsPage: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setLoading(false);
+    };
+    getUser();
+  }, []);
+
   // Mock data for demonstration - would come from useInsightsData hook
   const dashboardStats = [
     { label: 'Économies', value: '€127', icon: <TrendingUp className="w-4 h-4" /> },
     { label: 'Objectifs', value: '3/5', icon: <Target className="w-4 h-4" /> },
     { label: 'Score', value: '92%', icon: <Award className="w-4 h-4" /> },
   ];
+
+  if (loading) {
+    return <div>Chargement...</div>;
+  }
+
+  if (!user) {
+    return <div>Non authentifié</div>;
+  }
   
   return (
     <LayoutPerformanceProvider>
-      <Layout>
+      <AppNavigation user={user}>
         {/* Enhanced Hero Section with Golden Ratio */}
         <AdaptiveHeroViewport
           content={{ density: 'medium', hasImages: false }}
@@ -89,7 +111,7 @@ const InsightsPage: React.FC = () => {
         >
           <InsightsDashboard />
         </motion.div>
-      </Layout>
+      </AppNavigation>
     </LayoutPerformanceProvider>
   );
 };

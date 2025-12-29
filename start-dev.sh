@@ -5,27 +5,27 @@ echo ""
 
 # Kill any existing processes on our ports
 echo "🧹 Cleaning up existing processes..."
-lsof -ti:3001 | xargs kill -9 2>/dev/null
-lsof -ti:8080 | xargs kill -9 2>/dev/null
+lsof -ti:4000 | xargs kill -9 2>/dev/null || true
+lsof -ti:3002 | xargs kill -9 2>/dev/null || true
 
 # Start API server
-echo "📡 Starting API server on port 3001..."
-npm run api &
+echo "📡 Starting API server (apps/api) on port 4000..."
+npm run api:dev &
 API_PID=$!
 
 # Wait a moment for API to start
 sleep 2
 
 # Start Vite dev server
-echo "🌐 Starting Vite dev server on port 8080..."
+echo "🌐 Starting Vite dev server on port 3002..."
 npm run dev:vite &
 VITE_PID=$!
 
 echo ""
 echo "✅ Development environment is ready!"
 echo ""
-echo "🔗 Application: http://localhost:8080"
-echo "🔗 API Server: http://localhost:3001"
+echo "🔗 Application: http://localhost:3002"
+echo "🔗 API Server: http://localhost:4000"
 echo ""
 echo "📋 To stop: Press Ctrl+C"
 echo ""
