@@ -6,6 +6,14 @@ node_modules
 .env.test.local
 .env.production.local
 
+# Ignorer les dossiers non-frontend
+.claude/
+apps/
+agents/
+services/
+PRP/
+supabase/
+
 # Ignorer les fichiers de cache
 .cache
 .parcel-cache
