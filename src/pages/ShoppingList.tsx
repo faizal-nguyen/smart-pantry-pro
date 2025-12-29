@@ -5,6 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ShoppingCart, 
   Plus, 
@@ -57,6 +67,9 @@ const ShoppingList = () => {
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showAddToInventoryDialog, setShowAddToInventoryDialog] = useState(false);
+  const [showClearPurchasedDialog, setShowClearPurchasedDialog] = useState(false);
+  const [showDeleteSelectedDialog, setShowDeleteSelectedDialog] = useState(false);
   
   const { 
     shoppingList, 
@@ -128,7 +141,7 @@ const ShoppingList = () => {
     }
   };
 
-  const handleAddAllToInventory = async () => {
+  const handleAddAllToInventoryClick = () => {
     const purchasedCount = getPurchasedCount();
     if (purchasedCount === 0) {
       toast({
@@ -137,13 +150,15 @@ const ShoppingList = () => {
       });
       return;
     }
-
-    if (window.confirm(`Ajouter ${purchasedCount} produit(s) acheté(s) à l'inventaire ?`)) {
-      await addAllToInventory();
-    }
+    setShowAddToInventoryDialog(true);
   };
 
-  const handleClearPurchased = async () => {
+  const handleAddAllToInventoryConfirm = async () => {
+    await addAllToInventory();
+    setShowAddToInventoryDialog(false);
+  };
+
+  const handleClearPurchasedClick = () => {
     const purchasedCount = getPurchasedCount();
     if (purchasedCount === 0) {
       toast({
@@ -152,10 +167,12 @@ const ShoppingList = () => {
       });
       return;
     }
+    setShowClearPurchasedDialog(true);
+  };
 
-    if (window.confirm(`Supprimer ${purchasedCount} produit(s) acheté(s) de la liste ?`)) {
-      await clearPurchased();
-    }
+  const handleClearPurchasedConfirm = async () => {
+    await clearPurchased();
+    setShowClearPurchasedDialog(false);
   };
 
   const handleEditItem = (item: ShoppingItem) => {
@@ -192,7 +209,7 @@ const ShoppingList = () => {
     setSelectedItems(newSelected);
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelectedClick = () => {
     if (selectedItems.size === 0) {
       toast({
         title: "Aucun produit sélectionné",
@@ -200,11 +217,13 @@ const ShoppingList = () => {
       });
       return;
     }
+    setShowDeleteSelectedDialog(true);
+  };
 
-    if (window.confirm(`Supprimer ${selectedItems.size} produit(s) de la liste ?`)) {
-      await removeMultipleFromShoppingList(Array.from(selectedItems));
-      setSelectedItems(new Set());
-    }
+  const handleDeleteSelectedConfirm = async () => {
+    await removeMultipleFromShoppingList(Array.from(selectedItems));
+    setSelectedItems(new Set());
+    setShowDeleteSelectedDialog(false);
   };
 
   const handleMarkSelectedAsPurchased = async (isPurchased: boolean) => {
@@ -318,17 +337,17 @@ const ShoppingList = () => {
                 </p>
               </div>
               <div className="flex gap-2">
-                <MaterialButton 
-                  onClick={handleAddAllToInventory} 
+                <MaterialButton
+                  onClick={handleAddAllToInventoryClick}
                   size="sm"
                   variant="filled"
                   icon={<PackagePlus className="w-4 h-4" />}
                 >
                   Vers inventaire
                 </MaterialButton>
-                <MaterialButton 
-                  onClick={handleClearPurchased} 
-                  variant="outlined" 
+                <MaterialButton
+                  onClick={handleClearPurchasedClick}
+                  variant="outlined"
                   size="sm"
                   icon={<Trash2 className="w-4 h-4" />}
                 >
@@ -419,7 +438,7 @@ const ShoppingList = () => {
                       <MaterialButton
                         size="sm"
                         variant="outlined"
-                        onClick={handleDeleteSelected}
+                        onClick={handleDeleteSelectedClick}
                         icon={<Trash2 className="w-4 h-4" />}
                       >
                         Supprimer
@@ -491,6 +510,69 @@ const ShoppingList = () => {
         onOpenChange={setEditDialogOpen}
         onSave={handleSaveEdit}
       />
+
+      {/* Add to Inventory Confirmation Dialog */}
+      <AlertDialog open={showAddToInventoryDialog} onOpenChange={setShowAddToInventoryDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ajouter à l'inventaire</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ajouter {getPurchasedCount()} produit(s) acheté(s) à votre inventaire ?
+              Les produits seront automatiquement ajoutés avec les quantités achetées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAddAllToInventoryConfirm}>
+              Ajouter à l'inventaire
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Purchased Confirmation Dialog */}
+      <AlertDialog open={showClearPurchasedDialog} onOpenChange={setShowClearPurchasedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer les produits achetés</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer {getPurchasedCount()} produit(s) acheté(s) de la liste ?
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearPurchasedConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Selected Confirmation Dialog */}
+      <AlertDialog open={showDeleteSelectedDialog} onOpenChange={setShowDeleteSelectedDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer les produits sélectionnés</AlertDialogTitle>
+            <AlertDialogDescription>
+              Supprimer {selectedItems.size} produit(s) sélectionné(s) de la liste ?
+              Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteSelectedConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

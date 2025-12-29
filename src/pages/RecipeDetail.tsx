@@ -4,6 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ArrowLeft, 
   Clock, 
@@ -49,6 +59,7 @@ const RecipeDetail = () => {
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cooking, setCooking] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
   const recipe = recipes.find(r => r.id === id);
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
@@ -145,24 +156,29 @@ const RecipeDetail = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
     if (!id) return;
-    
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette recette ?')) {
-      try {
-        await deleteRecipe(id);
-        toast({
-          title: "Recette supprimée",
-          description: "La recette a été supprimée avec succès",
-        });
-        navigate('/recipes');
-      } catch (error) {
-        toast({
-          title: "Erreur",
-          description: "Impossible de supprimer la recette",
-          variant: "destructive"
-        });
-      }
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!id) return;
+
+    try {
+      await deleteRecipe(id);
+      toast({
+        title: "Recette supprimée",
+        description: "La recette a été supprimée avec succès",
+      });
+      setShowDeleteDialog(false);
+      navigate('/recipes');
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la recette",
+        variant: "destructive"
+      });
+      setShowDeleteDialog(false);
     }
   };
 
@@ -288,24 +304,24 @@ const RecipeDetail = () => {
 
   const getCuisineColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Française': 'bg-blue-100 text-blue-800',
-      'Italienne': 'bg-green-100 text-green-800',
-      'Asiatique': 'bg-red-100 text-red-800',
-      'Méditerranéenne': 'bg-orange-100 text-orange-800',
-      'Mexicaine': 'bg-yellow-100 text-yellow-800',
-      'Indienne': 'bg-purple-100 text-purple-800',
-      'Japonaise': 'bg-pink-100 text-pink-800',
-      'Américaine': 'bg-indigo-100 text-indigo-800',
-      'Végétarienne': 'bg-emerald-100 text-emerald-800',
-      'Végan': 'bg-lime-100 text-lime-800',
+      'Française': 'bg-info/10 text-info',
+      'Italienne': 'bg-success/10 text-success',
+      'Asiatique': 'bg-destructive/10 text-destructive',
+      'Méditerranéenne': 'bg-warning/10 text-warning',
+      'Mexicaine': 'bg-warning/20 text-warning',
+      'Indienne': 'bg-accent/10 text-accent',
+      'Japonaise': 'bg-primary/10 text-primary',
+      'Américaine': 'bg-info/20 text-info',
+      'Végétarienne': 'bg-success/20 text-success',
+      'Végan': 'bg-success/15 text-success',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800';
+    return colors[category] || 'bg-muted text-muted-foreground';
   };
 
   const getInventoryStatusIcon = (isAvailable: boolean, isEssential: boolean) => {
-    if (isAvailable) return <CheckCircle className="w-4 h-4 text-green-600" />;
-    if (isEssential) return <XCircle className="w-4 h-4 text-red-600" />;
-    return <AlertCircle className="w-4 h-4 text-yellow-600" />;
+    if (isAvailable) return <CheckCircle className="w-4 h-4 text-success" />;
+    if (isEssential) return <XCircle className="w-4 h-4 text-destructive" />;
+    return <AlertCircle className="w-4 h-4 text-warning" />;
   };
 
   if (!recipe && !loading) {
@@ -365,9 +381,9 @@ const RecipeDetail = () => {
     <div className="container mx-auto px-4 py-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate('/')}
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/recipes')}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -392,7 +408,7 @@ const RecipeDetail = () => {
             <Button variant="outline" size="icon" onClick={() => navigate(`/recipes/${id}/edit`)}>
               <Edit className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={handleDelete}>
+            <Button variant="outline" size="icon" onClick={handleDeleteClick}>
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
@@ -417,13 +433,13 @@ const RecipeDetail = () => {
           
           <div className="flex items-center gap-1">
             {[...Array(5)].map((_, i) => (
-              <Star 
+              <Star
                 key={i}
                 className={`w-4 h-4 ${
-                  i < recipe.difficulty 
-                    ? 'fill-yellow-400 text-yellow-400' 
-                    : 'text-gray-300'
-                }`} 
+                  i < recipe.difficulty
+                    ? 'fill-warning text-warning'
+                    : 'text-muted-foreground/30'
+                }`}
               />
             ))}
           </div>
@@ -702,6 +718,27 @@ const RecipeDetail = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette recette ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. La recette "{recipe?.name}" sera définitivement supprimée.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

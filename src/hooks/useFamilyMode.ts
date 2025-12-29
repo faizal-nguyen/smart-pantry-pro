@@ -47,8 +47,8 @@ export const useFamilyMode = (): FamilyModeHook => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // États dérivés
-  const isFamilyModeActive = false; // Mode famille désactivé temporairement
+  // États dérivés - Mode famille activé
+  const isFamilyModeActive = availableProfiles.length > 1 || currentProfile?.type === 'child';
   const isChildProfile = currentProfile?.type === 'child' || false;
   const isSupervisionActive = false;
 
