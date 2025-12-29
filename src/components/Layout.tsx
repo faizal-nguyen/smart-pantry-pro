@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Package, ChefHat, ShoppingCart, LogOut, Loader2, Bot, BarChart3, Settings, Home } from "lucide-react";
 import { MaterialButton } from "@/components/ui/material/Button";
@@ -28,7 +28,13 @@ const Layout = ({ children }: LayoutProps) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
+  const locationRef = useRef(location.pathname);
   const { hasCompletedOnboarding, isLoading: personalizationLoading } = usePersonalization();
+
+  // Keep locationRef in sync with current pathname
+  useEffect(() => {
+    locationRef.current = location.pathname;
+  }, [location.pathname]);
   
   // Enhanced layout hooks
   const { grid, isReady: gridReady } = useHybridGrid({
@@ -62,9 +68,10 @@ const Layout = ({ children }: LayoutProps) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        
-        // Redirect logic
-        if (event === 'SIGNED_IN' && location.pathname === '/auth') {
+
+        // Redirect logic - use ref to get current pathname (avoids stale closure)
+        const currentPath = locationRef.current;
+        if (event === 'SIGNED_IN' && currentPath === '/auth') {
           navigate('/', { replace: true });
         } else if (event === 'SIGNED_OUT') {
           navigate('/auth', { replace: true });
@@ -77,17 +84,18 @@ const Layout = ({ children }: LayoutProps) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-      
-      // Initial redirect logic
-      if (!session && location.pathname !== '/auth') {
+
+      // Initial redirect logic - use ref for current pathname
+      const currentPath = locationRef.current;
+      if (!session && currentPath !== '/auth') {
         navigate('/auth', { replace: true });
-      } else if (session && location.pathname === '/auth') {
+      } else if (session && currentPath === '/auth') {
         navigate('/', { replace: true });
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, location.pathname]);
+  }, [navigate]);
 
   // Check for onboarding status when user is authenticated
   useEffect(() => {

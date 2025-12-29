@@ -68,7 +68,7 @@ const Auth = () => {
       
       if (error) {
         let errorMessage = error.message;
-        
+
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = "Email ou mot de passe incorrect.";
@@ -77,11 +77,12 @@ const Auth = () => {
         } else if (error.message.includes('Too many requests')) {
           errorMessage = "Trop de tentatives de connexion. Réessayez plus tard.";
         }
-        
+
         console.error("Erreur de connexion:", errorMessage);
       } else {
         console.log("Connexion réussie - Bienvenue dans Smart Grocery !");
-        // Navigation will be handled by the Layout component
+        // Navigate immediately after successful login
+        navigate('/', { replace: true });
       }
     } catch (error) {
       console.error("Erreur lors de la connexion:", error);
