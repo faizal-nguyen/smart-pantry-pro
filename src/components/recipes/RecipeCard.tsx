@@ -91,14 +91,14 @@ const RecipeCard = ({
   // Pattern status inventaire (adaptation ProductCard Cipher)
   const getInventoryStatusColor = () => {
     if (!inventoryAnalysis) return 'bg-muted text-muted-foreground';
-    
+
     if (inventoryAnalysis.canMake) {
-      return 'bg-green-100 text-green-800 border-green-200';
+      return 'bg-success/10 text-success border-success/20';
     }
     if (inventoryAnalysis.missingIngredients.length <= 2) {
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      return 'bg-warning/10 text-warning border-warning/20';
     }
-    return 'bg-red-100 text-red-800 border-red-200';
+    return 'bg-destructive/10 text-destructive border-destructive/20';
   };
 
   const getInventoryStatusIcon = () => {
@@ -125,18 +125,18 @@ const RecipeCard = ({
   // Pattern couleurs cuisine (adaptation ProductCard)
   const getCuisineColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Française': 'bg-blue-100 text-blue-800',
-      'Italienne': 'bg-green-100 text-green-800',
-      'Asiatique': 'bg-red-100 text-red-800',
-      'Méditerranéenne': 'bg-orange-100 text-orange-800',
-      'Mexicaine': 'bg-yellow-100 text-yellow-800',
-      'Indienne': 'bg-purple-100 text-purple-800',
-      'Japonaise': 'bg-pink-100 text-pink-800',
-      'Américaine': 'bg-indigo-100 text-indigo-800',
-      'Végétarienne': 'bg-emerald-100 text-emerald-800',
-      'Végan': 'bg-lime-100 text-lime-800',
+      'Française': 'bg-info/10 text-info',
+      'Italienne': 'bg-success/10 text-success',
+      'Asiatique': 'bg-destructive/10 text-destructive',
+      'Méditerranéenne': 'bg-secondary/10 text-secondary',
+      'Mexicaine': 'bg-warning/10 text-warning',
+      'Indienne': 'bg-accent/10 text-accent',
+      'Japonaise': 'bg-primary/10 text-primary',
+      'Américaine': 'bg-info/20 text-info',
+      'Végétarienne': 'bg-success/20 text-success',
+      'Végan': 'bg-success/15 text-success',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800';
+    return colors[category] || 'bg-muted text-muted-foreground';
   };
 
   const totalTime = recipe.prep_time + recipe.cook_time;
@@ -187,7 +187,7 @@ const RecipeCard = ({
               onToggleFavorite?.(recipe.id);
             }}
           >
-            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+            <Heart className={`h-4 w-4 ${isFavorite ? 'fill-destructive text-destructive' : ''}`} />
           </MaterialButton>
         </div>
 
@@ -219,20 +219,20 @@ const RecipeCard = ({
             
             <div className="flex items-center gap-1">
               {[...Array(5)].map((_, i) => (
-                <Star 
+                <Star
                   key={i}
                   className={`w-3 h-3 ${
-                    i < recipe.difficulty 
-                      ? 'fill-yellow-400 text-yellow-400' 
-                      : 'text-gray-300'
-                  }`} 
+                    i < recipe.difficulty
+                      ? 'fill-warning text-warning'
+                      : 'text-muted-foreground/30'
+                  }`}
                 />
               ))}
             </div>
 
             {recipe.rating && (
               <div className="flex items-center gap-1">
-                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                <Star className="w-4 h-4 fill-warning text-warning" />
                 <span>{recipe.rating}</span>
                 <span className="text-xs">({recipe.rating_count})</span>
               </div>
@@ -251,7 +251,7 @@ const RecipeCard = ({
               {inventoryAnalysis.missingIngredients.length > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Manquants:</span>
-                  <span className="font-medium text-orange-600">
+                  <span className="font-medium text-warning">
                     {inventoryAnalysis.missingIngredients.length}
                   </span>
                 </div>

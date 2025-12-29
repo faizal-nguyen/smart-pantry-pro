@@ -122,7 +122,13 @@ export default defineConfig(({ mode }) => ({
           'supabase-vendor': [
             '@supabase/supabase-js',
             '@tanstack/react-query'
-          ]
+          ],
+          // Séparer les librairies de visualisation lourdes (lazy loaded)
+          'three-vendor': ['three'],
+          // Séparer les charts (lazy loaded)
+          'charts-vendor': ['recharts'],
+          // Séparer framer-motion
+          'animation-vendor': ['framer-motion']
         }
       }
     },

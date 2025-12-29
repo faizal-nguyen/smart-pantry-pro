@@ -56,8 +56,8 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
     const status = getExpiryStatus();
     switch (status) {
       case 'expired': return 'bg-destructive text-destructive-foreground';
-      case 'warning': return 'bg-yellow-500 text-white';
-      case 'good': return 'bg-primary text-primary-foreground';
+      case 'warning': return 'bg-warning text-warning-foreground';
+      case 'good': return 'bg-success text-success-foreground';
       default: return 'bg-muted text-muted-foreground';
     }
   };
@@ -72,17 +72,17 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
-      'Fruits et légumes': 'bg-green-100 text-green-800',
-      'Viandes et poissons': 'bg-red-100 text-red-800', 
-      'Produits laitiers': 'bg-blue-100 text-blue-800',
-      'Épicerie salée': 'bg-orange-100 text-orange-800',
-      'Épicerie sucrée': 'bg-pink-100 text-pink-800',
-      'Surgelés': 'bg-cyan-100 text-cyan-800',
-      'Boissons': 'bg-purple-100 text-purple-800',
-      'Hygiène et beauté': 'bg-indigo-100 text-indigo-800',
-      'Entretien': 'bg-gray-100 text-gray-800',
+      'Fruits et légumes': 'bg-success/10 text-success',
+      'Viandes et poissons': 'bg-destructive/10 text-destructive',
+      'Produits laitiers': 'bg-info/10 text-info',
+      'Épicerie salée': 'bg-secondary/10 text-secondary',
+      'Épicerie sucrée': 'bg-accent/10 text-accent',
+      'Surgelés': 'bg-info/20 text-info',
+      'Boissons': 'bg-primary/10 text-primary',
+      'Hygiène et beauté': 'bg-accent/20 text-accent',
+      'Entretien': 'bg-muted text-muted-foreground',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800';
+    return colors[category] || 'bg-muted text-muted-foreground';
   };
 
   // Determine if item is fresh based on expiry

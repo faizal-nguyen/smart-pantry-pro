@@ -32,17 +32,21 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 100%;
     --secondary-hover: 25 95% 48%;
 
-    /* Accent: Fresh herbs */
-    --accent: 120 60% 50%;
+    /* Accent: Fresh herbs (distinct from success) */
+    --accent: 180 60% 40%;
     --accent-foreground: 0 0% 100%;
 
-    /* Muted: Neutral earth tones */
+    /* Muted: Neutral earth tones - FIXED: Better contrast ratio (4.5:1+) */
     --muted: 45 20% 96%;
-    --muted-foreground: 147 10% 45%;
+    --muted-foreground: 147 20% 35%;
 
     /* Success: Fresh green */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
+
+    /* Info: Calm blue */
+    --info: 210 80% 50%;
+    --info-foreground: 0 0% 100%;
 
     /* Warning: Sunset orange */
     --warning: 38 92% 50%;
@@ -124,17 +128,21 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 100%;
     --secondary-hover: 25 85% 60%;
 
-    /* Accent: Softer herb green */
-    --accent: 120 50% 45%;
+    /* Accent: Softer teal (distinct from success) */
+    --accent: 180 50% 50%;
     --accent-foreground: 0 0% 100%;
 
-    /* Muted: Dark earth tones */
+    /* Muted: Dark earth tones - FIXED: Better contrast ratio (4.5:1+) */
     --muted: 147 15% 15%;
-    --muted-foreground: 45 20% 70%;
+    --muted-foreground: 45 30% 75%;
 
     /* Success: Bright green */
     --success: 142 70% 45%;
     --success-foreground: 0 0% 100%;
+
+    /* Info: Calm blue */
+    --info: 210 70% 55%;
+    --info-foreground: 0 0% 100%;
 
     /* Warning: Bright orange */
     --warning: 38 85% 55%;
