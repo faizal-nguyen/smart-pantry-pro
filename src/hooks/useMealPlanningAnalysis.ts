@@ -53,10 +53,9 @@ export function useMealPlanningAnalysis() {
     lastGenerated: null
   });
 
-  const mealPlannerService = useState<SmartMealPlannerService | null>(() => {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    return apiKey ? getSmartMealPlannerService(apiKey) : null;
-  })[0];
+  // PRP-220.02: OpenAI key is server-side, the service routes through
+  // /api/assistant/stream + Supabase JWT.
+  const mealPlannerService = useState<SmartMealPlannerService | null>(() => getSmartMealPlannerService())[0];
 
   /**
    * Load user's meal planning preferences

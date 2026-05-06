@@ -833,9 +833,16 @@ Format de réponse: JSON structuré avec plan détaillé, coûts, nutrition et a
 // Export singleton instance
 let smartMealPlannerInstance: SmartMealPlannerService | null = null;
 
-export function getSmartMealPlannerService(apiKey: string): SmartMealPlannerService {
-  if (!smartMealPlannerInstance || smartMealPlannerInstance['apiKey'] !== apiKey) {
-    smartMealPlannerInstance = new SmartMealPlannerService(apiKey);
+/**
+ * Get the singleton SmartMealPlannerService.
+ *
+ * @param _apiKey deprecated (PRP-220.02): the OpenAI key now lives
+ *  server-side and is consumed by `/api/assistant/stream`. The parameter
+ *  is accepted for backwards compatibility and ignored.
+ */
+export function getSmartMealPlannerService(_apiKey?: string): SmartMealPlannerService {
+  if (!smartMealPlannerInstance) {
+    smartMealPlannerInstance = new SmartMealPlannerService();
   }
   return smartMealPlannerInstance;
 }

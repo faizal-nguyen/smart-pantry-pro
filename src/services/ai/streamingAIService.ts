@@ -1,12 +1,33 @@
 /**
- * Streaming AI Service for Smart Pantry Pro
- * Implements OpenAI streaming responses with proper error handling
+ * Streaming AI Service for Smart Pantry Pro.
+ *
+ * MIGRATED (PRP-220.02): no longer holds an OpenAI key. All requests are
+ * proxied through the authenticated `/api/assistant/stream` endpoint
+ * (Server-Sent Events), which performs the OpenAI call server-side.
+ *
+ * Public surface preserved for backwards compatibility with
+ * `nutritionalAIService`, `smartMealPlannerService`, and any other
+ * consumer that extends/uses this class.
  */
 
-import { API_TIMEOUTS, API_RATE_LIMITS } from '@/config/security';
+import { supabase } from '@/integrations/supabase/client';
+
+const ASSISTANT_PATH = '/api/assistant/stream';
+
+function resolveAssistantUrl(): string {
+  const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+  return `${base}${ASSISTANT_PATH}`;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export interface StreamingConfig {
-  apiKey: string;
+  /** @deprecated key is no longer required client-side; ignored. */
+  apiKey?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
@@ -24,193 +45,172 @@ export interface AIContext {
   language?: string;
 }
 
+interface AssistantBody {
+  message: string;
+  systemPrompt?: string;
+  context?: Record<string, unknown>;
+  mode?: 'text' | 'voice' | 'visual';
+}
+
 export class StreamingAIService {
-  private apiKey: string;
-  private model: string;
+  private readonly model: string;
   private abortController: AbortController | null = null;
 
-  constructor(apiKey: string, model: string = 'gpt-4') {
-    this.apiKey = apiKey;
+  constructor(_apiKey?: string, model: string = 'gpt-4o-mini') {
+    // apiKey kept for backwards-compatible signature only — never used.
     this.model = model;
   }
 
   /**
-   * Stream chat completion
+   * Stream chat completion via /api/assistant/stream.
+   * Calls onChunk for each delta; legacy callers receive the raw OpenAI
+   * delta object so existing extractors keep working.
    */
   async streamChat(
     systemPrompt: string,
     userMessage: string,
     onChunk: (chunk: any) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
   ): Promise<void> {
-    this.abortController = new AbortController();
-    
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        signal: this.abortController.signal,
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
-          temperature: 0.7,
-          max_tokens: 1500,
-          stream: true,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      await this.requestStream(
+        { systemPrompt, message: userMessage },
+        (delta) => onChunk(delta.raw),
+      );
+    } catch (error: unknown) {
+      const e = error instanceof Error ? error : new Error(String(error));
+      if (e.name !== 'AbortError') {
+        console.error('[StreamingAIService] streamChat error:', e);
+        onError?.(e);
       }
-
-      await this.processStream(response, onChunk);
-      
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Stream cancelled');
-      } else {
-        console.error('Streaming error:', error);
-        onError?.(error);
-      }
-    } finally {
-      this.abortController = null;
     }
   }
 
   /**
-   * Non-streaming chat completion
+   * Non-streaming chat completion. Internally consumes the SSE stream
+   * and aggregates deltas into a single string before returning.
    */
   async chat(systemPrompt: string, userMessage: string): Promise<string> {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
+    let buffer = '';
+    await this.requestStream(
+      { systemPrompt, message: userMessage },
+      (delta) => {
+        if (delta.text) buffer += delta.text;
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
+    );
+    return buffer;
   }
 
   /**
-   * Stream AI response with context
+   * Stream AI response with full context object.
    */
   async streamResponse(
     message: string,
     context: AIContext,
-    config: Partial<StreamingConfig>
+    config: Partial<StreamingConfig>,
   ): Promise<void> {
-    // Create abort controller for cancellation
-    this.abortController = new AbortController();
-    
     try {
-      const systemPrompt = this.buildSystemPrompt(context);
-      
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+      await this.requestStream(
+        { message, context: this.compressContext(context) as Record<string, unknown> },
+        (delta) => {
+          if (delta.text) config.streamCallback?.(delta.text);
         },
-        signal: this.abortController.signal,
-        body: JSON.stringify({
-          model: config.model || this.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: message }
-          ],
-          temperature: config.temperature || 0.7,
-          max_tokens: config.maxTokens || 1500,
-          stream: true,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
-      }
-
-      // Process streaming response
-      await this.processStream(response, config.streamCallback || (() => {}));
-      
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log('Stream cancelled by user');
-      } else {
-        console.error('Streaming error:', error);
-        config.errorCallback?.(error);
+      );
+    } catch (error: unknown) {
+      const e = error instanceof Error ? error : new Error(String(error));
+      if (e.name !== 'AbortError') {
+        console.error('[StreamingAIService] streamResponse error:', e);
+        config.errorCallback?.(e);
       }
     } finally {
-      this.abortController = null;
       config.completeCallback?.();
     }
   }
 
   /**
-   * Process SSE stream from OpenAI
+   * Cancel any ongoing request.
    */
-  private async processStream(
-    response: Response,
-    onChunk: (chunk: any) => void
-  ): Promise<void> {
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    
-    if (!reader) {
-      throw new Error('No response body');
-    }
+  cancelStream(): void {
+    this.abortController?.abort();
+    this.abortController = null;
+  }
 
+  /**
+   * Compress context to reduce payload size before sending to the API.
+   */
+  compressContext(context: AIContext): AIContext {
+    const compressed: AIContext = { ...context };
+    if (Array.isArray(compressed.inventory) && compressed.inventory.length > 30) {
+      compressed.inventory = compressed.inventory
+        .slice()
+        .sort((a, b) => this.getDaysUntilExpiry(a?.expiryDate) - this.getDaysUntilExpiry(b?.expiryDate))
+        .slice(0, 30);
+    }
+    if (Array.isArray(compressed.recipes) && compressed.recipes.length > 20) {
+      compressed.recipes = compressed.recipes.slice(0, 20);
+    }
+    return compressed;
+  }
+
+  private async requestStream(
+    body: AssistantBody,
+    onDelta: (delta: { text: string; raw: any }) => void,
+  ): Promise<void> {
+    this.abortController = new AbortController();
+    try {
+      const response = await fetch(resolveAssistantUrl(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(await authHeaders()),
+        },
+        signal: this.abortController.signal,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok || !response.body) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`Assistant API error ${response.status}: ${text || response.statusText}`);
+      }
+
+      await this.consumeSse(response, onDelta);
+    } finally {
+      this.abortController = null;
+    }
+  }
+
+  private async consumeSse(
+    response: Response,
+    onDelta: (delta: { text: string; raw: any }) => void,
+  ): Promise<void> {
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
     let buffer = '';
-    
+
     try {
       while (true) {
         const { done, value } = await reader.read();
-        
         if (done) break;
-        
         buffer += decoder.decode(value, { stream: true });
-        
-        // Process complete SSE messages
         const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        
+        buffer = lines.pop() ?? '';
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            
-            if (data === '[DONE]') {
-              return;
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (!payload) continue;
+          if (payload === '[DONE]') return;
+          try {
+            const json = JSON.parse(payload);
+            if (json?.error) {
+              throw new Error(`Assistant stream error: ${json.error}`);
             }
-            
-            try {
-              const json = JSON.parse(data);
-              const content = json.choices?.[0]?.delta?.content;
-              
-              if (content) {
-                onChunk(json);
-              }
-            } catch (e) {
-              // Ignore JSON parse errors for incomplete chunks
-              console.warn('Parse error:', e);
+            const text: string = json?.choices?.[0]?.delta?.content ?? '';
+            onDelta({ text, raw: json });
+          } catch (err) {
+            // Ignore partial-chunk JSON parse errors; rethrow real errors.
+            if (err instanceof Error && err.message.startsWith('Assistant stream error')) {
+              throw err;
             }
           }
         }
@@ -220,147 +220,25 @@ export class StreamingAIService {
     }
   }
 
-  /**
-   * Build system prompt with context
-   */
-  private buildSystemPrompt(context: AIContext): string {
-    const { inventory, recipes, preferences, season, expiryAlerts } = context;
-    
-    // Format inventory with expiry alerts
-    const inventoryText = this.formatInventory(inventory, expiryAlerts);
-    
-    // Format available recipes
-    const recipesText = this.formatRecipes(recipes);
-    
-    return `Tu es un assistant culinaire expert français avec accès à l'inventaire et aux recettes de l'utilisateur.
-
-**Inventaire actuel:**
-${inventoryText}
-
-**Recettes disponibles:**
-${recipesText}
-
-**Saison actuelle:** ${season || 'toutes saisons'}
-
-**Règles importantes:**
-1. TOUJOURS prioriser les produits qui expirent bientôt
-2. Proposer des recettes réalisables avec l'inventaire actuel
-3. Indiquer clairement les ingrédients manquants avec quantités
-4. Respecter les préférences alimentaires et allergies
-5. Utiliser un langage conversationnel et amical
-6. Donner des conseils pratiques et astuces
-7. Suggérer des alternatives pour les ingrédients manquants
-
-Formate tes réponses avec:
-📍 **Nom de la recette**
-⏱️ **Temps**: X min
-👥 **Portions**: X
-✅ **Ingrédients disponibles**
-❌ **Ingrédients manquants**
-📝 **Instructions claires**
-💡 **Astuce du chef**`;
-  }
-
-  /**
-   * Format inventory with expiry alerts
-   */
-  private formatInventory(inventory: any[], expiryAlerts?: any[]): string {
-    if (!inventory || inventory.length === 0) {
-      return 'Inventaire vide';
-    }
-
-    const alertsMap = new Map(
-      expiryAlerts?.map(alert => [alert.productId, alert]) || []
-    );
-
-    return inventory
-      .map(item => {
-        const alert = alertsMap.get(item.id);
-        const alertEmoji = alert?.type === 'critical' ? '🚨' : alert?.type === 'warning' ? '⚠️' : '';
-        
-        return `${alertEmoji} ${item.quantity} ${item.unit} de ${item.name}${
-          alert ? ` (expire dans ${alert.daysUntilExpiry} jours)` : ''
-        }`;
-      })
-      .join('\n');
-  }
-
-  /**
-   * Format recipes for context
-   */
-  private formatRecipes(recipes: any[]): string {
-    if (!recipes || recipes.length === 0) {
-      return 'Aucune recette disponible';
-    }
-
-    return recipes
-      .slice(0, 20) // Limit to 20 recipes for context size
-      .map(recipe => {
-        const ingredients = recipe.ingredients
-          ?.map((ing: any) => `${ing.quantity || ''} ${ing.unit || ''} ${ing.name}`.trim())
-          .join(', ') || 'Ingrédients non spécifiés';
-        
-        return `- ${recipe.name} (${recipe.cuisine || 'Non catégorisé'}, ${recipe.totalTime || '?'} min): ${ingredients}`;
-      })
-      .join('\n');
-  }
-
-  /**
-   * Cancel ongoing stream
-   */
-  cancelStream(): void {
-    if (this.abortController) {
-      this.abortController.abort();
-    }
-  }
-
-  /**
-   * Validate and compress context to fit token limits
-   */
-  compressContext(context: AIContext): AIContext {
-    const compressed = { ...context };
-    
-    // Limit inventory items (prioritize expiring)
-    if (compressed.inventory && compressed.inventory.length > 30) {
-      compressed.inventory = compressed.inventory
-        .sort((a, b) => {
-          // Sort by days until expiry
-          const aDays = this.getDaysUntilExpiry(a.expiryDate);
-          const bDays = this.getDaysUntilExpiry(b.expiryDate);
-          return aDays - bDays;
-        })
-        .slice(0, 30);
-    }
-    
-    // Limit recipes
-    if (compressed.recipes && compressed.recipes.length > 20) {
-      compressed.recipes = compressed.recipes.slice(0, 20);
-    }
-    
-    return compressed;
-  }
-
-  /**
-   * Calculate days until expiry
-   */
-  private getDaysUntilExpiry(expiryDate: string | Date): number {
+  private getDaysUntilExpiry(expiryDate: string | Date | undefined): number {
     if (!expiryDate) return Infinity;
-    
     const expiry = new Date(expiryDate);
-    const today = new Date();
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays;
+    if (Number.isNaN(expiry.getTime())) return Infinity;
+    const diffTime = expiry.getTime() - Date.now();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 }
 
-// Export singleton instance
 let streamingAIInstance: StreamingAIService | null = null;
 
-export function getStreamingAIService(apiKey: string): StreamingAIService {
-  if (!streamingAIInstance || streamingAIInstance['apiKey'] !== apiKey) {
-    streamingAIInstance = new StreamingAIService(apiKey);
+/**
+ * Get the singleton StreamingAIService instance.
+ *
+ * `apiKey` is accepted for backwards compatibility only and is ignored.
+ */
+export function getStreamingAIService(_apiKey?: string): StreamingAIService {
+  if (!streamingAIInstance) {
+    streamingAIInstance = new StreamingAIService();
   }
   return streamingAIInstance;
 }

@@ -71,24 +71,14 @@ export class FastVideoParser {
   private readonly MAX_PROCESSING_TIME = 45000; // 45 seconds
 
   constructor() {
-    console.log('🎆 [FastVideoParser] Initializing...');
-    
-    this.audioExtractor = new AudioExtractor();
-    this.frameExtractor = new FrameExtractorBasic();
-    
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
-    console.log('🔑 [FastVideoParser] OpenAI API Key:', apiKey ? 'Present' : 'Missing');
-    
-    if (!apiKey) {
-      throw new Error('OpenAI API key is required. Please set VITE_OPENAI_API_KEY in your environment.');
-    }
-    
-    this.openai = new OpenAI({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true
-    });
-    
-    console.log('✅ [FastVideoParser] Initialization complete');
+    // PRP-220.02: client-side OpenAI instantiation removed.
+    // Video extraction is migrated to server-side endpoints.
+    // Use YouTubeVideoParserServer or call POST /api/parse-video-recipe directly.
+    throw new Error(
+      '[PRP-220.13] FastVideoParser is migrated to server-side. ' +
+      'Use YouTubeVideoParserServer (calls /api/parse-video-recipe). ' +
+      'See PRP/PRP-220/220.13-Services-Extraction-IA.md.'
+    );
   }
 
   async parseVideoRecipe(

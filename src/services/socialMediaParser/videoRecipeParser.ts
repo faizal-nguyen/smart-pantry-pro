@@ -33,10 +33,12 @@ export interface VideoAnalysisOptions {
 export class VideoRecipeParser {
   private aiService: StreamingAIService;
 
-  constructor(apiKey?: string) {
-    const key = apiKey || import.meta.env.VITE_OPENAI_API_KEY || '';
-    // Don't throw error here, let it fail gracefully later if needed
-    this.aiService = new StreamingAIService(key);
+  /**
+   * @param _apiKey deprecated (PRP-220.02). The OpenAI key is server-side;
+   *  StreamingAIService now proxies through /api/assistant/stream.
+   */
+  constructor(_apiKey?: string) {
+    this.aiService = new StreamingAIService();
   }
 
   /**

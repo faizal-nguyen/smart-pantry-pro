@@ -61,11 +61,19 @@ export interface NutritionInfo {
 }
 
 export class AdvancedVisionService {
-  private apiKey: string;
+  private apiKey: string = '';
   private model: string = 'gpt-4-vision-preview';
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  constructor(_apiKey?: string) {
+    // PRP-220.02: vision analysis is migrated to server-side endpoints.
+    // The /api/proxy + /api/assistant pipeline will be wired in PRP-220.13.
+    // Until then, calls to this service throw a clear error so consumers
+    // surface the migration state instead of silently leaking credentials.
+    throw new Error(
+      '[PRP-220.13] AdvancedVisionService is migrated to server-side. ' +
+      'See PRP/PRP-220/220.13-Services-Extraction-IA.md and ' +
+      'PRP/PRP-220/220.14-Platform-Adapters-Serveur.md.'
+    );
   }
 
   /**
@@ -496,7 +504,7 @@ Réponds uniquement avec des noms de produits en français.`;
 // Export singleton instance
 let visionServiceInstance: AdvancedVisionService | null = null;
 
-export function getAdvancedVisionService(apiKey: string): AdvancedVisionService {
+export function getAdvancedVisionService(_apiKey?: string): AdvancedVisionService {
   if (!visionServiceInstance) {
     visionServiceInstance = new AdvancedVisionService(apiKey);
   }

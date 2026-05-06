@@ -7,6 +7,7 @@ export const assistantRouter = Router();
 
 const Body = z.object({
   message: z.string().min(1).max(4000),
+  systemPrompt: z.string().max(8000).optional(),
   context: z.record(z.any()).optional(),
   mode: z.enum(['text','voice','visual']).optional(),
   stream: z.boolean().optional()
@@ -97,7 +98,7 @@ export async function assistantStreamHandler(req: Request, res: Response) {
 
   // Real streaming via OpenAI (server-side)
   try {
-    const sys = buildSystemPrompt(check.data.context);
+    const sys = check.data.systemPrompt ?? buildSystemPrompt(check.data.context);
     const reqBody = {
       model,
       messages: [

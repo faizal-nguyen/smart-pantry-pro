@@ -70,14 +70,14 @@ const VideoImportTest = () => {
   useEffect(() => {
     addLog('info', '🚀 Page de test chargée');
     
-    // Vérifier les variables d'environnement
+    // PRP-220.02: AI/Deepgram keys are server-side. We only inspect public flags here.
     const envVars = {
-      DEEPGRAM_API_KEY: import.meta.env.VITE_DEEPGRAM_API_KEY ? '✅ Présente' : '❌ Manquante',
+      API_BASE_URL: import.meta.env.VITE_API_BASE_URL || '/api (Vite proxy)',
       CLOUDINARY_CLOUD_NAME: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ? '✅ Présent' : '❌ Manquant',
-      OPENAI_API_KEY: import.meta.env.VITE_OPENAI_API_KEY ? '✅ Présente' : '❌ Manquante'
+      ENV: import.meta.env.VITE_ENV || 'development',
     };
-    
-    addLog('info', 'Variables d\'environnement:', envVars);
+
+    addLog('info', 'Configuration client:', envVars);
   }, []);
 
   const testDirectAPI = async () => {
@@ -391,11 +391,14 @@ const VideoImportTest = () => {
               </TabsContent>
               
               <TabsContent value="env" className="space-y-2">
-                <h3 className="font-medium mb-2">Variables d'environnement</h3>
+                <h3 className="font-medium mb-2">Configuration client (publique)</h3>
                 <div className="space-y-1 text-sm">
-                  <div>DEEPGRAM_API_KEY: {import.meta.env.VITE_DEEPGRAM_API_KEY ? '✅' : '❌'}</div>
+                  <div>API_BASE_URL: {import.meta.env.VITE_API_BASE_URL || '/api (Vite proxy)'}</div>
                   <div>CLOUDINARY_CLOUD_NAME: {import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ? '✅' : '❌'}</div>
-                  <div>OPENAI_API_KEY: {import.meta.env.VITE_OPENAI_API_KEY ? '✅' : '❌'}</div>
+                  <div>ENV: {import.meta.env.VITE_ENV || 'development'}</div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Les clés AI/Deepgram/Cloudinary secret sont server-only (PRP-220.02).
+                  </div>
                 </div>
               </TabsContent>
             </Tabs>

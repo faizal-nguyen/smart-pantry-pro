@@ -30,26 +30,14 @@ export class AudioExtractor {
   private readonly SUPPORTED_DEEPGRAM_LANGS = ['en', 'fr', 'hi']; // Langues supportées par Deepgram
 
   constructor() {
-    // Initialiser Deepgram
-    const deepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY || process.env.DEEPGRAM_API_KEY || process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
-    if (deepgramKey) {
-      this.deepgram = createClient(deepgramKey);
-      console.log('✅ [AudioExtractor] Deepgram initialized with API key');
-    } else {
-      console.warn('⚠️ Deepgram API key not found. Will use Whisper for all languages.');
-    }
-
-    // Initialiser OpenAI pour Whisper
-    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-    if (openaiKey) {
-      this.openai = new OpenAI({
-        apiKey: openaiKey,
-        dangerouslyAllowBrowser: true // Pour utilisation côté client si nécessaire
-      });
-      console.log('✅ [AudioExtractor] OpenAI initialized with API key');
-    } else {
-      throw new Error('OpenAI API key is required. Please set VITE_OPENAI_API_KEY in your environment.');
-    }
+    // PRP-220.02: client-side OpenAI/Deepgram instantiation removed.
+    // The transcription pipeline is being migrated to the server.
+    // Use AudioExtractorServer (apps/api/* + /api/transcribe-youtube) instead.
+    throw new Error(
+      '[PRP-220.13] AudioExtractor is migrated to server-side. ' +
+      'Use AudioExtractorServer (calls /api/transcribe-youtube). ' +
+      'See PRP/PRP-220/220.13-Services-Extraction-IA.md.'
+    );
   }
 
   async extractAndTranscribe(

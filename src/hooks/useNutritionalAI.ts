@@ -50,12 +50,11 @@ export function useNutritionalAI() {
 
   const nutritionalService = useRef<NutritionalAIService | null>(null);
 
-  // Initialize nutritional AI service
+  // Initialize nutritional AI service.
+  // PRP-220.02: the OpenAI key is server-side; the service routes through
+  // /api/assistant/stream and the user's Supabase JWT for auth.
   useEffect(() => {
-    const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (apiKey) {
-      nutritionalService.current = getNutritionalAIService(apiKey);
-    }
+    nutritionalService.current = getNutritionalAIService();
   }, []);
 
   // Load user health profile on mount

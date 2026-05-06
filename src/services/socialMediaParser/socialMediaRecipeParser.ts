@@ -460,13 +460,9 @@ Copiez le texte de la publication Instagram ci-dessous :`;
    */
   private async aiExtractRecipe(text: string, metadata: any): Promise<any> {
     try {
-      const apiKey = (typeof window !== 'undefined' && (window as any).import?.meta?.env?.VITE_OPENAI_API_KEY) || process.env.VITE_OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-      if (!apiKey) {
-        console.warn('OpenAI API key not found, using basic extraction');
-        return this.basicExtraction(text);
-      }
-
-      const aiService = new StreamingAIService(apiKey);
+      // PRP-220.02: AI extraction now goes through /api/assistant/stream
+      // (server-side OpenAI). No client key required.
+      const aiService = new StreamingAIService();
       
       const systemPrompt = `Tu es un expert culinaire qui extrait des recettes à partir de posts sur les réseaux sociaux.
 Tu dois TOUJOURS retourner un objet JSON valide, même si tu ne peux pas extraire une recette complète.

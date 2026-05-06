@@ -537,9 +537,16 @@ Réponds toujours comme un coach nutrition personnel qui connaît parfaitement l
 // Export singleton instance
 let nutritionalAIInstance: NutritionalAIService | null = null;
 
-export function getNutritionalAIService(apiKey: string): NutritionalAIService {
-  if (!nutritionalAIInstance || nutritionalAIInstance['apiKey'] !== apiKey) {
-    nutritionalAIInstance = new NutritionalAIService(apiKey);
+/**
+ * Get the singleton NutritionalAIService.
+ *
+ * @param _apiKey deprecated (PRP-220.02): the OpenAI key now lives
+ *  server-side and is consumed by `/api/assistant/stream`. The parameter
+ *  is accepted for backwards compatibility and ignored.
+ */
+export function getNutritionalAIService(_apiKey?: string): NutritionalAIService {
+  if (!nutritionalAIInstance) {
+    nutritionalAIInstance = new NutritionalAIService();
   }
   return nutritionalAIInstance;
 }
