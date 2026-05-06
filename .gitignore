@@ -26,8 +26,11 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.development
 .env.development.local
+.env.staging
 .env.staging.local
+.env.production
 .env.production.local
 apps/**/.env
 services/**/.env
@@ -35,11 +38,10 @@ services/**/.env
 **/*.pem
 **/*.key
 
-# Keep template environment files (without secrets)
+# Keep template environment files only
 !.env.example
-!.env.development
-!.env.staging
-!.env.production
+!apps/**/.env.example
+!services/**/.env.example
 
 # MCP Configuration (contains sensitive tokens)
 .mcp/config.json
