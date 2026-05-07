@@ -63,6 +63,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:evolution": "jest src/services/__tests__/evolutionV2-validation.test.ts",
+    "test:prp220": "jest --testPathPattern '(recipe-import|RecipeSourceCard|InboxQuotaBadge|BulkImportButton|isRecipeLikely|useClipboardImportSuggestion|featureGates|inbox)' --no-coverage",
+    "test:full": "npm run test:prp220 && npm run test:api -- --testPathPattern '(SocialImport|RecipeExtractionService|PlatformAdapters|userRateLimit|saveImportedDraftAsRecipe|canonicalUrl|cursor|sourceHash)'",
     "test:video-import": "node test-fast-video-import.js",
     "api:build:ts": "tsc -p apps/api/tsconfig.json",
     "api:start:ts": "node apps/api/dist/index.js",

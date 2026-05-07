@@ -37,17 +37,18 @@ export interface ManualRecipeInput {
 
 export function manualToDraft(input: ManualRecipeInput): ImportedRecipeDraft {
   const ingredients: ImportedIngredient[] = (input.ingredients ?? [])
-    .map((i) => {
+    .map((i): ImportedIngredient | null => {
       const name = (i.name ?? '').trim();
       if (!name) return null;
+      const out: ImportedIngredient = { name: name.slice(0, 200) };
       const quantity = parseAmount(i.amount);
-      return {
-        name: name.slice(0, 200),
-        quantity,
-        unit: i.unit?.trim() || undefined,
-        notes: i.notes?.trim() || undefined,
-        isEssential: i.is_essential,
-      };
+      if (quantity !== undefined) out.quantity = quantity;
+      const unit = i.unit?.trim();
+      if (unit) out.unit = unit;
+      const notes = i.notes?.trim();
+      if (notes) out.notes = notes;
+      if (i.is_essential !== undefined) out.isEssential = i.is_essential;
+      return out;
     })
     .filter((x): x is ImportedIngredient => x !== null);
 
@@ -104,14 +105,17 @@ function splitInstructions(blob: string): string[] {
   const cleaned = blob.replace(/\r/g, '').trim();
   if (!cleaned) return [];
 
+  const stripLeadingNumber = (s: string): string =>
+    s.replace(/^\s*(?:\d+[.)]|étape\s*\d+\s*:)\s*/i, '').trim();
+
   // If the user used numbered prefixes, split on them (keep order).
   const numbered = cleaned.split(/\n\s*(?:\d+[.)]|étape\s*\d+\s*:)\s*/i);
   if (numbered.length > 1) {
-    return numbered.map((s) => s.trim()).filter(Boolean);
+    return numbered.map(stripLeadingNumber).filter(Boolean);
   }
 
   // Otherwise split on blank lines, then on single newlines.
   const blocks = cleaned.split(/\n{2,}/);
-  if (blocks.length > 1) return blocks.map((s) => s.trim()).filter(Boolean);
-  return cleaned.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (blocks.length > 1) return blocks.map(stripLeadingNumber).filter(Boolean);
+  return cleaned.split(/\n/).map(stripLeadingNumber).filter(Boolean);
 }

@@ -36,7 +36,7 @@ describe('ImportActions', () => {
     const onExtract = jest.fn();
     render(wrap(<ImportActions import_={baseImport()} onExtract={onExtract} />));
     await user.click(screen.getByRole('button', { name: /Extraire/ }));
-    expect(onExtract).toHaveBeenCalledWith('imp-1', undefined);
+    expect(onExtract).toHaveBeenCalledWith('imp-1');
   });
 
   it('shows the spinner on extracting status', () => {
