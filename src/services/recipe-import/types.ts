@@ -39,6 +39,14 @@ export interface SocialImport {
   author_name: string | null;
   author_handle: string | null;
   thumbnail_url: string | null;
+  /**
+   * PRP-220.24 §5.16: signed URL pointing to the OG thumbnail we
+   * snapshotted to our own Supabase Storage bucket at extract time.
+   * Use this in priority — `thumbnail_url` is the volatile remote CDN
+   * URL kept around for traceability and as a degraded fallback.
+   * Server-injected; absent on rows that have no snapshot yet.
+   */
+  display_thumbnail_url?: string | null;
   metadata: Record<string, unknown>;
   error_code: string | null;
   error_message: string | null;

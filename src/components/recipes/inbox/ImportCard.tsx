@@ -46,6 +46,10 @@ export const ImportCard: React.FC<ImportCardProps> = ({
   const authorLabel = import_.author_handle
     ? `@${import_.author_handle}`
     : import_.author_name ?? null;
+  // PRP-220.24 §5.16: prefer the snapshot URL (signed Supabase Storage)
+  // over the volatile remote CDN URL — the latter expires within weeks
+  // on Insta/TikTok.
+  const displayThumbnail = import_.display_thumbnail_url ?? import_.thumbnail_url;
 
   return (
     <Card className={cn('overflow-hidden', className)} data-testid={`import-card-${import_.id}`}>
@@ -53,9 +57,9 @@ export const ImportCard: React.FC<ImportCardProps> = ({
         <div className="flex gap-3">
           {/* Thumbnail / icon */}
           <div className="shrink-0">
-            {import_.thumbnail_url ? (
+            {displayThumbnail ? (
               <img
-                src={import_.thumbnail_url}
+                src={displayThumbnail}
                 alt=""
                 loading="lazy"
                 className="h-20 w-20 rounded-md object-cover bg-muted"
