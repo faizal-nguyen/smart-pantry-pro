@@ -1,5 +1,5 @@
 import { CipherMemoryService } from '@/services/cipher/CipherMemoryService';
-import { Database } from '@/integrations/supabase/types';
+import { Database } from '@/integrations/supabase/types.augmented';
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { MealPlanEntry } from '@/services/planning/smartMealPlannerService';
 import type { FamilyProfile } from '@/types/family-mode';
