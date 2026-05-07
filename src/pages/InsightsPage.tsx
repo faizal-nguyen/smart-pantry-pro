@@ -21,12 +21,11 @@ const InsightsPage: React.FC = () => {
     getUser();
   }, []);
 
-  // Mock data for demonstration - would come from useInsightsData hook
-  const dashboardStats = [
-    { label: 'Économies', value: '€127', icon: <TrendingUp className="w-4 h-4" /> },
-    { label: 'Objectifs', value: '3/5', icon: <Target className="w-4 h-4" /> },
-    { label: 'Score', value: '92%', icon: <Award className="w-4 h-4" /> },
-  ];
+  // P1 polish: removed the mock dashboardStats (€127 économies, 3/5
+  // objectifs, 92% score — all fabricated). The hero used to render
+  // them above InsightsDashboard. Until a real useInsightsData hook
+  // exists, drop the hero stats grid entirely; InsightsDashboard
+  // below renders the actual user data.
 
   if (loading) {
     return <div>Chargement...</div>;
@@ -64,42 +63,9 @@ const InsightsPage: React.FC = () => {
             </p>
           </motion.div>
           
-          {/* Dashboard Stats */}
-          <motion.div
-            className="grid gap-4 mt-8"
-            style={{
-              gridTemplateColumns: dashboardStats.length <= 3 ? 
-                `repeat(${dashboardStats.length}, 1fr)` : 
-                'repeat(auto-fit, minmax(120px, 1fr))'
-            }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            {dashboardStats.map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                className="stat-card bg-white/10 backdrop-blur-sm rounded-lg p-4 text-center border border-white/20"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  delay: 0.6 + index * 0.1,
-                  duration: 0.4,
-                  ease: [0.4, 0.0, 0.2, 1]
-                }}
-              >
-                <div className="flex justify-center mb-2 text-white/80">
-                  {stat.icon}
-                </div>
-                <div className="text-2xl font-bold text-white mb-1">
-                  {stat.value}
-                </div>
-                <div className="text-sm text-white/70">
-                  {stat.label}
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
+          {/* P1 polish: hero stats grid removed (was driven by mock
+              dashboardStats — see comment above). InsightsDashboard
+              below renders the real user data. */}
         </AdaptiveHeroViewport>
         
         {/* Main Dashboard Content */}

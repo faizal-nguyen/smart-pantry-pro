@@ -68,30 +68,11 @@ export default function CameraPage() {
             </div>
           </Card>
 
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <Package className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Recherche manuelle</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Recherchez un produit par nom ou code-barres
-                  </p>
-                </div>
-              </div>
-              
-              <Button 
-                variant="outline"
-                className="w-full"
-                size="lg"
-                onClick={() => toast.info('Recherche manuelle bientôt disponible')}
-              >
-                Rechercher un produit
-              </Button>
-            </div>
-          </Card>
+          {/* P1 polish: removed the "Recherche manuelle" card. The
+              button surfaced a "bientôt disponible" toast — broken
+              promise per UI/UX audit. The "Manuel" entry in the
+              FloatingActionButton on /pantry/inventory already covers
+              the same flow when it ships. */}
         </div>
 
         {/* Features */}

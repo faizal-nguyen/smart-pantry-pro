@@ -91,8 +91,14 @@ const SettingsPage = () => {
   };
 
   const handleResetOnboarding = () => {
+    // resetPreferences() already clears PERSONALIZATION_STORAGE_KEY
+    // (cf. usePersonalization.ts:79). The previous explicit
+    // localStorage.removeItem('hasCompletedOnboarding') was redundant
+    // and used a key the personalization hook never wrote — flagged
+    // by the UI/UX audit (P1).
     resetPreferences();
-    localStorage.removeItem('hasCompletedOnboarding');
+    // Also clear the onboarding skip flag so the gate re-engages.
+    localStorage.removeItem('skipOnboarding');
     setShowResetDialog(false);
     navigate('/onboarding');
   };

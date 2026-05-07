@@ -374,9 +374,21 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
 
   // Redirection onboarding (via useEffect pour éviter setState pendant render)
   // IMPORTANT: Doit être AVANT les early returns pour respecter Rules of Hooks
+  // Audit P1: gate skippable. Si l'utilisateur a explicitement choisi
+  // "Plus tard" (localStorage.skipOnboarding === '1'), on n'impose plus
+  // la redirection — il peut reprendre depuis Settings quand il veut.
   React.useEffect(() => {
-    if (currentProfile && !personalizationLoading && !hasCompletedOnboarding() &&
-        location.pathname !== '/onboarding' && location.pathname !== '/auth') {
+    const userSkipped =
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem('skipOnboarding') === '1';
+    if (
+      currentProfile &&
+      !personalizationLoading &&
+      !hasCompletedOnboarding() &&
+      !userSkipped &&
+      location.pathname !== '/onboarding' &&
+      location.pathname !== '/auth'
+    ) {
       navigate('/onboarding', { replace: true });
     }
   }, [currentProfile, personalizationLoading, hasCompletedOnboarding, location.pathname, navigate]);

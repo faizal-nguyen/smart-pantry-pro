@@ -18,7 +18,13 @@ interface SmartProductCardProps {
   onConsume: (product: InventoryItem) => void;
   onEdit: (product: InventoryItem) => void;
   onFindRecipes: (product: InventoryItem) => void;
-  onSubstitute: (product: InventoryItem) => void;
+  /**
+   * P1 polish: optional. The substitute lookup feature is not built
+   * yet (toast read "Cette fonctionnalité arrive bientôt !"). The
+   * audit's rule: hide buttons that don't do real work. Pass a
+   * handler when the feature ships; until then the icon stays hidden.
+   */
+  onSubstitute?: (product: InventoryItem) => void;
 }
 
 const getEmojiForCategory = (category?: string): string => {
@@ -150,15 +156,17 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
               onFindRecipes(product);
             }}
           />
-          <MaterialButton
-            variant="text"
-            className="h-7 w-7 p-0"
-            icon={<RefreshCw className="h-3 w-3" />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSubstitute(product);
-            }}
-          />
+          {onSubstitute && (
+            <MaterialButton
+              variant="text"
+              className="h-7 w-7 p-0"
+              icon={<RefreshCw className="h-3 w-3" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSubstitute(product);
+              }}
+            />
+          )}
         </div>
       </MaterialCardContent>
     </MaterialCard>

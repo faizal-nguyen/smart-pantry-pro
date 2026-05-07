@@ -272,12 +272,10 @@ const Inventory = () => {
     navigate(`/recipes?ingredient=${item.product?.name}`);
   };
 
-  const handleSubstitute = (item: InventoryItem) => {
-    toast({
-      title: "Recherche de substituts",
-      description: "Cette fonctionnalité arrive bientôt !"
-    });
-  };
+  // P1 polish: removed the `handleSubstitute` toast that promised
+  // "fonctionnalité arrive bientôt !". SmartProductCard's onSubstitute
+  // prop is now optional — wire it back when the feature actually
+  // ships.
 
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
@@ -727,7 +725,6 @@ const Inventory = () => {
                       onConsume={handleConsume}
                       onEdit={handleEdit}
                       onFindRecipes={handleFindRecipes}
-                      onSubstitute={handleSubstitute}
                     />
                   ))}
                 </div>
@@ -751,7 +748,6 @@ const Inventory = () => {
               onConsume={handleConsume}
               onEdit={handleEdit}
               onFindRecipes={handleFindRecipes}
-              onSubstitute={handleSubstitute}
             />
           ))}
         </div>
@@ -778,11 +774,14 @@ const Inventory = () => {
       )}
 
       {/* Floating Action Button */}
+      {/* P1 polish: drop the `onReceiptScan` prop entirely — the
+          handler used to surface a "Fonctionnalité bientôt disponible"
+          toast. The FAB now hides the Ticket option until the OCR
+          pipeline ships. */}
       <FloatingActionButton
         onCameraScan={() => setScannerOpen(true)}
         onVoiceInput={() => toast({ title: "Utilisez le bouton vocal en haut", description: "Le bouton vocal amélioré est maintenant dans la barre de recherche" })}
         onManualAdd={() => setAddDialogOpen(true)}
-        onReceiptScan={() => toast({ title: "Scanner de ticket", description: "Fonctionnalité bientôt disponible" })}
       />
 
       {/* Dialogs */}
