@@ -4,12 +4,13 @@
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { Package, ScanQrCode, Bell, Plus, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import AppNavigation from '@/components/navigation/AppNavigation';
+import { PageLoader } from '@/components/layout/PageLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -51,11 +52,11 @@ const PantryDashboard: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   const handleQuickAdd = async (e: React.FormEvent) => {

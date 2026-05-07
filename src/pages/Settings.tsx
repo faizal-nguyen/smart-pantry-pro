@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import AppNavigation from "@/components/navigation/AppNavigation";
+import { PageLoader } from "@/components/layout/PageLoader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,11 +68,13 @@ const SettingsPage = () => {
   }, []);
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
+  // P2 fix: redirect unauthed users to /auth instead of trapping them
+  // on a navless screen.
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   const handleThemeToggle = () => {

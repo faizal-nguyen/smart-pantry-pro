@@ -4,14 +4,15 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { ChefHat, Heart, CalendarDays, BookOpen, Clock, TrendingUp } from 'lucide-react';
+import { ChefHat, Heart, CalendarDays, BookOpen, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import AppNavigation from '@/components/navigation/AppNavigation';
+import { PageLoader } from '@/components/layout/PageLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,11 +33,11 @@ const KitchenDashboard: React.FC = () => {
   }, []);
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   // P1 polish: removed the mock `dashboardStats` (totalRecipes: 247,
