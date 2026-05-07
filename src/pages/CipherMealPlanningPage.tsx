@@ -39,7 +39,7 @@ export default function CipherMealPlanningPage() {
     // Family mode features
     isFamilyModeActive,
     currentProfile,
-    familyProfiles,
+    availableProfiles,
     switchFamilyProfile,
     familyAdaptations,
     getFamilyAdaptedSuggestions,
@@ -91,7 +91,7 @@ export default function CipherMealPlanningPage() {
   const handleProfileSwitch = async (profileId: string) => {
     setSelectedFamilyMember(profileId);
     await switchFamilyProfile(profileId);
-    toast.success(`Profil changé: ${familyProfiles.find(p => p.id === profileId)?.name}`);
+    toast.success(`Profil changé: ${availableProfiles.find(p => p.id === profileId)?.name}`);
   };
 
   return (
@@ -151,9 +151,9 @@ export default function CipherMealPlanningPage() {
         
         <div className="flex gap-2">
           {/* Family Member Selector */}
-          {isFamilyModeActive && familyProfiles.length > 0 && (
+          {isFamilyModeActive && availableProfiles.length > 0 && (
             <div className="flex gap-1 p-1 bg-muted rounded-lg">
-              {familyProfiles.map(profile => (
+              {availableProfiles.map(profile => (
                 <Button
                   key={profile.id}
                   variant={currentProfile?.id === profile.id ? "default" : "ghost"}
@@ -280,7 +280,7 @@ export default function CipherMealPlanningPage() {
                 Famille
               </p>
               <p className="text-2xl font-bold">
-                {familyProfiles.length || 1}
+                {availableProfiles.length || 1}
               </p>
               <p className="text-xs text-muted-foreground">
                 {isFamilyModeActive ? 'Actif' : 'Individuel'}
@@ -422,7 +422,7 @@ export default function CipherMealPlanningPage() {
                       
                       {isFamilyModeActive ? (
                         <div className="space-y-3">
-                          {familyProfiles.map(profile => (
+                          {availableProfiles.map(profile => (
                             <div 
                               key={profile.id}
                               className={`p-3 rounded-lg cursor-pointer transition-colors ${

@@ -96,7 +96,7 @@ export function FloatingVideoButton({ className, onImport }: FloatingVideoButton
         description: `${recipe.name} a été ajoutée à vos recettes`,
         action: {
           label: 'Voir',
-          onClick: () => navigate(`/recipes/${recipeData.id}`)
+          onClick: () => navigate(`/kitchen/recipes/${recipeData.id}`)
         }
       });
       

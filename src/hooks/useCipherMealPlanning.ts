@@ -40,11 +40,17 @@ export function useCipherMealPlanning() {
     saveMealPlan
   } = useMealPlanningAnalysis();
   
+  // P0.1 fix: useFamilyMode exposes `availableProfiles`, not
+  // `familyProfiles` (cf. types/family-mode.ts). The previous name
+  // resolved to undefined and crashed `/kitchen/meal-planning` on every
+  // visit (`Cannot read properties of undefined (reading 'length')`).
+  // Default to [] so a future contract drift surfaces as an empty
+  // family rather than a runtime crash.
   const {
     isFamilyModeActive,
     currentProfile,
-    familyProfiles,
-    switchProfile
+    availableProfiles = [],
+    switchProfile,
   } = useFamilyMode();
 
   const [state, setState] = useState<CipherMealPlanningState>({
@@ -68,10 +74,10 @@ export function useCipherMealPlanning() {
 
   // Update family adaptations when family mode changes
   useEffect(() => {
-    if (isFamilyModeActive && currentPlan && familyProfiles.length > 0) {
+    if (isFamilyModeActive && currentPlan && availableProfiles.length > 0) {
       generateFamilyAdaptations();
     }
-  }, [isFamilyModeActive, familyProfiles, currentPlan]);
+  }, [isFamilyModeActive, availableProfiles, currentPlan]);
 
   /**
    * Generate and encrypt meal plan with Cipher integration
@@ -112,7 +118,7 @@ export function useCipherMealPlanning() {
         userId: user.id,
         weekStartDate: currentPlan.weekStartDate,
         meals: currentPlan.meals,
-        familyMembers: isFamilyModeActive ? familyProfiles : undefined,
+        familyMembers: isFamilyModeActive ? availableProfiles : undefined,
         budgetGoal: userPreferences?.budgetConstraints.weeklyBudget,
         nutritionalGoals: userPreferences?.nutritionalGoals,
         contextData: {
@@ -151,7 +157,7 @@ export function useCipherMealPlanning() {
       setState(prev => ({ ...prev, isEncrypting: false }));
       toast.error('Erreur lors du chiffrement');
     }
-  }, [currentPlan, user, isFamilyModeActive, familyProfiles, userPreferences, currentProfile]);
+  }, [currentPlan, user, isFamilyModeActive, availableProfiles, userPreferences, currentProfile]);
 
   /**
    * Decrypt and retrieve meal plan
@@ -199,7 +205,7 @@ export function useCipherMealPlanning() {
           userId: user.id,
           weekStartDate: currentPlan.weekStartDate,
           meals: currentPlan.meals,
-          familyMembers: familyProfiles,
+          familyMembers: availableProfiles,
           budgetGoal: userPreferences?.budgetConstraints.weeklyBudget,
           nutritionalGoals: userPreferences?.nutritionalGoals
         },
@@ -223,7 +229,7 @@ export function useCipherMealPlanning() {
     } catch (error) {
       console.error('Failed to generate family adaptations:', error);
     }
-  }, [currentPlan, user, familyProfiles, userPreferences]);
+  }, [currentPlan, user, availableProfiles, userPreferences]);
 
   /**
    * Update navigation suggestions based on context
@@ -346,7 +352,7 @@ export function useCipherMealPlanning() {
     // Family mode features
     isFamilyModeActive,
     currentProfile,
-    familyProfiles,
+    availableProfiles,
     switchFamilyProfile,
     getFamilyAdaptedSuggestions,
 

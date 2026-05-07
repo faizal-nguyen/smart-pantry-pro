@@ -285,7 +285,7 @@ const Inventory = () => {
   };
 
   const handleRecipeSelect = (recipeId: string) => {
-    navigate(`/recipes/${recipeId}`);
+    navigate(`/kitchen/recipes/${recipeId}`);
   };
 
   const handleVoiceCommand = async (parsedInput: any) => {

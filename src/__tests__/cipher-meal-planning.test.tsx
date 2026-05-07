@@ -82,7 +82,7 @@ const mockCipherMealPlanning = {
   },
   isFamilyModeActive: false,
   currentProfile: null,
-  familyProfiles: [],
+  availableProfiles: [],
   familyAdaptations: {},
   navigationSuggestions: [],
   generateWeeklyPlan: jest.fn(),
@@ -197,7 +197,7 @@ describe('CipherMealPlanningPage', () => {
           allergenAlerts: [],
         },
       },
-      familyProfiles: [
+      availableProfiles: [
         {
           id: 'profile-1',
           name: 'Marie',
@@ -252,7 +252,7 @@ describe('CipherMealPlanningPage', () => {
           allergenAlerts: [],
         },
       },
-      familyProfiles: [
+      availableProfiles: [
         {
           id: 'profile-1',
           name: 'Marie',

@@ -648,7 +648,7 @@ function CatalogRecipeCard({ recipe, onAddToLibrary, isAdding, compact = false }
   
   const handleCardClick = (e: React.MouseEvent) => {
     if (!(e.target as Element).closest('button')) {
-      navigate(`/recipes/${recipe.id}`);
+      navigate(`/kitchen/recipes/${recipe.id}`);
     }
   };
   
@@ -735,7 +735,7 @@ function UserRecipeCard({ recipe, viewMode }) {
   const image = getRecipeImage(recipe);
   
   const handleClick = () => {
-    navigate(`/recipes/${recipe.id}`);
+    navigate(`/kitchen/recipes/${recipe.id}`);
   };
   
   return (
