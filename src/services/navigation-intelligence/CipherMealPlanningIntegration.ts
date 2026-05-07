@@ -1,26 +1,33 @@
 import { CipherMemoryService } from '@/services/cipher/CipherMemoryService';
 import { Database } from '@/integrations/supabase/types';
 import { SupabaseClient } from '@supabase/supabase-js';
+import type { MealPlanEntry } from '@/services/planning/smartMealPlannerService';
+import type { FamilyProfile } from '@/types/family-mode';
 
+/**
+ * Aligned with the canonical types produced by the meal-planning
+ * subsystem (cf. smartMealPlannerService + types/family-mode + the
+ * UserMealPlanningPreferences shape). The previous narrower
+ * declarations (e.g. `nutritionalGoals?: Record<string, number>`)
+ * compiled but never matched the data the rest of the code passes,
+ * which broke the cipher-meal-planning unit test under stricter
+ * tsconfig.test settings.
+ */
 interface MealPlanData {
   id: string;
   userId: string;
   weekStartDate: Date;
-  meals: Array<{
-    day: number;
-    mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
-    recipeId: string;
-    servings: number;
-    customizations?: Record<string, any>;
-  }>;
-  familyMembers?: Array<{
-    id: string;
-    name: string;
-    dietaryRestrictions: string[];
-    preferences: string[];
-  }>;
+  meals: MealPlanEntry[];
+  familyMembers?: FamilyProfile[];
   budgetGoal?: number;
-  nutritionalGoals?: Record<string, number>;
+  nutritionalGoals?: {
+    targetCalories?: number;
+    macroRatios?: {
+      protein: number;
+      carbs: number;
+      fat: number;
+    };
+  };
   contextData?: {
     weather?: string;
     season?: string;
@@ -183,13 +190,16 @@ export class CipherMealPlanningIntegration {
         await this.cipherMemory.integrateFamilyModeData(
           mealPlan.userId,
           {
+            // FamilyProfile actually exposes `restrictions.dietaryRestrictions`
+            // and `preferences` is UI prefs (theme/font), not food prefs.
+            // Drop the cuisine projection — it was a hallucinated field
+            // that always resolved to `undefined` at runtime.
             members: mealPlan.familyMembers.map(member => ({
               id: member.id,
               name: member.name,
               preferences: {
-                dietary: member.dietaryRestrictions,
-                cuisine: member.preferences
-              }
+                dietary: member.restrictions.dietaryRestrictions,
+              },
             })),
             interactions: [],
             conflicts: []
@@ -258,20 +268,16 @@ export class CipherMealPlanningIntegration {
         'family_coordination'
       );
 
-      // In production, decrypt the actual data
+      // In production, decrypt the actual data. Until then we return
+      // an empty plan — the previous stub literal didn't match the
+      // canonical FamilyProfile shape and only existed for the demo
+      // path. Easier to omit it than to fabricate one.
       const mealPlan: MealPlanData = {
         id: planId,
         userId,
         weekStartDate: new Date(),
         meals: [],
-        familyMembers: context.familyMode ? [
-          {
-            id: 'member_1',
-            name: 'Parent',
-            dietaryRestrictions: [],
-            preferences: ['healthy', 'quick']
-          }
-        ] : undefined
+        familyMembers: context.familyMode ? [] : undefined,
       };
 
       return {

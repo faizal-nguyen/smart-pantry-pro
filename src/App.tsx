@@ -17,11 +17,9 @@ const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const Settings = lazy(() => import("./pages/Settings"));
 const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RecipesPage = lazy(() => import("./pages/RecipesPage"));
-const ShoppingListPage = lazy(() => import("./pages/ShoppingListPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 const AssistantAI = lazy(() => import("./pages/AssistantAI"));
-const RecipeAssistant = lazy(() => import("./pages/RecipeAssistant"));
 const RecipeSeeding = lazy(() => import("./pages/RecipeSeeding"));
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
@@ -123,8 +121,6 @@ if (import.meta.env.DEV) {
     { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
     { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
     { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
-    { path: "/shopping-classic", element: withSuspense(ShoppingListPage) },
-    { path: "/assistant-old", element: withSuspense(RecipeAssistant) },
     // Test & dev pages
     { path: "/recipe-seeding", element: withSuspense(RecipeSeeding) },
     { path: "/video-test", element: withSuspense(VideoImportTest) },
