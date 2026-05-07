@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/integrations/supabase/types';
+import { Database } from '@/integrations/supabase/types.augmented';
 
 // Types pour le système Cipher Memory
 interface MemoryEntry {
