@@ -26,6 +26,7 @@ const RecipeSeeding = lazy(() => import("./pages/RecipeSeeding"));
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
+const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 
 // Dashboards hiérarchiques (lazy)
 const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
@@ -60,6 +61,10 @@ const baseRoutes: RouteObject[] = [
   // Pages critiques (pas de lazy loading)
   { path: "/", element: <Index /> },
   { path: "/auth", element: <Auth /> },
+
+  // PWA Web Share Target landing (PRP-220.18). Captures the shared
+  // URL and bounces to the inbox.
+  { path: "/share-target", element: withSuspense(ShareTarget) },
 
   // Pages avec lazy loading
   { path: "/onboarding", element: withSuspense(OnboardingPage) },

@@ -64,3 +64,30 @@ export function extractAllUrls(text: string): string[] {
 function trimTrailingPunctuation(url: string): string {
   return url.replace(/[.,;:!?)\]}>'"]+$/, '');
 }
+
+/**
+ * Heuristic for the clipboard suggestion (PRP-220.18). True when the
+ * URL looks like a social-media or recipe-blog link the import
+ * pipeline can likely handle — used to gate the "Importer ?" banner so
+ * we don't pester the user with random URLs they had in their
+ * clipboard.
+ *
+ * Intentionally conservative: false-negatives are fine (the user can
+ * still paste manually), but false-positives are spammy.
+ */
+export function isRecipeLikely(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    return (
+      host.endsWith('instagram.com') ||
+      host.endsWith('tiktok.com') ||
+      host.endsWith('youtube.com') ||
+      host === 'youtu.be' ||
+      host.includes('pinterest.')
+    );
+  } catch {
+    return false;
+  }
+}
