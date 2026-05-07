@@ -56,6 +56,8 @@ import AddRecipeDialog from "@/components/recipes/AddRecipeDialog";
 import { InstagramVideoExtractor } from "@/components/recipes/InstagramVideoExtractor";
 import { ExtractedRecipeModal } from "@/components/recipes/ExtractedRecipeModal";
 import { SocialImportCard } from "@/components/social/SocialImportCard";
+import { RecipeInbox } from "@/components/recipes/RecipeInbox";
+import { Inbox } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useRecipes } from "@/hooks/useRecipes";
 
@@ -65,7 +67,7 @@ import CollectionsManager from "@/components/recipes/CollectionsManager";
 
 export default function Recipes() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'explore' | 'library' | 'import'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'library' | 'inbox' | 'import'>('explore');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showExtractedModal, setShowExtractedModal] = useState(false);
   const [extractedRecipe, setExtractedRecipe] = useState<any>(null);
@@ -146,7 +148,7 @@ export default function Recipes() {
 
         {/* Navigation à onglets */}
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-8 h-14">
+          <TabsList className="grid w-full grid-cols-4 mb-8 h-14">
             <TabsTrigger value="explore" className="flex items-center gap-2 text-base">
               <Sparkles className="h-5 w-5" />
               Explorer
@@ -154,7 +156,7 @@ export default function Recipes() {
                 {catalogCount.toLocaleString()}
               </Badge>
             </TabsTrigger>
-            
+
             <TabsTrigger value="library" className="flex items-center gap-2 text-base">
               <BookOpen className="h-5 w-5" />
               Mes Recettes
@@ -162,7 +164,12 @@ export default function Recipes() {
                 {userRecipes.length}
               </Badge>
             </TabsTrigger>
-            
+
+            <TabsTrigger value="inbox" className="flex items-center gap-2 text-base">
+              <Inbox className="h-5 w-5" />
+              Inbox
+            </TabsTrigger>
+
             <TabsTrigger value="import" className="flex items-center gap-2 text-base">
               <Plus className="h-5 w-5" />
               Ajouter
@@ -191,6 +198,25 @@ export default function Recipes() {
               recipes={userRecipes}
               isLoading={libraryLoading}
               onShowOnboarding={() => setShowOnboarding(true)}
+            />
+          </TabsContent>
+
+          {/* Onglet Inbox - Imports sociaux (PRP-220.12) */}
+          <TabsContent value="inbox" className="space-y-6">
+            <RecipeInbox
+              onVerifyDraft={(socialImport) => {
+                // The full draft editing modal is delivered by the
+                // bridge from PRP-220.08. We stash the import id so a
+                // future iteration can fetch the current draft and
+                // pre-fill the modal; the toast keeps the contract
+                // explicit until then.
+                setExtractedRecipe({
+                  title: socialImport.title ?? '',
+                  sourceUrl: socialImport.source_url,
+                  importId: socialImport.id,
+                });
+                setShowExtractedModal(true);
+              }}
             />
           </TabsContent>
 

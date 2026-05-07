@@ -130,7 +130,7 @@
     "helmet": "^8.1.0",
     "input-otp": "^1.2.4",
     "isomorphic-dompurify": "^2.26.0",
-    "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.462.0",
     "multer": "^2.0.2",
     "next-themes": "^0.3.0",
