@@ -77,7 +77,7 @@ const DEFAULT_MODEL = 'gpt-4o-mini';
 
 // ---- Prompt ---------------------------------------------------------
 
-const SYSTEM_PROMPT = `Tu es un expert en extraction de recettes a partir de contenu social (Instagram, TikTok, YouTube, blogs, sites web).
+export const RECIPE_EXTRACTION_SYSTEM_PROMPT = `Tu es un expert en extraction de recettes a partir de contenu social (Instagram, TikTok, YouTube, blogs, sites web).
 
 Reponds UNIQUEMENT en JSON valide avec cette structure :
 
@@ -218,7 +218,7 @@ export class OpenAIRecipeExtractionService implements RecipeExtractionService {
     const aiResponse = await this.ai.complete({
       model: this.model,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: RECIPE_EXTRACTION_SYSTEM_PROMPT },
         { role: 'user', content: userMessage },
       ],
       temperature: this.temperature,
