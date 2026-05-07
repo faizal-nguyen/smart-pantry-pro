@@ -425,7 +425,7 @@ function ExploreTab({
         {isLoading ? (
           <RecipesGridSkeleton />
         ) : recipes.length === 0 ? (
-          <EmptyExploreState />
+          <EmptyExploreState onSwitchToInbox={() => setActiveTab('inbox')} />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -830,16 +830,23 @@ function RecipesGridSkeleton() {
   );
 }
 
-function EmptyExploreState() {
+function EmptyExploreState({ onSwitchToInbox }: { onSwitchToInbox?: () => void }) {
+  // Audit P1: was "Catalogue en construction / sera bientôt disponible".
+  // Misleading — the page IS loaded, the catalog is just empty for
+  // this user. Pivot to actionable copy that lets the user fill the
+  // catalog themselves via the inbox (PRP-220 capture flow) instead
+  // of waiting for a "bientôt".
   return (
-    <div className="text-center py-16">
-      <Sparkles className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        Catalogue en construction
-      </h3>
-      <p className="text-gray-600">
-        Le catalogue de recettes sera bientôt disponible !
+    <div className="text-center py-16 max-w-md mx-auto">
+      <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+      <h3 className="text-xl font-semibold mb-2">Aucune recette à explorer pour l&apos;instant</h3>
+      <p className="text-muted-foreground mb-6">
+        Capture une URL Instagram, TikTok, YouTube ou un lien web et
+        elle apparaîtra ici une fois extraite.
       </p>
+      {onSwitchToInbox && (
+        <Button onClick={onSwitchToInbox}>Aller à l&apos;inbox</Button>
+      )}
     </div>
   );
 }
