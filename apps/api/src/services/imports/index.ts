@@ -1,16 +1,20 @@
 /**
- * DI factory for the social-recipe-imports service stack (PRP-220.13).
+ * DI factory for the social-recipe-imports service stack (PRP-220.13 +
+ * PRP-220.14).
  *
- * Exposes a single `defaultExtractionService()` that the route layer
+ * Exposes `defaultExtractionService()` which the route layer
  * (apps/api/src/app.ts) calls when it builds the imports router.
  * Returns the OpenAI-backed extraction service plus the registered
- * platform adapter list.
+ * platform adapter list (Instagram → TikTok → YouTube → Web → catch-all).
  *
- * PRP-220.14 will add specific adapters (Instagram, TikTok, YouTube,
- * Web) by inserting them in front of the FallbackWebAdapter in the
- * registry below — no other file needs to change.
+ * Order matters: specific adapters MUST come before WebAdapter, and
+ * WebAdapter before FallbackWebAdapter (which always claims).
  */
 import { FallbackWebAdapter } from './platforms/FallbackWebAdapter.js';
+import { InstagramAdapter } from './platforms/InstagramAdapter.js';
+import { TikTokAdapter } from './platforms/TikTokAdapter.js';
+import { WebAdapter } from './platforms/WebAdapter.js';
+import { YouTubeAdapter } from './platforms/YouTubeAdapter.js';
 import type { PlatformAdapter } from './platforms/types.js';
 import {
   createOpenAICompletionClient,
@@ -26,8 +30,7 @@ export interface BuildExtractionServiceOptions {
    */
   ai?: AICompletionClient;
   /**
-   * Override the adapter list. Defaults to [FallbackWebAdapter].
-   * PRP-220.14 will pre-pend Instagram/TikTok/YouTube/Web adapters.
+   * Override the adapter list. Defaults to the full registry below.
    */
   adapters?: readonly PlatformAdapter[];
   model?: string;
@@ -35,7 +38,11 @@ export interface BuildExtractionServiceOptions {
 
 export function defaultPlatformAdapters(): readonly PlatformAdapter[] {
   return [
-    // Specific adapters here (PRP-220.14) before the catch-all.
+    new InstagramAdapter(),
+    new TikTokAdapter(),
+    new YouTubeAdapter(),
+    new WebAdapter(),
+    // Catch-all (URL-only context, no HTTP) — last resort.
     new FallbackWebAdapter(),
   ];
 }
@@ -50,6 +57,10 @@ export function defaultExtractionService(
 
 export { OpenAIRecipeExtractionService } from './RecipeExtractionService.js';
 export { FallbackWebAdapter } from './platforms/FallbackWebAdapter.js';
+export { InstagramAdapter } from './platforms/InstagramAdapter.js';
+export { TikTokAdapter } from './platforms/TikTokAdapter.js';
+export { WebAdapter } from './platforms/WebAdapter.js';
+export { YouTubeAdapter } from './platforms/YouTubeAdapter.js';
 export type { PlatformAdapter, PlatformContext } from './platforms/types.js';
 export type {
   AICompletionClient,
