@@ -170,7 +170,7 @@ npm start
 npm run dev:full
 ```
 
-L'application sera disponible sur `http://localhost:3000`
+L'application sera disponible sur `http://localhost:3002`.
 API unifiée: `http://localhost:4000` (proxy Vite `/api/*`).
 
 ## 🏗️ Architecture Technique

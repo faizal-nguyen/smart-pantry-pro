@@ -132,6 +132,21 @@ export function createApp(options: CreateAppOptions = {}): Express {
     });
   }
 
+  // === Diagnostics: list mounted routes (dev/non-production only) ===
+  // Useful for debugging route mounting and for the no-404 contract test.
+  // Hidden in production to avoid leaking routing details.
+  app.get('/api/diagnostics/routes', (_req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({
+        success: false,
+        error: 'Route not found',
+        code: 'ROUTE_NOT_FOUND',
+      });
+    }
+    const routes = listMountedRoutes(app);
+    return res.json({ success: true, data: { count: routes.length, routes } });
+  });
+
   // === Repository-pattern v1 routes (lazy to avoid boot-time blocking) ===
   if (!options.skipLazyV1) {
     import('./routes/v1.js')
@@ -159,4 +174,50 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(errorHandler);
 
   return app;
+}
+
+/**
+ * Walk the Express router stack and return a flat list of mounted routes.
+ * Used by `/api/diagnostics/routes` and by the no-404 contract test.
+ *
+ * Express 4 exposes the stack as `app._router.stack`.
+ * Express 5 exposes it as `app.router.stack`.
+ * We accept either to stay forward-compatible.
+ */
+function listMountedRoutes(app: Express): Array<{ method: string; path: string }> {
+  const out: Array<{ method: string; path: string }> = [];
+  const router = (app as any)._router ?? (app as any).router;
+  const stack = router?.stack ?? [];
+
+  function walk(layerStack: any[], prefix: string): void {
+    for (const layer of layerStack) {
+      if (layer.route) {
+        const path = prefix + (layer.route.path ?? '');
+        const methods = layer.route.methods ?? layer.route._methods ?? {};
+        for (const method of Object.keys(methods)) {
+          if (method === '_all') continue;
+          out.push({ method: method.toUpperCase(), path });
+        }
+      } else if ((layer.name === 'router' || layer.handle?.stack) && layer.handle?.stack) {
+        walk(layer.handle.stack, prefix + extractMountPath(layer));
+      }
+    }
+  }
+
+  walk(stack, '');
+  return out.sort((a, b) => (a.path === b.path ? a.method.localeCompare(b.method) : a.path.localeCompare(b.path)));
+}
+
+function extractMountPath(layer: any): string {
+  // Express stores the mount prefix in different shapes depending on version.
+  // 1) layer.path (Express 5)
+  if (typeof layer?.path === 'string' && layer.path.length > 0) {
+    return layer.path === '/' ? '' : layer.path;
+  }
+  // 2) layer.regexp pattern (Express 4): '^\\/api\\/health\\/?(?=\\/|$)'
+  const src: string = layer?.regexp?.source ?? '';
+  const match = src.match(/^\^\\?\/?(.*?)\\\/\?\(\?=\\\/\|\$\)/);
+  if (match) return '/' + match[1].replace(/\\\//g, '/');
+  // 3) layer.regexp.fast_slash (root-level middleware) -> empty prefix
+  return '';
 }

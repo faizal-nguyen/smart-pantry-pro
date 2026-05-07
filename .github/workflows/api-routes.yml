@@ -1,0 +1,48 @@
+name: API Routes Contract
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-routes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  routes-mounted:
+    name: Routes mounted (no-404 contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # PRP-220.05: pino-pretty hangs on Node 20+ in some envs; force JSON.
+      LOG_PRETTY_PRINT: 'false'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build API bundle
+        run: npm run api:build:ts
+
+      - name: Run routes-mounted contract
+        run: npm run test:api -- --testPathPattern=routes-mounted
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-api-log
+          path: apps/api/.jest-api.log
+          if-no-files-found: ignore
