@@ -12,7 +12,10 @@
  * still ends up with a non-empty ingredient name.
  */
 
-const NUMBER = /\d+(?:[.,]\d+)?|\d+\/\d+/;
+// Fraction alternative MUST come first: regex alternation is greedy
+// left-to-right, so `\d+(?:[.,]\d+)?` would otherwise eat "1" out of
+// "1/2" and leave the "/2" stranded as a bogus unit.
+const NUMBER = /\d+\/\d+|\d+(?:[.,]\d+)?/;
 const UNIT = /[a-zA-ZµμéèàâäçîïôöùûüÿæœÉÈÀÂÄÇÎÏÔÖÙÛÜŸÆŒ°/.\-]+/;
 const QUANTITY_LINE = new RegExp(
   '^(' + NUMBER.source + ')\\s*(' + UNIT.source + ')?\\s*(.*)$'

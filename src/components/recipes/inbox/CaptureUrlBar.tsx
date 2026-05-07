@@ -63,7 +63,11 @@ export const CaptureUrlBar: React.FC<CaptureUrlBarProps> = ({
   const isDisabled = disabled || pending;
 
   return (
-    <form onSubmit={handleSubmit} className={cn('w-full', className)}>
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className={cn('w-full', className)}
+    >
       <div className="flex items-stretch gap-2">
         <Input
           type="url"

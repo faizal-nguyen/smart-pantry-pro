@@ -1,12 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "jsx": "react",
+    "jsx": "react-jsx",
     "esModuleInterop": true,
     "types": ["jest", "@testing-library/jest-dom", "node"],
     "lib": ["dom", "dom.iterable", "esnext"],
     "module": "commonjs",
-    "target": "es5",
+    "target": "es2020",
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node"
   },
