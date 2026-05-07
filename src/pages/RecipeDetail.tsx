@@ -29,10 +29,9 @@ import {
   Edit,
   Trash2,
   IndianRupee,
-  Link,
-  Instagram
 } from "lucide-react";
 import { RecipeNutrition } from "@/components/recipes/RecipeNutrition";
+import { RecipeSourceCard, type RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
@@ -698,26 +697,13 @@ const RecipeDetail = () => {
             </div>
           )}
           
-          {recipe.source_url && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-muted-foreground mb-2">Source</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(recipe.source_url, '_blank')}
-                className="flex items-center gap-2"
-              >
-                {recipe.source_type === 'instagram' ? (
-                  <Instagram className="w-4 h-4" />
-                ) : (
-                  <Link className="w-4 h-4" />
-                )}
-                Voir la {recipe.source_type === 'instagram' ? 'vidéo Instagram' : 'source'} originale
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {/* PRP-220.17: source provenance for imported recipes. The card
+          self-hides for manual recipes so the existing UX is unchanged
+          for hand-typed entries. */}
+      <RecipeSourceCard recipe={recipe as unknown as RecipeSourceLike} className="mt-4" />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

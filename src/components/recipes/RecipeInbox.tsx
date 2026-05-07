@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ const TERMINAL_FILTERS: FilterValue[] = ['saved', 'archived'];
  * just observes via React Query and dispatches mutations.
  */
 export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, className }) => {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterValue>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
@@ -106,8 +108,29 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
   const handleExtract = (id: string, force?: boolean) =>
     wrap(id, () => extract(id, { force }), undefined);
 
-  const handleSave = (import_: SocialImport) =>
-    wrap(import_.id, () => save(import_.id), 'Recette sauvegardée dans Mes Recettes');
+  const handleSave = async (import_: SocialImport) => {
+    setBusyId(import_.id);
+    try {
+      // PRP-220.17: surface the new recipe id so the user can jump
+      // straight to the detail page instead of re-discovering the
+      // recipe in the list.
+      const result = await save(import_.id);
+      const recipeId = (result as { recipe_id?: string } | undefined)?.recipe_id;
+      toast.success('Recette sauvegardée dans Mes Recettes', {
+        action: recipeId
+          ? {
+              label: 'Voir',
+              onClick: () => navigate(`/kitchen/recipes/${recipeId}`),
+            }
+          : undefined,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Échec';
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const handleArchive = (id: string) =>
     wrap(id, () => archive(id), 'Import archivé');

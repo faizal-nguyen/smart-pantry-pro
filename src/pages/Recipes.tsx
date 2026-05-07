@@ -93,7 +93,7 @@ export default function Recipes() {
   } = useUserRecipes();
   
   // Hook pour ajouter des recettes depuis l'ancien système
-  const { addRecipeWithIngredients } = useRecipes();
+  const { addRecipeWithIngredients, fetchRecipes } = useRecipes();
 
   // PRP-220.12: drive the Inbox tab badge from the imports list. We
   // already query for the count via the shared hook so React Query
@@ -309,9 +309,10 @@ export default function Recipes() {
                 title: "Recette sauvegardée !",
                 description: "La recette a été ajoutée à votre bibliothèque.",
               });
-              
-              // Rafraîchir la liste
-              window.location.reload();
+
+              // PRP-220.17: refresh in place via the hook instead of a
+              // full page reload — preserves SPA state + auth.
+              await fetchRecipes();
             } catch (error) {
               console.error("❌ Erreur lors de la sauvegarde:", error);
               toast({
