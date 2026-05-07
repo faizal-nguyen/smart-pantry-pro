@@ -37,7 +37,10 @@ import { diagnosticsRouter } from './routes/diagnostics.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
 import { createMetricsRouter } from './routes/metrics.js';
 import { supabaseAdmin } from './config/supabase.js';
-import { defaultExtractionService } from './services/imports/index.js';
+import {
+  defaultExtractionService,
+  saveImportedDraftAsRecipe,
+} from './services/imports/index.js';
 
 const ytRateLimit = () =>
   rateLimit({
@@ -109,6 +112,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
     '/api/imports/social',
     createImportsSocialRouter(supabaseAdmin, {
       extractionService: defaultExtractionService(),
+      // PRP-220.16: persist saved drafts as real `recipes` rows via the
+      // SECURITY INVOKER RPC.
+      saveImportedDraftAsRecipe,
     })
   );
   // PRP-220.15: Prometheus metrics. Auth via METRICS_AUTH_TOKEN bearer

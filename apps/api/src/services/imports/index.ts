@@ -61,6 +61,7 @@ export { InstagramAdapter } from './platforms/InstagramAdapter.js';
 export { TikTokAdapter } from './platforms/TikTokAdapter.js';
 export { WebAdapter } from './platforms/WebAdapter.js';
 export { YouTubeAdapter } from './platforms/YouTubeAdapter.js';
+export { saveImportedDraftAsRecipe } from './saveImportedDraftAsRecipe.js';
 export type { PlatformAdapter, PlatformContext } from './platforms/types.js';
 export type {
   AICompletionClient,
