@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { openFoodFactsService } from '@/services/nutrition/openFoodFactsService';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface RecipeIngredient {
   ingredient_name: string;
@@ -25,9 +26,37 @@ interface RecipeIngredient {
   unit: string;
 }
 
+/**
+ * Persisted nutrition payload stored on `recipes.nutrition_info`.
+ * Shape mirrors `openFoodFactsService.calculateRecipeNutrition`'s
+ * return value plus a `computedAt` ISO timestamp for cache age
+ * debugging.
+ */
+interface CachedNutrition {
+  totalNutrition: NutritionData;
+  missingIngredients?: string[];
+  foundIngredients?: unknown[];
+  computedAt?: string;
+}
+
+/** Type guard for the JSONB blob coming back from Supabase. */
+function isCachedNutrition(value: unknown): value is CachedNutrition {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return !!v.totalNutrition && typeof v.totalNutrition === 'object';
+}
+
 interface RecipeNutritionProps {
   ingredients: RecipeIngredient[];
   servings: number;
+  /**
+   * When provided alongside `cachedNutrition`, the component renders
+   * immediately from the cache and skips the OpenFoodFacts round-trip.
+   * On a cache miss, the live compute is persisted back to
+   * `recipes.nutrition_info` so subsequent views stay instant.
+   */
+  recipeId?: string;
+  cachedNutrition?: unknown;
 }
 
 interface NutritionData {
@@ -41,7 +70,12 @@ interface NutritionData {
   salt?: number;
 }
 
-export function RecipeNutrition({ ingredients, servings }: RecipeNutritionProps) {
+export function RecipeNutrition({
+  ingredients,
+  servings,
+  recipeId,
+  cachedNutrition,
+}: RecipeNutritionProps) {
   const [loading, setLoading] = useState(false);
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
   const [missingIngredients, setMissingIngredients] = useState<string[]>([]);
@@ -49,10 +83,54 @@ export function RecipeNutrition({ ingredients, servings }: RecipeNutritionProps)
   const [foundIngredients, setFoundIngredients] = useState<any[]>([]);
 
   useEffect(() => {
+    // PRP-220 follow-up: prefer the persisted nutrition_info blob if
+    // it's a usable cache. Saves ~10 OpenFoodFacts HTTP round-trips
+    // per recipe view. Recipes saved before this landed get a lazy
+    // backfill on their next view (see fetchNutritionData below).
+    if (isCachedNutrition(cachedNutrition)) {
+      setNutritionData(cachedNutrition.totalNutrition);
+      setMissingIngredients(cachedNutrition.missingIngredients ?? []);
+      setFoundIngredients(
+        Array.isArray(cachedNutrition.foundIngredients)
+          ? cachedNutrition.foundIngredients
+          : []
+      );
+      return;
+    }
     if (ingredients.length > 0) {
       fetchNutritionData();
     }
-  }, [ingredients]);
+    // We deliberately depend on the cached blob's identity, not its
+    // content — Supabase returns a fresh object on each row read, but
+    // the cache is row-level so identity tracks "the recipe changed"
+    // closely enough for this lazy-backfill case.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ingredients, cachedNutrition]);
+
+  const persistNutrition = (result: {
+    totalNutrition: NutritionData;
+    missingIngredients: string[];
+    foundIngredients: unknown[];
+  }) => {
+    if (!recipeId) return;
+    const payload: CachedNutrition = {
+      ...result,
+      computedAt: new Date().toISOString(),
+    };
+    // Fire-and-forget: the user UX has no dependency on the write
+    // succeeding (the next render will just recompute). RLS already
+    // restricts the update to the row's owner, so a stale token or a
+    // shared session can't corrupt anyone else's cache.
+    void supabase
+      .from('recipes')
+      .update({ nutrition_info: payload })
+      .eq('id', recipeId)
+      .then(({ error }) => {
+        if (error) {
+          console.warn('[RecipeNutrition] cache persist failed:', error.message);
+        }
+      });
+  };
 
   const fetchNutritionData = async (clearCache = false) => {
     setLoading(true);
@@ -60,17 +138,18 @@ export function RecipeNutrition({ ingredients, servings }: RecipeNutritionProps)
       if (clearCache) {
         openFoodFactsService.clearCache();
       }
-      
+
       const result = await openFoodFactsService.calculateRecipeNutrition(ingredients);
       setNutritionData(result.totalNutrition);
       setMissingIngredients(result.missingIngredients);
       setFoundIngredients(result.foundIngredients);
-      
-      // Log pour debug
+      persistNutrition(result);
+
       console.log('📊 Résultats nutritionnels:', {
         total: result.totalNutrition,
         trouvés: result.foundIngredients.length,
-        manquants: result.missingIngredients
+        manquants: result.missingIngredients,
+        cachedFor: recipeId ?? 'n/a',
       });
     } catch (error) {
       console.error('Error fetching nutrition data:', error);

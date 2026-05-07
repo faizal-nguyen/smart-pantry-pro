@@ -208,7 +208,11 @@ const RecipeEdit = () => {
         .update({
           ...recipe,
           image_url: imageUrl,
-          instructions: formattedInstructions
+          instructions: formattedInstructions,
+          // Ingredients are about to be deleted + re-inserted below,
+          // so any persisted nutrition snapshot is stale. Null it
+          // out — the next RecipeDetail view will lazy-recompute.
+          nutrition_info: null,
         })
         .eq('id', id);
 

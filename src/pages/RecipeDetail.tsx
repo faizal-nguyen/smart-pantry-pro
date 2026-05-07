@@ -590,9 +590,11 @@ const RecipeDetail = () => {
 
         {/* Valeurs nutritionnelles */}
         {ingredients.length > 0 && (
-          <RecipeNutrition 
+          <RecipeNutrition
             ingredients={ingredients}
             servings={recipe.servings || 4}
+            recipeId={recipe.id}
+            cachedNutrition={recipe.nutrition_info}
           />
         )}
 
