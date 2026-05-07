@@ -146,7 +146,7 @@ const RecipeCard = ({
       variant="elevated"
       interactive
       onClick={() => {
-        navigate(`/recipes/${recipe.id}`);
+        navigate(`/kitchen/recipes/${recipe.id}`);
       }}
     >
       <MaterialCardContent>

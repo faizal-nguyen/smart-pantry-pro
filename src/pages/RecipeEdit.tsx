@@ -249,7 +249,7 @@ const RecipeEdit = () => {
         description: "Les modifications ont été enregistrées avec succès",
       });
       
-      navigate(`/recipes/${id}`);
+      navigate(`/kitchen/recipes/${id}`);
     } catch (error) {
       console.error('Error updating recipe:', error);
       toast({
@@ -331,7 +331,7 @@ const RecipeEdit = () => {
       <div className="mb-6">
         <Button 
           variant="ghost" 
-          onClick={() => navigate(`/recipes/${id}`)}
+          onClick={() => navigate(`/kitchen/recipes/${id}`)}
           className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
@@ -661,7 +661,7 @@ const RecipeEdit = () => {
           <Button
             type="button"
             variant="outline"
-            onClick={() => navigate(`/recipes/${id}`)}
+            onClick={() => navigate(`/kitchen/recipes/${id}`)}
           >
             Annuler
           </Button>

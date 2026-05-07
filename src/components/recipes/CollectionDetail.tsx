@@ -176,7 +176,7 @@ const CollectionDetail = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/recipes/${recipe.id}`)}>
+                <DropdownMenuItem onClick={() => navigate(`/kitchen/recipes/${recipe.id}`)}>
                   <Eye className="h-4 w-4 mr-2" />
                   Voir la recette
                 </DropdownMenuItem>

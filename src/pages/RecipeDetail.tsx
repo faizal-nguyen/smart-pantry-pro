@@ -404,7 +404,7 @@ const RecipeDetail = () => {
             <Button variant="outline" size="icon">
               <Share className="w-4 h-4" />
             </Button>
-            <Button variant="outline" size="icon" onClick={() => navigate(`/recipes/${id}/edit`)}>
+            <Button variant="outline" size="icon" onClick={() => navigate(`/kitchen/recipes/${id}/edit`)}>
               <Edit className="w-4 h-4" />
             </Button>
             <Button variant="outline" size="icon" onClick={handleDeleteClick}>
