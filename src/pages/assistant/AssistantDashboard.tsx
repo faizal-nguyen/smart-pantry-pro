@@ -39,65 +39,44 @@ const AssistantDashboard: React.FC = () => {
     return <div>Non authentifié</div>;
   }
 
-  // Mock data - à remplacer par de vraies données
-  const dashboardStats = {
-    totalQuestions: 47,
-    suggestions: 12,
-    nutritionAnalyses: 8,
-    savedTime: '2h 30min'
-  };
-
+  // P1 polish: removed the mock `dashboardStats` (47 questions, 12
+  // suggestions, "2h 30min" saved — fabricated) and the hardcoded
+  // `recentInteractions` list flagged by the UI/UX audit. Until a
+  // real assistant_history hook lands, the dashboard shows the action
+  // grid + features cards only.
   const quickActions = [
     {
       title: 'Chat IA',
       description: 'Poser une question à votre assistant',
       icon: <MessageCircle className="w-6 h-6" />,
       action: () => navigate('/assistant/chat'),
-      badge: 'Populaire',
-      childFriendlyName: 'Parler avec l\'assistant'
+      badge: undefined,
+      childFriendlyName: 'Parler avec l\'assistant',
     },
     {
       title: 'Suggestions',
       description: 'Découvrir des recommandations personnalisées',
       icon: <Lightbulb className="w-6 h-6" />,
       action: () => navigate('/assistant/suggestions'),
-      badge: `${dashboardStats.suggestions} nouvelles`,
-      childFriendlyName: 'Mes suggestions'
+      badge: undefined,
+      childFriendlyName: 'Mes suggestions',
     },
     {
       title: 'Analyse Nutritionnelle',
       description: 'Analyser vos habitudes alimentaires',
       icon: <Target className="w-6 h-6" />,
       action: () => navigate('/assistant/nutrition'),
-      badge: 'Avancé',
-      childFriendlyName: 'Mes nutriments'
+      badge: undefined,
+      childFriendlyName: 'Mes nutriments',
     },
     {
       title: 'IA Rapide',
       description: 'Questions rapides et réponses instantanées',
       icon: <Zap className="w-6 h-6" />,
       action: () => navigate('/assistant/chat'),
-      badge: 'Instant',
-      childFriendlyName: 'Questions rapides'
-    }
-  ];
-
-  const recentInteractions = [
-    { 
-      question: 'Quelle recette puis-je faire avec des œufs et du fromage ?', 
-      type: 'recipe', 
-      time: '2 min' 
+      badge: undefined,
+      childFriendlyName: 'Questions rapides',
     },
-    { 
-      question: 'Combien de protéines dans 100g de poulet ?', 
-      type: 'nutrition', 
-      time: '5 min' 
-    },
-    { 
-      question: 'Comment conserver les tomates fraîches ?', 
-      type: 'tips', 
-      time: '1h' 
-    }
   ];
 
   const features = [
@@ -150,57 +129,6 @@ const AssistantDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Stats rapides */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Questions</p>
-                  <p className="text-2xl font-bold">{dashboardStats.totalQuestions}</p>
-                </div>
-                <MessageCircle className="w-5 h-5 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Suggestions</p>
-                  <p className="text-2xl font-bold">{dashboardStats.suggestions}</p>
-                </div>
-                <Lightbulb className="w-5 h-5 text-yellow-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Analyses</p>
-                  <p className="text-2xl font-bold">{dashboardStats.nutritionAnalyses}</p>
-                </div>
-                <Target className="w-5 h-5 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Temps gagné</p>
-                  <p className="text-xl font-bold">{dashboardStats.savedTime}</p>
-                </div>
-                <Zap className="w-5 h-5 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Actions rapides */}
         <div>
           <h2 className={cn(
@@ -244,37 +172,10 @@ const AssistantDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Interactions récentes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Interactions Récentes</CardTitle>
-            <CardDescription>
-              Vos dernières conversations avec l'assistant
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentInteractions.map((interaction, index) => (
-                <div key={index} className="flex items-start gap-3 p-3 border rounded-lg hover:bg-accent cursor-pointer">
-                  <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center mt-1">
-                    {interaction.type === 'recipe' && <MessageCircle className="w-4 h-4 text-primary" />}
-                    {interaction.type === 'nutrition' && <Target className="w-4 h-4 text-primary" />}
-                    {interaction.type === 'tips' && <Lightbulb className="w-4 h-4 text-primary" />}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{interaction.question}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Il y a {interaction.time}</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {interaction.type === 'recipe' && 'Recette'}
-                    {interaction.type === 'nutrition' && 'Nutrition'}
-                    {interaction.type === 'tips' && 'Conseil'}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* P1 polish: removed the "Interactions Récentes" mock list
+            (3 hardcoded questions about œufs/fromage, protéines de
+            poulet, conservation tomates) — fabricated. A real
+            assistant-history hook should land before re-enabling. */}
 
         {/* Fonctionnalités IA */}
         <Card>

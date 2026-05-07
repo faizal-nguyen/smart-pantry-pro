@@ -119,7 +119,7 @@ export const usePWA = () => {
         // This is a simplified example - you'd typically use your backend
         // to send push notifications at scheduled times
         setTimeout(() => {
-          registration.showNotification('Smart Grocery', {
+          registration.showNotification('Smart Pantry Pro', {
             body: 'Vérifiez vos produits qui expirent bientôt !',
             icon: '/icons/icon-192x192.png',
             tag: 'expiry-reminder',

@@ -100,7 +100,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md bg-card rounded-lg border shadow-lg">
         <div className="p-6 text-center border-b">
-          <h1 className="text-2xl font-bold text-primary">Smart Grocery</h1>
+          <h1 className="text-2xl font-bold text-primary">Smart Pantry Pro</h1>
           <p className="text-sm text-muted-foreground mt-2">
             Gérez votre inventaire et vos courses intelligemment
           </p>

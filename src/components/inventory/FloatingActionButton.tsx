@@ -16,14 +16,19 @@ interface FloatingActionButtonProps {
   onCameraScan: () => void;
   onVoiceInput: () => void;
   onManualAdd: () => void;
-  onReceiptScan: () => void;
+  /**
+   * P1 polish: optional. The receipt-scanner is not built (toast read
+   * "Fonctionnalité bientôt disponible"). Hide the button when no
+   * handler is supplied — re-enable when the OCR pipeline ships.
+   */
+  onReceiptScan?: () => void;
 }
 
 export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   onCameraScan,
   onVoiceInput,
   onManualAdd,
-  onReceiptScan
+  onReceiptScan,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { setThemeContext } = useMaterialYouTheme();
@@ -50,26 +55,30 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       icon: <Camera className="w-5 h-5" />,
       label: 'Scanner',
       action: 'camera-scan',
-      onClick: onCameraScan
+      onClick: onCameraScan,
     },
     {
       icon: <Mic className="w-5 h-5" />,
       label: 'Dicter',
       action: 'voice-input',
-      onClick: onVoiceInput
+      onClick: onVoiceInput,
     },
     {
       icon: <FileText className="w-5 h-5" />,
       label: 'Manuel',
       action: 'manual-add',
-      onClick: onManualAdd
+      onClick: onManualAdd,
     },
-    {
-      icon: <Receipt className="w-5 h-5" />,
-      label: 'Ticket',
-      action: 'receipt-scan',
-      onClick: onReceiptScan
-    }
+    ...(onReceiptScan
+      ? [
+          {
+            icon: <Receipt className="w-5 h-5" />,
+            label: 'Ticket',
+            action: 'receipt-scan',
+            onClick: onReceiptScan,
+          } as FABOption,
+        ]
+      : []),
   ];
 
   const handleOptionClick = (option: FABOption) => {

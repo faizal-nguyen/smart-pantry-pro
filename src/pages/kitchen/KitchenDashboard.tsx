@@ -39,53 +39,44 @@ const KitchenDashboard: React.FC = () => {
     return <div>Non authentifié</div>;
   }
 
-  // Mock data - à remplacer par de vraies données
-  const dashboardStats = {
-    totalRecipes: 247,
-    favoriteRecipes: 23,
-    plannedMeals: 5,
-    recentActivity: 12
-  };
-
+  // P1 polish: removed the mock `dashboardStats` (totalRecipes: 247,
+  // etc.) and `recentRecipes` array flagged by the UI/UX audit. The
+  // numbers were never real and broke user trust. Until a real
+  // aggregator hook is wired (TODO: useKitchenStats), the hub shows
+  // navigation cards only — no fabricated numbers.
   const quickActions = [
     {
       title: 'Parcourir les Recettes',
       description: 'Découvrir de nouvelles recettes',
       icon: <BookOpen className="w-6 h-6" />,
       action: () => navigate('/kitchen/recipes'),
-      badge: 'Populaire',
-      childFriendlyName: 'Voir les recettes'
+      badge: undefined,
+      childFriendlyName: 'Voir les recettes',
     },
     {
       title: 'Mes Favoris',
       description: 'Mes recettes préférées',
       icon: <Heart className="w-6 h-6" />,
       action: () => navigate('/kitchen/favorites'),
-      badge: `${dashboardStats.favoriteRecipes}`,
-      childFriendlyName: 'Mes préférées'
+      badge: undefined,
+      childFriendlyName: 'Mes préférées',
     },
     {
       title: 'Planification Repas',
       description: 'Organiser mes repas de la semaine',
       icon: <CalendarDays className="w-6 h-6" />,
       action: () => navigate('/kitchen/meal-planning'),
-      badge: 'Nouveau',
-      childFriendlyName: 'Planifier mes repas'
+      badge: undefined,
+      childFriendlyName: 'Planifier mes repas',
     },
     {
       title: 'Activité Récente',
       description: 'Voir mes dernières recettes consultées',
       icon: <Clock className="w-6 h-6" />,
       action: () => navigate('/kitchen/recipes'),
-      badge: `${dashboardStats.recentActivity}`,
-      childFriendlyName: 'Mes dernières recettes'
-    }
-  ];
-
-  const recentRecipes = [
-    { id: 1, name: 'Pâtes à la carbonara', cookTime: '20 min', difficulty: 'Facile' },
-    { id: 2, name: 'Salade César', cookTime: '15 min', difficulty: 'Facile' },
-    { id: 3, name: 'Risotto aux champignons', cookTime: '35 min', difficulty: 'Moyen' }
+      badge: undefined,
+      childFriendlyName: 'Mes dernières recettes',
+    },
   ];
 
   return (
@@ -115,57 +106,6 @@ const KitchenDashboard: React.FC = () => {
           )}>
             Découvrez, planifiez et cuisinez vos repas préférés
           </p>
-        </div>
-
-        {/* Stats rapides */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Recettes</p>
-                  <p className="text-2xl font-bold">{dashboardStats.totalRecipes}</p>
-                </div>
-                <BookOpen className="w-5 h-5 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Favoris</p>
-                  <p className="text-2xl font-bold">{dashboardStats.favoriteRecipes}</p>
-                </div>
-                <Heart className="w-5 h-5 text-red-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Planifiés</p>
-                  <p className="text-2xl font-bold">{dashboardStats.plannedMeals}</p>
-                </div>
-                <CalendarDays className="w-5 h-5 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Récente</p>
-                  <p className="text-2xl font-bold">{dashboardStats.recentActivity}</p>
-                </div>
-                <TrendingUp className="w-5 h-5 text-green-500" />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Actions rapides */}
@@ -211,41 +151,11 @@ const KitchenDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recettes récentes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recettes Récentes</CardTitle>
-            <CardDescription>
-              Vos dernières recettes consultées
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentRecipes.map((recipe) => (
-                <div key={recipe.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <ChefHat className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h4 className="font-medium">{recipe.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {recipe.cookTime} • {recipe.difficulty}
-                      </p>
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => navigate(`/kitchen/recipes/${recipe.id}`)}
-                  >
-                    Voir
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* P1 polish: removed the "Recettes Récentes" mock block.
+            The previous list was hardcoded (carbonara / César / risotto)
+            with click-handlers pointing at fake ids. A real "recently
+            viewed" feed needs a `recipe_views` table or a localStorage
+            ring buffer — TODO when we build the real activity hook. */}
       </div>
     </AppNavigation>
   );

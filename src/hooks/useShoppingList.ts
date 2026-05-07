@@ -539,7 +539,7 @@ export const useShoppingList = () => {
       .map(item => `${item.quantity} ${item.product?.unit_type} ${item.product?.name}`)
       .join('\n');
     
-    return `📝 Ma liste de courses:\n\n${listText}\n\n🛒 Générée avec Smart Grocery`;
+    return `📝 Ma liste de courses:\n\n${listText}\n\n🛒 Générée avec Smart Pantry Pro`;
   };
 
   useEffect(() => {
