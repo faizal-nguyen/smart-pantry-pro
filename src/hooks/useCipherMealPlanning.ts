@@ -32,12 +32,11 @@ export interface CipherMealPlanningState {
 
 export function useCipherMealPlanning() {
   const user = useUser();
-  const { 
-    currentPlan, 
-    generateWeeklyPlan, 
+  const {
+    currentPlan,
+    generateWeeklyPlan,
     optimizeShoppingList,
     userPreferences,
-    saveMealPlan
   } = useMealPlanningAnalysis();
   
   // P0.1 fix: useFamilyMode exposes `availableProfiles`, not

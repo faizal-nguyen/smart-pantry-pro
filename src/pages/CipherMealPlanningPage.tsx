@@ -4,15 +4,12 @@ import { useEffect, useState } from 'react';
 import { useCipherMealPlanning } from '@/hooks/useCipherMealPlanning';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, ChefHat, DollarSign, TrendingUp, Shield, Users, Lock, Unlock } from 'lucide-react';
+import { CalendarDays, ChefHat, DollarSign, Shield, Users, Lock, Unlock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WeeklyCalendar } from '@/components/meal-planning/WeeklyCalendar';
-import { RecommendationsPanel } from '@/components/meal-planning/RecommendationsPanel';
-import { NutritionalOverview } from '@/components/meal-planning/NutritionalOverview';
 import { ShoppingListPreview } from '@/components/meal-planning/ShoppingListPreview';
 import { ShoppingListBridge } from '@/services/planning/core/ShoppingListBridge';
 import { supabase } from '@/integrations/supabase/client';
-import { SmartAdvicePanel } from '@/components/meal-planning/SmartAdvicePanel';
 import { ContextualAdaptationsPanel } from '@/components/meal-planning/ContextualAdaptationsPanel';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -25,38 +22,36 @@ export default function CipherMealPlanningPage() {
     // Meal planning features
     currentPlan,
     generateWeeklyPlan,
-    optimizeShoppingList,
     userPreferences,
-    
+
     // Cipher features
     encryptedPlanId,
     isEncrypting,
-    isDecrypting,
     encryptMealPlan,
-    decryptMealPlan,
     securityStatus,
-    
+
     // Family mode features
     isFamilyModeActive,
     currentProfile,
     availableProfiles,
     switchFamilyProfile,
     familyAdaptations,
-    getFamilyAdaptedSuggestions,
-    
+
     // Navigation intelligence
     navigationSuggestions,
     handleSmartNavigation,
     updateNavigationSuggestions,
-    
+
     // Computed
     isSecure,
     canEncrypt,
-    hasFamilyAdaptations
+    hasFamilyAdaptations,
   } = useCipherMealPlanning();
 
   const [showSecurityPanel, setShowSecurityPanel] = useState(false);
-  const [selectedFamilyMember, setSelectedFamilyMember] = useState<string | null>(null);
+  // The selected member id is only consumed by the setter — keep the
+  // setter for the click handler at l.92 and discard the value.
+  const [, setSelectedFamilyMember] = useState<string | null>(null);
 
   useEffect(() => {
     // Update navigation suggestions when page loads

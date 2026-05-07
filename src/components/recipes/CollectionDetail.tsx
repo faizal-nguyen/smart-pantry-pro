@@ -82,7 +82,7 @@ const CollectionDetail = () => {
             description: "Cette collection n'existe pas ou a été supprimée",
             variant: "destructive"
           });
-          navigate('/recipes/collections');
+          navigate('/kitchen/recipes');
           return;
         }
         
@@ -272,7 +272,7 @@ const CollectionDetail = () => {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/recipes/collections')}
+          onClick={() => navigate('/kitchen/recipes')}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Retour
