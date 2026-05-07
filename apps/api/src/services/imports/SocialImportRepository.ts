@@ -123,6 +123,50 @@ export class SocialImportRepository {
     return data as SocialImportRow;
   }
 
+  /**
+   * Count "active" imports for a user — anything that isn't archived
+   * or already saved into a recipe (PRP-220.19). Drives the free-tier
+   * quota gate: archive or save to free up a slot.
+   */
+  async countActive(userId: string): Promise<number> {
+    const { count, error } = await this.client
+      .from('social_recipe_imports')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .not('status', 'in', '(archived,saved)');
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  /**
+   * Aggregate counts grouped by platform AND status (PRP-220.19).
+   * Used by the inbox sidebar / counts endpoint to avoid N round-
+   * trips. Single SELECT, returned shape is denormalized so the
+   * client can pivot however it likes.
+   */
+  async countByGroupings(userId: string): Promise<{
+    total: number;
+    active: number;
+    byPlatform: Record<string, number>;
+    byStatus: Record<string, number>;
+  }> {
+    const { data, error } = await this.client
+      .from('social_recipe_imports')
+      .select('platform, status')
+      .eq('user_id', userId);
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ platform: string; status: string }>;
+    const byPlatform: Record<string, number> = {};
+    const byStatus: Record<string, number> = {};
+    let active = 0;
+    for (const r of rows) {
+      byPlatform[r.platform] = (byPlatform[r.platform] ?? 0) + 1;
+      byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
+      if (r.status !== 'archived' && r.status !== 'saved') active += 1;
+    }
+    return { total: rows.length, active, byPlatform, byStatus };
+  }
+
   async findByHash(userId: string, hash: string): Promise<SocialImportRow | null> {
     const { data, error } = await this.client
       .from('social_recipe_imports')

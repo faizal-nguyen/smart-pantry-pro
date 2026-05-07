@@ -15,6 +15,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
 import { userRateLimit } from '../middleware/userRateLimit.js';
+import {
+  canonicalizeUrl,
+} from '../services/imports/canonicalUrl.js';
+import { computeSourceHash } from '../services/imports/sourceHash.js';
 import { SocialImportRepository } from '../services/imports/SocialImportRepository.js';
 import {
   SocialImportService,
@@ -79,6 +83,25 @@ export function createImportsSocialRouter(
     const userClient = req.supabaseClient!;
     return new SocialImportService(new SocialImportRepository(userClient), options);
   };
+  const buildRepo = (req: Request) =>
+    new SocialImportRepository(req.supabaseClient!);
+
+  // PRP-220.19: free-tier soft cap on "active" imports (anything not
+  // archived or saved). Server is the source of truth — the client
+  // shows a counter via /counts but cannot bypass this gate. Operators
+  // can lift the cap with MAX_FREE_ACTIVE_IMPORTS=99999 in env.
+  const FREE_ACTIVE_IMPORT_CAP = (() => {
+    const raw = process.env.MAX_FREE_ACTIVE_IMPORTS;
+    const n = raw ? Number.parseInt(raw, 10) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  })();
+  const isPremium = (req: Request): boolean => req.user?.tier === 'premium';
+  const remainingFreeQuota = async (req: Request): Promise<number | null> => {
+    if (isPremium(req)) return null;
+    const repo = buildRepo(req);
+    const active = await repo.countActive(req.user!.id);
+    return Math.max(0, FREE_ACTIVE_IMPORT_CAP - active);
+  };
 
   // ---- POST / -------------------------------------------------------
   router.post('/', captureLimiter, async (req: Request, res: Response) => {
@@ -89,6 +112,32 @@ export function createImportsSocialRouter(
     const userId = req.user?.id;
     const userClient = req.supabaseClient;
     if (!userId || !userClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+
+    // PRP-220.19: free-tier quota gate. Duplicate captures still
+    // succeed (idempotent — they don't increase the active count) so
+    // we only block when there's no slot AND the URL is genuinely
+    // new. The cheapest safe order is: count first, then let capture
+    // do its own dedupe; on a brand-new URL with active >= cap, fail.
+    const remaining = await remainingFreeQuota(req);
+    if (remaining !== null && remaining <= 0) {
+      // Avoid penalising idempotent re-captures of an already-stored
+      // URL: try to find it before refusing.
+      const repo = buildRepo(req);
+      const sourceHash = computeSourceHash(canonicalizeUrl(parsed.data.url));
+      const existing = await repo.findByHash(userId, sourceHash);
+      if (!existing) {
+        return res.status(402).json({
+          success: false,
+          message: `Limite gratuite de ${FREE_ACTIVE_IMPORT_CAP} imports actifs atteinte`,
+          code: 'QUOTA_EXCEEDED',
+          data: {
+            limit: FREE_ACTIVE_IMPORT_CAP,
+            tier: 'free',
+            upgradeUrl: '/billing/upgrade',
+          },
+        });
+      }
+    }
 
     try {
       const service = buildService(req);
@@ -116,9 +165,75 @@ export function createImportsSocialRouter(
     const userClient = req.supabaseClient;
     if (!userId || !userClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
 
+    // PRP-220.19: enforce the free-tier active cap on bulk too.
+    // Truncate the slice to the remaining capacity so the user sees
+    // partial success instead of a hard 402 — captures that fit go
+    // through, the rest are reported as quota-blocked items.
+    let urls = parsed.data.urls;
+    let blockedByQuota: string[] = [];
+    const remaining = await remainingFreeQuota(req);
+    if (remaining !== null) {
+      if (remaining <= 0) {
+        return res.status(402).json({
+          success: false,
+          message: `Limite gratuite de ${FREE_ACTIVE_IMPORT_CAP} imports actifs atteinte`,
+          code: 'QUOTA_EXCEEDED',
+          data: { limit: FREE_ACTIVE_IMPORT_CAP, tier: 'free', upgradeUrl: '/billing/upgrade' },
+        });
+      }
+      if (urls.length > remaining) {
+        blockedByQuota = urls.slice(remaining);
+        urls = urls.slice(0, remaining);
+      }
+    }
+
     const service = buildService(req);
-    const results = await service.bulkCapture(userId, parsed.data.urls);
+    const captureResults = await service.bulkCapture(userId, urls);
+    const results = [
+      ...captureResults,
+      ...blockedByQuota.map((url) => ({
+        url,
+        error: {
+          code: 'QUOTA_EXCEEDED' as const,
+          message: 'Quota gratuit atteint',
+        },
+      })),
+    ];
     return ok(res, { results }, 'Bulk processed', 'BULK_OK');
+  });
+
+  // ---- GET /counts --------------------------------------------------
+  // PRP-220.19: aggregated counts that drive the inbox quota badge +
+  // sidebar collections (active / total / by-platform / by-status).
+  // Plus a `quota` block so the client can render the gauge without
+  // asking another endpoint for the user's tier.
+  router.get('/counts', async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId || !req.supabaseClient) {
+      return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    }
+    try {
+      const repo = buildRepo(req);
+      const counts = await repo.countByGroupings(userId);
+      const tier = isPremium(req) ? 'premium' : 'free';
+      const limit = tier === 'premium' ? null : FREE_ACTIVE_IMPORT_CAP;
+      return ok(
+        res,
+        {
+          ...counts,
+          quota: {
+            tier,
+            limit,
+            remaining: limit === null ? null : Math.max(0, limit - counts.active),
+          },
+        },
+        'OK',
+        'COUNTS_OK'
+      );
+    } catch (error) {
+      console.error('[imports.social.counts] error:', error);
+      return fail(res, 'Failed to fetch counts', 500, 'COUNTS_FAILED');
+    }
   });
 
   // ---- GET / --------------------------------------------------------

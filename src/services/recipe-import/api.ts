@@ -13,6 +13,7 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import type {
   CaptureResponse,
   BulkCaptureResponse,
+  CountsResponse,
   CurrentDraftResponse,
   ListResponse,
   ListImportsQuery,
@@ -64,6 +65,11 @@ export const importsApi = {
   getCurrentDraft(id: string) {
     return apiGet<CurrentDraftResponse>(`${BASE}/${id}/current-draft`);
   },
+
+  // PRP-220.19: counts + quota in one round-trip.
+  getCounts() {
+    return apiGet<CountsResponse>(`${BASE}/counts`);
+  },
 };
 
 // Re-export for the convenience of components that already import
@@ -71,6 +77,7 @@ export const importsApi = {
 export type {
   CaptureResponse,
   BulkCaptureResponse,
+  CountsResponse,
   CurrentDraftResponse,
   ListResponse,
   SocialImport,
