@@ -1,13 +1,171 @@
 #!/usr/bin/env node
 
 /**
- * Security Baseline Validator for Smart Pantry Pro
- * Implements OWASP security checks based on Cipher validation requirements
+ * Security Baseline Validator for Smart Pantry Pro.
+ *
+ * Modes:
+ *   default          Run the full OWASP baseline (legacy behaviour).
+ *   --secrets-only   Run only the secret-pattern scan over all tracked files.
+ *   --staged-only    Run only the secret-pattern scan over `git diff --cached` files.
+ *                    Used by the pre-commit hook (PRP-220.03).
+ *
+ * Exit codes:
+ *   0   no findings
+ *   1   OWASP failures (default mode)
+ *   2   secret pattern matched (any --*-only mode)
+ *
+ * Reference: PRP-220.03 (outillage securite + pre-commit + CI).
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
+
+// === Mode parsing =====================================================
+const ARGS = process.argv.slice(2);
+const MODE_STAGED = ARGS.includes('--staged-only');
+const MODE_SECRETS = ARGS.includes('--secrets-only') || MODE_STAGED;
+
+// === Secret patterns ==================================================
+const SECRET_PATTERNS = [
+  { name: 'OpenAI API key',          regex: /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/g,                                severity: 'critical' },
+  { name: 'Anthropic API key',       regex: /sk-ant-[A-Za-z0-9_-]{20,}/g,                                       severity: 'critical' },
+  { name: 'Google API key',          regex: /\bAIza[A-Za-z0-9_-]{35}\b/g,                                       severity: 'high'     },
+  { name: 'AWS access key',          regex: /\bAKIA[0-9A-Z]{16}\b/g,                                            severity: 'critical' },
+  { name: 'Cloudinary API secret',   regex: /CLOUDINARY_API_SECRET\s*=\s*[A-Za-z0-9_-]{15,}/g,                  severity: 'high'     },
+  { name: 'Deepgram API key',        regex: /(?:DEEPGRAM_API_KEY|VITE_DEEPGRAM_API_KEY)\s*=\s*[a-f0-9]{32,}/gi, severity: 'high'     },
+  { name: 'Private key block',       regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g,                              severity: 'critical' },
+  { name: 'Generic API key literal', regex: /(?:api[_-]?key|apikey|api[_-]?secret)\s*[:=]\s*['"][A-Za-z0-9_-]{20,}['"]/gi, severity: 'medium' },
+];
+
+// === Files we never want to flag ======================================
+const IGNORE_RX = [
+  /(^|\/)node_modules\//,
+  /(^|\/)\.git\//,
+  /(^|\/)dist\//,
+  /(^|\/)build\//,
+  /(^|\/)coverage\//,
+  /package-lock\.json$/,
+  /pnpm-lock\.yaml$/,
+  /yarn\.lock$/,
+  /\.lock$/,
+  /\.example$/,
+  /(^|\/)SECURITY_INCIDENT_/,
+  /(^|\/)PRP\//,
+  /(^|\/)scripts\/security-baseline-check\.cjs$/,
+];
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+// Heuristic placeholder detector: skip "obvious example value" matches.
+// Use \b only on word characters; chars like '-' need a manual lookbehind.
+const PLACEHOLDER_RX = /(?:^|[^A-Za-z0-9])(your[-_]|placeholder|example[-_]|fake[-_]?|dummy[-_]?|xxxxx|insert[-_]your|production[-_]key|staging[-_]key|your[-_]?openai|your[-_]?api|test[-_](?:perf|key|api|fixture|stub|mock|dummy)|test[-_]?openai)/i;
+
+function looksLikePlaceholder(value) {
+  return PLACEHOLDER_RX.test(value);
+}
+
+// === Helpers ==========================================================
+function shouldIgnore(filePath) {
+  return IGNORE_RX.some((rx) => rx.test(filePath));
+}
+
+function getStagedFiles() {
+  try {
+    return execSync('git diff --cached --name-only --diff-filter=ACM', { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function getTrackedFiles() {
+  try {
+    return execSync('git ls-files', { encoding: 'utf8' })
+      .split('\n')
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function scanFileForSecrets(filePath) {
+  if (shouldIgnore(filePath)) return [];
+  if (!fs.existsSync(filePath)) return [];
+  let stat;
+  try {
+    stat = fs.statSync(filePath);
+  } catch {
+    return [];
+  }
+  if (!stat.isFile() || stat.size > MAX_FILE_SIZE) return [];
+
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf8');
+  } catch {
+    return [];
+  }
+
+  const findings = [];
+  for (const p of SECRET_PATTERNS) {
+    const allMatches = content.match(p.regex);
+    if (!allMatches || allMatches.length === 0) continue;
+    const realMatches = allMatches.filter((m) => !looksLikePlaceholder(m));
+    if (realMatches.length === 0) continue;
+    findings.push({
+      file: filePath,
+      pattern: p.name,
+      severity: p.severity,
+      count: realMatches.length,
+      samples: realMatches.slice(0, 2).map((m) => `${m.slice(0, 24)}...`),
+    });
+  }
+  return findings;
+}
+
+function reportFindings(findings, label) {
+  if (findings.length === 0) {
+    console.log(`[secret-scan] ${label}: OK - no secret patterns detected.`);
+    return false;
+  }
+  console.error(`[secret-scan] ${label}: FAIL - ${findings.length} pattern match(es):`);
+  for (const f of findings) {
+    console.error(`  [${f.severity.toUpperCase()}] ${f.file} -> ${f.pattern} (x${f.count})`);
+    for (const sample of f.samples) {
+      console.error(`      sample: ${sample}`);
+    }
+  }
+  console.error('');
+  console.error('Remediation:');
+  console.error('  - Move the secret to apps/api/.env (never any VITE_*).');
+  console.error('  - Rotate the credential at the provider (it is now considered exposed).');
+  console.error('  - If this is a false positive, extend IGNORE_RX in scripts/security-baseline-check.cjs.');
+  return true;
+}
+
+function runStagedSecretScan() {
+  const files = getStagedFiles();
+  if (files.length === 0) {
+    console.log('[secret-scan] staged: no staged files to scan.');
+    process.exit(0);
+  }
+  const findings = files.flatMap(scanFileForSecrets);
+  process.exit(reportFindings(findings, `staged (${files.length} file(s))`) ? 2 : 0);
+}
+
+function runFullSecretScan() {
+  const files = getTrackedFiles();
+  const findings = files.flatMap(scanFileForSecrets);
+  process.exit(reportFindings(findings, `all-tracked (${files.length} file(s))`) ? 2 : 0);
+}
+
+// Early exits for the pre-commit / CI fast path. The full OWASP class below
+// only runs when no `--*-only` flag was given.
+if (MODE_STAGED) runStagedSecretScan();
+if (MODE_SECRETS) runFullSecretScan();
 
 class SecurityBaselineValidator {
   constructor() {
