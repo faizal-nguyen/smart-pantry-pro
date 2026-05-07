@@ -41,7 +41,8 @@ export interface InsightsData {
   spendingTrends: SpendingTrend[];
   categoryBreakdown: CategorySpending[];
   nutritionBalance: NutritionBalance[];
-  wasteReductionDays: number;
+  /** Null until a real waste-event log is wired (see useInsightsData). */
+  wasteReductionDays: number | null;
   totalSavings: number;
   nutritionScore: number;
 }
@@ -102,23 +103,28 @@ export const useInsightsData = () => {
   }, [getTotalEstimatedCost, lastMonthSpending]);
 
   // Calculate waste reduction streak
+  // P1 fix (UI/UX audit): the previous `zeroWasteDays = 12` was a
+  // hardcoded fake. Without a `waste_events` table or a recorded
+  // history of consumed/discarded items, the only honest signal we
+  // can emit is the count of items currently close to expiry. A real
+  // streak counter needs durable per-event tracking — separate
+  // ticket. We return `null` so the UI can show a real empty state
+  // instead of a number we can't justify.
   const calculateWasteReduction = useMemo(() => {
     const today = new Date();
     const inventoryWithExpiry = inventory.filter(item => item.expiry_date);
-    
-    // Count items that haven't expired yet but are close
+
     const itemsNearExpiry = inventoryWithExpiry.filter(item => {
       const expiryDate = new Date(item.expiry_date!);
-      const daysToExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const daysToExpiry = Math.ceil(
+        (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
       return daysToExpiry >= 0 && daysToExpiry <= 7;
     });
 
-    // Simulate zero waste streak (in a real app, track actual waste events)
-    const zeroWasteDays = 12; // Mock data
-    
     return {
-      days: zeroWasteDays,
-      nearExpiryCount: itemsNearExpiry.length
+      days: null as number | null,
+      nearExpiryCount: itemsNearExpiry.length,
     };
   }, [inventory]);
 
@@ -154,17 +160,16 @@ export const useInsightsData = () => {
   }, [shoppingList, getTotalEstimatedCost]);
 
   // Calculate nutrition balance
+  // P1 fix (UI/UX audit): the previous values (Protéines: 85, Glucides:
+  // 70, …) were hardcoded mock data — they showed the same number for
+  // every user every time. Real nutrition aggregation needs the
+  // recipe-level `nutrition_info` snapshot persisted by PRP-220's
+  // RecipeNutrition cache, then weighted by serving frequency. Until
+  // that aggregator hook lands, return [] so the radar chart self-hides
+  // (or renders an empty state — see InsightsDashboard handling).
   const calculateNutritionBalance = useMemo(() => {
-    // Mock nutrition data based on recipes
-    // In a real app, you'd analyze recipe nutrition data
-    return [
-      { dimension: 'Protéines', value: 85, target: 100 },
-      { dimension: 'Glucides', value: 70, target: 100 },
-      { dimension: 'Lipides', value: 60, target: 100 },
-      { dimension: 'Fibres', value: 90, target: 100 },
-      { dimension: 'Vitamines', value: 75, target: 100 }
-    ];
-  }, [recipes]);
+    return [] as Array<{ dimension: string; value: number; target: number }>;
+  }, []);
 
   // Generate key metrics
   const keyMetrics = useMemo((): KeyMetric[] => {
@@ -185,12 +190,14 @@ export const useInsightsData = () => {
       {
         id: 'waste-reduction',
         title: 'Zéro gaspillage',
-        value: `${wasteReduction.days} jours`,
-        achievement: wasteReduction.days >= 7,
+        // Days is null until a real waste-event log lands — show an
+        // em-dash rather than a fabricated number.
+        value: wasteReduction.days !== null ? `${wasteReduction.days} jours` : '—',
+        achievement: wasteReduction.days !== null && wasteReduction.days >= 7,
         icon: '♻️',
         color: 'blue',
-        streak: true,
-        detail: `${wasteReduction.nearExpiryCount} produits à surveiller`
+        streak: wasteReduction.days !== null,
+        detail: `${wasteReduction.nearExpiryCount} produits à surveiller`,
       },
       {
         id: 'nutrition-score',

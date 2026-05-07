@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import AppNavigation from "@/components/navigation/AppNavigation";
+import { PageLoader } from "@/components/layout/PageLoader";
 import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
@@ -245,11 +247,11 @@ const SmartShoppingList = () => {
   }
 
   if (authLoading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   return (

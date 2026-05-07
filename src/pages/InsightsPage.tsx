@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { motion } from 'framer-motion';
 import { InsightsDashboard } from '@/components/insights';
 import AppNavigation from '@/components/navigation/AppNavigation';
-import { AdaptiveHeroViewport, HeroVariants } from '@/components/layout/AdaptiveHeroViewport';
+import { AdaptiveHeroViewport } from '@/components/layout/AdaptiveHeroViewport';
+import { PageLoader } from '@/components/layout/PageLoader';
 import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
-import { BarChart3, TrendingUp, Target, Award } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 const InsightsPage: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -28,11 +30,14 @@ const InsightsPage: React.FC = () => {
   // below renders the actual user data.
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
+  // P2 fix (UI/UX audit): the previous `<div>Non authentifié</div>`
+  // stranded the user on a navless screen forever. Bounce to /auth
+  // so the user can sign back in.
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
   
   return (

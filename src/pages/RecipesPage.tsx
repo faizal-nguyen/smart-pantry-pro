@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import AppNavigation from '@/components/navigation/AppNavigation';
+import { PageLoader } from '@/components/layout/PageLoader';
 import Recipes from "./Recipes";
 
 const RecipesPage = () => {
@@ -18,11 +20,11 @@ const RecipesPage = () => {
   }, []);
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   return (

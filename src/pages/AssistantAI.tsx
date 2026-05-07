@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { AIAssistantChat, AIAssistantErrorBoundary } from '@/components/ai';
+import { PageLoader } from '@/components/layout/PageLoader';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
 import { MessageSquare, X, ChefHat, ShoppingCart, Calendar, Lightbulb } from 'lucide-react';
@@ -25,11 +27,11 @@ export default function AssistantAI() {
   }, []);
 
   if (loading) {
-    return <div>Chargement...</div>;
+    return <PageLoader />;
   }
 
   if (!user) {
-    return <div>Non authentifié</div>;
+    return <Navigate to="/auth" replace />;
   }
 
   return (
