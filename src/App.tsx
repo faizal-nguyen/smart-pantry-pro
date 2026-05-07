@@ -122,6 +122,14 @@ if (import.meta.env.DEV) {
     // Legacy compatibility
     { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
     { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
+    // Many components still navigate to /recipes/:id and
+    // /recipes/:id/edit (Recipes.tsx, Inventory.tsx, RecipeCard,
+    // CollectionDetail, FloatingVideoButton…). Until those are
+    // migrated to /kitchen/recipes/*, alias the legacy paths here so
+    // RecipeInbox "Voir la recette" + every legacy navigate keeps
+    // working. PRP-220.17 follow-up.
+    { path: "/recipes/:id", element: withSuspense(RecipeDetail) },
+    { path: "/recipes/:id/edit", element: withSuspense(RecipeEdit) },
     { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
     { path: "/shopping-classic", element: withSuspense(ShoppingListPage) },
     { path: "/assistant-old", element: withSuspense(RecipeAssistant) },
