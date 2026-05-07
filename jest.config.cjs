@@ -4,6 +4,12 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/setupTests.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    // PRP-220.07: route the @smart/shared workspace import to its TS
+    // source so ts-jest can transform it. Avoids the ESM dist that
+    // jsdom can't load directly. Also maps the .js extension that
+    // NodeNext-style imports use in production code.
+    '^@smart/shared$': '<rootDir>/packages/shared/src/index.ts',
+    '^(\\.{1,2}/.+)\\.js$': '$1',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
