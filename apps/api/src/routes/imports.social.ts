@@ -134,6 +134,31 @@ export function createImportsSocialRouter(
     }
   });
 
+  // ---- GET /:id/current-draft --------------------------------------
+  // Returns the latest draft for an import alongside the import row
+  // itself. Used by the inbox "Vérifier" flow (PRP-220.12) to open the
+  // ExtractedRecipeModal pre-filled with the actual extraction.
+  router.get('/:id/current-draft', async (req: Request, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId || !req.supabaseClient) {
+      return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    }
+    try {
+      const service = buildService(req);
+      const result = await service.getWithCurrentDraft(userId, req.params.id);
+      if (!result) return fail(res, 'Not found', 404, 'NOT_FOUND');
+      return ok(
+        res,
+        { import: result.import, draft: result.draft },
+        result.draft ? 'OK' : 'No draft yet',
+        result.draft ? 'CURRENT_DRAFT_OK' : 'NO_DRAFT_YET'
+      );
+    } catch (error) {
+      console.error('[imports.social.current-draft] error:', error);
+      return fail(res, 'Failed to fetch draft', 500, 'CURRENT_DRAFT_FAILED');
+    }
+  });
+
   // ---- POST /:id/extract -------------------------------------------
   router.post('/:id/extract', async (req: Request, res: Response) => {
     const parsed = ExtractRequestSchema.safeParse(req.body ?? {});

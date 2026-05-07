@@ -124,3 +124,9 @@ export interface SaveResponse {
   import: SocialImport;
   recipe_id: string;
 }
+
+export interface CurrentDraftResponse {
+  import: SocialImport;
+  /** null when no extraction has run yet for this import. */
+  draft: ImportedRecipeDraftRow | null;
+}

@@ -13,6 +13,7 @@ import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import type {
   CaptureResponse,
   BulkCaptureResponse,
+  CurrentDraftResponse,
   ListResponse,
   ListImportsQuery,
   PatchImportFields,
@@ -59,6 +60,10 @@ export const importsApi = {
   save(id: string, body: SaveRequest = {}) {
     return apiPost<SaveResponse>(`${BASE}/${id}/save`, body);
   },
+
+  getCurrentDraft(id: string) {
+    return apiGet<CurrentDraftResponse>(`${BASE}/${id}/current-draft`);
+  },
 };
 
 // Re-export for the convenience of components that already import
@@ -66,6 +71,7 @@ export const importsApi = {
 export type {
   CaptureResponse,
   BulkCaptureResponse,
+  CurrentDraftResponse,
   ListResponse,
   SocialImport,
   ExtractRequest,

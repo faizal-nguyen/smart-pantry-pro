@@ -1,23 +1,31 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
-import type { ImportStatus, SocialImport } from '@/services/recipe-import/types';
+import type {
+  CurrentDraftResponse,
+  ImportStatus,
+  SocialImport,
+} from '@/services/recipe-import/types';
 
 import { CaptureUrlBar } from './inbox/CaptureUrlBar';
 import { FiltersBar, type FilterValue } from './inbox/FiltersBar';
 import { ImportCard } from './inbox/ImportCard';
 import { InboxEmptyState } from './inbox/InboxEmptyState';
+import { SearchBar } from './inbox/SearchBar';
 
 interface RecipeInboxProps {
   /**
-   * Optional callback fired when the user clicks "Vérifier" on a card.
-   * The Recipes page wires this to the existing ExtractedRecipeModal
-   * via the bridge adapter (PRP-220.08).
+   * Callback fired when the user clicks "Vérifier" on a card.
+   * Receives the import row PLUS the resolved current draft (from
+   * `imported_recipe_drafts.is_current = TRUE`) so the consumer can
+   * open the editor pre-filled. `draft` is null when no extraction
+   * has run yet (which shouldn't normally trigger Vérifier, but the
+   * type stays nullable to keep the consumer honest).
    */
-  onVerifyDraft?: (import_: SocialImport) => void;
+  onVerifyDraft?: (payload: CurrentDraftResponse) => void;
   className?: string;
 }
 
@@ -31,6 +39,14 @@ const TERMINAL_FILTERS: FilterValue[] = ['saved', 'archived'];
 export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, className }) => {
   const [filter, setFilter] = useState<FilterValue>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // 300ms debounce so the list query doesn't refetch on every keystroke.
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
 
   const apiStatus = filter === 'all' ? undefined : (filter as ImportStatus);
 
@@ -47,7 +63,11 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
     save,
     archive,
     unarchive,
-  } = useSocialRecipeImports({ status: apiStatus });
+    getCurrentDraft,
+  } = useSocialRecipeImports({
+    status: apiStatus,
+    search: debouncedSearch || undefined,
+  });
 
   const counts = useMemo(() => {
     const out: Partial<Record<FilterValue, number>> = { all: items.length };
@@ -95,14 +115,33 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
   const handleUnarchive = (id: string) =>
     wrap(id, () => unarchive(id), 'Import restauré');
 
-  const handleVerify = (import_: SocialImport) => {
-    onVerifyDraft?.(import_);
+  const handleVerify = async (import_: SocialImport) => {
+    setBusyId(import_.id);
+    try {
+      const payload = await getCurrentDraft(import_.id);
+      if (!payload.draft) {
+        toast.error("Aucun brouillon disponible", {
+          description: 'Lance une extraction d\'abord.',
+        });
+        return;
+      }
+      onVerifyDraft?.(payload);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Impossible de charger le brouillon';
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
     <section className={className} aria-label="Recipe inbox">
       <div className="mb-4">
         <CaptureUrlBar onCapture={handleCapture} />
+      </div>
+
+      <div className="mb-3">
+        <SearchBar value={searchInput} onChange={setSearchInput} />
       </div>
 
       <div className="mb-4">

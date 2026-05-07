@@ -45,6 +45,8 @@ const STABLE_ROUTES: Probe[] = [
   // the no-404 contract.
   { method: 'post', path: '/api/imports/social/00000000-0000-0000-0000-000000000000/extract' },
   { method: 'post', path: '/api/imports/social/00000000-0000-0000-0000-000000000000/save' },
+  // PRP-220.12 polish: current-draft fetch for the "Vérifier" flow.
+  { method: 'get',  path: '/api/imports/social/00000000-0000-0000-0000-000000000000/current-draft' },
 ];
 
 const V1_ROUTES: Probe[] = [

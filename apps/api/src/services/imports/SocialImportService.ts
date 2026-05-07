@@ -167,6 +167,22 @@ export class SocialImportService {
   }
 
   /**
+   * Return the import + its current draft (the one with is_current=TRUE).
+   * Used by the inbox UI's "Vérifier" flow (PRP-220.12) to open the
+   * ExtractedRecipeModal pre-filled with the latest extraction. Returns
+   * null when the import doesn't exist for the user.
+   */
+  async getWithCurrentDraft(
+    userId: string,
+    importId: string
+  ): Promise<{ import: SocialImportRow; draft: ImportedRecipeDraftRow | null } | null> {
+    const imp = await this.repo.findById(userId, importId);
+    if (!imp) return null;
+    const draft = await this.repo.findCurrentDraft(importId);
+    return { import: imp, draft };
+  }
+
+  /**
    * Trigger extraction on a captured import (PRP-220.11).
    *
    * State machine:

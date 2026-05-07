@@ -57,6 +57,7 @@ import { InstagramVideoExtractor } from "@/components/recipes/InstagramVideoExtr
 import { ExtractedRecipeModal } from "@/components/recipes/ExtractedRecipeModal";
 import { SocialImportCard } from "@/components/social/SocialImportCard";
 import { RecipeInbox } from "@/components/recipes/RecipeInbox";
+import { useSocialRecipeImports } from "@/hooks/useSocialRecipeImports";
 import { Inbox } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useRecipes } from "@/hooks/useRecipes";
@@ -93,6 +94,11 @@ export default function Recipes() {
   
   // Hook pour ajouter des recettes depuis l'ancien système
   const { addRecipeWithIngredients } = useRecipes();
+
+  // PRP-220.12: drive the Inbox tab badge from the imports list. We
+  // already query for the count via the shared hook so React Query
+  // dedupes against any other Inbox view that's mounted.
+  const { pendingCount: inboxPendingCount } = useSocialRecipeImports();
 
   const { data: trendingRecipes } = useTrendingRecipes();
 
@@ -168,6 +174,11 @@ export default function Recipes() {
             <TabsTrigger value="inbox" className="flex items-center gap-2 text-base">
               <Inbox className="h-5 w-5" />
               Inbox
+              {inboxPendingCount > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {inboxPendingCount}
+                </Badge>
+              )}
             </TabsTrigger>
 
             <TabsTrigger value="import" className="flex items-center gap-2 text-base">
@@ -204,14 +215,34 @@ export default function Recipes() {
           {/* Onglet Inbox - Imports sociaux (PRP-220.12) */}
           <TabsContent value="inbox" className="space-y-6">
             <RecipeInbox
-              onVerifyDraft={(socialImport) => {
-                // The full draft editing modal is delivered by the
-                // bridge from PRP-220.08. We stash the import id so a
-                // future iteration can fetch the current draft and
-                // pre-fill the modal; the toast keeps the contract
-                // explicit until then.
+              onVerifyDraft={({ import: socialImport, draft }) => {
+                // The "Vérifier" flow now resolves the actual current
+                // draft via /api/imports/social/:id/current-draft. We
+                // shape the legacy `extractedRecipe` payload from the
+                // canonical ImportedRecipeDraft so the existing modal
+                // (PRP-220.08 bridge) keeps working until the modal is
+                // rewritten in PRP-220.16/220.17.
+                if (!draft) return;
+                const d = draft.draft_json;
                 setExtractedRecipe({
-                  title: socialImport.title ?? '',
+                  title: d.title,
+                  description: d.description ?? '',
+                  ingredients: d.ingredients.map((i) => ({
+                    name: i.name,
+                    amount: i.quantity != null ? String(i.quantity) : '',
+                    unit: i.unit ?? '',
+                  })),
+                  instructions: d.instructions.map((s) => ({
+                    step: s.step,
+                    description: s.description,
+                  })),
+                  metadata: {
+                    confidence: d.confidence,
+                    platform: d.source.platform,
+                    extractionMethod: d.source.extractionMethod,
+                    thumbnail: d.imageUrl ?? d.source.thumbnailUrl,
+                    servings: d.servings,
+                  },
                   sourceUrl: socialImport.source_url,
                   importId: socialImport.id,
                 });

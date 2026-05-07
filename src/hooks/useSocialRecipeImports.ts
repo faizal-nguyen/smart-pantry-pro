@@ -153,6 +153,11 @@ export function useSocialRecipeImports(options: UseSocialRecipeImportsOptions = 
     extract: (id: string, body?: ExtractRequest) =>
       extractMutation.mutateAsync({ id, body }),
     save: (id: string, body?: SaveRequest) => saveMutation.mutateAsync({ id, body }),
+    /**
+     * Fetch the import + its current draft. Used by the "Vérifier"
+     * action in the inbox to pre-fill the editor (PRP-220.12).
+     */
+    getCurrentDraft: (id: string) => importsApi.getCurrentDraft(id),
     archive: (id: string) => archiveMutation.mutateAsync(id),
     unarchive: (id: string) => unarchiveMutation.mutateAsync(id),
     patch: (id: string, fields: PatchImportFields) =>
