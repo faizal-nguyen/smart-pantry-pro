@@ -11,6 +11,8 @@ import type {
   SocialImport,
 } from '@/services/recipe-import/types';
 
+import { BulkImportButton } from './BulkImportButton';
+import { ClipboardSuggestion } from './ClipboardSuggestion';
 import { CaptureUrlBar } from './inbox/CaptureUrlBar';
 import { FiltersBar, type FilterValue } from './inbox/FiltersBar';
 import { ImportCard } from './inbox/ImportCard';
@@ -159,8 +161,15 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
 
   return (
     <section className={className} aria-label="Recipe inbox">
-      <div className="mb-4">
-        <CaptureUrlBar onCapture={handleCapture} />
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start">
+        <div className="flex-1">
+          <CaptureUrlBar onCapture={handleCapture} />
+        </div>
+        <BulkImportButton className="sm:mt-0" />
+      </div>
+
+      <div className="mb-3">
+        <ClipboardSuggestion />
       </div>
 
       <div className="mb-3">
