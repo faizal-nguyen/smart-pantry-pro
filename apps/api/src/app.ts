@@ -34,6 +34,8 @@ import { shoppingItemsBatchRouter } from './routes/shoppingItemsBatch.js';
 import { instagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
 import { diagnosticsRouter } from './routes/diagnostics.js';
+import { createImportsSocialRouter } from './routes/imports.social.js';
+import { supabaseAdmin } from './config/supabase.js';
 
 const ytRateLimit = () =>
   rateLimit({
@@ -101,6 +103,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/ai-assistant-enhanced', assistantRateLimit(), assistantCompatRouter);
   app.use('/api/proxy', proxyRouter);
   app.use('/api/diagnostics', diagnosticsRouter);
+  app.use('/api/imports/social', createImportsSocialRouter(supabaseAdmin));
 
   // === v1 aliases (same handlers, versioned path) ===
   app.use('/api/v1/health', healthRouter);
@@ -115,6 +118,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/ai-assistant-enhanced', assistantRateLimit(), assistantCompatRouter);
   app.use('/api/v1/proxy', proxyRouter);
   app.use('/api/v1/diagnostics', diagnosticsRouter);
+  app.use('/api/v1/imports/social', createImportsSocialRouter(supabaseAdmin));
 
   // === Realtime status (optional, only when index.ts wires it) ===
   if (options.realtimeStatus) {

@@ -35,6 +35,11 @@ const STABLE_ROUTES: Probe[] = [
   { method: 'post', path: '/api/ai-assistant-enhanced' },
   { method: 'get',  path: '/api/diagnostics' },
   { method: 'get',  path: '/api/diagnostics/routes' },
+  // PRP-220.10: imports REST API. Auth middleware -> 401 without a
+  // token; that already fails the "not 404" assertion as expected.
+  { method: 'post', path: '/api/imports/social' },
+  { method: 'post', path: '/api/imports/social/bulk' },
+  { method: 'get',  path: '/api/imports/social' },
 ];
 
 const V1_ROUTES: Probe[] = [
@@ -48,6 +53,8 @@ const V1_ROUTES: Probe[] = [
   { method: 'post', path: '/api/v1/shopping/items/batch' },
   { method: 'post', path: '/api/v1/assistant/stream' },
   { method: 'get',  path: '/api/v1/diagnostics' },
+  { method: 'post', path: '/api/v1/imports/social' },
+  { method: 'get',  path: '/api/v1/imports/social' },
 ];
 
 const ALL_ROUTES = [

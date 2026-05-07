@@ -16,5 +16,6 @@
       "@smart/shared/*": ["../../packages/shared/dist/*"]
     }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts"]
 }
