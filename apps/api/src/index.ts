@@ -1,123 +1,55 @@
 /**
- * Smart Pantry API - Version Stable
- * With WebSocket real-time support
+ * Smart Pantry API - boot script.
+ *
+ * PRP-220.04: imports the Express app factory from `./app.ts`,
+ * wires the WebSocket realtime service, then listens on PORT (4000 by
+ * default — see apps/api/.env.example).
+ *
+ * This file has side effects (binds a port, starts a process). For
+ * tests or for embedding the app inside another runtime, import
+ * `createApp` from `./app.ts` directly.
  */
-import express from 'express';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
-import { realtimeService } from './services/websocket/realtimeService.js';
 
-// Charger .env
+import { createApp } from './app.js';
+
 dotenv.config({ path: '.env' });
 
-console.log('✓ Configuration chargée');
+// WebSocket realtime service is optional: load lazily so a broken
+// socket.io install (transitive peer-dep mismatch) cannot prevent the
+// HTTP API from starting. The /api/realtime/status endpoint reflects
+// whether the realtime layer actually came up.
+let realtimeReady = false;
+let realtimeConnected = () => 0;
 
-// Imports middlewares
-import { corsMiddleware } from './middleware/cors.js';
-import { securityMiddleware } from './middleware/security.js';
-import { requestIdHeader } from './middleware/requestId.js';
-import { errorHandler } from './middleware/errorHandler.js';
-
-// Imports routes
-import { healthRouter } from './routes/health.js';
-import { v1Router } from './routes/v1.js';
-import { assistantRouter, assistantCompatRouter } from './routes/assistant.js';
-
-const app = express();
-app.use(express.json({ limit: '1mb' }));
-
-// Middlewares
-app.use(corsMiddleware);
-app.use(securityMiddleware);
-app.use(requestIdHeader);
-
-// Routes
-app.get('/', (req, res) => {
-  res.json({
-    name: 'Smart Pantry API',
-    version: '1.0.0',
-    status: 'running',
-    endpoints: {
-      health: '/api/health',
-      inventory: '/api/v1/inventory',
-      recipes: '/api/v1/recipes',
-      shopping: '/api/v1/shopping',
-      users: '/api/v1/users',
-      assistant: '/api/assistant/stream'
-    },
-    timestamp: new Date().toISOString()
-  });
+const app = createApp({
+  realtimeStatus: () => ({
+    enabled: realtimeReady,
+    connectedClients: realtimeConnected(),
+  }),
 });
+const PORT = Number.parseInt(process.env.PORT ?? '4000', 10);
 
-app.get('/favicon.ico', (req, res) => res.status(204).end());
-
-// Health check
-app.use('/api/health', healthRouter);
-app.use('/api/v1/health', healthRouter);
-
-// API v1 Routes (avec auth middleware intégré)
-app.use('/api/v1', v1Router);
-
-// Assistant AI Routes
-app.use('/api/assistant', assistantRouter);
-app.use('/api/ai-assistant-enhanced', assistantCompatRouter); // Legacy compatibility
-
-console.log('✓ Routes API activées');
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-    code: 'ROUTE_NOT_FOUND',
-    path: req.path,
-    availableRoutes: [
-      'GET /',
-      'GET /api/health',
-      'GET /api/v1/health',
-      'GET/POST /api/v1/inventory',
-      'GET/POST /api/v1/recipes',
-      'GET/POST /api/v1/shopping',
-      'GET /api/v1/users/me',
-      'POST /api/assistant/stream'
-    ]
-  });
-});
-
-// Error handler
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 3030;
-
-// Create HTTP server for Express + Socket.io
 const httpServer = createServer(app);
 
-// Initialize WebSocket real-time service
-const io = realtimeService.initialize(httpServer);
-
-// WebSocket status endpoint
-app.get('/api/realtime/status', (req, res) => {
-  res.json({
-    success: true,
-    websocket: {
-      enabled: true,
-      connectedClients: realtimeService.getConnectedUsersCount(),
-      transports: ['websocket', 'polling']
-    },
-    timestamp: new Date().toISOString()
+import('./services/websocket/realtimeService.js')
+  .then(({ realtimeService }) => {
+    realtimeService.initialize(httpServer);
+    realtimeConnected = () => realtimeService.getConnectedUsersCount();
+    realtimeReady = true;
+    console.log('✓ WebSocket realtime service initialised');
+  })
+  .catch((error) => {
+    console.error('✗ WebSocket realtime service failed to load:', error?.message ?? error);
+    console.warn('⚠️  HTTP API continues without realtime support.');
   });
-});
 
 httpServer.listen(PORT, () => {
-  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  console.log(`🎉 Smart Pantry API opérationnelle!`);
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🎉 Smart Pantry API operational');
   console.log(`🌐 http://localhost:${PORT}`);
-  console.log(`📊 Health: http://localhost:${PORT}/api/health`);
+  console.log(`📊 Health:    http://localhost:${PORT}/api/health`);
   console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
-  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-  console.log(`✅ Serveur HTTP + WebSocket prêt`);
-  console.log(`⚙️  Routes additionnelles à activer progressivement\n`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 });
-
-export { io, realtimeService };
-export default app;
