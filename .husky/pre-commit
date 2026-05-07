@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+# Smart Pantry Pro - pre-commit hook (PRP-220.03)
+# Blocks accidental commits of .env files (with secrets) and any staged
+# file matching a secret pattern.
+
+# 1) Block any tracked .env / apps/api/.env / services/**/.env file (other than .example).
+staged_env=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '(^|/)\.env(\.|$)' \
+  | grep -vE '\.example$' \
+  || true)
+
+if [ -n "$staged_env" ]; then
+  echo "[pre-commit] BLOCK: refuse to commit env files containing secrets:"
+  printf '  - %s\n' $staged_env
+  echo
+  echo "If this is genuinely required, talk to the team first."
+  echo "Otherwise: remove the file from the index ('git restore --staged <file>')"
+  echo "and ensure the path matches a pattern in .gitignore."
+  exit 1
+fi
+
+# 2) Run the secret scanner on staged files only (fast: ~ < 1s).
+node scripts/security-baseline-check.cjs --staged-only
+SCAN_EXIT=$?
+
+if [ $SCAN_EXIT -ne 0 ]; then
+  echo
+  echo "[pre-commit] BLOCK: secret pattern detected in a staged file."
+  echo "If this is a false positive, extend IGNORE_RX in"
+  echo "scripts/security-baseline-check.cjs (and add a comment explaining why)."
+  exit $SCAN_EXIT
+fi
+
+exit 0

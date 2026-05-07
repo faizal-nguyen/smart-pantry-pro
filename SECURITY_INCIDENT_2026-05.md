@@ -30,6 +30,7 @@ repo est public. Ne pas reutiliser, meme reactivees plus tard.
 | Google / YouTube | `YOUTUBE_API_KEY`, `VITE_YOUTUBE_API_KEY` | API key |
 | Supabase (project `jwoxacnflphclslpqfzs`) | `VITE_SUPABASE_ANON_KEY` | JWT anon (RLS-protege) |
 | Supabase | `SUPABASE_SERVICE_KEY` (dans `apps/api/.env` non trace) | JWT service_role |
+| Piloterr (scraping) | `PILOTERR_API_KEY` UUID (hardcoded dans 6 `scripts/test-piloterr-*` + `scripts/piloterr-scraper-final.cjs`) | API key (decouverte par le scanner PRP-220.03) |
 
 Aucune cle de paiement (Stripe), authentification (Auth0, Clerk) ou
 webhook signe n'est concernee.
@@ -38,9 +39,11 @@ webhook signe n'est concernee.
 
 - **2025-12-29** : commit `9696a47f` introduit `.env.development` avec secrets.
 - **2025-09-12 a 2026-05-06** : repo public, secrets exfiltrables.
-- **2026-05-06** : detection (audit interne, rapport Codex PRP-220).
-- **2026-05-06** : revocation des cles chez tous les fournisseurs.
+- **2026-05-06** : detection initiale (audit interne, rapport Codex PRP-220).
+- **2026-05-06** : revocation des cles chez tous les fournisseurs (Open AI / Deepgram / Cloudinary / YouTube / Supabase).
 - **2026-05-06** : nettoyage du tracking git (PRP-220.01, branche `chore/security-prp-220-01`).
+- **2026-05-07** : detection Piloterr API key par le scanner PRP-220.03.
+- **2026-05-07** : revocation Piloterr + suppression des 6 scripts de debug exposes (PRP-220.03, branche `chore/security-prp-220-03`).
 
 ## 4. Mitigation immediate
 
@@ -55,6 +58,8 @@ webhook signe n'est concernee.
 | M7 | Corriger `.gitignore` (suppression negations) | PRP-220.01 | Done (cette branche) |
 | M8 | Reecrire `.env.example` et `apps/api/.env.example` | PRP-220.01 | Done (cette branche) |
 | M9 | Stocker les nouvelles cles dans le secret manager | Faizel | Done |
+| M10 | Revoquer cle Piloterr (decouverte par scanner) | Faizel | Done (2026-05-07) |
+| M11 | Supprimer les 6 scripts `scripts/test-piloterr-*` + `scripts/piloterr-scraper-final.cjs` | PRP-220.03 | Done (cette branche) |
 
 ## 5. Decision : reecriture historique
 

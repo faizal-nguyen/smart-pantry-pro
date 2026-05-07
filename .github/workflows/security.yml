@@ -1,0 +1,50 @@
+name: Security Baseline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret pattern scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install minimal deps (no postinstall)
+        run: |
+          # Only the scanner is needed; skip the heavy install for speed.
+          # The scanner is a single Node.js file with no third-party deps.
+          node --version
+
+      - name: Run secret scan over all tracked files
+        run: node scripts/security-baseline-check.cjs --secrets-only
+
+      - name: Verify no .env file is tracked (except .example)
+        run: |
+          set -e
+          tracked=$(git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -vE '\.example$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::These env files are tracked but should not be:"
+            echo "$tracked"
+            exit 1
+          fi
+          echo "OK: no env file tracked outside .example templates."
