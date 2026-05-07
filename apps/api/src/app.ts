@@ -35,6 +35,7 @@ import { instagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
 import { diagnosticsRouter } from './routes/diagnostics.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
+import { createMetricsRouter } from './routes/metrics.js';
 import { supabaseAdmin } from './config/supabase.js';
 import { defaultExtractionService } from './services/imports/index.js';
 
@@ -110,6 +111,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
       extractionService: defaultExtractionService(),
     })
   );
+  // PRP-220.15: Prometheus metrics. Auth via METRICS_AUTH_TOKEN bearer
+  // (constant-time compare). Mounted last so it never collides with a
+  // public catch-all.
+  app.use('/api/metrics', createMetricsRouter());
 
   // === v1 aliases (same handlers, versioned path) ===
   app.use('/api/v1/health', healthRouter);

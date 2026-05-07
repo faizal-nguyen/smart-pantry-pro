@@ -13,10 +13,39 @@ declare global {
         id: string;
         email?: string;
         role?: string;
+        /** Subscription tier (PRP-220.15). Defaults to 'free' when no
+         * row exists in `user_subscriptions` or the table is missing. */
+        tier?: 'free' | 'premium';
       };
       /** User-scoped Supabase client with RLS enforcement */
       supabaseClient?: SupabaseClient<Database>;
     }
+  }
+}
+
+/**
+ * Resolve the user's subscription tier (PRP-220.15). Uses the admin
+ * client because the `user_subscriptions` table is read-only at this
+ * stage and not exposed to RLS. Returns 'free' on any failure (table
+ * absent, network error, expired subscription).
+ */
+async function resolveUserTier(
+  admin: SupabaseClient<Database>,
+  userId: string
+): Promise<'free' | 'premium'> {
+  try {
+    const { data, error } = await admin
+      .from('user_subscriptions' as any)
+      .select('tier, expires_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error || !data) return 'free';
+    const row = data as { tier?: string; expires_at?: string | null };
+    if (row.tier !== 'premium') return 'free';
+    if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) return 'free';
+    return 'premium';
+  } catch {
+    return 'free';
   }
 }
 
@@ -44,11 +73,15 @@ export function createAuthMiddleware(supabase: SupabaseClient<Database>) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
 
+      // Resolve subscription tier (defaults to 'free' on any error).
+      const tier = await resolveUserTier(supabase, user.id);
+
       // Attach user to request
       req.user = {
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        tier,
       };
 
       // CRITICAL: Create user-scoped client with RLS enforcement
@@ -81,10 +114,12 @@ export function createOptionalAuthMiddleware(supabase: SupabaseClient<Database>)
       const { data: { user }, error } = await supabase.auth.getUser(token);
 
       if (!error && user) {
+        const tier = await resolveUserTier(supabase, user.id);
         req.user = {
           id: user.id,
           email: user.email,
-          role: user.role
+          role: user.role,
+          tier,
         };
       }
 
