@@ -11,8 +11,11 @@ import type {
   SocialImport,
 } from '@/services/recipe-import/types';
 
+import RecipeImportOnboarding from '@/components/onboarding/RecipeImportOnboarding';
+
 import { BulkImportButton } from './BulkImportButton';
 import { ClipboardSuggestion } from './ClipboardSuggestion';
+import { InboxQuotaBadge } from './InboxQuotaBadge';
 import { CaptureUrlBar } from './inbox/CaptureUrlBar';
 import { FiltersBar, type FilterValue } from './inbox/FiltersBar';
 import { ImportCard } from './inbox/ImportCard';
@@ -161,6 +164,12 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
 
   return (
     <section className={className} aria-label="Recipe inbox">
+      <RecipeImportOnboarding />
+
+      <div className="mb-3">
+        <InboxQuotaBadge />
+      </div>
+
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start">
         <div className="flex-1">
           <CaptureUrlBar onCapture={handleCapture} />

@@ -130,3 +130,18 @@ export interface CurrentDraftResponse {
   /** null when no extraction has run yet for this import. */
   draft: ImportedRecipeDraftRow | null;
 }
+
+/** PRP-220.19: aggregated counts + quota info for the inbox. */
+export interface CountsResponse {
+  total: number;
+  active: number;
+  byPlatform: Record<string, number>;
+  byStatus: Record<string, number>;
+  quota: {
+    tier: 'free' | 'premium';
+    /** null = unlimited (premium). */
+    limit: number | null;
+    /** null = unlimited (premium). */
+    remaining: number | null;
+  };
+}
