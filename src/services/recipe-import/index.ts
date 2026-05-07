@@ -42,3 +42,14 @@ export {
   voiceToDraft,
   type VoiceRecipeInput,
 } from './adapters/voiceRecipeAdapter.js';
+
+// Bridge between the canonical draft and the legacy ExtractedRecipeModal
+// shape (PRP-220.08). Used until the modal itself is rewritten.
+export {
+  draftToExtractedRecipe,
+  extractedRecipeToDraft,
+  type ExtractedRecipe,
+  type ExtractedRecipeIngredient,
+  type ExtractedRecipeInstruction,
+  type ExtractedRecipeMetadata,
+} from './adapters/extractedRecipeBridge.js';

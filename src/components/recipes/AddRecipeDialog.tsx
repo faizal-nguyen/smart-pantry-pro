@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ImportedRecipeDraft } from "@smart/shared";
 import { useRecipeParser } from "@/hooks/useRecipeParser";
 import { useSocialRecipeParser } from "@/hooks/useSocialRecipeParser";
 import RecipeBookScanner, { OCRRecipeResult } from "./RecipeBookScanner";
@@ -108,9 +109,15 @@ interface AddRecipeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRecipeAdded?: (recipe: Recipe) => void;
+  /**
+   * Pre-fill the form from a canonical ImportedRecipeDraft (PRP-220.08).
+   * Used by the Inbox flow (PRP-220.12) to hand over an extracted draft
+   * for final manual review before saving.
+   */
+  initialDraft?: ImportedRecipeDraft;
 }
 
-const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogProps) => {
+const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: AddRecipeDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState("manual");
   
@@ -152,6 +159,45 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded }: AddRecipeDialogP
   
   // Voice input state (pattern Cipher)
   const [showVoiceInput, setShowVoiceInput] = useState(false);
+
+  // PRP-220.08: pre-fill the form when an ImportedRecipeDraft is handed
+  // in. We only react to fresh drafts (the dialog opening or the draft
+  // identity changing) so the user's in-progress edits aren't wiped on
+  // every re-render.
+  useEffect(() => {
+    if (!initialDraft) return;
+    setRecipeName(initialDraft.title);
+    setDescription(initialDraft.description ?? "");
+    setCuisineCategory(initialDraft.cuisineCategory ?? "");
+    setMealType(initialDraft.mealType ?? "");
+    setPrepTime(String(initialDraft.prepTimeMinutes ?? 15));
+    setCookTime(String(initialDraft.cookTimeMinutes ?? 30));
+    setServings(String(initialDraft.servings ?? 4));
+    setDifficulty(initialDraft.difficulty ?? 2);
+    setImageUrl(initialDraft.imageUrl ?? initialDraft.source.thumbnailUrl ?? "");
+    setTags(Array.isArray(initialDraft.tags) ? [...initialDraft.tags] : []);
+
+    setIngredients(
+      initialDraft.ingredients.length > 0
+        ? initialDraft.ingredients.map((i) => ({
+            name: i.name,
+            quantity: typeof i.quantity === "number" ? i.quantity : 0,
+            unit: i.unit ?? "",
+            is_essential: i.isEssential ?? true,
+            notes: i.notes ?? "",
+          }))
+        : [{ name: "", quantity: 0, unit: "g", is_essential: true, notes: "" }]
+    );
+
+    setInstructions(
+      initialDraft.instructions
+        .map((step, idx) => `${idx + 1}. ${step.description}`)
+        .join("\n")
+    );
+
+    if (open) setCurrentTab("manual");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraft, open]);
 
   const resetForm = () => {
     setRecipeName("");

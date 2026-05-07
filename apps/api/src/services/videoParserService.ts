@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import { VideoParseError } from './errors.js';
 
 export type Platform = 'youtube' | 'tiktok' | 'instagram' | 'generic';
 
@@ -86,29 +87,21 @@ export async function parseVideoRecipe(
     };
 
     return formatted;
-  } catch (error: any) {
-    // Fallback demo to maintain non-breaking behavior during consolidation
-    return {
-      title: 'Demo Recipe from Video',
-      description: 'Fallback demo response (service unavailable).',
-      cookingTime: 30,
-      prepTime: 10,
-      servings: 4,
-      difficulty: 'Moyen',
-      category: 'Plat principal',
-      ingredients: [
-        { name: 'Poulet', quantity: 500, unit: 'g' },
-        { name: 'Sauce soja', quantity: 50, unit: 'ml' },
-        { name: 'Miel', quantity: 20, unit: 'g' },
-      ],
-      instructions: [
-        { step: 1, instruction: 'Préparer les ingrédients' },
-        { step: 2, instruction: 'Saisir le poulet' },
-        { step: 3, instruction: 'Ajouter la sauce et mijoter' },
-      ],
-      tags: ['demo', 'video', platform || 'auto'],
-      metadata: { extractionMethod: 'apps/api-fallback', error: error?.message },
-    };
+  } catch (error: unknown) {
+    // PRP-220.08: never fabricate a recipe on extraction failure. The
+    // previous "Demo Recipe from Video" fallback could be saved by the
+    // user, polluting their library with a placeholder. Surface the
+    // failure so the route turns it into a 422 and the UI can offer a
+    // clear "retry / fix manually" path.
+    throw new VideoParseError({
+      code: 'EXTRACTION_FAILED',
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : 'Video extraction failed',
+      platform: platform ?? 'generic',
+      cause: error,
+    });
   }
 }
 
