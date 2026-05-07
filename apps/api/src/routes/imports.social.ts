@@ -24,6 +24,7 @@ import {
   SocialImportService,
   type SocialImportServiceOptions,
 } from '../services/imports/SocialImportService.js';
+import { ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
 import {
   CaptureRequestSchema,
   BulkCaptureRequestSchema,
@@ -81,7 +82,16 @@ export function createImportsSocialRouter(
 
   const buildService = (req: Request) => {
     const userClient = req.supabaseClient!;
-    return new SocialImportService(new SocialImportRepository(userClient), options);
+    // PRP-220.24 §5.13: thumbnail snapshot uses the per-request user
+    // client for RLS-bound media_assets inserts and the admin client
+    // for the storage upload.
+    const thumbnailSnapshotter =
+      options.thumbnailSnapshotter ??
+      new ThumbnailSnapshotService(userClient, adminClient);
+    return new SocialImportService(new SocialImportRepository(userClient), {
+      ...options,
+      thumbnailSnapshotter,
+    });
   };
   const buildRepo = (req: Request) =>
     new SocialImportRepository(req.supabaseClient!);

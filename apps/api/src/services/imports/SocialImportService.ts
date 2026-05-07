@@ -43,6 +43,7 @@ import {
 } from './importErrors.js';
 import { metrics } from '../../lib/metrics.js';
 import { logExtraction } from '../../lib/logger.js';
+import type { ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
 
 export interface CaptureResult {
   import: SocialImportRow;
@@ -81,6 +82,13 @@ export interface SocialImportServiceOptions {
    * raise 422 SAVE_FAILED with an explicit "not wired" message.
    */
   saveImportedDraftAsRecipe?: SaveImportedDraftAsRecipe;
+  /**
+   * PRP-220.24 §5.13: capture-time thumbnail snapshot. When provided,
+   * `extract` fires it after the lifecycle update so the import owns a
+   * durable copy of the OG thumbnail (Insta/TikTok CDN URLs expire in
+   * weeks). Failure is silent — the caller falls back to the remote URL.
+   */
+  thumbnailSnapshotter?: ThumbnailSnapshotter;
 }
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
@@ -88,6 +96,7 @@ const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
 export class SocialImportService {
   private readonly extractionService: RecipeExtractionService;
   private readonly saveImportedDraftAsRecipe: SaveImportedDraftAsRecipe;
+  private readonly thumbnailSnapshotter?: ThumbnailSnapshotter;
 
   constructor(
     private readonly repo: SocialImportRepository,
@@ -96,6 +105,7 @@ export class SocialImportService {
     this.extractionService = options.extractionService ?? new NotImplementedExtractionService();
     this.saveImportedDraftAsRecipe =
       options.saveImportedDraftAsRecipe ?? notImplementedSaveImportedDraftAsRecipe;
+    this.thumbnailSnapshotter = options.thumbnailSnapshotter;
   }
 
   /**
@@ -286,6 +296,21 @@ export class SocialImportService {
       error_message: null,
     });
     if (!updated) throw new ImportNotFoundError(importId);
+
+    // PRP-220.24 §5.13: snapshot the OG thumbnail to our own storage so
+    // we don't depend on the Insta/TikTok CDN's signed-URL TTL. Fire and
+    // forget — the failure mode is "stay with the remote URL", never
+    // "fail extract".
+    if (this.thumbnailSnapshotter && updated.thumbnail_url) {
+      void this.thumbnailSnapshotter
+        .snapshot({
+          userId,
+          importId: updated.id,
+          remoteUrl: updated.thumbnail_url,
+          sourceUrl: updated.source_url ?? undefined,
+        })
+        .catch(() => undefined);
+    }
 
     metrics.extractionTotal.inc({ platform: acquired.platform, outcome: 'success' });
     metrics.extractionLatency.observe({ platform: acquired.platform }, result.durationMs ?? 0);
