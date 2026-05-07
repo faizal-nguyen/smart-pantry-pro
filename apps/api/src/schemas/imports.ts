@@ -53,6 +53,23 @@ export const ListImportsQuerySchema = z.object({
 });
 export type ListImportsQuery = z.infer<typeof ListImportsQuerySchema>;
 
+// ---- POST /api/imports/social/:id/extract ---------------------------
+export const ExtractRequestSchema = z.object({
+  hint: z.string().max(2000).optional(),
+  force: z.boolean().optional(),
+});
+export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
+
+// ---- POST /api/imports/social/:id/save ------------------------------
+// `draft` accepts arbitrary JSON; the service re-validates with
+// ImportedRecipeDraftSchema before persisting.
+export const SaveRequestSchema = z.object({
+  draft: z.unknown().optional(),
+  collections: z.array(z.string().uuid()).max(20).optional(),
+  personal_notes: z.string().max(2000).optional(),
+});
+export type SaveRequest = z.infer<typeof SaveRequestSchema>;
+
 // ---- PATCH /api/imports/social/:id ----------------------------------
 // Only safe transitions are exposed via PATCH. State transitions that
 // require business logic (extracting, saved, failed, draft_ready,

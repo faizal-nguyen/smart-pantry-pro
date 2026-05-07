@@ -48,6 +48,57 @@ export interface PatchImportFields {
   author_name?: string;
 }
 
+/**
+ * Fields the service may write during the extract / save flows
+ * (PRP-220.11). Kept narrow on purpose so a route handler can't ship
+ * arbitrary updates by accident.
+ */
+export interface ImportLifecycleFields {
+  status?:
+    | 'captured'
+    | 'metadata_ready'
+    | 'extracting'
+    | 'draft_ready'
+    | 'needs_review'
+    | 'saved'
+    | 'failed'
+    | 'archived';
+  title?: string | null;
+  author_name?: string | null;
+  author_handle?: string | null;
+  thumbnail_url?: string | null;
+  confidence?: number | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  recipe_id?: string | null;
+}
+
+export interface ImportedRecipeDraftRow {
+  id: string;
+  import_id: string;
+  user_id: string;
+  draft_json: unknown;
+  version: number;
+  is_current: boolean;
+  source_extraction_method: string | null;
+  ai_model: string | null;
+  ai_input_tokens: number | null;
+  ai_output_tokens: number | null;
+  cost_usd_estimate: number | null;
+  created_at: string;
+}
+
+export interface InsertDraftInput {
+  importId: string;
+  userId: string;
+  draftJson: unknown;
+  sourceExtractionMethod?: string;
+  aiModel?: string;
+  aiInputTokens?: number;
+  aiOutputTokens?: number;
+  costUsdEstimate?: number;
+}
+
 export class SocialImportRepository {
   constructor(private readonly client: SupabaseClient<any, any, any>) {}
 
@@ -109,6 +160,113 @@ export class SocialImportRepository {
       .maybeSingle();
     if (error) throw error;
     return (data as SocialImportRow | null) ?? null;
+  }
+
+  /**
+   * Atomically transition an import to the `extracting` state.
+   * The conditional UPDATE acts as an advisory lock: a second concurrent
+   * call returns null because the row no longer matches the WHERE clause.
+   * Used by `extractImport` (PRP-220.11) to reject double-runs.
+   */
+  async transitionToExtracting(
+    userId: string,
+    importId: string
+  ): Promise<SocialImportRow | null> {
+    // Postgres `IN ()` with .not('status', 'in', ...) reads as
+    // status NOT IN (extracting, saved, archived).
+    const { data, error } = await this.client
+      .from('social_recipe_imports')
+      .update({ status: 'extracting', error_code: null, error_message: null })
+      .eq('user_id', userId)
+      .eq('id', importId)
+      .not('status', 'in', '(extracting,saved,archived)')
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    return (data as SocialImportRow | null) ?? null;
+  }
+
+  /**
+   * Generic lifecycle update used by extract / save (PRP-220.11).
+   * Returns null when the row does not exist (or RLS hides it).
+   */
+  async updateLifecycle(
+    userId: string,
+    importId: string,
+    fields: ImportLifecycleFields
+  ): Promise<SocialImportRow | null> {
+    if (Object.keys(fields).length === 0) return this.findById(userId, importId);
+    const { data, error } = await this.client
+      .from('social_recipe_imports')
+      .update(fields)
+      .eq('user_id', userId)
+      .eq('id', importId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    return (data as SocialImportRow | null) ?? null;
+  }
+
+  /**
+   * Persist a new extracted draft as the current version. Two writes
+   * (mark previous as not-current; insert new with version+1). Wrapped
+   * in a try/catch that compensates for a partial failure by deleting
+   * the just-inserted draft if the un-flag step throws — the partial
+   * UNIQUE INDEX `idx_ird_one_current_per_import` keeps the invariant
+   * but we still want a clean error path.
+   */
+  async insertNewDraft(input: InsertDraftInput): Promise<ImportedRecipeDraftRow> {
+    // Compute the next version number. Best-effort race-safe: if two
+    // extractions land within the same millisecond, both get the same
+    // version, the partial unique index forces one of them to fail,
+    // and the loser sees a 23505 - which the service surfaces as a
+    // retryable error.
+    const { data: existing } = await this.client
+      .from('imported_recipe_drafts')
+      .select('version')
+      .eq('import_id', input.importId)
+      .order('version', { ascending: false })
+      .limit(1);
+    const nextVersion = existing && existing.length > 0 ? (existing[0].version as number) + 1 : 1;
+
+    // Mark previous current draft as not-current (best-effort: there
+    // might not be one).
+    const { error: clearErr } = await this.client
+      .from('imported_recipe_drafts')
+      .update({ is_current: false })
+      .eq('import_id', input.importId)
+      .eq('is_current', true);
+    if (clearErr) throw clearErr;
+
+    const { data, error } = await this.client
+      .from('imported_recipe_drafts')
+      .insert({
+        import_id: input.importId,
+        user_id: input.userId,
+        draft_json: input.draftJson,
+        version: nextVersion,
+        is_current: true,
+        source_extraction_method: input.sourceExtractionMethod ?? null,
+        ai_model: input.aiModel ?? null,
+        ai_input_tokens: input.aiInputTokens ?? null,
+        ai_output_tokens: input.aiOutputTokens ?? null,
+        cost_usd_estimate: input.costUsdEstimate ?? null,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as ImportedRecipeDraftRow;
+  }
+
+  async findCurrentDraft(importId: string): Promise<ImportedRecipeDraftRow | null> {
+    const { data, error } = await this.client
+      .from('imported_recipe_drafts')
+      .select('*')
+      .eq('import_id', importId)
+      .eq('is_current', true)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as ImportedRecipeDraftRow | null) ?? null;
   }
 
   async list(userId: string, query: ListImportsQuery): Promise<ListResult> {

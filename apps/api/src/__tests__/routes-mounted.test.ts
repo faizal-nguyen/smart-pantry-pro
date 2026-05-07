@@ -40,6 +40,11 @@ const STABLE_ROUTES: Probe[] = [
   { method: 'post', path: '/api/imports/social' },
   { method: 'post', path: '/api/imports/social/bulk' },
   { method: 'get',  path: '/api/imports/social' },
+  // PRP-220.11: extract + save sub-resources. Auth strips them to 401
+  // before the :id ever resolves, but the prefix is what matters for
+  // the no-404 contract.
+  { method: 'post', path: '/api/imports/social/00000000-0000-0000-0000-000000000000/extract' },
+  { method: 'post', path: '/api/imports/social/00000000-0000-0000-0000-000000000000/save' },
 ];
 
 const V1_ROUTES: Probe[] = [
