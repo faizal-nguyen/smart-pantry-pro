@@ -25,6 +25,7 @@ import {
   type SocialImportServiceOptions,
 } from '../services/imports/SocialImportService.js';
 import { ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
+import { MediaAssetResolver } from '../services/media/MediaAssetResolver.js';
 import {
   CaptureRequestSchema,
   BulkCaptureRequestSchema,
@@ -95,6 +96,35 @@ export function createImportsSocialRouter(
   };
   const buildRepo = (req: Request) =>
     new SocialImportRepository(req.supabaseClient!);
+  // PRP-220.24 §5.16: resolver enriches list/detail responses with the
+  // signed URL of the snapshotted thumbnail when one exists.
+  const buildResolver = (req: Request) =>
+    new MediaAssetResolver(req.supabaseClient!, adminClient);
+
+  /**
+   * Add `display_thumbnail_url` to each row by joining `media_assets`
+   * thumbnails. Snapshot URL wins over the volatile remote one. Falls
+   * silently back to the remote URL when the resolver can't reach
+   * Supabase Storage.
+   */
+  const enrichWithSnapshot = async <T extends { id: string; thumbnail_url: string | null }>(
+    req: Request,
+    rows: T[]
+  ): Promise<Array<T & { display_thumbnail_url: string | null }>> => {
+    if (rows.length === 0) {
+      return rows.map((r) => ({ ...r, display_thumbnail_url: r.thumbnail_url }));
+    }
+    try {
+      const resolver = buildResolver(req);
+      const map = await resolver.resolveThumbnailsByImport(rows.map((r) => r.id));
+      return rows.map((r) => ({
+        ...r,
+        display_thumbnail_url: map.get(r.id)?.url ?? r.thumbnail_url,
+      }));
+    } catch {
+      return rows.map((r) => ({ ...r, display_thumbnail_url: r.thumbnail_url }));
+    }
+  };
 
   // PRP-220.19: free-tier soft cap on "active" imports (anything not
   // archived or saved). Server is the source of truth — the client
@@ -259,9 +289,10 @@ export function createImportsSocialRouter(
     try {
       const service = buildService(req);
       const result = await service.list(userId, parsed.data);
+      const items = await enrichWithSnapshot(req, result.items);
       return ok(
         res,
-        { items: result.items, nextCursor: result.nextCursor },
+        { items, nextCursor: result.nextCursor },
         'OK',
         'LIST_OK'
       );
@@ -281,7 +312,8 @@ export function createImportsSocialRouter(
       const service = buildService(req);
       const row = await service.get(userId, req.params.id);
       if (!row) return fail(res, 'Not found', 404, 'NOT_FOUND');
-      return ok(res, row, 'OK', 'GET_OK');
+      const [enriched] = await enrichWithSnapshot(req, [row]);
+      return ok(res, enriched, 'OK', 'GET_OK');
     } catch (error) {
       console.error('[imports.social.get] error:', error);
       return fail(res, 'Failed to fetch import', 500, 'GET_FAILED');
@@ -301,9 +333,10 @@ export function createImportsSocialRouter(
       const service = buildService(req);
       const result = await service.getWithCurrentDraft(userId, req.params.id);
       if (!result) return fail(res, 'Not found', 404, 'NOT_FOUND');
+      const [enrichedImport] = await enrichWithSnapshot(req, [result.import]);
       return ok(
         res,
-        { import: result.import, draft: result.draft },
+        { import: enrichedImport, draft: result.draft },
         result.draft ? 'OK' : 'No draft yet',
         result.draft ? 'CURRENT_DRAFT_OK' : 'NO_DRAFT_YET'
       );
