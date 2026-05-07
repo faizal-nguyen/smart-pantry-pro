@@ -48,3 +48,9 @@ services/**/.env
 .cursorrules
 .vercel
 api/video-processor/venv/
+
+# Playwright (PRP-220.21)
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
