@@ -7,7 +7,10 @@ const EnvSchema = z.object({
   ALLOWED_ORIGINS: z.string().optional(),
   LOG_LEVEL: z.enum(['debug','info','warn','error']).optional(),
   RATE_LIMIT_YT_MAX: z.coerce.number().int().positive().optional(),
-  RATE_LIMIT_YT_WINDOW_MS: z.coerce.number().int().positive().optional()
+  RATE_LIMIT_YT_WINDOW_MS: z.coerce.number().int().positive().optional(),
+  MEDIA_STORAGE_BUCKET: z.string().min(1).optional(),
+  MEDIA_MAX_MULTIPART_BYTES: z.coerce.number().int().positive().optional(),
+  MEDIA_RIGHTS_POLICY_VERSION: z.string().min(1).optional()
 });
 
 const parsed = EnvSchema.safeParse(process.env);
@@ -19,4 +22,3 @@ if (!parsed.success) {
 }
 
 export const env = (parsed.success ? parsed.data : (process.env as any)) as z.infer<typeof EnvSchema>;
-

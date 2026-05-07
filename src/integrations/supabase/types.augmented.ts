@@ -154,6 +154,144 @@ type MealPlanEntriesInsert = {
 
 type MealPlanEntriesUpdate = Partial<MealPlanEntriesInsert>;
 
+// ---- media_assets ---------------------------------------------------
+// cf. supabase/migrations/20260507130000_create_media_assets.sql (PRP-220.24 §5.3)
+type MediaAssetKind =
+  | 'thumbnail'
+  | 'cover'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'transcript'
+  | 'embed_snapshot';
+
+type MediaAssetOrigin =
+  | 'source_link'
+  | 'official_embed'
+  | 'thumbnail_snapshot'
+  | 'user_upload'
+  | 'personal_archive_upload'
+  | 'permitted_download'
+  | 'generated';
+
+type MediaRightsStatus =
+  | 'link_only'
+  | 'user_provided'
+  | 'platform_embed'
+  | 'licensed'
+  | 'unknown'
+  | 'blocked';
+
+type MediaRightsBasis =
+  | 'created_by_user'
+  | 'user_has_permission'
+  | 'platform_native_download'
+  | 'personal_backup'
+  | 'licensed';
+
+type MediaStorageProvider = 'cloudinary' | 'supabase' | 's3' | 'external';
+
+interface MediaAssetsRow {
+  id: string;
+  user_id: string;
+  import_id: string | null;
+  recipe_id: string | null;
+  kind: MediaAssetKind;
+  origin: MediaAssetOrigin;
+  rights_status: MediaRightsStatus;
+  rights_basis: MediaRightsBasis | null;
+  rights_policy_version: string | null;
+  rights_attested_at: string | null;
+  storage_provider: MediaStorageProvider | null;
+  storage_bucket: string | null;
+  storage_key: string | null;
+  public_url: string | null;
+  source_url: string | null;
+  mime_type: string | null;
+  byte_size: number | null;
+  duration_seconds: number | null;
+  width: number | null;
+  height: number | null;
+  checksum_sha256: string | null;
+  derived_from_media_asset_id: string | null;
+  metadata: Json;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+type MediaAssetsInsert = {
+  id?: string;
+  user_id: string;
+  import_id?: string | null;
+  recipe_id?: string | null;
+  kind: MediaAssetKind;
+  origin: MediaAssetOrigin;
+  rights_status: MediaRightsStatus;
+  rights_basis?: MediaRightsBasis | null;
+  rights_policy_version?: string | null;
+  rights_attested_at?: string | null;
+  storage_provider?: MediaStorageProvider | null;
+  storage_bucket?: string | null;
+  storage_key?: string | null;
+  public_url?: string | null;
+  source_url?: string | null;
+  mime_type?: string | null;
+  byte_size?: number | null;
+  duration_seconds?: number | null;
+  width?: number | null;
+  height?: number | null;
+  checksum_sha256?: string | null;
+  derived_from_media_asset_id?: string | null;
+  metadata?: Json;
+  deleted_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type MediaAssetsUpdate = Partial<MediaAssetsInsert>;
+
+// ---- media_jobs -----------------------------------------------------
+// cf. supabase/migrations/20260507130001_create_media_jobs.sql (PRP-220.24 §5.4 + §5.14)
+type MediaJobType = 'thumbnail' | 'transcode' | 'transcript' | 'scan' | 'delete';
+type MediaJobStatus = 'queued' | 'running' | 'done' | 'failed';
+
+interface MediaJobsRow {
+  id: string;
+  user_id: string;
+  media_asset_id: string | null;
+  job_type: MediaJobType;
+  status: MediaJobStatus;
+  locked_at: string | null;
+  locked_by: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  attempts: number;
+  idempotency_key: string | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+type MediaJobsInsert = {
+  id?: string;
+  user_id: string;
+  media_asset_id?: string | null;
+  job_type: MediaJobType;
+  status?: MediaJobStatus;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  error_code?: string | null;
+  error_message?: string | null;
+  attempts?: number;
+  idempotency_key?: string | null;
+  metadata?: Json;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type MediaJobsUpdate = Partial<MediaJobsInsert>;
+
 // ---- Augmented Database type ----------------------------------------
 
 export type Database = Omit<BaseDatabase, 'public'> & {
@@ -185,8 +323,68 @@ export type Database = Omit<BaseDatabase, 'public'> & {
           },
         ];
       };
+      media_assets: {
+        Row: MediaAssetsRow;
+        Insert: MediaAssetsInsert;
+        Update: MediaAssetsUpdate;
+        Relationships: [
+          {
+            foreignKeyName: 'media_assets_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'users';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'media_assets_import_id_fkey';
+            columns: ['import_id'];
+            isOneToOne: false;
+            referencedRelation: 'social_recipe_imports';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'media_assets_recipe_id_fkey';
+            columns: ['recipe_id'];
+            isOneToOne: false;
+            referencedRelation: 'recipes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'media_assets_derived_from_fkey';
+            columns: ['derived_from_media_asset_id'];
+            isOneToOne: false;
+            referencedRelation: 'media_assets';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      media_jobs: {
+        Row: MediaJobsRow;
+        Insert: MediaJobsInsert;
+        Update: MediaJobsUpdate;
+        Relationships: [
+          {
+            foreignKeyName: 'media_jobs_media_asset_id_fkey';
+            columns: ['media_asset_id'];
+            isOneToOne: false;
+            referencedRelation: 'media_assets';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
   };
 };
 
-export type { Json };
+// Re-export discriminator types so service code can reuse them
+// without re-declaring the unions.
+export type {
+  Json,
+  MediaAssetKind,
+  MediaAssetOrigin,
+  MediaRightsStatus,
+  MediaRightsBasis,
+  MediaStorageProvider,
+  MediaJobType,
+  MediaJobStatus,
+};
