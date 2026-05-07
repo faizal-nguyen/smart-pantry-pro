@@ -14,6 +14,7 @@ import { Router, type Request, type Response } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
 import { SocialImportRepository } from '../services/imports/SocialImportRepository.js';
 import {
   SocialImportService,
@@ -46,13 +47,41 @@ export function createImportsSocialRouter(
   const auth = createAuthMiddleware(adminClient);
   router.use(auth);
 
+  // Per-user rate limits (PRP-220.15). Read-only endpoints (GET) stay
+  // unmetered — the cost is in the AI calls and capture pipelines.
+  const HOUR = 3_600_000;
+  const captureLimiter = userRateLimit({
+    key: 'imports.capture',
+    freeMax: 30,
+    premiumMax: 200,
+    windowMs: HOUR,
+  });
+  const bulkLimiter = userRateLimit({
+    key: 'imports.bulk',
+    freeMax: 5,
+    premiumMax: 30,
+    windowMs: HOUR,
+  });
+  const extractLimiter = userRateLimit({
+    key: 'imports.extract',
+    freeMax: 10,
+    premiumMax: 100,
+    windowMs: HOUR,
+  });
+  const saveLimiter = userRateLimit({
+    key: 'imports.save',
+    freeMax: 30,
+    premiumMax: 300,
+    windowMs: HOUR,
+  });
+
   const buildService = (req: Request) => {
     const userClient = req.supabaseClient!;
     return new SocialImportService(new SocialImportRepository(userClient), options);
   };
 
   // ---- POST / -------------------------------------------------------
-  router.post('/', async (req: Request, res: Response) => {
+  router.post('/', captureLimiter, async (req: Request, res: Response) => {
     const parsed = CaptureRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return fail(res, 'Invalid request body', 400, 'INVALID_BODY');
@@ -78,7 +107,7 @@ export function createImportsSocialRouter(
   });
 
   // ---- POST /bulk ---------------------------------------------------
-  router.post('/bulk', async (req: Request, res: Response) => {
+  router.post('/bulk', bulkLimiter, async (req: Request, res: Response) => {
     const parsed = BulkCaptureRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return fail(res, 'Invalid request body', 400, 'INVALID_BODY');
@@ -160,7 +189,7 @@ export function createImportsSocialRouter(
   });
 
   // ---- POST /:id/extract -------------------------------------------
-  router.post('/:id/extract', async (req: Request, res: Response) => {
+  router.post('/:id/extract', extractLimiter, async (req: Request, res: Response) => {
     const parsed = ExtractRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return fail(res, 'Invalid request body', 400, 'INVALID_BODY');
@@ -210,7 +239,7 @@ export function createImportsSocialRouter(
   });
 
   // ---- POST /:id/save ----------------------------------------------
-  router.post('/:id/save', async (req: Request, res: Response) => {
+  router.post('/:id/save', saveLimiter, async (req: Request, res: Response) => {
     const parsed = SaveRequestSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       return fail(res, 'Invalid request body', 400, 'INVALID_BODY');

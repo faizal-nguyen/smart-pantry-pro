@@ -41,6 +41,8 @@ import {
   NoDraftAvailableError,
   SaveFailedError,
 } from './importErrors.js';
+import { metrics } from '../../lib/metrics.js';
+import { logExtraction } from '../../lib/logger.js';
 
 export interface CaptureResult {
   import: SocialImportRow;
@@ -210,6 +212,7 @@ export class SocialImportService {
       throw new ImportInvalidStateError(existing.status);
     }
 
+    const t0 = Date.now();
     let result: ExtractionResult;
     try {
       result = await this.extractionService.extract(acquired, options);
@@ -222,6 +225,22 @@ export class SocialImportService {
         status: 'failed',
         error_code: 'EXTRACTION_FAILED',
         error_message: message.slice(0, 500),
+      });
+      metrics.extractionTotal.inc({ platform: acquired.platform, outcome: 'failed' });
+      logExtraction({
+        userId,
+        importId,
+        platform: acquired.platform,
+        model: '',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: 0,
+        durationMs: Date.now() - t0,
+        confidence: 0,
+        warningsCount: 0,
+        outcome: 'failed',
+        errorCode: 'EXTRACTION_FAILED',
+        errorMessage: message.slice(0, 500),
       });
       throw new ExtractionFailedError(acquired.platform, message, error);
     }
@@ -267,6 +286,33 @@ export class SocialImportService {
       error_message: null,
     });
     if (!updated) throw new ImportNotFoundError(importId);
+
+    metrics.extractionTotal.inc({ platform: acquired.platform, outcome: 'success' });
+    metrics.extractionLatency.observe({ platform: acquired.platform }, result.durationMs ?? 0);
+    if (result.modelUsed && result.cost) {
+      metrics.extractionCost.inc({ model: result.modelUsed }, result.cost.usd);
+      metrics.extractionTokens.inc(
+        { model: result.modelUsed, direction: 'input' },
+        result.cost.inputTokens
+      );
+      metrics.extractionTokens.inc(
+        { model: result.modelUsed, direction: 'output' },
+        result.cost.outputTokens
+      );
+    }
+    logExtraction({
+      userId,
+      importId,
+      platform: acquired.platform,
+      model: result.modelUsed ?? '',
+      inputTokens: result.cost?.inputTokens ?? 0,
+      outputTokens: result.cost?.outputTokens ?? 0,
+      costUsd: result.cost?.usd ?? 0,
+      durationMs: result.durationMs ?? 0,
+      confidence: validatedDraft.confidence,
+      warningsCount: validatedDraft.extractionWarnings?.length ?? 0,
+      outcome: 'success',
+    });
 
     return {
       import: updated,
