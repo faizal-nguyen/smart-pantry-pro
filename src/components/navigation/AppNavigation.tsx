@@ -254,7 +254,12 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
   const { adaptiveInterface, getStyleClasses, isChildMode } = useAgeAdaptiveUI();
 
   // Hooks responsive
-  const { isMobile, isTablet, isDesktop } = useBreakpoints();
+  // Bug fix: previously destructured only `isMobile/isTablet/isDesktop`,
+  // but useBreakpoints also exposes `isWide` (>= lg). Pages rendered
+  // at lg+ matched none of the three navs → no menu visible at all.
+  // Treat `isWide` as desktop-flavoured for the sidebar render.
+  const { isMobile, isTablet, isDesktop, isWide } = useBreakpoints();
+  const isDesktopOrWide = isDesktop || isWide;
   const { zones } = useResponsiveZones();
   const touchZones = usePlatformAdaptiveTouch();
   
@@ -460,7 +465,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         />
       )}
       
-      {isDesktop && (
+      {isDesktopOrWide && (
         <DesktopNavigation
           navigationConfig={navigationConfigWithBadges}
           currentProfile={currentProfile}
@@ -473,7 +478,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         "flex-1",
         isMobile && "pb-20 pt-0",
         isTablet && "ml-16 pb-16",
-        isDesktop && "ml-64 pb-0",
+        isDesktopOrWide && "ml-64 pb-0",
         isChildMode && adaptiveInterface.buttonSpacing === 'spacious' && "p-6",
         !isChildMode && "min-h-screen"
       )}>
