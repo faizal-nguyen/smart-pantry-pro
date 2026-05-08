@@ -1,9 +1,10 @@
 # J0 — Schema Contract Audit
 
-> Statut : **DRAFT**, attend la confirmation prod.
-> Date : 2026-05-08.
-> Bloque : PRP-221 (Voice Action Agent), tout futur tool qui écrit
-> dans les tables `inventory`, `shopping_list`, `products`, `recipes`.
+> Statut : **RESOLVED** — verdict Hypothèse A (prod = migrations).
+> Voir [docs/SCHEMA-OFFICIAL-COLUMNS.md](./SCHEMA-OFFICIAL-COLUMNS.md)
+> pour les colonnes officielles verrouillées.
+> Date audit : 2026-05-08.
+> Date résolution : 2026-05-08 (même jour, après les 5 SELECT prod).
 
 ## Verdict
 

@@ -9,8 +9,9 @@
 -- Plus :
 --   - extensions pg_trgm + unaccent
 --   - backfill normalized_name pour les rows existantes
---   - UNIQUE INDEX sur normalized_name (empêche "Tomate" / "tomate" / "tomates"
---     de créer 3 rows séparées)
+--   - UNIQUE INDEX sur normalized_name (empêche "Tomate" / "tomate" /
+--     " TOMATE " de créer 3 rows séparées — la pluralisation
+--     "tomate"/"tomates" reste un cas distinct, voir TODO plus bas).
 --   - GIN trigram index pour le fuzzy match du ProductResolver
 --
 -- Idempotent. Safe à ré-appliquer. Aucune donnée existante n'est altérée
@@ -34,11 +35,13 @@ ALTER TABLE public.products
 UPDATE public.products SET source = 'unknown' WHERE source IS NULL;
 
 -- ---- Backfill normalized_name ---------------------------------------
--- Conservatif : `lower(unaccent(trim))`, sans pluralisation. La
--- pluralisation FR/EN est faite côté ProductResolver applicatif (pour
--- pas embarquer une lib SQL). Si on a déjà 2 rows "tomate" et
--- "tomates" en prod, l'UNIQUE INDEX en bas plantera à la création —
--- voir le bloc DEDUP ci-dessous.
+-- Conservatif : `lower(unaccent(trim))`. PAS de singularisation —
+-- "tomate" et "tomates" auront des normalized_name différents et
+-- coexisteront comme 2 lignes distinctes. Seules les variantes de
+-- casse / accent / espaces ("Tomate" / "tomate" / " TOMATE  ")
+-- collapsent. La déduplication plurielle reste TODO côté JS via le
+-- ProductResolver fuzzy match (et un seuil < 0.7 si on veut couvrir
+-- "tomate"/"tomates" qui scorent ~0.66 en pg_trgm).
 UPDATE public.products
    SET normalized_name = lower(unaccent(trim(name)))
  WHERE normalized_name IS NULL;

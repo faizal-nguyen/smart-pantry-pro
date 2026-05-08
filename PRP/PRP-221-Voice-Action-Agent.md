@@ -293,29 +293,47 @@ Effets :
 
 ## 8. Idempotency
 
-Le `(user_id, session_id, step_seq)` ne dédupe **que dans la même
-session**. Un retry qui régénère un `session_id` neuf passerait à
-travers. Donc deux clés complémentaires :
+Une requête vocale produit **N tool_calls = N lignes** dans
+`assistant_action_log`. Donc l'idempotency ne peut PAS être
+`UNIQUE(user_id, client_request_id)` — sinon la 2e ligne d'une
+même requête plante (catch lors de la review J3, fix dans
+migration `20260508130000`).
+
+Le bon modèle :
 
 ```
 client_request_id : uuid (généré par le client AVANT envoi, stable
                     sur les retries — header X-Client-Request-Id)
 audio_sha256      : sha256 du blob audio (pour /voice uniquement)
-session_id        : uuid (un par requête)
-step_seq          : int  (ordre dans la session — pour l'audit, pas la dedup)
+session_id        : uuid (un par requête, équivalent fonctionnel
+                    de client_request_id mais côté serveur)
+step_seq          : int  (ordre dans la session, 0..N-1)
 ```
 
-`assistant_action_log` UNIQUE INDEX sur **deux** clés :
+`assistant_action_log` a **deux** UNIQUE constraints, complémentaires :
 
-1. `(user_id, client_request_id)` — dedup horizontal toutes sessions
-   confondues. C'est la clé primaire de la dedup.
-2. `(user_id, session_id, step_seq)` — ordering interne et debug,
-   conserve l'historique d'une session particulière.
+1. `UNIQUE(user_id, client_request_id, step_seq)` — un retry du même
+   payload audio recrée step_seq=0,1,...,N-1, **chaque ligne dédup
+   individuellement** via 23505. Le code resolve(error.code === '23505')
+   re-fetch le set existant et retourne comme "déjà-exécuté".
+2. `UNIQUE(user_id, session_id, step_seq)` — garde-fou interne
+   (session_id et client_request_id sont 1:1 mais on garde les deux
+   pour découpler audit et idempotency).
 
-Pour `/voice`, en plus, le serveur stocke `audio_sha256` sur la session.
-Si une nouvelle requête arrive avec un audio_sha256 déjà vu < 10 min,
-même en l'absence de client_request_id, on retourne la session
-précédente (protection ceinture-bretelles contre le retry naïf).
+Pour `/voice`, en plus, le serveur indexe `audio_sha256` :
+`SELECT session_id FROM assistant_action_log WHERE user_id = ? AND
+audio_sha256 = ? AND created_at > now() - interval '10 minutes'
+ORDER BY created_at DESC LIMIT 1`. Si trouvé, on retourne la session
+précédente (protection ceinture-bretelles contre le retry naïf qui
+régénère un client_request_id neuf).
+
+**Note de design alternatif (V1.1) :** une vraie table
+`assistant_sessions(id, user_id, client_request_id, audio_sha256,
+transcript, total_cost_usd, status)` avec FK depuis action_log
+serait plus normalisée — l'audio_sha256 et le transcript ne se
+répètent pas sur chaque tool_call. À envisager quand on aura besoin
+d'agréger les sessions (UI history, analytics). Pour V1, la
+dénormalisation reste acceptable.
 
 ## 9. Undo
 
