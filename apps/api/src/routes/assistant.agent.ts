@@ -34,6 +34,8 @@ import { ActionLogWriter } from '../services/assistant/ActionLogWriter.js';
 import { ConfirmationTokenSigner } from '../services/assistant/ConfirmationTokenSigner.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
+import { registerWriteHandlers } from '../services/assistant/handlers/write.js';
+import { registerInternalHandlers } from '../services/assistant/handlers/internal.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
 import {
   createOpenAICompletionClient,
@@ -175,8 +177,11 @@ export function createAssistantAgentRouter(
 
   const handlerRegistry = new ToolHandlerRegistry();
   registerReadHandlers(handlerRegistry);
-  // Write handlers land in J5b/J5c. Until then, calls to write tools
-  // surface a clean "no handler" 501 instead of crashing.
+  registerWriteHandlers(handlerRegistry);
+  registerInternalHandlers(handlerRegistry);
+  // HIGH-tier handlers (delete_recipe, clear_*, import_recipe_from_url)
+  // and meta (ask_clarification, summarize_session, undo_action) land
+  // in J5c. Until then they surface a clean 501 NO_TOOL_HANDLER.
 
   const service = new VoiceAgentService(
     ai,
