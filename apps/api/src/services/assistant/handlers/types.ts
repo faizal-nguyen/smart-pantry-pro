@@ -30,6 +30,13 @@ export interface ToolExecutionContext {
    * when an ambiguous item is referenced.
    */
   ambiguousInventoryIds?: string[];
+  /**
+   * Current session id, threaded by VoiceAgentService when invoking
+   * handlers. Read by `summarize_session` to scope its query.
+   * undefined for handlers invoked outside of a session (e.g. unit
+   * tests, future batch admin path).
+   */
+  sessionId?: string;
 }
 
 /**

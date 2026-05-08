@@ -36,6 +36,14 @@ import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assis
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
 import { registerWriteHandlers } from '../services/assistant/handlers/write.js';
 import { registerInternalHandlers } from '../services/assistant/handlers/internal.js';
+import { registerHighHandlers } from '../services/assistant/handlers/high.js';
+import { registerMetaHandlers } from '../services/assistant/handlers/meta.js';
+import { SocialImportRepository } from '../services/imports/SocialImportRepository.js';
+import { SocialImportService } from '../services/imports/SocialImportService.js';
+import {
+  defaultExtractionService,
+  saveImportedDraftAsRecipe,
+} from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
 import {
   createOpenAICompletionClient,
@@ -179,9 +187,16 @@ export function createAssistantAgentRouter(
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
   registerInternalHandlers(handlerRegistry);
-  // HIGH-tier handlers (delete_recipe, clear_*, import_recipe_from_url)
-  // and meta (ask_clarification, summarize_session, undo_action) land
-  // in J5c. Until then they surface a clean 501 NO_TOOL_HANDLER.
+  // J5c HIGH-tier needs SocialImportService for import_recipe_from_url —
+  // we build a fresh one per request from the per-request user client +
+  // the existing extraction + save dependencies.
+  const buildSocialImportService = (uc: SupabaseClient<any, any, any>) =>
+    new SocialImportService(new SocialImportRepository(uc), {
+      extractionService: defaultExtractionService(),
+      saveImportedDraftAsRecipe,
+    });
+  registerHighHandlers(handlerRegistry, { buildSocialImportService });
+  registerMetaHandlers(handlerRegistry, { writer });
 
   const service = new VoiceAgentService(
     ai,

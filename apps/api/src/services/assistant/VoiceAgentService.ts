@@ -52,6 +52,7 @@ import {
   type ToolExecutionContext,
   type ToolExecutionResult,
 } from './handlers/types.js';
+import { performUndo, UndoFailedError } from './undo.js';
 import {
   computeWhisperCostUsd,
   type WhisperClient,
@@ -354,7 +355,7 @@ export class VoiceAgentService {
         // Execute immediately
         try {
           const handler = this.handlerRegistry.get(tc.name);
-          const exec = await handler.execute(ctx, parsedArgs);
+          const exec = await handler.execute({ ...ctx, sessionId }, parsedArgs);
           await this.writer.markExecuted(planned.id, {
             result: exec.result as Record<string, unknown>,
             reversibleAction: spec.reversible
@@ -471,7 +472,10 @@ export class VoiceAgentService {
     for (const row of rows) {
       try {
         const handler = this.handlerRegistry.get(row.tool);
-        const exec = (await handler.execute(ctx, row.tool_args)) as ToolExecutionResult;
+        const exec = (await handler.execute(
+          { ...ctx, sessionId: row.session_id },
+          row.tool_args
+        )) as ToolExecutionResult;
         await this.writer.markExecuted(row.id, {
           result: exec.result as Record<string, unknown>,
           reversibleAction: row.reversible ? exec.reversibleAction ?? null : undefined,
@@ -512,25 +516,30 @@ export class VoiceAgentService {
     input: UndoInput,
     ctx: ToolExecutionContext
   ): Promise<{ undone: boolean; result?: unknown }> {
-    const row = await this.writer.fetchById(input.userId, input.actionId);
-    if (!row) throw new VoiceAgentError('UNDO_NOT_FOUND', input.actionId);
-    if (row.status !== 'executed' || !row.reversible || !row.reversible_action) {
-      throw new VoiceAgentError('UNDO_NOT_REVERSIBLE', row.id);
-    }
-    if (row.undo_expires_at && new Date(row.undo_expires_at) < new Date()) {
-      throw new VoiceAgentError('UNDO_EXPIRED', row.id);
-    }
-
-    if (!this.handlerRegistry.has(row.reversible_action.tool)) {
-      throw new VoiceAgentError(
-        'UNDO_HANDLER_MISSING',
-        `No handler for inverse tool "${row.reversible_action.tool}"`
+    try {
+      const outcome = await performUndo(
+        ctx,
+        input.actionId,
+        this.writer,
+        this.handlerRegistry
       );
+      return { undone: outcome.undone, result: outcome.result };
+    } catch (err) {
+      if (err instanceof UndoFailedError) {
+        const code: VoiceAgentError['code'] =
+          err.code === 'NOT_FOUND'
+            ? 'UNDO_NOT_FOUND'
+            : err.code === 'NOT_REVERSIBLE'
+              ? 'UNDO_NOT_REVERSIBLE'
+              : err.code === 'EXPIRED'
+                ? 'UNDO_EXPIRED'
+                : err.code === 'HANDLER_MISSING'
+                  ? 'UNDO_HANDLER_MISSING'
+                  : 'INTERNAL';
+        throw new VoiceAgentError(code, err.message);
+      }
+      throw err;
     }
-    const handler = this.handlerRegistry.get(row.reversible_action.tool);
-    const exec = await handler.execute(ctx, row.reversible_action.args);
-    await this.writer.markUndone(row.id);
-    return { undone: true, result: exec.result };
   }
 
   // ---- helpers ----------------------------------------------------
