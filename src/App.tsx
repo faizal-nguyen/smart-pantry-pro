@@ -1,11 +1,12 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider, RouteObject } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { LayoutPerformanceProvider } from "./components/performance/PerformanceMonitor";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
+import { AssistantProvider } from "./components/assistant/AssistantProvider";
 
 // Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
@@ -20,7 +21,6 @@ const RecipesPage = lazy(() => import("./pages/RecipesPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 const AssistantAI = lazy(() => import("./pages/AssistantAI"));
-const RecipeSeeding = lazy(() => import("./pages/RecipeSeeding"));
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
@@ -31,16 +31,6 @@ const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
 const ShoppingDashboard = lazy(() => import("./pages/shopping/ShoppingDashboard"));
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
-
-// Pages de test (lazy - dev only)
-const VideoImportTest = lazy(() => import("./pages/VideoImportTest"));
-const MaterialYouDemo = lazy(() => import("./pages/MaterialYouDemo"));
-const TestMaterialYou = lazy(() => import("./pages/TestMaterialYou"));
-const YouTubeRecipeTest = lazy(() => import("./pages/YouTubeRecipeTest"));
-const TestMinimal = lazy(() => import("./pages/TestMinimal"));
-const YouTubeTestDirect = lazy(() => import("./pages/YouTubeTestDirect"));
-const YouTubeTestWorking = lazy(() => import("./pages/YouTubeTestWorking"));
-const Diagnostics = lazy(() => import("./pages/Diagnostics"));
 
 // Composants de navigation
 import LegacyRedirect from "./components/navigation/LegacyRedirect";
@@ -114,35 +104,42 @@ const baseRoutes: RouteObject[] = [
   { path: "/settings/appearance", element: withSuspense(Settings) },
 ];
 
-// Dev-only routes (legacy + tests)
+// Dev-only legacy redirects
 if (import.meta.env.DEV) {
   baseRoutes.push(
     // Legacy compatibility
     { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
     { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
     { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
-    // Test & dev pages
-    { path: "/recipe-seeding", element: withSuspense(RecipeSeeding) },
-    { path: "/video-test", element: withSuspense(VideoImportTest) },
-    { path: "/demo/material-you", element: withSuspense(MaterialYouDemo) },
-    { path: "/test-material-you", element: withSuspense(TestMaterialYou) },
-    { path: "/test/minimal", element: withSuspense(TestMinimal) },
-    { path: "/youtube-test", element: withSuspense(YouTubeTestWorking) },
-    { path: "/test/youtube-recipe", element: withSuspense(YouTubeTestDirect) },
-    { path: "/test/youtube-recipe-full", element: withSuspense(YouTubeRecipeTest) },
-    { path: "/diagnostics", element: withSuspense(Diagnostics) },
   );
 }
 
 // 404 - must be last
 baseRoutes.push({ path: "*", element: <NotFound /> });
 
-const router = createBrowserRouter(baseRoutes, {
-  future: {
-    v7_startTransition: true,
-    v7_relativeSplatPath: true,
-  },
-});
+// PRP-221: wrap every route under a layout that mounts the global
+// voice-assistant FAB + dialog. The FAB self-hides on /auth and when
+// the user is not signed in, so this is safe across the entire app.
+const RootLayout = () => (
+  <AssistantProvider>
+    <Outlet />
+  </AssistantProvider>
+);
+
+const router = createBrowserRouter(
+  [
+    {
+      element: <RootLayout />,
+      children: baseRoutes,
+    },
+  ],
+  {
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    },
+  }
+);
 
 const App = () => (
   <ErrorBoundary>
