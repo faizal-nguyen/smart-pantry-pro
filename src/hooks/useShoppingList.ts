@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAgentDbInvalidation } from '@/lib/agentEvents';
 
 export interface ShoppingItem {
   id: string;
@@ -551,6 +552,9 @@ export const useShoppingList = () => {
 
     loadData();
   }, []);
+
+  // PRP-221: refetch when the voice agent has touched shopping_list.
+  useAgentDbInvalidation(['shopping_list', 'products'], fetchShoppingList);
 
   return {
     shoppingList,

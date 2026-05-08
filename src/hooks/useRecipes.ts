@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAgentDbInvalidation } from "@/lib/agentEvents";
 
 // Types adaptés du PRP Cipher Enhanced
 export interface Recipe {
@@ -369,6 +370,10 @@ export const useRecipes = () => {
       recipeSubscription.unsubscribe();
     };
   }, []);
+
+  // PRP-221: belt-and-braces — also refetch on agent-triggered writes
+  // even if the Supabase realtime channel hiccups.
+  useAgentDbInvalidation(['recipes', 'recipe_ingredients'], fetchRecipes);
 
   return {
     // Data

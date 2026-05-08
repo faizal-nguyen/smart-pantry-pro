@@ -345,6 +345,11 @@ export class VoiceAgentService {
           llmModel: activeResponse.model || this.model,
         });
       } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[assistant.insertPlanned] failed for tool=${tc.name}:`,
+          err instanceof Error ? err.message : err
+        );
         throw new VoiceAgentError(
           'INTERNAL',
           err instanceof Error ? err.message : 'action log insert failed'
@@ -355,6 +360,8 @@ export class VoiceAgentService {
         // Execute immediately
         try {
           const handler = this.handlerRegistry.get(tc.name);
+          // eslint-disable-next-line no-console
+          console.log(`[assistant.handler] executing ${tc.name} args=${JSON.stringify(parsedArgs).slice(0, 300)}`);
           const exec = await handler.execute({ ...ctx, sessionId }, parsedArgs);
           await this.writer.markExecuted(planned.id, {
             result: exec.result as Record<string, unknown>,
@@ -389,6 +396,12 @@ export class VoiceAgentService {
             );
             throw new VoiceAgentError('NO_TOOL_HANDLER', err.message);
           }
+          // eslint-disable-next-line no-console
+          console.error(
+            `[assistant.handler] ${tc.name} failed:`,
+            err instanceof Error ? err.message : err,
+            err instanceof Error && err.stack ? `\n${err.stack.split('\n').slice(0, 3).join('\n')}` : ''
+          );
           await this.writer.markFailed(
             planned.id,
             'EXECUTION_FAILED',

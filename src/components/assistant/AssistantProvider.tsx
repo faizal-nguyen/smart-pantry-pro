@@ -12,6 +12,11 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
 import { useAssistantVoice } from '@/hooks/useAssistantVoice';
+import {
+  dispatchAgentDbChanged,
+  tablesForTool,
+  type AgentAffectedTable,
+} from '@/lib/agentEvents';
 
 import { AssistantFAB } from './AssistantFAB';
 import { AssistantResultDialog } from './AssistantResultDialog';
@@ -33,12 +38,15 @@ export function AssistantProvider({
   const voice = useAssistantVoice({ language, allowedTools });
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Auto-open the dialog when a result lands. User can close it; we
-  // don't reopen it on the same result.
+  // Auto-open the dialog when a result lands + invalidate downstream
+  // hook caches for any table the executed actions touched.
   useEffect(() => {
-    if (voice.status === 'done' && voice.result) {
-      setDialogOpen(true);
-    }
+    if (voice.status !== 'done' || !voice.result) return;
+    setDialogOpen(true);
+    const tables: AgentAffectedTable[] = voice.result.actions_executed.flatMap(
+      (a) => tablesForTool(a.tool)
+    );
+    dispatchAgentDbChanged(tables);
   }, [voice.status, voice.result]);
 
   // Surface errors as toasts so they don't get lost.

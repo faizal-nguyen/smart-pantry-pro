@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { voiceOutputService } from "@/services/voice/voiceOutputService";
+import { useAgentDbInvalidation } from "@/lib/agentEvents";
 
 export interface Product {
   id: string;
@@ -390,6 +391,13 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
     loadData();
   }, []);
+
+  // PRP-221: refetch when the voice agent has touched inventory or
+  // products (a new auto-created product cascades into name/category
+  // displayed alongside inventory rows).
+  useAgentDbInvalidation(['inventory', 'products'], () =>
+    Promise.all([fetchInventory(), fetchProducts()])
+  );
 
   return {
     // Data

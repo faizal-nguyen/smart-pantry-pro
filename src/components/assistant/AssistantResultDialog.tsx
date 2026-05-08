@@ -32,6 +32,11 @@ import {
   type PendingAction,
   type RiskTier,
 } from '@/services/assistantApi';
+import {
+  dispatchAgentDbChanged,
+  tablesForTool,
+  type AgentAffectedTable,
+} from '@/lib/agentEvents';
 
 export interface AssistantResultDialogProps {
   open: boolean;
@@ -104,6 +109,12 @@ export function AssistantResultDialog({
         actions_pending: [],
         confirmation_token: null,
       });
+      // Invalidate UI caches for the tables the just-confirmed actions
+      // touched.
+      const tables: AgentAffectedTable[] = exec.actions_executed.flatMap((a) =>
+        tablesForTool(a.tool)
+      );
+      dispatchAgentDbChanged(tables);
       toast({
         title: 'Actions confirmées',
         description: `${exec.actions_executed.length} exécutée(s), ${exec.actions_failed.length} échec(s).`,
@@ -134,6 +145,11 @@ export function AssistantResultDialog({
             a.action_id === actionId ? { ...a, reversible: false } : a
           ),
         });
+        // Invalidate UI caches for the table the original action touched.
+        const original = result.actions_executed.find((a) => a.action_id === actionId);
+        if (original) {
+          dispatchAgentDbChanged(tablesForTool(original.tool));
+        }
       }
       toast({ title: 'Action annulée' });
     } catch (err) {
