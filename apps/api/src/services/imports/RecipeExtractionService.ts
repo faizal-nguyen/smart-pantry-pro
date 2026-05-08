@@ -44,12 +44,37 @@ export interface AICompletionMessage {
   content: string;
 }
 
+/**
+ * Function-calling support (PRP-221 J4). The shape mirrors OpenAI's
+ * `tools` parameter without coupling to the SDK so the same orchestration
+ * could swap to Anthropic / Mistral.
+ */
+export interface AICompletionTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface AICompletionToolCall {
+  id: string;
+  name: string;
+  /** JSON string as emitted by the model. The caller parses + validates. */
+  arguments: string;
+}
+
 export interface AICompletionRequest {
   model: string;
   messages: AICompletionMessage[];
   temperature?: number;
   max_tokens?: number;
   response_format?: { type: 'json_object' };
+  /** PRP-221 J4: function-calling tool catalog. */
+  tools?: AICompletionTool[];
+  /** Default 'auto'. 'none' forces text-only, 'required' forces a tool. */
+  tool_choice?: 'auto' | 'none' | 'required';
 }
 
 export interface AICompletionResponse {
@@ -59,6 +84,8 @@ export interface AICompletionResponse {
     prompt_tokens: number;
     completion_tokens: number;
   };
+  /** Present iff the model decided to call one or more tools. */
+  tool_calls?: AICompletionToolCall[];
 }
 
 export interface AICompletionClient {
@@ -425,15 +452,34 @@ export function createOpenAICompletionClient(): AICompletionClient {
         const OpenAI = (mod as any).default ?? (mod as any).OpenAI ?? mod;
         cachedClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
       }
-      const response = await cachedClient.chat.completions.create({
+      const params: Record<string, unknown> = {
         model: req.model,
         messages: req.messages,
         temperature: req.temperature,
         max_tokens: req.max_tokens,
         response_format: req.response_format,
-      });
-      const content = response.choices?.[0]?.message?.content ?? '';
+      };
+      if (req.tools && req.tools.length > 0) {
+        params.tools = req.tools;
+        params.tool_choice = req.tool_choice ?? 'auto';
+      }
+      const response = await cachedClient.chat.completions.create(params);
+      const message = response.choices?.[0]?.message ?? {};
+      const content = message.content ?? '';
       const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0 };
+      const toolCalls = Array.isArray(message.tool_calls)
+        ? (message.tool_calls as Array<{
+            id: string;
+            type?: string;
+            function?: { name?: string; arguments?: string };
+          }>)
+            .filter((tc) => tc?.function?.name)
+            .map((tc) => ({
+              id: tc.id,
+              name: tc.function!.name as string,
+              arguments: tc.function!.arguments ?? '{}',
+            }))
+        : undefined;
       return {
         content,
         model: response.model ?? req.model,
@@ -441,6 +487,7 @@ export function createOpenAICompletionClient(): AICompletionClient {
           prompt_tokens: usage.prompt_tokens ?? 0,
           completion_tokens: usage.completion_tokens ?? 0,
         },
+        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
       };
     },
   };
