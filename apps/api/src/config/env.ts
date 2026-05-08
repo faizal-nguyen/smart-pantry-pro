@@ -10,7 +10,12 @@ const EnvSchema = z.object({
   RATE_LIMIT_YT_WINDOW_MS: z.coerce.number().int().positive().optional(),
   MEDIA_STORAGE_BUCKET: z.string().min(1).optional(),
   MEDIA_MAX_MULTIPART_BYTES: z.coerce.number().int().positive().optional(),
-  MEDIA_RIGHTS_POLICY_VERSION: z.string().min(1).optional()
+  MEDIA_RIGHTS_POLICY_VERSION: z.string().min(1).optional(),
+  // PRP-221 J4: HMAC secret for confirmation tokens. Must be ≥ 32 chars.
+  // Optional in env so dev boots without it; the assistant router will
+  // refuse to mount if it's absent at request time.
+  ASSISTANT_HMAC_SECRET: z.string().min(32).optional(),
+  ASSISTANT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().optional()
 });
 
 const parsed = EnvSchema.safeParse(process.env);
