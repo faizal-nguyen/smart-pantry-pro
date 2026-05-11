@@ -39,6 +39,10 @@ DEPLOYMENT.md
 
 # Ignorer les fichiers de développement
 scripts/
+# … sauf ceux référencés par les lifecycle scripts (npm prepare / postinstall).
+# Sans cette exception, Vercel exclut le script et le `npm install` plante
+# avec MODULE_NOT_FOUND.
+!scripts/prepare-husky.cjs
 .vscode/
 .idea/
 *.log
