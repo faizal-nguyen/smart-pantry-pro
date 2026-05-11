@@ -37,7 +37,7 @@
     "security:secrets": "node scripts/security-baseline-check.cjs --secrets-only",
     "security:secrets:staged": "node scripts/security-baseline-check.cjs --staged-only",
     "security:env": "node -e \"console.log('Deprecated: security:env (legacy). Environment validation now lives in apps/api (see apps/api/src/config/env.ts).')\"",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare-husky.cjs",
     "security:audit": "npm audit --production",
     "security:all": "npm run security:env && npm run security:check && npm run security:audit",
     "debug:integration": "node debug-dispatcher.js analyze",
