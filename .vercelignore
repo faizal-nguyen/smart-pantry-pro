@@ -7,12 +7,15 @@ node_modules
 .env.production.local
 
 # Ignorer les dossiers non-frontend
+# NB: leading `/` ancre au root — sans ça, `supabase/` matche aussi
+# `src/integrations/supabase/` et `services/` matche `src/services/`,
+# ce qui casse le build Vite (client supabase + services manquants).
 .claude/
-apps/
-agents/
-services/
-PRP/
-supabase/
+/apps/
+/agents/
+/services/
+/PRP/
+/supabase/
 
 # Ignorer les fichiers de cache
 .cache
