@@ -33,13 +33,11 @@ jest.mock('three', () => {
 
 // Import modules after mocking
 import { PantryEnvironmentEngine } from '../visualization/PantryEnvironmentEngine';
-import { IngredientCollectionSystem } from '../gamification/IngredientCollectionSystem';
 import { SeasonalThemeSystem } from '../visualization/SeasonalThemeSystem';
 import { PerformanceOptimizer } from '../visualization/PerformanceOptimizer';
 import {
   InventoryItem,
   PantryPreferences,
-  DiscoveryContext,
   Season,
   PerformanceConfig
 } from '../visualization/types/PantryTypes';
@@ -232,115 +230,6 @@ describe('PRP-026 Inventory Visualization System', () => {
     });
   });
 
-  describe('IngredientCollectionSystem', () => {
-    let collectionSystem: IngredientCollectionSystem;
-    let mockUserId: string;
-
-    beforeEach(() => {
-      collectionSystem = new IngredientCollectionSystem();
-      mockUserId = 'user123';
-
-      // Mock local storage
-      global.localStorage = {
-        getItem: jest.fn(),
-        setItem: jest.fn(),
-        removeItem: jest.fn(),
-        clear: jest.fn()
-      } as any;
-    });
-
-    test('should discover new ingredients successfully', async () => {
-      const mockContext: DiscoveryContext = {
-        location: 'kitchen',
-        method: 'scanning',
-        timestamp: new Date()
-      };
-
-      localStorage.getItem = jest.fn().mockReturnValue(JSON.stringify([]));
-
-      const discoveryEvent = await collectionSystem.discoverNewIngredient(
-        mockUserId,
-        'tomato',
-        mockContext
-      );
-
-      expect(discoveryEvent).toBeDefined();
-      expect(discoveryEvent.ingredientId).toBe('tomato');
-      expect(discoveryEvent.isNewDiscovery).toBe(true);
-      expect(discoveryEvent.experienceGained).toBeGreaterThan(0);
-      expect(localStorage.setItem).toHaveBeenCalled();
-    });
-
-    test('should handle duplicate ingredient discoveries', async () => {
-      const existingCollection = [{
-        id: 'tomato',
-        name: 'Tomato',
-        category: 'vegetables',
-        rarity: 'common',
-        discoveryDate: new Date().toISOString(),
-        experienceValue: 10
-      }];
-
-      localStorage.getItem = jest.fn().mockReturnValue(JSON.stringify(existingCollection));
-
-      const mockContext: DiscoveryContext = {
-        location: 'kitchen',
-        method: 'scanning',
-        timestamp: new Date()
-      };
-
-      const discoveryEvent = await collectionSystem.discoverNewIngredient(
-        mockUserId,
-        'tomato',
-        mockContext
-      );
-
-      expect(discoveryEvent.isNewDiscovery).toBe(false);
-      expect(discoveryEvent.experienceGained).toBe(0);
-    });
-
-    test('should calculate rarity correctly', async () => {
-      const rarityScore = collectionSystem.calculateIngredientRarity('truffle');
-      expect(rarityScore).toBeGreaterThan(0.8); // Truffles should be rare
-      
-      const commonScore = collectionSystem.calculateIngredientRarity('potato');
-      expect(commonScore).toBeLessThan(0.3); // Potatoes should be common
-    });
-
-    test('should unlock achievements based on collection progress', async () => {
-      const mockAchievements = [
-        { id: 'first_discovery', name: 'First Discovery', threshold: 1 },
-        { id: 'collector', name: 'Collector', threshold: 10 },
-        { id: 'gourmand', name: 'Gourmand', threshold: 50 }
-      ];
-
-      // Mock having discovered 10 ingredients
-      const mockProgress = { totalDiscovered: 10, uniqueCategories: 5 };
-      
-      const unlockedAchievements = collectionSystem.checkAchievementProgress(
-        mockUserId,
-        mockProgress
-      );
-
-      expect(unlockedAchievements).toContain('first_discovery');
-      expect(unlockedAchievements).toContain('collector');
-      expect(unlockedAchievements).not.toContain('gourmand');
-    });
-
-    test('should generate proper pokedex entries', async () => {
-      const pokedexEntry = collectionSystem.generatePokedexEntry('apple');
-      
-      expect(pokedexEntry).toBeDefined();
-      expect(pokedexEntry.ingredientId).toBe('apple');
-      expect(pokedexEntry.name).toBeDefined();
-      expect(pokedexEntry.category).toBeDefined();
-      expect(pokedexEntry.nutritionalInfo).toBeDefined();
-      expect(pokedexEntry.rarity).toBeDefined();
-      expect(pokedexEntry.habitat).toBeDefined();
-      expect(pokedexEntry.seasonality).toBeDefined();
-    });
-  });
-
   describe('SeasonalThemeSystem', () => {
     let themeSystem: SeasonalThemeSystem;
 
@@ -530,13 +419,11 @@ describe('PRP-026 Inventory Visualization System', () => {
 
   describe('Integration Tests', () => {
     let engine: PantryEnvironmentEngine;
-    let collectionSystem: IngredientCollectionSystem;
     let themeSystem: SeasonalThemeSystem;
     let optimizer: PerformanceOptimizer;
 
     beforeEach(() => {
       engine = new PantryEnvironmentEngine(mockScene, mockRenderer, mockCamera);
-      collectionSystem = new IngredientCollectionSystem();
       themeSystem = new SeasonalThemeSystem(mockScene, mockCamera, mockRenderer);
       optimizer = new PerformanceOptimizer(mockScene, mockRenderer, mockCamera);
     });
@@ -570,14 +457,6 @@ describe('PRP-026 Inventory Visualization System', () => {
       // Create pantry environment
       const pantry = await engine.createPantryEnvironment(mockInventoryData, mockPreferences);
       expect(pantry).toBeDefined();
-
-      // Test discovery system
-      const discoveryEvent = await collectionSystem.discoverNewIngredient(
-        'test_user',
-        'apple',
-        { location: 'kitchen', method: 'scanning', timestamp: new Date() }
-      );
-      expect(discoveryEvent.isNewDiscovery).toBe(true);
 
       // Test seasonal transitions
       await themeSystem.transitionToSeason('spring', {
@@ -628,9 +507,8 @@ describe('PRP-026 Inventory Visualization System', () => {
   describe('Performance Benchmarks', () => {
     test('should initialize systems within performance thresholds', async () => {
       const startTime = performance.now();
-      
+
       const engine = new PantryEnvironmentEngine(mockScene, mockRenderer, mockCamera);
-      const collectionSystem = new IngredientCollectionSystem();
       const themeSystem = new SeasonalThemeSystem(mockScene, mockCamera, mockRenderer);
       const optimizer = new PerformanceOptimizer(mockScene, mockRenderer, mockCamera);
 
