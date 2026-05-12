@@ -31,7 +31,6 @@ import { FamilyProfile, NavigationSection } from '@/types/family-mode';
 
 // Styles
 import '@/styles/enhanced-layout.css';
-import '@/styles/family-mode.css';
 
 interface AppNavigationProps {
   children: React.ReactNode;
