@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Package, ScanQrCode, Bell, Plus, BarChart3 } from 'lucide-react';
+import { Package, Bell, Plus, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
@@ -110,25 +110,11 @@ const PantryDashboard: React.FC = () => {
 
   const quickActions = [
     {
-      title: isChildMode ? 'Scanner un produit' : 'Scanner',
-      description: 'Ajouter des produits rapidement',
-      icon: ScanQrCode,
-      path: '/pantry/scanner',
-      color: 'bg-blue-500'
-    },
-    {
       title: isChildMode ? 'Voir mes produits' : 'Inventaire',
       description: 'Gérer tous vos produits',
       icon: Package,
       path: '/pantry/inventory',
       color: 'bg-green-500'
-    },
-    {
-      title: isChildMode ? 'Mes alertes' : 'Alertes',
-      description: 'Produits bientôt périmés',
-      icon: Bell,
-      path: '/pantry/alerts',
-      color: 'bg-amber-500'
     }
   ];
 
