@@ -17,7 +17,7 @@ import {
   Shield,
   Palette
 } from 'lucide-react';
-import { NavigationSection, FamilyNavigationConfig, FAMILY_NAVIGATION_SECTIONS } from '@/types/family-mode';
+import { NavigationSection } from '@/types/family-mode';
 
 export interface NavigationItem {
   id: string;
@@ -298,65 +298,25 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
 ];
 
 /**
- * Hook pour obtenir la configuration de navigation adaptée au profil famille
+ * Hook de configuration navigation.
+ *
+ * PRP-230 Commit 3 (pragmatique) : le shell d'adaptation par profil
+ * famille (minAge / availableInChildMode / funName / childFriendlyName)
+ * est désactivé côté navigation — la signature ne prend plus de
+ * `familyConfig` et toute la branche de filtrage par âge a été retirée.
+ *
+ * Les champs `minAge`, `gamification`, etc. restent dans l'interface et
+ * dans `NAVIGATION_CONFIG` parce que d'autres consommateurs (services
+ * d'intelligence navigation, tests legacy) les lisent encore. Leur
+ * suppression complète est cadrée par PRP-234 quand `useFamilyMode` et
+ * `useCipherMealPlanning` seront refactorés.
  */
-export const useNavigationConfig = (familyConfig?: FamilyNavigationConfig) => {
-  return useMemo(() => {
-    if (!familyConfig || !familyConfig.isFamilyModeActive) {
-      return {
-        mainNavigation: NAVIGATION_CONFIG,
-        specialNavigation: SPECIAL_NAVIGATION_ITEMS,
-        allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS]
-      };
-    }
-
-    const { currentProfile, adaptiveInterface } = familyConfig;
-    const profileAge = currentProfile.age || 18;
-    const isChildProfile = currentProfile.type === 'child';
-
-    // Filtrer les éléments selon l'âge et les restrictions
-    const filterNavigationItems = (items: NavigationItem[]) => {
-      return items
-        .filter(item => {
-          // Vérifier l'âge minimum
-          if (profileAge < item.minAge) return false;
-          
-          // Vérifier la disponibilité en mode enfant
-          if (isChildProfile && !item.availableInChildMode) return false;
-          
-          // Vérifier les restrictions du profil
-          if (!currentProfile.restrictions.allowedSections.includes(item.section)) return false;
-          
-          return true;
-        })
-        .map(item => ({
-          ...item,
-          // Adapter les libellés pour les enfants
-          label: (isChildProfile && item.gamification?.funName) 
-            ? item.gamification.funName 
-            : item.label,
-          subItems: item.subItems?.filter(subItem => {
-            if (profileAge < subItem.minAge) return false;
-            return true;
-          }).map(subItem => ({
-            ...subItem,
-            label: (isChildProfile && subItem.childFriendlyName) 
-              ? subItem.childFriendlyName 
-              : subItem.label
-          }))
-        }));
-    };
-
-    const filteredMainNavigation = filterNavigationItems(NAVIGATION_CONFIG);
-    const filteredSpecialNavigation = filterNavigationItems(SPECIAL_NAVIGATION_ITEMS);
-
-    return {
-      mainNavigation: filteredMainNavigation,
-      specialNavigation: filteredSpecialNavigation,
-      allNavigation: [...filteredMainNavigation, ...filteredSpecialNavigation],
-      adaptiveInterface
-    };
-  }, [familyConfig]);
+export const useNavigationConfig = () => {
+  return useMemo(() => ({
+    mainNavigation: NAVIGATION_CONFIG,
+    specialNavigation: SPECIAL_NAVIGATION_ITEMS,
+    allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS]
+  }), []);
 };
 
 /**
