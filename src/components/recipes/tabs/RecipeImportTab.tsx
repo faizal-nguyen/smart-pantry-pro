@@ -15,7 +15,10 @@ import { InstagramVideoExtractor } from '@/components/recipes/InstagramVideoExtr
 import { SocialImportCard } from '@/components/social/SocialImportCard';
 
 interface RecipeImportTabProps {
-  onRecipeExtracted: (recipe: any, sourceUrl?: string) => void;
+  // Le payload extrait reste hétérogène (Instagram extractor + SocialImportCard
+  // ont des shapes différents) ; un typage strict viendra avec PRP-220.16/17
+  // qui unifie l'ExtractedRecipeModal.
+  onRecipeExtracted: (recipe: unknown, sourceUrl?: string) => void;
   onOpenAddDialog: () => void;
 }
 

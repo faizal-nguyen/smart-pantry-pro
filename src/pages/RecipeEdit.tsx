@@ -341,7 +341,7 @@ const RecipeEdit = () => {
         <h1 className="text-3xl font-bold">Modifier la recette</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6 pb-28">
         {/* Basic Info */}
         <Card>
           <CardHeader>
@@ -647,26 +647,81 @@ const RecipeEdit = () => {
           </CardContent>
         </Card>
 
-        {/* Submit */}
-        <div className="flex gap-4">
-          <Button
-            type="submit"
-            disabled={loading || uploading}
-            className="flex-1"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
-          </Button>
-          
+        {/* Visibilité */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Visibilité</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={recipe.is_public}
+                onChange={e => setRecipe({ ...recipe, is_public: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-input"
+              />
+              <div className="space-y-1">
+                <span className="font-medium">Rendre cette recette publique</span>
+                <p className="text-sm text-muted-foreground">
+                  Une recette publique peut être ajoutée au catalogue partagé. Désactive
+                  pour la garder dans ta bibliothèque privée.
+                </p>
+              </div>
+            </label>
+          </CardContent>
+        </Card>
+
+        {/* Source (lecture seule, masquée pour les recettes manuelles) */}
+        {existingRecipe?.source_url && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Source</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                Cette recette a été importée. La source d'origine ne peut pas être modifiée
+                ici.
+              </p>
+              <a
+                href={existingRecipe.source_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline break-all"
+              >
+                {existingRecipe.source_url}
+              </a>
+            </CardContent>
+          </Card>
+        )}
+      </form>
+
+      {/* Sticky CTA footer (PRP-232 §10) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t shadow-lg z-30">
+        <div className="container mx-auto max-w-4xl flex gap-3 justify-end p-4">
           <Button
             type="button"
             variant="outline"
             onClick={() => navigate(`/kitchen/recipes/${id}`)}
+            disabled={loading || uploading}
           >
             Annuler
           </Button>
+          <Button
+            type="submit"
+            form=""
+            disabled={loading || uploading}
+            onClick={e => {
+              // Le bouton est hors du <form> pour rester sticky.
+              // On déclenche manuellement la soumission.
+              e.preventDefault();
+              (document.querySelector('form') as HTMLFormElement | null)?.requestSubmit();
+            }}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {loading ? 'Enregistrement…' : 'Enregistrer'}
+          </Button>
         </div>
-      </form>
+      </div>
     </div>
   );
 };
