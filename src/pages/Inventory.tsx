@@ -21,7 +21,9 @@ import {
   BarChart3
 } from "lucide-react";
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
+import { useFoodWaste, RecordWasteInput } from "@/hooks/useFoodWaste";
 import { SmartProductCard } from "@/components/inventory/SmartProductCard";
+import DiscardItemDialog from "@/components/inventory/DiscardItemDialog";
 import { IntelligentSearch } from "@/components/inventory/IntelligentSearch";
 import { FloatingActionButton } from "@/components/inventory/FloatingActionButton";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
@@ -95,6 +97,8 @@ const Inventory = () => {
   
   const { inventory, loading, updateInventory, deleteInventoryItem, addInventory } = useInventory();
   const { addToShoppingList } = useShoppingList();
+  const { recordWaste } = useFoodWaste();
+  const [discardingItem, setDiscardingItem] = useState<InventoryItem | null>(null);
   const navigate = useNavigate();
 
   // Filter inventory by zone
@@ -270,6 +274,30 @@ const Inventory = () => {
 
   const handleFindRecipes = (item: InventoryItem) => {
     navigate(`/recipes?ingredient=${item.product?.name}`);
+  };
+
+  const handleDiscard = (item: InventoryItem) => {
+    setDiscardingItem(item);
+  };
+
+  const confirmDiscard = async (input: RecordWasteInput) => {
+    if (!discardingItem) return;
+
+    const event = await recordWaste(input);
+    if (!event) {
+      toast({
+        variant: 'destructive',
+        title: "Échec de l'enregistrement",
+        description: "Impossible d'enregistrer le gaspillage. Réessaye.",
+      });
+      return;
+    }
+
+    await deleteInventoryItem(discardingItem.id);
+    toast({
+      title: 'Produit jeté',
+      description: `${discardingItem.product?.name ?? 'Article'} ajouté à l'historique anti-gaspi.`,
+    });
   };
 
   // P1 polish: removed the `handleSubstitute` toast that promised
@@ -725,6 +753,7 @@ const Inventory = () => {
                       onConsume={handleConsume}
                       onEdit={handleEdit}
                       onFindRecipes={handleFindRecipes}
+                      onDiscard={handleDiscard}
                     />
                   ))}
                 </div>
@@ -748,6 +777,7 @@ const Inventory = () => {
               onConsume={handleConsume}
               onEdit={handleEdit}
               onFindRecipes={handleFindRecipes}
+              onDiscard={handleDiscard}
             />
           ))}
         </div>
@@ -802,6 +832,15 @@ const Inventory = () => {
           }}
         />
       )}
+
+      <DiscardItemDialog
+        item={discardingItem}
+        open={Boolean(discardingItem)}
+        onOpenChange={(open) => {
+          if (!open) setDiscardingItem(null);
+        }}
+        onConfirm={confirmDiscard}
+      />
       
       {/* Mobile Scanner */}
       <MobileBarcodeScanner

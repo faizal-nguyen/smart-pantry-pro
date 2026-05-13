@@ -6,7 +6,7 @@ import { QuantitySelector } from './QuantitySelector';
 import { SwipeableActions } from './SwipeableActions';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
-import { Edit, ChefHat, RefreshCw } from 'lucide-react';
+import { Edit, ChefHat, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useMaterialYouTheme } from '@/contexts/MaterialYouThemeContext';
 import { standardizeUnit } from '@/utils/units';
@@ -18,6 +18,11 @@ interface SmartProductCardProps {
   onConsume: (product: InventoryItem) => void;
   onEdit: (product: InventoryItem) => void;
   onFindRecipes: (product: InventoryItem) => void;
+  /**
+   * PRP-222 PR5: opens the DiscardItemDialog so the user can log a
+   * food_waste_events row when throwing the item out.
+   */
+  onDiscard?: (product: InventoryItem) => void;
   /**
    * P1 polish: optional. The substitute lookup feature is not built
    * yet (toast read "Cette fonctionnalité arrive bientôt !"). The
@@ -59,6 +64,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
   onConsume,
   onEdit,
   onFindRecipes,
+  onDiscard,
   onSubstitute
 }) => {
   const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
@@ -164,6 +170,17 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onSubstitute(product);
+              }}
+            />
+          )}
+          {onDiscard && (
+            <MaterialButton
+              variant="text"
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+              icon={<Trash2 className="h-3 w-3" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard(product);
               }}
             />
           )}

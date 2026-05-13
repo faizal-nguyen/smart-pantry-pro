@@ -29,6 +29,7 @@ const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 // Dashboards hiérarchiques (lazy)
 const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
+const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
 const ShoppingDashboard = lazy(() => import("./pages/shopping/ShoppingDashboard"));
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
 
@@ -73,7 +74,7 @@ const baseRoutes: RouteObject[] = [
 
   // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },
-  { path: "/insights/waste", element: withSuspense(InsightsPage) },
+  { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
 
   // Settings (PRP-222 garde uniquement /settings ; apparence reste comme sous-page utile)
   { path: "/settings", element: withSuspense(Settings) },
