@@ -201,8 +201,9 @@ const SmartShoppingList = () => {
     await removeFromShoppingList(id);
   };
 
-  const handleSmartItemsAdded = async (items: any[]) => {
-    console.log(`✅ ${items.length} items added via smart input`);
+  const handleSmartItemsAdded = async () => {
+    // Items are added to Supabase by SmartGroceryInput directly; the list
+    // refreshes via useShoppingList's realtime subscription.
   };
 
   const toggleSectionExpanded = (section: string) => {

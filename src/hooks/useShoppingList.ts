@@ -444,48 +444,37 @@ export const useShoppingList = () => {
   };
 
   const addMultipleToShoppingList = async (items: NewShoppingItem[]) => {
-    console.log('🔄 addMultipleToShoppingList called with:', items);
-    
     try {
       const results = [];
       for (const item of items) {
-        console.log('➕ Adding item:', item);
         try {
-          const addedItem = await addToShoppingList(item);
-          console.log('✅ Item added successfully:', addedItem);
+          await addToShoppingList(item);
           results.push({ success: true, item });
         } catch (error) {
-          console.error('❌ Error adding item:', item, error);
+          console.error('Error adding shopping item:', item, error);
           results.push({ success: false, item, error });
         }
       }
-      
+
       const successCount = results.filter(r => r.success).length;
       const failCount = results.length - successCount;
-      
-      console.log(`📊 Results: ${successCount} success, ${failCount} failed`);
-      
-      // Force refresh after adding all items
+
       if (successCount > 0) {
-        console.log('🔄 Fetching shopping list after additions...');
         await fetchShoppingList();
-        console.log('✅ Shopping list refreshed');
-        
         toast({
-          title: "✅ Produits ajoutés",
+          title: "Produits ajoutés",
           description: `${successCount} produit(s) ajouté(s) à votre liste${failCount > 0 ? ` (${failCount} échec(s))` : ''}`
         });
       }
-      
+
       if (failCount > 0 && successCount === 0) {
         throw new Error(`Échec de l'ajout de ${failCount} produit(s)`);
       }
-      
-      console.log('🎉 addMultipleToShoppingList completed successfully');
+
       return { success: true, added: successCount, failed: failCount };
-      
+
     } catch (error) {
-      console.error('💥 Fatal error in addMultipleToShoppingList:', error);
+      console.error('Fatal error in addMultipleToShoppingList:', error);
       toast({
         variant: "destructive",
         title: "Erreur",

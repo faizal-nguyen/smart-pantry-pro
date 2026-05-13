@@ -7,13 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { Bot, MessageCircle, Lightbulb, Target, Brain, Zap } from 'lucide-react';
+import { Bot, MessageCircle, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import AppNavigation from '@/components/navigation/AppNavigation';
 import { PageLoader } from '@/components/layout/PageLoader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -62,27 +62,6 @@ const AssistantDashboard: React.FC = () => {
       badge: undefined,
       childFriendlyName: 'Questions rapides',
     },
-  ];
-
-  const features = [
-    {
-      title: 'Recommandations Recettes',
-      description: 'L\'IA analyse vos goûts et votre inventaire pour suggérer des recettes parfaites',
-      icon: <Brain className="w-5 h-5" />,
-      status: 'active'
-    },
-    {
-      title: 'Analyse Nutritionnelle',
-      description: 'Évaluation automatique de vos repas et conseils personnalisés',
-      icon: <Target className="w-5 h-5" />,
-      status: 'active'
-    },
-    {
-      title: 'Planning Intelligent',
-      description: 'Planification automatique des repas selon vos préférences',
-      icon: <Lightbulb className="w-5 h-5" />,
-      status: 'coming-soon'
-    }
   ];
 
   return (
@@ -162,38 +141,6 @@ const AssistantDashboard: React.FC = () => {
             poulet, conservation tomates) — fabricated. A real
             assistant-history hook should land before re-enabling. */}
 
-        {/* Fonctionnalités IA */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Fonctionnalités IA</CardTitle>
-            <CardDescription>
-              Découvrez tout ce que votre assistant peut faire
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-4 p-4 border rounded-lg">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    {feature.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium">{feature.title}</h4>
-                      <Badge 
-                        variant={feature.status === 'active' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {feature.status === 'active' ? 'Actif' : 'Bientôt'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{feature.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </AppNavigation>
   );

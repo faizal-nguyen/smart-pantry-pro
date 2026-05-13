@@ -22,8 +22,6 @@ export const LegacyRedirect: React.FC = () => {
     // Vérifier si l'URL actuelle est une ancienne route
     if (legacyRoutes[currentPath]) {
       const newPath = legacyRoutes[currentPath];
-      console.log(`🔀 Redirection legacy: ${currentPath} -> ${newPath}`);
-      
       setIsRedirecting(true);
       
       // Petit délai pour éviter les clignotements
@@ -46,8 +44,6 @@ export const LegacyRedirect: React.FC = () => {
       
       if (legacyRoutes[baseRoute] && pathSegments.length === 2) {
         const newPath = legacyRoutes[baseRoute];
-        console.log(`🔀 Redirection base route: ${currentPath} -> ${newPath}`);
-        
         setIsRedirecting(true);
         setTimeout(() => {
           navigate(newPath, { replace: true });

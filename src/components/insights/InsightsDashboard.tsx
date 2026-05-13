@@ -4,7 +4,6 @@ import { MaterialCard, MaterialCardContent, MaterialCardHeader } from '@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   BarChart3,
@@ -13,18 +12,15 @@ import {
   Share2,
   RefreshCw,
   Calendar,
-  Filter,
-  Target,
-  Lightbulb,
-  Bell
+  Filter
 } from 'lucide-react';
 
 import { AnimatedMetricCard } from './AnimatedMetricCard';
-import { 
-  SpendingTrendsChart, 
-  CategoryBreakdownChart, 
-  NutritionRadarChart, 
-  CombinedTrendsChart 
+import {
+  SpendingTrendsChart,
+  CategoryBreakdownChart,
+  NutritionRadarChart,
+  CombinedTrendsChart
 } from './InteractiveCharts';
 
 import { useInsightsData } from '@/hooks/useInsightsData';
@@ -35,55 +31,6 @@ import { useToast } from '@/hooks/use-toast';
 interface InsightsDashboardProps {
   className?: string;
 }
-
-interface InsightCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  action?: () => void;
-  actionLabel?: string;
-}
-
-const InsightCard: React.FC<InsightCardProps> = ({ 
-  title, 
-  description, 
-  icon, 
-  action, 
-  actionLabel 
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ scale: 1.02 }}
-    className="cursor-pointer"
-  >
-    <MaterialCard variant="elevated" interactive className="h-full transition-all duration-200">
-      <MaterialCardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="text-2xl">{icon}</div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-1">
-              {title}
-            </h3>
-            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-              {description}
-            </p>
-            {action && actionLabel && (
-              <MaterialButton 
-                variant="text" 
-                size="sm" 
-                className="h-6 px-2 mt-2 text-xs"
-                onClick={action}
-              >
-                {actionLabel}
-              </MaterialButton>
-            )}
-          </div>
-        </div>
-      </MaterialCardContent>
-    </MaterialCard>
-  </motion.div>
-);
 
 export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className }) => {
   const { insightsData, loading: insightsLoading, refetch: refetchInsights } = useInsightsData();
@@ -156,30 +103,10 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
     }
   };
 
-  // Generate smart insights based on data
-  const smartInsights = [
-    {
-      title: "Optimisez vos achats de légumes",
-      description: "Vous pourriez économiser 15€/mois en achetant vos légumes au marché local.",
-      icon: <Lightbulb className="h-5 w-5 text-yellow-500" />,
-      action: () => {},
-      actionLabel: "Voir les conseils"
-    },
-    {
-      title: "Réduisez le gaspillage",
-      description: "3 produits expirent bientôt. Planifiez vos repas pour les utiliser.",
-      icon: <Bell className="h-5 w-5 text-red-500" />,
-      action: () => {},
-      actionLabel: "Voir les produits"
-    },
-    {
-      title: "Atteignez votre objectif nutrition",
-      description: "Ajoutez 2 portions de légumes pour atteindre votre objectif quotidien.",
-      icon: <Target className="h-5 w-5 text-green-500" />,
-      action: () => {},
-      actionLabel: "Voir les recettes"
-    }
-  ];
+  // PRP-229 Commit 4: removed the hardcoded "smartInsights" sidebar
+  // (3 marketing cards "Optimisez vos achats", "Réduisez le gaspillage",
+  // "Atteignez votre objectif nutrition" with fabricated numbers).
+  // A real insight engine should land before re-enabling this surface.
 
   if (insightsLoading) {
     return (
@@ -296,32 +223,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
                   </div>
                 </div>
 
-                {/* Sidebar */}
-                <div className="space-y-6">
-                  {/* Smart Insights */}
-                  <MaterialCard variant="elevated">
-                    <MaterialCardHeader>
-                      <div className="text-lg font-semibold">Insights Intelligents</div>
-                    </MaterialCardHeader>
-                    <MaterialCardContent>
-                      <ScrollArea className="h-80">
-                        <div className="space-y-3">
-                          {smartInsights.map((insight, index) => (
-                            <motion.div
-                              key={`insight-${index}`}
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.1 }}
-                            >
-                              <InsightCard {...insight} />
-                            </motion.div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </MaterialCardContent>
-                  </MaterialCard>
-
-                </div>
               </motion.div>
             </TabsContent>
           )}

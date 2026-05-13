@@ -118,29 +118,6 @@ export const useChartData = () => {
     });
   }, [insightsData.spendingTrends]);
 
-  // Waste reduction timeline
-  const wasteReductionTimeline = useMemo(() => {
-    const days = [];
-    const currentDate = new Date();
-    
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(currentDate);
-      date.setDate(date.getDate() - i);
-      
-      // Mock waste data - 0 means no waste, positive numbers mean items wasted
-      const wasteCount = Math.random() > 0.8 ? Math.floor(Math.random() * 3) : 0;
-      
-      days.push({
-        name: date.toLocaleDateString('fr-FR', { weekday: 'short' }),
-        value: wasteCount,
-        color: wasteCount === 0 ? CHART_CONFIG.colors.success : CHART_CONFIG.colors.danger,
-        fullDate: date.toLocaleDateString('fr-FR')
-      });
-    }
-    
-    return days;
-  }, []);
-
   // Monthly comparison data
   const monthlyComparisonData = useMemo(() => {
     const currentMonth = insightsData.spendingTrends[insightsData.spendingTrends.length - 1];
@@ -169,17 +146,6 @@ export const useChartData = () => {
       }
     ];
   }, [insightsData.spendingTrends]);
-
-  // Nutrition score over time
-  const nutritionScoreTimeline = useMemo(() => {
-    // Mock timeline data for nutrition score
-    return [
-      { week: 'S1', score: 7.2, target: 8.0 },
-      { week: 'S2', score: 7.8, target: 8.0 },
-      { week: 'S3', score: 8.1, target: 8.0 },
-      { week: 'S4', score: 8.5, target: 8.0 }
-    ];
-  }, []);
 
   // Format currency values
   const formatCurrency = (value: number): string => {
@@ -233,9 +199,7 @@ export const useChartData = () => {
     categoryBreakdownData,
     nutritionBalanceData,
     combinedTrendsData,
-    wasteReductionTimeline,
     monthlyComparisonData,
-    nutritionScoreTimeline,
     
     // Configuration
     chartConfig: CHART_CONFIG,

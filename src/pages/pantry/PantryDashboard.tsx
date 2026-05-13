@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Package, Bell, Plus, BarChart3 } from 'lucide-react';
+import { Package, Bell, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
@@ -40,6 +40,14 @@ const PantryDashboard: React.FC = () => {
       }))
       .filter(it => it.days <= 3)
       .sort((a,b) => a.days - b.days);
+  }, [inventory]);
+
+  const addedThisWeek = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return (inventory || []).filter(it => {
+      const ts = (it as any).created_at ? new Date((it as any).created_at).getTime() : NaN;
+      return Number.isFinite(ts) && ts >= weekAgo;
+    }).length;
   }, [inventory]);
 
   useEffect(() => {
@@ -264,8 +272,9 @@ const PantryDashboard: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Statistiques rapides */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      {/* Statistiques rapides — données réelles seulement (PRP-229 Commit 4).
+          La carte "Économies" a été supprimée : pas de source de données fiable. */}
+      <div className="grid gap-4 grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -281,7 +290,7 @@ const PantryDashboard: React.FC = () => {
               "text-2xl font-bold text-primary mt-1",
               isChildMode && "text-3xl"
             )}>
-              24
+              {(inventory || []).length}
             </p>
           </CardContent>
         </Card>
@@ -301,27 +310,7 @@ const PantryDashboard: React.FC = () => {
               "text-2xl font-bold text-amber-600 mt-1",
               isChildMode && "text-3xl"
             )}>
-              3
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-green-500" />
-              <span className={cn(
-                "text-sm text-muted-foreground",
-                isChildMode && "text-base"
-              )}>
-                {isChildMode ? 'Économies' : 'Économies mois'}
-              </span>
-            </div>
-            <p className={cn(
-              "text-2xl font-bold text-green-600 mt-1",
-              isChildMode && "text-3xl"
-            )}>
-              45€
+              {toConsume.length}
             </p>
           </CardContent>
         </Card>
@@ -341,7 +330,7 @@ const PantryDashboard: React.FC = () => {
               "text-2xl font-bold text-blue-600 mt-1",
               isChildMode && "text-3xl"
             )}>
-              7
+              {addedThisWeek}
             </p>
           </CardContent>
         </Card>

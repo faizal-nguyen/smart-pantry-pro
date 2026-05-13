@@ -297,9 +297,6 @@ export default function Recipes() {
           sourceUrl={extractedRecipe?.sourceUrl}
           onConfirm={async (editedRecipe) => {
             try {
-              console.log("💾 Sauvegarde de la recette:", editedRecipe);
-              
-              // Préparer les données pour l'ancien système
               const { ingredients, ...recipeData } = editedRecipe;
               await addRecipeWithIngredients(recipeData, ingredients);
               
