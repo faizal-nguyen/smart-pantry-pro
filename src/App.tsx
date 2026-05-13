@@ -30,7 +30,8 @@ const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
 const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
-const ShoppingDashboard = lazy(() => import("./pages/shopping/ShoppingDashboard"));
+// PRP-230 Commit 2: ShoppingDashboard no longer routed (/shopping redirects
+// to /shopping/list). File preserved for PRP-234 Today resurrection if needed.
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
 
 // Composants de navigation
@@ -62,10 +63,14 @@ const baseRoutes: RouteObject[] = [
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
-  { path: "/kitchen/favorites", element: withSuspense(RecipesPage) },
+  // PRP-230 Commit 2 : `?filter=favorites` reporté à PRP-232 Recipe V2 ;
+  // l'URL legacy redirige vers le catalogue principal pour ne pas casser
+  // les favoris navigateur des utilisateurs.
+  { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes" replace /> },
 
-  // Shopping
-  { path: "/shopping", element: withSuspense(ShoppingDashboard) },
+  // Shopping — PRP-230 Commit 2 : `/shopping` redirige vers la liste, qui
+  // est l'expérience principale (dashboard reporté à PRP-234 Today).
+  { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
 
   // Assistant
@@ -76,9 +81,10 @@ const baseRoutes: RouteObject[] = [
   { path: "/insights", element: withSuspense(InsightsPage) },
   { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
 
-  // Settings (PRP-222 garde uniquement /settings ; apparence reste comme sous-page utile)
+  // Settings — PRP-230 Commit 2 : ancrage `?section=appearance` reporté
+  // (cas d'usage marginal) ; la sous-route legacy redirige vers /settings.
   { path: "/settings", element: withSuspense(Settings) },
-  { path: "/settings/appearance", element: withSuspense(Settings) },
+  { path: "/settings/appearance", element: <Navigate to="/settings" replace /> },
 
   // Redirections vers routes coeur. /games/* et /shopping/store-mode étaient
   // exposées dans la nav avant PRP-222 — on garde un redirect minimal pour
