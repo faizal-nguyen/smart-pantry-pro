@@ -66,45 +66,9 @@ export interface NavigationSubItem {
 }
 
 // Configuration des routes hiérarchiques selon PRP-040.1
+// PRP-230 Commit 1: ordre V1 = Recettes → Inventaire → Courses → Anti-gaspi → Assistant.
+// L'ordre du tableau fait foi (pas de champ `order` séparé).
 export const NAVIGATION_CONFIG: NavigationItem[] = [
-  {
-    id: 'pantry',
-    label: 'Inventaire',
-    icon: Package,
-    path: '/pantry',
-    section: 'pantry',
-    description: 'Gérer votre inventaire alimentaire',
-    isMainSection: true,
-    minAge: 3,
-    requiresSupervision: false,
-    availableInChildMode: true,
-    gamification: {
-      points: 150,
-      level: 2,
-      achievements: ['first_scan', 'week_tracker'],
-      funName: 'Ma Réserve Magique'
-    },
-    subItems: [
-      {
-        id: 'pantry-overview',
-        label: 'Vue d\'ensemble',
-        path: '/pantry',
-        icon: Home,
-        description: 'Dashboard du garde-manger',
-        minAge: 3,
-        childFriendlyName: 'Ma cuisine'
-      },
-      {
-        id: 'pantry-inventory',
-        label: 'Inventaire',
-        path: '/pantry/inventory',
-        icon: Package,
-        description: 'Inventaire complet des produits',
-        minAge: 3,
-        childFriendlyName: 'Mes produits'
-      }
-    ]
-  },
   {
     id: 'kitchen',
     label: 'Recettes',
@@ -163,6 +127,44 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     ]
   },
   {
+    id: 'pantry',
+    label: 'Inventaire',
+    icon: Package,
+    path: '/pantry',
+    section: 'pantry',
+    description: 'Gérer votre inventaire alimentaire',
+    isMainSection: true,
+    minAge: 3,
+    requiresSupervision: false,
+    availableInChildMode: true,
+    gamification: {
+      points: 150,
+      level: 2,
+      achievements: ['first_scan', 'week_tracker'],
+      funName: 'Ma Réserve Magique'
+    },
+    subItems: [
+      {
+        id: 'pantry-overview',
+        label: 'Vue d\'ensemble',
+        path: '/pantry',
+        icon: Home,
+        description: 'Dashboard du garde-manger',
+        minAge: 3,
+        childFriendlyName: 'Ma cuisine'
+      },
+      {
+        id: 'pantry-inventory',
+        label: 'Inventaire',
+        path: '/pantry/inventory',
+        icon: Package,
+        description: 'Inventaire complet des produits',
+        minAge: 3,
+        childFriendlyName: 'Mes produits'
+      }
+    ]
+  },
+  {
     id: 'shopping',
     label: 'Courses',
     icon: ShoppingCart,
@@ -201,35 +203,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     ]
   },
   {
-    id: 'assistant',
-    label: 'Assistant',
-    icon: Bot,
-    path: '/assistant',
-    section: 'assistant',
-    description: 'Assistant intelligent alimentaire',
-    isMainSection: true,
-    minAge: 7,
-    requiresSupervision: true,
-    availableInChildMode: false,
-    gamification: {
-      points: 250,
-      level: 3,
-      achievements: ['ai_helper', 'smart_questions'],
-      funName: 'Mon Assistant Magique'
-    },
-    subItems: [
-      {
-        id: 'assistant-overview',
-        label: 'Assistant principal',
-        path: '/assistant',
-        icon: Home,
-        description: 'Interface principale de l\'assistant',
-        minAge: 7,
-        childFriendlyName: 'Mon assistant'
-      }
-    ]
-  },
-  {
     id: 'insights',
     label: 'Anti-gaspi',
     icon: BarChart3,
@@ -264,6 +237,35 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Réduction du gaspillage',
         minAge: 10,
         childFriendlyName: 'Éviter le gaspillage'
+      }
+    ]
+  },
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    icon: Bot,
+    path: '/assistant',
+    section: 'assistant',
+    description: 'Assistant intelligent alimentaire',
+    isMainSection: true,
+    minAge: 7,
+    requiresSupervision: true,
+    availableInChildMode: false,
+    gamification: {
+      points: 250,
+      level: 3,
+      achievements: ['ai_helper', 'smart_questions'],
+      funName: 'Mon Assistant Magique'
+    },
+    subItems: [
+      {
+        id: 'assistant-overview',
+        label: 'Assistant principal',
+        path: '/assistant',
+        icon: Home,
+        description: 'Interface principale de l\'assistant',
+        minAge: 7,
+        childFriendlyName: 'Mon assistant'
       }
     ]
   }
