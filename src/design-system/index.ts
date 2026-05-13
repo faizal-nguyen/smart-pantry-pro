@@ -40,9 +40,6 @@ export {
   usePerformanceMonitoring
 } from '@/components/performance/PerformanceMonitor';
 
-// Demo Page
-export { default as LayoutOptimizationDemo } from '@/pages/LayoutOptimizationDemo';
-
 // Utility Types
 export interface LayoutOptimizationConfig {
   performanceMode: 'high' | 'balanced' | 'low';
