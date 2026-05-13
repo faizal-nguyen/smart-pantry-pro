@@ -595,7 +595,7 @@
 /* Dark Mode Optimizations */
 @media (prefers-color-scheme: dark) {
   .adaptive-hero-viewport {
-    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 100%);
+    background: linear-gradient(135deg, oklch(var(--primary)) 0%, oklch(var(--secondary)) 100%);
   }
   
   .hero-title {

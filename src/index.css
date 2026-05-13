@@ -5,60 +5,65 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
+ *
+ * PRP-231 Commit 1: tokens migrated from HSL to OKLCH. The visible palette
+ * (fresh green primary, warm orange secondary) is preserved. Values are
+ * stored as raw `L% C H` tuples and consumed via `oklch(var(--token))` in
+ * `tailwind.config.ts`. To preserve dark-mode contrast and Tailwind's
+ * `bg-foreground/50` opacity syntax, keep this raw-tuple format.
+ */
 
 @layer base {
   :root {
     /* Food-focused color palette */
-    --background: 45 100% 98%;
-    --foreground: 147 25% 15%;
+    --background: 98.5% 0.018 95;
+    --foreground: 25% 0.035 165;
 
-    --card: 0 0% 100%;
-    --card-foreground: 147 25% 15%;
+    --card: 100% 0 0;
+    --card-foreground: 25% 0.035 165;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 147 25% 15%;
+    --popover: 100% 0 0;
+    --popover-foreground: 25% 0.035 165;
 
     /* Primary: Fresh Green */
-    --primary: 142 76% 36%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 142 76% 32%;
-    --primary-active: 142 76% 28%;
+    --primary: 55% 0.17 145;
+    --primary-foreground: 100% 0 0;
+    --primary-hover: 50% 0.16 145;
+    --primary-active: 45% 0.15 145;
 
     /* Secondary: Warm Orange */
-    --secondary: 25 95% 53%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-hover: 25 95% 48%;
+    --secondary: 68% 0.20 50;
+    --secondary-foreground: 100% 0 0;
+    --secondary-hover: 63% 0.19 50;
 
     /* Accent: Fresh herbs (distinct from success) */
-    --accent: 180 60% 40%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 60% 0.10 195;
+    --accent-foreground: 100% 0 0;
 
-    /* Muted: Neutral earth tones - FIXED: Better contrast ratio (4.5:1+) */
-    --muted: 45 20% 96%;
-    --muted-foreground: 147 20% 35%;
+    /* Muted: Neutral earth tones */
+    --muted: 96% 0.012 95;
+    --muted-foreground: 45% 0.04 165;
 
     /* Success: Fresh green */
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
+    --success: 55% 0.17 145;
+    --success-foreground: 100% 0 0;
 
     /* Info: Calm blue */
-    --info: 210 80% 50%;
-    --info-foreground: 0 0% 100%;
+    --info: 60% 0.18 245;
+    --info-foreground: 100% 0 0;
 
     /* Warning: Sunset orange */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 72% 0.18 65;
+    --warning-foreground: 100% 0 0;
 
     /* Destructive: Tomato red */
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 62% 0.23 25;
+    --destructive-foreground: 100% 0 0;
 
-    --border: 45 20% 90%;
-    --input: 45 20% 94%;
-    --ring: 142 76% 36%;
+    --border: 92% 0.012 95;
+    --input: 94% 0.012 95;
+    --ring: 55% 0.17 145;
 
     /* Enhanced radius system */
     --radius: 0.75rem;
@@ -96,75 +101,75 @@ All colors MUST be HSL.
     --duration-slow: 500ms;
 
     /* Sidebar colors */
-    --sidebar-background: 45 100% 98%;
-    --sidebar-foreground: 147 25% 20%;
-    --sidebar-primary: 142 76% 36%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 45 20% 96%;
-    --sidebar-accent-foreground: 147 25% 20%;
-    --sidebar-border: 45 20% 90%;
-    --sidebar-ring: 142 76% 36%;
+    --sidebar-background: 98.5% 0.018 95;
+    --sidebar-foreground: 30% 0.035 165;
+    --sidebar-primary: 55% 0.17 145;
+    --sidebar-primary-foreground: 100% 0 0;
+    --sidebar-accent: 96% 0.012 95;
+    --sidebar-accent-foreground: 30% 0.035 165;
+    --sidebar-border: 92% 0.012 95;
+    --sidebar-ring: 55% 0.17 145;
   }
 
   .dark {
     /* Dark mode: Rich earthy palette */
-    --background: 147 25% 8%;
-    --foreground: 45 100% 95%;
+    --background: 18% 0.025 165;
+    --foreground: 96% 0.025 95;
 
-    --card: 147 25% 10%;
-    --card-foreground: 45 100% 95%;
+    --card: 20% 0.025 165;
+    --card-foreground: 96% 0.025 95;
 
-    --popover: 147 25% 10%;
-    --popover-foreground: 45 100% 95%;
+    --popover: 20% 0.025 165;
+    --popover-foreground: 96% 0.025 95;
 
     /* Primary: Bright green for contrast */
-    --primary: 142 70% 45%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 142 70% 50%;
-    --primary-active: 142 70% 40%;
+    --primary: 60% 0.18 145;
+    --primary-foreground: 100% 0 0;
+    --primary-hover: 65% 0.19 145;
+    --primary-active: 55% 0.17 145;
 
     /* Secondary: Warm orange preserved */
-    --secondary: 25 85% 55%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-hover: 25 85% 60%;
+    --secondary: 68% 0.18 50;
+    --secondary-foreground: 100% 0 0;
+    --secondary-hover: 73% 0.19 50;
 
     /* Accent: Softer teal (distinct from success) */
-    --accent: 180 50% 50%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 65% 0.11 195;
+    --accent-foreground: 100% 0 0;
 
-    /* Muted: Dark earth tones - FIXED: Better contrast ratio (4.5:1+) */
-    --muted: 147 15% 15%;
-    --muted-foreground: 45 30% 75%;
+    /* Muted: Dark earth tones */
+    --muted: 28% 0.02 165;
+    --muted-foreground: 80% 0.04 95;
 
     /* Success: Bright green */
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 100%;
+    --success: 60% 0.18 145;
+    --success-foreground: 100% 0 0;
 
     /* Info: Calm blue */
-    --info: 210 70% 55%;
-    --info-foreground: 0 0% 100%;
+    --info: 65% 0.17 245;
+    --info-foreground: 100% 0 0;
 
     /* Warning: Bright orange */
-    --warning: 38 85% 55%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 75% 0.17 65;
+    --warning-foreground: 100% 0 0;
 
     /* Destructive: Bright red */
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 60% 0.21 25;
+    --destructive-foreground: 100% 0 0;
 
-    --border: 147 15% 20%;
-    --input: 147 15% 18%;
-    --ring: 142 70% 45%;
+    --border: 30% 0.02 165;
+    --input: 28% 0.02 165;
+    --ring: 60% 0.18 145;
 
     /* Dark mode sidebar */
-    --sidebar-background: 147 25% 6%;
-    --sidebar-foreground: 45 100% 90%;
-    --sidebar-primary: 142 70% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 147 15% 12%;
-    --sidebar-accent-foreground: 45 100% 90%;
-    --sidebar-border: 147 15% 15%;
-    --sidebar-ring: 142 70% 45%;
+    --sidebar-background: 15% 0.025 165;
+    --sidebar-foreground: 92% 0.025 95;
+    --sidebar-primary: 60% 0.18 145;
+    --sidebar-primary-foreground: 100% 0 0;
+    --sidebar-accent: 25% 0.02 165;
+    --sidebar-accent-foreground: 92% 0.025 95;
+    --sidebar-border: 28% 0.02 165;
+    --sidebar-ring: 60% 0.18 145;
   }
 }
 

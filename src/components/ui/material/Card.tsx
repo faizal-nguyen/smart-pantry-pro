@@ -33,8 +33,8 @@ export const MaterialCard = React.forwardRef<HTMLDivElement, MotionCardProps>(
     
     const variantStyles = {
       elevated: {
-        backgroundColor: colors?.surface || 'hsl(var(--card))',
-        color: colors?.onSurface || 'hsl(var(--card-foreground))',
+        backgroundColor: colors?.surface || 'oklch(var(--card))',
+        color: colors?.onSurface || 'oklch(var(--card-foreground))',
         boxShadow: theme.elevation.level1.shadow,
         border: 'none',
         hover: {
@@ -42,8 +42,8 @@ export const MaterialCard = React.forwardRef<HTMLDivElement, MotionCardProps>(
         },
       },
       filled: {
-        backgroundColor: colors?.surfaceVariant || 'hsl(var(--secondary))',
-        color: colors?.onSurfaceVariant || 'hsl(var(--secondary-foreground))',
+        backgroundColor: colors?.surfaceVariant || 'oklch(var(--secondary))',
+        color: colors?.onSurfaceVariant || 'oklch(var(--secondary-foreground))',
         boxShadow: 'none',
         border: 'none',
         hover: {
@@ -51,13 +51,13 @@ export const MaterialCard = React.forwardRef<HTMLDivElement, MotionCardProps>(
         },
       },
       outlined: {
-        backgroundColor: colors?.surface || 'hsl(var(--card))',
-        color: colors?.onSurface || 'hsl(var(--card-foreground))',
+        backgroundColor: colors?.surface || 'oklch(var(--card))',
+        color: colors?.onSurface || 'oklch(var(--card-foreground))',
         boxShadow: 'none',
-        border: `1px solid ${colors?.outlineVariant || 'hsl(var(--border))'}`,
+        border: `1px solid ${colors?.outlineVariant || 'oklch(var(--border))'}`,
         hover: {
           boxShadow: theme.elevation.level1.shadow,
-          borderColor: colors?.outline || 'hsl(var(--border))',
+          borderColor: colors?.outline || 'oklch(var(--border))',
         },
       },
     };
@@ -80,7 +80,7 @@ export const MaterialCard = React.forwardRef<HTMLDivElement, MotionCardProps>(
           boxShadow: currentVariant.boxShadow,
           border: currentVariant.border,
           borderRadius: `${theme.shape.corner.large}px`,
-          ringColor: selected ? (colors?.primary || 'hsl(var(--primary))') : undefined,
+          ringColor: selected ? (colors?.primary || 'oklch(var(--primary))') : undefined,
         }}
         whileHover={
           interactive
