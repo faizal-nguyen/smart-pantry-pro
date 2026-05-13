@@ -1,6 +1,11 @@
 /**
  * PageWrapper - Wrapper Réutilisable pour Pages avec AppNavigation
  * Simplifie la migration de Layout vers AppNavigation
+ *
+ * PRP-236 Commit 3 — conservation justifiée :
+ *  - Consommé uniquement par `src/pages/InventoryPage.tsx`.
+ * Suppression scopée PRP-234 quand `InventoryPage` sera migrée vers
+ * `AppNavigation` directement.
  */
 
 import React, { useState, useEffect } from "react";

@@ -2,6 +2,11 @@
  * Simplified Morphing Navigation Component
  * Context-aware navigation with clear state machine and smooth transitions
  * Based on PRP-022-Layout-Optimization specification
+ *
+ * PRP-236 Commit 3 — conservation justifiée :
+ *  - Re-exporté par `src/design-system/index.ts`.
+ *  - Référencé par `src/__tests__/accessibility-validation.test.ts`.
+ * Suppression scopée PRP-234 (refonte nav V2).
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
