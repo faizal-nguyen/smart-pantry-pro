@@ -146,6 +146,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
           <MaterialButton
             variant="text"
             className="h-7 w-7 p-0"
+            aria-label="Modifier le produit"
             icon={<Edit className="h-3 w-3" />}
             onClick={(e) => {
               e.stopPropagation();
@@ -155,6 +156,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
           <MaterialButton
             variant="text"
             className="h-7 w-7 p-0"
+            aria-label="Voir des recettes avec ce produit"
             icon={<ChefHat className="h-3 w-3" />}
             onClick={(e) => {
               e.stopPropagation();
@@ -165,6 +167,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
             <MaterialButton
               variant="text"
               className="h-7 w-7 p-0"
+              aria-label="Trouver un produit de substitution"
               icon={<RefreshCw className="h-3 w-3" />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -176,6 +179,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
             <MaterialButton
               variant="text"
               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+              aria-label="Jeter ce produit"
               icon={<Trash2 className="h-3 w-3" />}
               onClick={(e) => {
                 e.stopPropagation();
