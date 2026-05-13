@@ -274,6 +274,263 @@ export type Database = {
         }
         Relationships: []
       }
+      // PRP-223 PR1 — Assistant Memory Foundation. Mapping the SQL schema from
+      // supabase/migrations/20260513120000_create_assistant_memory_foundation.sql.
+      assistant_conversations: {
+        Row: {
+          id: string
+          user_id: string
+          title: string | null
+          mode: 'general' | 'kitchen' | 'shopping' | 'inventory' | 'recipes' | 'nutrition' | 'cooking'
+          status: 'active' | 'archived' | 'deleted'
+          last_message_at: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title?: string | null
+          mode?: 'general' | 'kitchen' | 'shopping' | 'inventory' | 'recipes' | 'nutrition' | 'cooking'
+          status?: 'active' | 'archived' | 'deleted'
+          last_message_at?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string | null
+          mode?: 'general' | 'kitchen' | 'shopping' | 'inventory' | 'recipes' | 'nutrition' | 'cooking'
+          status?: 'active' | 'archived' | 'deleted'
+          last_message_at?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      assistant_messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          user_id: string
+          role: 'user' | 'assistant' | 'system' | 'tool'
+          content: string
+          content_format: 'text' | 'transcript' | 'tool_result' | 'summary'
+          audio_transcript: string | null
+          tool_calls: Json
+          action_log_ids: string[]
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          user_id: string
+          role: 'user' | 'assistant' | 'system' | 'tool'
+          content: string
+          content_format?: 'text' | 'transcript' | 'tool_result' | 'summary'
+          audio_transcript?: string | null
+          tool_calls?: Json
+          action_log_ids?: string[]
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          user_id?: string
+          role?: 'user' | 'assistant' | 'system' | 'tool'
+          content?: string
+          content_format?: 'text' | 'transcript' | 'tool_result' | 'summary'
+          audio_transcript?: string | null
+          tool_calls?: Json
+          action_log_ids?: string[]
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
+      assistant_memory_items: {
+        Row: {
+          id: string
+          user_id: string
+          kind: 'preference' | 'negative_preference' | 'habit' | 'cooking_style' | 'diet_goal' | 'constraint' | 'recipe_feedback' | 'shopping_pattern' | 'response_style'
+          scope: 'global' | 'recipe' | 'ingredient' | 'product' | 'conversation' | 'temporary'
+          status: 'candidate' | 'active' | 'rejected' | 'deleted'
+          subject_type: string | null
+          subject_id: string | null
+          content: string
+          normalized_content: string | null
+          confidence: number
+          sensitivity: 'normal' | 'personal' | 'health_sensitive'
+          source: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system'
+          evidence: Json
+          approved_at: string | null
+          last_used_at: string | null
+          expires_at: string | null
+          deleted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          kind: 'preference' | 'negative_preference' | 'habit' | 'cooking_style' | 'diet_goal' | 'constraint' | 'recipe_feedback' | 'shopping_pattern' | 'response_style'
+          scope?: 'global' | 'recipe' | 'ingredient' | 'product' | 'conversation' | 'temporary'
+          status?: 'candidate' | 'active' | 'rejected' | 'deleted'
+          subject_type?: string | null
+          subject_id?: string | null
+          content: string
+          normalized_content?: string | null
+          confidence?: number
+          sensitivity?: 'normal' | 'personal' | 'health_sensitive'
+          source?: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system'
+          evidence?: Json
+          approved_at?: string | null
+          last_used_at?: string | null
+          expires_at?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          kind?: 'preference' | 'negative_preference' | 'habit' | 'cooking_style' | 'diet_goal' | 'constraint' | 'recipe_feedback' | 'shopping_pattern' | 'response_style'
+          scope?: 'global' | 'recipe' | 'ingredient' | 'product' | 'conversation' | 'temporary'
+          status?: 'candidate' | 'active' | 'rejected' | 'deleted'
+          subject_type?: string | null
+          subject_id?: string | null
+          content?: string
+          normalized_content?: string | null
+          confidence?: number
+          sensitivity?: 'normal' | 'personal' | 'health_sensitive'
+          source?: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system'
+          evidence?: Json
+          approved_at?: string | null
+          last_used_at?: string | null
+          expires_at?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      assistant_conversation_summaries: {
+        Row: {
+          id: string
+          conversation_id: string
+          user_id: string
+          summary: string
+          covered_message_ids: string[]
+          model_used: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          user_id: string
+          summary: string
+          covered_message_ids?: string[]
+          model_used?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          user_id?: string
+          summary?: string
+          covered_message_ids?: string[]
+          model_used?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      assistant_session_context: {
+        Row: {
+          id: string
+          user_id: string
+          conversation_id: string | null
+          key: string
+          value: Json
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          conversation_id?: string | null
+          key: string
+          value: Json
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          conversation_id?: string | null
+          key?: string
+          value?: Json
+          expires_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      cooking_journal_entries: {
+        Row: {
+          id: string
+          user_id: string
+          recipe_id: string | null
+          recipe_title: string
+          cooked_at: string
+          rating: number | null
+          outcome: 'loved' | 'liked' | 'ok' | 'disliked' | 'failed' | null
+          notes: string | null
+          substitutions: Json
+          adjustments: Json
+          would_cook_again: boolean | null
+          created_from_message_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          recipe_id?: string | null
+          recipe_title: string
+          cooked_at?: string
+          rating?: number | null
+          outcome?: 'loved' | 'liked' | 'ok' | 'disliked' | 'failed' | null
+          notes?: string | null
+          substitutions?: Json
+          adjustments?: Json
+          would_cook_again?: boolean | null
+          created_from_message_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          recipe_id?: string | null
+          recipe_title?: string
+          cooked_at?: string
+          rating?: number | null
+          outcome?: 'loved' | 'liked' | 'ok' | 'disliked' | 'failed' | null
+          notes?: string | null
+          substitutions?: Json
+          adjustments?: Json
+          would_cook_again?: boolean | null
+          created_from_message_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {
