@@ -321,36 +321,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
                     </MaterialCardContent>
                   </MaterialCard>
 
-                  {/* Recent Achievements */}
-                  {recentAchievements.length > 0 && (
-                    <MaterialCard variant="elevated">
-                      <MaterialCardHeader>
-                        <div className="text-lg font-semibold">Derniers Succès</div>
-                      </MaterialCardHeader>
-                      <MaterialCardContent>
-                        <div className="space-y-3">
-                          {recentAchievements.slice(0, 2).map((achievement, index) => (
-                            <motion.div
-                              key={achievement.id || `achievement-${index}`}
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
-                            >
-                              <div className="text-2xl">{achievement.icon}</div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-green-800 dark:text-green-400">
-                                  {achievement.title}
-                                </p>
-                                <p className="text-xs text-green-600 dark:text-green-500">
-                                  +{achievement.reward.points} points
-                                </p>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </MaterialCardContent>
-                    </MaterialCard>
-                  )}
                 </div>
               </motion.div>
             </TabsContent>
