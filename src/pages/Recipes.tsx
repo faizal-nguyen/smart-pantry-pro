@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { 
   Select,
   SelectContent,
@@ -828,46 +829,27 @@ function RecipesGridSkeleton() {
 }
 
 function EmptyExploreState({ onSwitchToInbox }: { onSwitchToInbox?: () => void }) {
-  // Audit P1: was "Catalogue en construction / sera bientôt disponible".
-  // Misleading — the page IS loaded, the catalog is just empty for
-  // this user. Pivot to actionable copy that lets the user fill the
-  // catalog themselves via the inbox (PRP-220 capture flow) instead
-  // of waiting for a "bientôt".
+  // PRP-231 Commit 2: standardized on shared EmptyState component.
   return (
-    <div className="text-center py-16 max-w-md mx-auto">
-      <Sparkles className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-      <h3 className="text-xl font-semibold mb-2">Aucune recette à explorer pour l&apos;instant</h3>
-      <p className="text-muted-foreground mb-6">
-        Capture une URL Instagram, TikTok, YouTube ou un lien web et
-        elle apparaîtra ici une fois extraite.
-      </p>
-      {onSwitchToInbox && (
-        <Button onClick={onSwitchToInbox}>Aller à l&apos;inbox</Button>
-      )}
-    </div>
+    <EmptyState
+      icon={Sparkles}
+      title="Aucune recette à explorer pour l'instant"
+      description="Capture une URL Instagram, TikTok, YouTube ou un lien web et elle apparaîtra ici une fois extraite."
+      action={onSwitchToInbox ? { label: "Aller à l'inbox", onClick: onSwitchToInbox } : undefined}
+    />
   );
 }
 
-function EmptyLibraryState({ onShowOnboarding }) {
+function EmptyLibraryState({ onShowOnboarding }: { onShowOnboarding?: () => void }) {
+  // PRP-231 Commit 2: standardized on shared EmptyState component.
+  // The previous secondary "Créer une recette" CTA had no onClick wired
+  // and was dropped per audit §2.9 (no buttons that don't do real work).
   return (
-    <div className="text-center py-16">
-      <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">
-        Votre bibliothèque est vide
-      </h3>
-      <p className="text-gray-600 mb-6">
-        Commencez par ajouter quelques recettes favorites !
-      </p>
-      <div className="flex gap-3 justify-center">
-        <Button onClick={onShowOnboarding}>
-          <Sparkles className="h-4 w-4 mr-2" />
-          Découvrir des recettes
-        </Button>
-        <Button variant="outline">
-          <Plus className="h-4 w-4 mr-2" />
-          Créer une recette
-        </Button>
-      </div>
-    </div>
+    <EmptyState
+      icon={BookOpen}
+      title="Ta bibliothèque est vide"
+      description="Commence par ajouter quelques recettes favorites depuis le feed ou via un import."
+      action={onShowOnboarding ? { label: "Découvrir des recettes", onClick: onShowOnboarding } : undefined}
+    />
   );
 }

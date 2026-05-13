@@ -2,6 +2,7 @@ import React, { useState, useMemo, Suspense } from "react";
 import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card";
 import { Badge } from "@/components/ui/badge";
 import { MaterialButton } from "@/components/ui/material/Button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Package, 
@@ -785,22 +786,15 @@ const Inventory = () => {
 
       {/* Empty State */}
       {inventory.length === 0 && (
-        <MaterialCard variant="elevated">
-          <MaterialCardContent className="p-12 text-center">
-            <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Inventaire vide</h3>
-            <p className="text-muted-foreground mb-4">
-              Commencez par ajouter vos premiers produits
-            </p>
-            <MaterialButton 
-              variant="filled"
-              onClick={() => setAddDialogOpen(true)}
-              icon={<Sparkles className="w-4 h-4" />}
-            >
-              Ajouter un produit
-            </MaterialButton>
-          </MaterialCardContent>
-        </MaterialCard>
+        <EmptyState
+          icon={Package}
+          title="Inventaire vide"
+          description="Commence par ajouter tes premiers produits pour suivre ton garde-manger."
+          action={{
+            label: "Ajouter un produit",
+            onClick: () => setAddDialogOpen(true),
+          }}
+        />
       )}
 
       {/* Floating Action Button */}

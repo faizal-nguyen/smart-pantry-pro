@@ -7,6 +7,7 @@ import { PageLoader } from "@/components/layout/PageLoader";
 import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -346,16 +347,15 @@ const SmartShoppingList = () => {
 
             {/* Liste des articles par rayon */}
             {Object.keys(groupedItems).length === 0 ? (
-              <MaterialCard variant="elevated">
-                <MaterialCardContent className="p-8 text-center">
-                  <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {searchQuery || selectedSection !== "Tous" 
-                      ? "Aucun article ne correspond à votre recherche."
-                      : "Votre liste est vide. Ajoutez des articles pour commencer."}
-                  </p>
-                </MaterialCardContent>
-              </MaterialCard>
+              <EmptyState
+                icon={ShoppingCart}
+                title={searchQuery || selectedSection !== "Tous"
+                  ? "Aucun article trouvé"
+                  : "Liste de courses vide"}
+                description={searchQuery || selectedSection !== "Tous"
+                  ? "Aucun article ne correspond à ta recherche. Modifie les filtres ou ajoute un article."
+                  : "Ajoute tes premiers articles via le champ ci-dessus ou depuis une recette."}
+              />
             ) : (
               Object.entries(groupedItems).map(([section, items]) => (
                 <div key={section} className="space-y-2">

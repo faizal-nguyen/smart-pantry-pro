@@ -12,6 +12,7 @@ import AppNavigation from '@/components/navigation/AppNavigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/layout/PageLoader';
 import { useFoodWaste, WasteReason } from '@/hooks/useFoodWaste';
 import { useAuth } from '@/hooks/useAuth';
@@ -72,16 +73,11 @@ const WasteInsightsPage: React.FC = () => {
             ))}
           </div>
         ) : stats.totalEvents === 0 ? (
-          <Card>
-            <CardContent className="p-10 text-center space-y-3">
-              <TrendingDown className="w-12 h-12 mx-auto text-muted-foreground" />
-              <h2 className="text-lg font-semibold">Aucun gaspillage enregistré</h2>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Quand tu jettes un produit depuis ton garde-manger, il apparaît ici. Les chiffres
-                sont calculés à partir de tes événements réels — rien d&apos;inventé.
-              </p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={TrendingDown}
+            title="Aucun gaspillage enregistré"
+            description="Quand tu jettes un produit depuis ton garde-manger, il apparaît ici. Les chiffres sont calculés à partir de tes événements réels — rien d'inventé."
+          />
         ) : (
           <>
             <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">

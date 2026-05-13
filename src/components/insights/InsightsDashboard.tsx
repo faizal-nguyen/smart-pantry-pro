@@ -4,6 +4,7 @@ import { MaterialCard, MaterialCardContent, MaterialCardHeader } from '@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import {
   BarChart3,
@@ -111,11 +112,15 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
   if (insightsLoading) {
     return (
       <div className={cn("space-y-6", className)}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 dark:text-gray-400">Chargement de vos insights...</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-72 w-full" />
         </div>
       </div>
     );
