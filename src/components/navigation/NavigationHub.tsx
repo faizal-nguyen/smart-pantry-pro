@@ -14,7 +14,6 @@ import {
   Home,
   CalendarDays,
   Heart,
-  MessageCircle,
   Shield,
   Palette
 } from 'lucide-react';
@@ -227,16 +226,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Interface principale de l\'assistant',
         minAge: 7,
         childFriendlyName: 'Mon assistant'
-      },
-      {
-        id: 'assistant-chat',
-        label: 'Chat IA',
-        path: '/assistant/chat',
-        icon: MessageCircle,
-        description: 'Conversation avec l\'assistant',
-        minAge: 10,
-        requiresParentalApproval: true,
-        childFriendlyName: 'Parler avec l\'assistant'
       }
     ]
   },
