@@ -3,7 +3,8 @@
  * Système à onglets : Explorer (catalogue) + Mes Recettes (bibliothèque)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Search, 
@@ -67,9 +68,31 @@ import { useRecipes } from "@/hooks/useRecipes";
 import RecipeOnboarding from "@/components/onboarding/RecipeOnboarding";
 import CollectionsManager from "@/components/recipes/CollectionsManager";
 
+// PRP-232 PR1 — URL state contract.
+// Tab survit refresh + deep-links (ShareTarget passe `?tab=inbox`). Legacy
+// `explore` est coercé vers `feed` ; toute valeur inconnue retombe sur
+// `feed` (default). Les autres params (`filter`, `source`, `sort`, `q`)
+// arrivent en PR2/PR3.
+const TAB_VALUES = ['feed', 'library', 'inbox', 'import'] as const;
+type RecipeTab = typeof TAB_VALUES[number];
+
+const normalizeTab = (raw: string | null): RecipeTab => {
+  if (!raw) return 'feed';
+  if (raw === 'explore') return 'feed';
+  return (TAB_VALUES as readonly string[]).includes(raw) ? (raw as RecipeTab) : 'feed';
+};
+
 export default function Recipes() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'explore' | 'library' | 'inbox' | 'import'>('explore');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = useMemo(() => normalizeTab(searchParams.get('tab')), [searchParams]);
+  const setActiveTab = (value: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', value);
+      return next;
+    }, { replace: true });
+  };
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showExtractedModal, setShowExtractedModal] = useState(false);
   const [extractedRecipe, setExtractedRecipe] = useState<any>(null);
@@ -154,9 +177,9 @@ export default function Recipes() {
         </motion.div>
 
         {/* Navigation à onglets */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-8 h-14">
-            <TabsTrigger value="explore" className="flex items-center gap-2 text-base">
+            <TabsTrigger value="feed" className="flex items-center gap-2 text-base">
               <Sparkles className="h-5 w-5" />
               Feed
               <Badge variant="secondary" className="ml-1">
@@ -188,8 +211,8 @@ export default function Recipes() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Onglet Explorer - Catalogue global */}
-          <TabsContent value="explore" className="space-y-6">
+          {/* Onglet Feed - Catalogue global (anciennement "explore", coercé en PR1) */}
+          <TabsContent value="feed" className="space-y-6">
             <ExploreTab
               recipes={catalogRecipes}
               totalCount={catalogCount}
@@ -277,7 +300,7 @@ export default function Recipes() {
             }}
             onSkip={() => {
               setShowOnboarding(false);
-              setActiveTab('explore');
+              setActiveTab('feed');
             }}
           />
         )}
