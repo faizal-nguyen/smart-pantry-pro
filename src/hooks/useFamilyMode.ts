@@ -1,6 +1,15 @@
 /**
  * Family Mode Hooks - Version Simplifiée
- * Version temporaire qui évite les erreurs de base de données
+ * Version temporaire qui évite les erreurs de base de données.
+ *
+ * PRP-230 Commit 4 — audit hors-scope :
+ * ce hook stub est encore consommé par ~13 emplacements (AppNavigation,
+ * dashboards, useCipherMealPlanning, services d'intelligence nav,
+ * SmartSuggestions). PRP-230 ne le supprime pas. La suppression complète
+ * est cadrée par PRP-234 quand `useCipherMealPlanning` et les services
+ * `navigation-intelligence/*` seront refactorés. En attendant, le hook
+ * retourne des défauts adulte (`isFamilyModeActive: false`, profil unique)
+ * pour neutraliser la branche famille de la nav (cf. PRP-230 Commit 3).
  */
 
 import { useState, useCallback, useMemo } from 'react';
