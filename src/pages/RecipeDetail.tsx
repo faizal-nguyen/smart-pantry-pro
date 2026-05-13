@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,29 +13,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { 
-  ArrowLeft, 
-  Clock, 
-  Users, 
-  Star, 
-  Heart, 
-  Share, 
-  ShoppingCart,
-  ChefHat,
+import {
+  ArrowLeft,
+  Clock,
+  Users,
+  Star,
+  Heart,
+  Share,
   CheckCircle,
   AlertCircle,
   XCircle,
-  Edit,
   Trash2,
-  IndianRupee,
 } from "lucide-react";
 import { RecipeNutrition } from "@/components/recipes/RecipeNutrition";
-import { RecipeSourceCard, type RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
+import RecipeMediaFrame from "@/components/recipes/RecipeMediaFrame";
+import RecipePrimaryActions from "@/components/recipes/RecipePrimaryActions";
+import RecipeSourcePreview from "@/components/recipes/RecipeSourcePreview";
+import type { RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
-import { useIndianPriceEstimator } from "@/hooks/useIndianPriceEstimator";
 import { supabase } from "@/integrations/supabase/client";
 
 interface RecipeIngredient {
@@ -62,28 +59,15 @@ const RecipeDetail = () => {
   
   const recipe = recipes.find(r => r.id === id);
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
-  const { estimatePrices, isIndianRecipe } = useIndianPriceEstimator();
-  
+
   // Détecter si la recette a été supprimée
   const recipeDeleted = !recipe && !loading && id;
-  const [indianPriceEstimate, setIndianPriceEstimate] = useState<any>(null);
 
   useEffect(() => {
     if (id) {
       fetchRecipeDetails();
     }
   }, [id]);
-  
-  useEffect(() => {
-    // Estimate Indian prices if it's an Indian recipe
-    if (recipe && ingredients.length > 0 && isIndianRecipe(recipe.cuisine_category, recipe.tags)) {
-      estimatePrices(ingredients, recipe.id).then(result => {
-        if (result) {
-          setIndianPriceEstimate(result);
-        }
-      });
-    }
-  }, [recipe, ingredients]);
 
   const fetchRecipeDetails = async () => {
     try {
@@ -170,7 +154,7 @@ const RecipeDetail = () => {
         description: "La recette a été supprimée avec succès",
       });
       setShowDeleteDialog(false);
-      navigate('/recipes');
+      navigate('/kitchen/recipes');
     } catch (error) {
       toast({
         title: "Erreur",
@@ -346,7 +330,7 @@ const RecipeDetail = () => {
               </>
             )}
           </div>
-          <Button onClick={() => navigate('/recipes')}>
+          <Button onClick={() => navigate('/kitchen/recipes')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Retour aux recettes
           </Button>
@@ -376,87 +360,82 @@ const RecipeDetail = () => {
 
   const totalTime = recipe.prep_time + recipe.cook_time;
 
+  // PRP-232 PR4 — hiérarchie §9 : media → titre/source/temps → actions
+  // primaires → ingrédients → instructions → notes → source.
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
-      {/* Header */}
-      <div className="mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/recipes')}
-          className="mb-4"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
+      <div className="mb-4 flex items-center justify-between">
+        <Button variant="ghost" onClick={() => navigate('/kitchen/recipes')}>
+          <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
           Retour aux recettes
         </Button>
-
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">{recipe.name}</h1>
-            {recipe.description && (
-              <p className="text-muted-foreground">{recipe.description}</p>
-            )}
-          </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" size="icon">
-              <Heart className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="icon">
-              <Share className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={() => navigate(`/kitchen/recipes/${id}/edit`)}>
-              <Edit className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="icon" onClick={handleDeleteClick}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" aria-label="Mettre en favori">
+            <Heart className="w-4 h-4" aria-hidden="true" />
+          </Button>
+          <Button variant="outline" size="icon" aria-label="Partager">
+            <Share className="w-4 h-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleDeleteClick}
+            aria-label="Supprimer cette recette"
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+          </Button>
         </div>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-4 mt-4">
+      {/* 1. Media frame */}
+      <RecipeMediaFrame imageUrl={recipe.image_url} alt={recipe.name} />
+
+      {/* 2. Titre + source + temps */}
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold mb-2">{recipe.name}</h1>
+        {recipe.description && (
+          <p className="text-muted-foreground mb-4">{recipe.description}</p>
+        )}
+        <div className="flex flex-wrap items-center gap-4">
           {recipe.cuisine_category && (
             <Badge className={getCuisineColor(recipe.cuisine_category)}>
               {recipe.cuisine_category}
             </Badge>
           )}
-          
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Clock className="w-4 h-4" />
+            <Clock className="w-4 h-4" aria-hidden="true" />
             <span>{totalTime} min</span>
           </div>
-          
           <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4" aria-hidden="true" />
             <span>{recipe.servings} personnes</span>
           </div>
-          
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" aria-label={`Difficulté ${recipe.difficulty}/5`}>
             {[...Array(5)].map((_, i) => (
               <Star
                 key={i}
                 className={`w-4 h-4 ${
-                  i < recipe.difficulty
-                    ? 'fill-warning text-warning'
-                    : 'text-muted-foreground/30'
+                  i < recipe.difficulty ? 'fill-warning text-warning' : 'text-muted-foreground/30'
                 }`}
+                aria-hidden="true"
               />
             ))}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Image */}
-      {recipe.image_url && (
-        <div className="mb-6">
-          <img 
-            src={recipe.image_url} 
-            alt={recipe.name}
-            className="w-full h-64 md:h-96 object-cover rounded-lg"
-          />
-        </div>
-      )}
+      {/* 3. Actions primaires */}
+      <RecipePrimaryActions
+        onCook={handleCook}
+        onAddMissingToShoppingList={handleAddToShoppingList}
+        onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
+        cooking={cooking}
+        addingToCart={addingToCart}
+        canCook={!!inventoryAnalysis?.availableIngredients?.length}
+        canAddMissing={!inventoryAnalysis?.canMake}
+      />
 
-      {/* Inventory Status */}
+      {/* Inventory status compact (sans Indian Price PRP-232 PR4) */}
       {inventoryAnalysis && (
         <Card className="mb-6">
           <CardContent className="p-4">
@@ -482,11 +461,6 @@ const RecipeDetail = () => {
                 <p className="text-sm text-muted-foreground">Coût total recette</p>
                 <p className="font-medium">
                   {inventoryAnalysis.totalRecipeCost?.toFixed(2) || '0.00'}€
-                  {indianPriceEstimate && isIndianRecipe(recipe.cuisine_category, recipe.tags) && (
-                    <span className="text-xs text-muted-foreground ml-1">
-                      (Épicerie indienne: {indianPriceEstimate.totalCost}€)
-                    </span>
-                  )}
                 </p>
               </div>
             </div>
@@ -494,7 +468,7 @@ const RecipeDetail = () => {
               <div className="mt-3 pt-3 border-t">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">
-                    Coût des ingrédients manquants:
+                    Coût des ingrédients manquants :
                   </span>
                   <span className="font-medium text-orange-600">
                     {inventoryAnalysis.estimatedCost?.toFixed(2) || '0.00'}€
@@ -507,7 +481,7 @@ const RecipeDetail = () => {
       )}
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Ingredients */}
+        {/* 4. Ingrédients */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold mb-4">Ingrédients</h2>
@@ -519,19 +493,19 @@ const RecipeDetail = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {ingredients.map((ingredient) => {
+                {ingredients.map(ingredient => {
                   const isAvailable = inventoryAnalysis?.availableIngredients.some(
                     ai => ai.ingredient.ingredient_name === ingredient.ingredient_name
                   );
-                  
+
                   return (
-                    <div 
-                      key={ingredient.id} 
+                    <div
+                      key={ingredient.id}
                       className={`flex items-center justify-between p-2 rounded-lg ${
-                        !isAvailable && ingredient.is_essential 
-                          ? 'bg-red-50' 
-                          : !isAvailable 
-                          ? 'bg-yellow-50' 
+                        !isAvailable && ingredient.is_essential
+                          ? 'bg-red-50'
+                          : !isAvailable
+                          ? 'bg-yellow-50'
                           : 'bg-green-50'
                       }`}
                     >
@@ -549,46 +523,10 @@ const RecipeDetail = () => {
                 })}
               </div>
             )}
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-              <Button 
-                onClick={handleAddToShoppingList}
-                disabled={inventoryAnalysis?.canMake || addingToCart}
-              >
-                {addingToCart ? (
-                  <>
-                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Ajout en cours...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Ajouter les manquants
-                  </>
-                )}
-              </Button>
-              <Button 
-                variant="secondary"
-                onClick={handleCook}
-                disabled={cooking || !inventoryAnalysis?.availableIngredients?.length}
-              >
-                {cooking ? (
-                  <>
-                    <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Mise à jour...
-                  </>
-                ) : (
-                  <>
-                    <ChefHat className="w-4 h-4 mr-2" />
-                    Cuisiner (décrémenter)
-                  </>
-                )}
-              </Button>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Valeurs nutritionnelles */}
+        {/* 5. Nutrition */}
         {ingredients.length > 0 && (
           <RecipeNutrition
             ingredients={ingredients}
@@ -598,7 +536,7 @@ const RecipeDetail = () => {
           />
         )}
 
-        {/* Instructions */}
+        {/* 6. Instructions */}
         <Card>
           <CardContent className="p-6">
             <h2 className="text-xl font-semibold mb-4">Instructions</h2>
@@ -625,41 +563,6 @@ const RecipeDetail = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Indian Price Estimate Card */}
-      {indianPriceEstimate && isIndianRecipe(recipe.cuisine_category, recipe.tags) && (
-        <Card className="mt-6">
-          <CardContent className="p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <IndianRupee className="w-5 h-5" />
-              Estimation prix épicerie indienne
-            </h2>
-            <div className="space-y-2">
-              {indianPriceEstimate.estimates.map((estimate: any, index: number) => (
-                <div key={index} className="flex justify-between text-sm">
-                  <span>
-                    {estimate.quantity} {estimate.unit} {estimate.name}
-                    {estimate.englishName !== estimate.frenchName && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({estimate.englishName})
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-medium">{estimate.estimatedPrice.toFixed(2)}€</span>
-                </div>
-              ))}
-              <Separator className="my-2" />
-              <div className="flex justify-between font-semibold">
-                <span>Total estimé</span>
-                <span>{indianPriceEstimate.totalCost}€</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {indianPriceEstimate.disclaimer}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Additional Info */}
       <Card className="mt-6">
@@ -702,10 +605,8 @@ const RecipeDetail = () => {
         </CardContent>
       </Card>
 
-      {/* PRP-220.17: source provenance for imported recipes. The card
-          self-hides for manual recipes so the existing UX is unchanged
-          for hand-typed entries. */}
-      <RecipeSourceCard recipe={recipe as unknown as RecipeSourceLike} className="mt-4" />
+      {/* 7. Crédits / source — self-hides pour les recettes manuelles. */}
+      <RecipeSourcePreview recipe={recipe as unknown as RecipeSourceLike} className="mt-4" />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
