@@ -70,7 +70,7 @@ export interface NavigationSubItem {
 export const NAVIGATION_CONFIG: NavigationItem[] = [
   {
     id: 'pantry',
-    label: 'Garde-Manger',
+    label: 'Inventaire',
     icon: Package,
     path: '/pantry',
     section: 'pantry',
@@ -108,7 +108,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
   },
   {
     id: 'kitchen',
-    label: 'Cuisine',
+    label: 'Recettes',
     icon: ChefHat,
     path: '/kitchen',
     section: 'kitchen',
@@ -203,7 +203,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
   },
   {
     id: 'assistant',
-    label: 'Assistant IA',
+    label: 'Assistant',
     icon: Bot,
     path: '/assistant',
     section: 'assistant',
@@ -242,7 +242,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
   },
   {
     id: 'insights',
-    label: 'Analyses',
+    label: 'Anti-gaspi',
     icon: BarChart3,
     path: '/insights',
     section: 'insights',
