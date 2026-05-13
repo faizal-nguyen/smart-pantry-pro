@@ -157,7 +157,7 @@ export default function Recipes() {
           <TabsList className="grid w-full grid-cols-4 mb-8 h-14">
             <TabsTrigger value="explore" className="flex items-center gap-2 text-base">
               <Sparkles className="h-5 w-5" />
-              Explorer
+              Feed
               <Badge variant="secondary" className="ml-1">
                 {catalogCount.toLocaleString()}
               </Badge>
@@ -165,7 +165,7 @@ export default function Recipes() {
 
             <TabsTrigger value="library" className="flex items-center gap-2 text-base">
               <BookOpen className="h-5 w-5" />
-              Mes Recettes
+              Bibliothèque
               <Badge variant="secondary" className="ml-1">
                 {userRecipes.length}
               </Badge>
@@ -173,7 +173,7 @@ export default function Recipes() {
 
             <TabsTrigger value="inbox" className="flex items-center gap-2 text-base">
               <Inbox className="h-5 w-5" />
-              Inbox
+              À vérifier
               {inboxPendingCount > 0 && (
                 <Badge variant="secondary" className="ml-1">
                   {inboxPendingCount}
@@ -662,16 +662,16 @@ function CatalogRecipeCard({ recipe, onAddToLibrary, isAdding, compact = false }
       <Card className="h-full group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer" onClick={handleCardClick}>
         <div className="relative">
           {recipe.photo_url ? (
-            <img 
-              src={recipe.photo_url} 
+            <img
+              src={recipe.photo_url}
               alt={recipe.title}
               className={`w-full object-cover group-hover:scale-105 transition-transform duration-300 ${
-                compact ? 'h-32' : 'h-48'
+                compact ? 'h-32' : 'h-44 md:h-52 lg:h-56'
               }`}
             />
           ) : (
             <div className={`w-full bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center ${
-              compact ? 'h-32' : 'h-48'
+              compact ? 'h-32' : 'h-44 md:h-52 lg:h-56'
             }`}>
               <ChefHat className={`${compact ? 'h-8 w-8' : 'h-12 w-12'} text-orange-400`} />
             </div>
@@ -743,7 +743,7 @@ function UserRecipeCard({ recipe, viewMode }) {
       <CardContent className="p-4">
         <div className={viewMode === 'list' ? 'flex items-center gap-4' : ''}>
           <div className={`rounded-lg overflow-hidden ${
-            viewMode === 'list' ? 'w-16 h-16 flex-shrink-0' : 'w-full h-48 mb-4'
+            viewMode === 'list' ? 'w-16 h-16 flex-shrink-0' : 'w-full h-44 md:h-52 lg:h-56 mb-4'
           }`}>
             {image ? (
               <img src={image} alt={title} className="w-full h-full object-cover" />
@@ -819,7 +819,7 @@ function RecipesGridSkeleton() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {Array.from({ length: 8 }).map((_, i) => (
         <Card key={i} className="h-full">
-          <div className="w-full h-48 bg-gray-200 animate-pulse" />
+          <div className="w-full h-44 md:h-52 lg:h-56 bg-gray-200 animate-pulse" />
           <CardContent className="p-4 space-y-3">
             <div className="h-4 bg-gray-200 rounded animate-pulse" />
             <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
