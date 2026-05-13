@@ -94,11 +94,10 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
       )}
 
       <MaterialCardContent className="p-3 sm:p-4">
-        {/* Image avec placeholder intelligent */}
-        <div 
-          className="aspect-square rounded-lg bg-muted mb-2 sm:mb-3 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
+        {/* Image avec placeholder intelligent. PR5-followup: pas de
+            stopPropagation ici — le click sur l'image doit ouvrir
+            le dialog d'édition comme partout ailleurs sur la card. */}
+        <div className="aspect-square rounded-lg bg-muted mb-2 sm:mb-3 overflow-hidden">
           {product.product?.image_url ? (
             <img 
               src={product.product.image_url} 

@@ -824,12 +824,11 @@ const Inventory = () => {
       {editingItem && (
         <EditItemDialog
           open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          item={editingItem}
-          onClose={() => {
-            setEditDialogOpen(false);
-            setEditingItem(null);
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setEditingItem(null);
           }}
+          item={editingItem}
         />
       )}
 
