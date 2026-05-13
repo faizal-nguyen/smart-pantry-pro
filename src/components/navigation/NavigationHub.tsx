@@ -116,9 +116,11 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         childFriendlyName: 'Mon planning repas'
       },
       {
+        // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
+        // Évite la chaîne de redirect `/kitchen/favorites → /kitchen/recipes`.
         id: 'kitchen-favorites',
         label: 'Favoris',
-        path: '/kitchen/favorites',
+        path: '/kitchen/recipes?tab=library&filter=favorites',
         icon: Heart,
         description: 'Recettes favorites',
         minAge: 3,

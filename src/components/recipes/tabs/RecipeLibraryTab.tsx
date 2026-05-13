@@ -5,7 +5,8 @@
  * de recettes utilisateur. Le filter `?filter=favorites` sera branché en
  * PR3 (PRP-232 §7 favoris V2).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { BookOpen, ChefHat, Grid3X3, Heart, List, Plus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -72,18 +73,30 @@ function LibrarySkeleton() {
   );
 }
 
+// PRP-232 PR3 — favoris V2. Schéma DB n'expose pas `is_favorite` : le proxy
+// produit reste `personal_rating >= 4`, déjà utilisé par la StatCard.
+const isFavorite = (r: UserRecipe) => (r.personal_rating || 0) >= 4;
+
 export default function RecipeLibraryTab({
   recipes,
   isLoading,
   onShowOnboarding,
 }: RecipeLibraryTabProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter');
+  const showFavoritesOnly = filterParam === 'favorites';
+
+  const visibleRecipes = useMemo(
+    () => (showFavoritesOnly ? recipes.filter(isFavorite) : recipes),
+    [recipes, showFavoritesOnly]
+  );
 
   const stats = {
     total: recipes.length,
     custom: recipes.filter(r => !r.is_from_catalog).length,
     cooked: recipes.filter(r => r.times_cooked > 0).length,
-    favorites: recipes.filter(r => (r.personal_rating || 0) >= 4).length,
+    favorites: recipes.filter(isFavorite).length,
   };
 
   return (
@@ -142,13 +155,21 @@ export default function RecipeLibraryTab({
       >
         {isLoading ? (
           <LibrarySkeleton />
-        ) : recipes.length === 0 ? (
-          <EmptyState
-            icon={BookOpen}
-            title="Ta bibliothèque est vide"
-            description="Commence par ajouter quelques recettes favorites depuis le feed ou via un import."
-            action={{ label: 'Découvrir des recettes', onClick: onShowOnboarding }}
-          />
+        ) : visibleRecipes.length === 0 ? (
+          showFavoritesOnly ? (
+            <EmptyState
+              icon={Heart}
+              title="Aucune recette favorite pour le moment"
+              description="Touche le cœur sur une recette pour la marquer comme favorite (ou note-la 4 étoiles ou plus)."
+            />
+          ) : (
+            <EmptyState
+              icon={BookOpen}
+              title="Ta bibliothèque est vide"
+              description="Commence par ajouter quelques recettes favorites depuis le feed ou via un import."
+              action={{ label: 'Découvrir des recettes', onClick: onShowOnboarding }}
+            />
+          )
         ) : (
           <div
             className={
@@ -157,7 +178,7 @@ export default function RecipeLibraryTab({
                 : 'space-y-4'
             }
           >
-            {recipes.map(recipe => (
+            {visibleRecipes.map(recipe => (
               <LibraryRecipeCard key={recipe.id} recipe={recipe} viewMode={viewMode} />
             ))}
           </div>

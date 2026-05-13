@@ -58,7 +58,8 @@ const KitchenDashboard: React.FC = () => {
       title: 'Mes Favoris',
       description: 'Mes recettes préférées',
       icon: <Heart className="w-6 h-6" />,
-      action: () => navigate('/kitchen/favorites'),
+      // PRP-232 PR3 — URL favoris canonique sur library.
+      action: () => navigate('/kitchen/recipes?tab=library&filter=favorites'),
       badge: undefined,
       childFriendlyName: 'Mes préférées',
     },

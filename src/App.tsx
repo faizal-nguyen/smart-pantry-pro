@@ -63,10 +63,10 @@ const baseRoutes: RouteObject[] = [
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
-  // PRP-230 Commit 2 : `?filter=favorites` reporté à PRP-232 Recipe V2 ;
-  // l'URL legacy redirige vers le catalogue principal pour ne pas casser
-  // les favoris navigateur des utilisateurs.
-  { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes" replace /> },
+  // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
+  // Le redirect legacy `/kitchen/favorites` pointe désormais vers cette
+  // URL complète (au lieu du fallback `/kitchen/recipes` sans filtre).
+  { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
 
   // Shopping — PRP-230 Commit 2 : `/shopping` redirige vers la liste, qui
   // est l'expérience principale (dashboard reporté à PRP-234 Today).
