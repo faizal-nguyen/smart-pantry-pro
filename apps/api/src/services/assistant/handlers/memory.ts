@@ -14,15 +14,25 @@
  * delegates DB access to `MemoryService` (which holds the admin client
  * with explicit user_id filters — defence in depth on top of RLS).
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 import type { ToolHandler, ToolHandlerRegistry } from './types.js';
 import type { MemoryService, AssistantMemoryItem } from '../MemoryService.js';
 import type {
+  ForgetMemoryArgs,
   ReadUserMemoriesArgs,
+  RecordRecipeFeedbackArgs,
+  RememberPreferenceArgs,
   SearchConversationHistoryArgs,
+  UpdateResponseStyleArgs,
 } from '../schemas/tools.js';
+import type { Database } from '../../../types/supabase.js';
 
 export interface MemoryHandlerDeps {
   memoryService: MemoryService;
+  /** PRP-223 PR5 — admin client for writes that don't fit MemoryService yet
+   *  (notably cooking_journal_entries until PR7's dedicated service). */
+  adminClient: SupabaseClient<Database>;
 }
 
 interface MemoryView {
@@ -120,10 +130,96 @@ function snippet(content: string, query: string): string {
   return `${head}${content.slice(start, end)}${tail}`;
 }
 
+// ---- PRP-223 PR5 — write handlers ---------------------------------------
+
+class RememberPreferenceHandler implements ToolHandler<RememberPreferenceArgs> {
+  constructor(private readonly deps: MemoryHandlerDeps) {}
+  async execute(ctx: { userId: string }, args: RememberPreferenceArgs) {
+    const created = await this.deps.memoryService.createMemory(ctx.userId, {
+      kind: args.kind,
+      content: args.content,
+      normalized_content: args.content.toLowerCase().trim(),
+      sensitivity: args.sensitivity ?? 'normal',
+      source: 'user_explicit',
+      // status is auto-set: active for normal, candidate for health_sensitive
+    });
+    return {
+      result: { memory_id: created.id, status: created.status },
+      reversibleAction: { tool: 'forget_memory', args: { memory_id: created.id } },
+    };
+  }
+}
+
+class ForgetMemoryHandler implements ToolHandler<ForgetMemoryArgs> {
+  constructor(private readonly deps: MemoryHandlerDeps) {}
+  async execute(ctx: { userId: string }, args: ForgetMemoryArgs) {
+    const forgotten = await this.deps.memoryService.forgetMemory(args.memory_id, ctx.userId);
+    return {
+      result: { memory_id: forgotten.id, status: forgotten.status },
+      // No reversibleAction: re-promoting a soft-deleted row would be
+      // brittle; the user can re-tell the assistant the fact instead.
+    };
+  }
+}
+
+class UpdateResponseStyleHandler implements ToolHandler<UpdateResponseStyleArgs> {
+  constructor(private readonly deps: MemoryHandlerDeps) {}
+  async execute(ctx: { userId: string }, args: UpdateResponseStyleArgs) {
+    // Forget the previous response_style memory (if any), then create
+    // the new one. Two-step rather than an UPDATE so the audit trail is
+    // explicit and ContextBuilder always reads the freshest row.
+    const previous = await this.deps.memoryService.getResponseStyleMemory(ctx.userId);
+    if (previous) {
+      try {
+        await this.deps.memoryService.forgetMemory(previous.id, ctx.userId);
+      } catch {
+        // best-effort; the create below still wins.
+      }
+    }
+    const created = await this.deps.memoryService.createMemory(ctx.userId, {
+      kind: 'response_style',
+      content: args.preference,
+      normalized_content: args.preference.toLowerCase().trim(),
+      sensitivity: 'normal',
+      source: 'user_explicit',
+    });
+    return { result: { memory_id: created.id } };
+  }
+}
+
+class RecordRecipeFeedbackHandler implements ToolHandler<RecordRecipeFeedbackArgs> {
+  constructor(private readonly deps: MemoryHandlerDeps) {}
+  async execute(ctx: { userId: string }, args: RecordRecipeFeedbackArgs) {
+    // PRP-223 PR5 — direct write to cooking_journal_entries via the
+    // admin client. PR7 will move this behind CookingJournalService.
+    const { data, error } = await this.deps.adminClient
+      .from('cooking_journal_entries')
+      .insert({
+        user_id: ctx.userId,
+        recipe_id: args.recipe_id ?? null,
+        recipe_title: args.recipe_title,
+        outcome: args.outcome ?? null,
+        rating: args.rating ?? null,
+        notes: args.notes ?? null,
+        would_cook_again: args.would_cook_again ?? null,
+      })
+      .select('id, recipe_id, recipe_title, outcome, rating')
+      .single();
+    if (error || !data) {
+      throw new Error(error?.message ?? 'cooking_journal insert failed');
+    }
+    return { result: data };
+  }
+}
+
 export function registerMemoryHandlers(
   registry: ToolHandlerRegistry,
   deps: MemoryHandlerDeps,
 ): void {
   registry.register('read_user_memories', new ReadUserMemoriesHandler(deps));
   registry.register('search_conversation_history', new SearchConversationHistoryHandler(deps));
+  registry.register('remember_preference', new RememberPreferenceHandler(deps));
+  registry.register('forget_memory', new ForgetMemoryHandler(deps));
+  registry.register('update_response_style', new UpdateResponseStyleHandler(deps));
+  registry.register('record_recipe_feedback', new RecordRecipeFeedbackHandler(deps));
 }

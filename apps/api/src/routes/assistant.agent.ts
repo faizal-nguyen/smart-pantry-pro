@@ -34,6 +34,7 @@ import { ActionLogWriter } from '../services/assistant/ActionLogWriter.js';
 import { ConfirmationTokenSigner } from '../services/assistant/ConfirmationTokenSigner.js';
 import { MemoryService } from '../services/assistant/MemoryService.js';
 import { ContextBuilder } from '../services/assistant/ContextBuilder.js';
+import { MemoryExtractor } from '../services/assistant/MemoryExtractor.js';
 import { registerMemoryHandlers } from '../services/assistant/handlers/memory.js';
 import type { Database } from '../types/supabase.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
@@ -203,8 +204,11 @@ export function createAssistantAgentRouter(
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
   registerInternalHandlers(handlerRegistry);
-  // PRP-223 PR4 — read tools that talk to MemoryService.
-  registerMemoryHandlers(handlerRegistry, { memoryService });
+  // PRP-223 PR4/PR5 — read + write tools that talk to MemoryService.
+  registerMemoryHandlers(handlerRegistry, {
+    memoryService,
+    adminClient: adminClient as unknown as SupabaseClient<Database>,
+  });
   // J5c HIGH-tier needs SocialImportService for import_recipe_from_url —
   // we build a fresh one per request from the per-request user client +
   // the existing extraction + save dependencies.
@@ -216,6 +220,9 @@ export function createAssistantAgentRouter(
   registerHighHandlers(handlerRegistry, { buildSocialImportService });
   registerMetaHandlers(handlerRegistry, { writer });
 
+  // PRP-223 PR5 — rules-based memory extractor, async best-effort per turn.
+  const memoryExtractor = new MemoryExtractor();
+
   const service = new VoiceAgentService(
     ai,
     whisper,
@@ -223,7 +230,7 @@ export function createAssistantAgentRouter(
     handlerRegistry,
     writer,
     signer,
-    { memoryService, contextBuilder }
+    { memoryService, contextBuilder, memoryExtractor }
   );
 
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.

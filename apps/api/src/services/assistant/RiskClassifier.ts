@@ -130,5 +130,19 @@ export function classifyRisk(
     };
   }
 
+  // PRP-223 PR5 — escalate health_sensitive memory writes to medium so
+  // the user reviews them, even if the LLM marked them as low/normal.
+  if (
+    spec.name === 'remember_preference' &&
+    typeof argsObj.sensitivity === 'string' &&
+    argsObj.sensitivity === 'health_sensitive'
+  ) {
+    return {
+      tier: maxTier(baseTier, 'medium'),
+      reason: 'Information santé sensible — confirme avant de la garder en mémoire.',
+      escalatedFrom: baseTier,
+    };
+  }
+
   return { tier: baseTier };
 }

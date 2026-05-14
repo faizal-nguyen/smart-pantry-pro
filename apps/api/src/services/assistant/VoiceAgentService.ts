@@ -188,6 +188,13 @@ export interface VoiceAgentOptions {
    * system prompt before the LLM call. Absent ⇒ stateless prompt.
    */
   contextBuilder?: import('./ContextBuilder.js').ContextBuilder;
+  /**
+   * PRP-223 PR5 — optional MemoryExtractor (rules V1). When present,
+   * each user turn is scanned async best-effort for memory candidates
+   * and session_context. Failures are logged and never block the
+   * assistant response.
+   */
+  memoryExtractor?: import('./MemoryExtractor.js').MemoryExtractor;
 }
 
 // ---- Errors ---------------------------------------------------------
@@ -225,6 +232,8 @@ export class VoiceAgentService {
   private readonly memoryService: import('./MemoryService.js').MemoryService | null;
   /** PRP-223 PR4 — optional ContextBuilder for system prompt enrichment. */
   private readonly contextBuilder: import('./ContextBuilder.js').ContextBuilder | null;
+  /** PRP-223 PR5 — optional MemoryExtractor (rules V1). */
+  private readonly memoryExtractor: import('./MemoryExtractor.js').MemoryExtractor | null;
 
   constructor(
     private readonly ai: AICompletionClient,
@@ -243,6 +252,7 @@ export class VoiceAgentService {
     this.systemPrompt = options.systemPrompt ?? AGENT_SYSTEM_PROMPT;
     this.memoryService = options.memoryService ?? null;
     this.contextBuilder = options.contextBuilder ?? null;
+    this.memoryExtractor = options.memoryExtractor ?? null;
   }
 
   // ---- /voice and /text -------------------------------------------
@@ -313,19 +323,39 @@ export class VoiceAgentService {
     // PRP-223 PR3 — record the user/transcript turn before tool dispatch.
     // Best-effort: a memory write failure must not break the response
     // path. Errors are logged and we continue.
+    let userMessageId: string | null = null;
     if (this.memoryService && conversationId) {
       try {
-        await this.memoryService.recordMessage(conversationId, input.userId, {
+        const userMsg = await this.memoryService.recordMessage(conversationId, input.userId, {
           role: 'user',
           content: transcript,
           content_format: input.source === 'voice' ? 'transcript' : 'text',
           audio_transcript: input.source === 'voice' ? transcript : null,
           metadata: { source: input.source, language: detectedLanguage ?? null },
         });
+        userMessageId = userMsg.id;
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[assistant.memory] recordMessage(user) failed:', err);
       }
+    }
+
+    // PRP-223 PR5 — async best-effort memory extraction (rules V1).
+    // We schedule the work as a microtask so the LLM round 1 can start
+    // immediately. Failures don't propagate — the assistant response
+    // remains correct even if extraction blows up.
+    if (this.memoryExtractor && this.memoryService) {
+      const extractorInput = {
+        userId: input.userId,
+        conversationId: conversationId ?? null,
+        messageId: userMessageId,
+        text: transcript,
+        source: (input.source === 'voice' ? 'voice' : 'text') as 'voice' | 'text',
+      };
+      // queueMicrotask isn't awaitable, but in tests the call site can
+      // await `service.handleRequest`; extraction will race the
+      // response. That's fine — extraction is non-blocking.
+      void this.runExtractionInBackground(extractorInput);
     }
 
     // 2. LLM round 1 with tool catalog
@@ -560,6 +590,41 @@ export class VoiceAgentService {
       duration_ms: Date.now() - start,
       conversation_id: conversationId,
     };
+  }
+
+  /**
+   * PRP-223 PR5 — runs the rules-based MemoryExtractor and writes the
+   * candidates via MemoryService. Always best-effort: nothing here can
+   * propagate up to the assistant response.
+   */
+  private async runExtractionInBackground(
+    input: import('./MemoryExtractor.js').MemoryExtractionInput,
+  ): Promise<void> {
+    if (!this.memoryExtractor || !this.memoryService) return;
+    try {
+      const results = this.memoryExtractor.extract(input);
+      for (const r of results) {
+        try {
+          if (r.kind === 'memory') {
+            await this.memoryService.createMemory(input.userId, r.candidate);
+          } else if (r.kind === 'session') {
+            await this.memoryService.setSessionContext(
+              input.userId,
+              r.candidate.key,
+              r.candidate.value,
+              new Date(Date.now() + r.candidate.ttlMs),
+              { conversationId: input.conversationId ?? undefined },
+            );
+          }
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('[assistant.extractor] persist failed:', e instanceof Error ? e.message : e);
+        }
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[assistant.extractor] run failed:', err);
+    }
   }
 
   /**

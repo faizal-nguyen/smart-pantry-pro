@@ -240,6 +240,37 @@ const searchConversationHistoryArgs = z.object({
 });
 export type SearchConversationHistoryArgs = z.infer<typeof searchConversationHistoryArgs>;
 
+// ---- PRP-223 PR5 memory WRITE tools ----------------------------------
+
+const sensitivitySchema = z.enum(['normal', 'personal', 'health_sensitive']);
+
+const rememberPreferenceArgs = z.object({
+  kind: memoryKindSchema,
+  content: z.string().min(1).max(2000),
+  sensitivity: sensitivitySchema.optional(),
+});
+export type RememberPreferenceArgs = z.infer<typeof rememberPreferenceArgs>;
+
+const forgetMemoryArgs = z.object({
+  memory_id: z.string().uuid(),
+});
+export type ForgetMemoryArgs = z.infer<typeof forgetMemoryArgs>;
+
+const updateResponseStyleArgs = z.object({
+  preference: z.string().min(1).max(500),
+});
+export type UpdateResponseStyleArgs = z.infer<typeof updateResponseStyleArgs>;
+
+const recordRecipeFeedbackArgs = z.object({
+  recipe_id: z.string().uuid().optional(),
+  recipe_title: z.string().min(1).max(300),
+  outcome: z.enum(['loved', 'liked', 'ok', 'disliked', 'failed']).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  notes: z.string().max(2000).optional(),
+  would_cook_again: z.boolean().optional(),
+});
+export type RecordRecipeFeedbackArgs = z.infer<typeof recordRecipeFeedbackArgs>;
+
 // ---- Catalog --------------------------------------------------------
 
 export const TOOL_SPECS: readonly ToolSpec<any>[] = [
@@ -687,6 +718,95 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
     },
     defaultRiskTier: 'read',
     reversible: false,
+  },
+
+  // ===== PRP-223 PR5 memory WRITE =====
+  {
+    name: 'remember_preference',
+    description:
+      "Save a long-term preference, habit or constraint about the user. Only call this when the user explicitly asks you to remember something or states a clear lasting preference. Health-sensitive items (allergies, diet goals) are stored as candidate awaiting user confirmation.",
+    schema: rememberPreferenceArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['kind', 'content'],
+      properties: {
+        kind: {
+          type: 'string',
+          enum: [
+            'preference',
+            'negative_preference',
+            'habit',
+            'cooking_style',
+            'diet_goal',
+            'constraint',
+            'recipe_feedback',
+            'shopping_pattern',
+            'response_style',
+          ],
+        },
+        content: { type: 'string', minLength: 1, maxLength: 2000 },
+        sensitivity: {
+          type: 'string',
+          enum: ['normal', 'personal', 'health_sensitive'],
+        },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'low',
+    reversible: true,
+  },
+  {
+    name: 'forget_memory',
+    description:
+      "Soft-delete a memory the user no longer wants you to remember. Requires a known memory_id (call read_user_memories first). Reversible inside the 15-minute window.",
+    schema: forgetMemoryArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['memory_id'],
+      properties: {
+        memory_id: { type: 'string', format: 'uuid' },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'medium',
+    reversible: true,
+  },
+  {
+    name: 'update_response_style',
+    description:
+      "Save how the user wants the assistant to phrase its responses (e.g. 'short', 'detailed', 'cite source'). Replaces any previous response_style memory.",
+    schema: updateResponseStyleArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['preference'],
+      properties: {
+        preference: { type: 'string', minLength: 1, maxLength: 500 },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'low',
+    reversible: true,
+  },
+  {
+    name: 'record_recipe_feedback',
+    description:
+      "Record the user's feedback on a recipe they cooked (rating, outcome, notes, would cook again). Use after the user describes a result.",
+    schema: recordRecipeFeedbackArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['recipe_title'],
+      properties: {
+        recipe_id: { type: 'string', format: 'uuid' },
+        recipe_title: { type: 'string', minLength: 1, maxLength: 300 },
+        outcome: { type: 'string', enum: ['loved', 'liked', 'ok', 'disliked', 'failed'] },
+        rating: { type: 'integer', minimum: 1, maximum: 5 },
+        notes: { type: 'string', maxLength: 2000 },
+        would_cook_again: { type: 'boolean' },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'low',
+    reversible: true,
   },
 ];
 
