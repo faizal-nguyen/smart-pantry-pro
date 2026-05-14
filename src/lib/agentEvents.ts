@@ -2,9 +2,10 @@
  * PRP-221 Sprint 1 — UI cache invalidation after agent writes.
  *
  * The voice agent writes directly to Supabase (shopping_list, inventory,
- * recipes, meal_plan_entries) but custom hooks like useShoppingList /
- * useInventory / useRecipes use useState + manual fetch (not React
- * Query), so they don't auto-invalidate on writes from another surface.
+ * recipes, meal_plan_entries, cooking_journal) but custom hooks like
+ * useShoppingList / useInventory / useRecipes use useState + manual
+ * fetch (not React Query), so they don't auto-invalidate on writes from
+ * another surface.
  *
  * This module ties the gap with a tiny custom event :
  *   - the agent's result handler calls dispatchAgentDbChanged(tables)
@@ -13,6 +14,15 @@
  *   - hooks subscribe via useAgentDbInvalidation('shopping_list', refetch).
  *     If the dispatched event mentions any of their watched tables,
  *     they refetch.
+ *
+ * PRP-233 PR4 — this is the **invalidation bridge for agent writes**.
+ * Do NOT replace it with a second event bus or swap to a generic
+ * pub/sub. The `AssistantProvider` calls `dispatchAgentDbChanged()`
+ * after every successful tool execution; downstream consumers
+ * (`useInventory`, `useShoppingList`, `useRecipes`, `useUserRecipes`,
+ * `useFoodWaste`) subscribe via `useAgentDbInvalidation()`. Adding a
+ * new write tool means appending it to `TOOL_TABLES` below and adding
+ * its target table(s) to `AgentAffectedTable`.
  */
 import { useEffect } from 'react';
 
@@ -23,7 +33,15 @@ export type AgentAffectedTable =
   | 'recipe_ingredients'
   | 'meal_plan_entries'
   | 'weekly_meal_plans'
-  | 'products';
+  | 'products'
+  // PRP-233 PR4 — added so `record_recipe_feedback` (PRP-223 PR5/PR7)
+  // can invalidate `useCookingJournal` consumers.
+  | 'cooking_journal'
+  // PRP-233 PR4 — assistant memory writes (remember_preference,
+  // forget_memory, update_response_style) so the MemoryPanel refetches.
+  | 'assistant_memory_items'
+  | 'assistant_conversations'
+  | 'assistant_messages';
 
 export const AGENT_DB_CHANGED_EVENT = 'agent:db-changed';
 
@@ -59,6 +77,12 @@ const TOOL_TABLES: Record<string, AgentAffectedTable[]> = {
   clear_shopping_list: ['shopping_list'],
   clear_inventory_category: ['inventory'],
   import_recipe_from_url: ['recipes', 'recipe_ingredients'],
+
+  // PRP-233 PR4 — assistant memory writes (PRP-223 PR5/PR7).
+  remember_preference: ['assistant_memory_items'],
+  forget_memory: ['assistant_memory_items'],
+  update_response_style: ['assistant_memory_items'],
+  record_recipe_feedback: ['cooking_journal'],
 
   // Meta — ask_clarification + summarize_session don't write
   ask_clarification: [],
