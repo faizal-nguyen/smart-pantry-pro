@@ -37,6 +37,7 @@ import { diagnosticsRouter } from './routes/diagnostics.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
 import { createMediaRouter } from './routes/media.js';
 import { createAssistantAgentRouter } from './routes/assistant.agent.js';
+import { createAssistantMemoryRouter } from './routes/assistant.memory.js';
 import { createMetricsRouter } from './routes/metrics.js';
 import { supabaseAdmin } from './config/supabase.js';
 import {
@@ -123,6 +124,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
   // PRP-221: voice / text agent — sub-paths only, doesn't collide with
   // the chat-streaming `assistantRouter` mounted on '/' above.
   app.use('/api/assistant', createAssistantAgentRouter(supabaseAdmin));
+  // PRP-223 PR2: memory CRUD (conversations, messages, memories).
+  // Mounts disjoint sub-paths to keep the existing routers untouched.
+  app.use('/api/assistant', createAssistantMemoryRouter(supabaseAdmin));
   // PRP-220.15: Prometheus metrics. Auth via METRICS_AUTH_TOKEN bearer
   // (constant-time compare). Mounted last so it never collides with a
   // public catch-all.
@@ -149,6 +153,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   );
   app.use('/api/v1/media', createMediaRouter(supabaseAdmin));
   app.use('/api/v1/assistant', createAssistantAgentRouter(supabaseAdmin));
+  app.use('/api/v1/assistant', createAssistantMemoryRouter(supabaseAdmin));
 
   // === Realtime status (optional, only when index.ts wires it) ===
   if (options.realtimeStatus) {
