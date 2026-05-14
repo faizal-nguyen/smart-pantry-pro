@@ -33,6 +33,8 @@ import { ToolRegistry } from '../services/assistant/ToolRegistry.js';
 import { ActionLogWriter } from '../services/assistant/ActionLogWriter.js';
 import { ConfirmationTokenSigner } from '../services/assistant/ConfirmationTokenSigner.js';
 import { MemoryService } from '../services/assistant/MemoryService.js';
+import { ContextBuilder } from '../services/assistant/ContextBuilder.js';
+import { registerMemoryHandlers } from '../services/assistant/handlers/memory.js';
 import type { Database } from '../types/supabase.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
@@ -193,11 +195,16 @@ export function createAssistantAgentRouter(
   // conversations + messages. Best-effort: if any memory write fails the
   // service logs and continues, so the assistant path stays available.
   const memoryService = new MemoryService(adminClient as unknown as SupabaseClient<Database>);
+  // PRP-223 PR4 — build memory context block (top memories, summary,
+  // recent messages, session context) injected into the system prompt.
+  const contextBuilder = new ContextBuilder(memoryService);
 
   const handlerRegistry = new ToolHandlerRegistry();
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
   registerInternalHandlers(handlerRegistry);
+  // PRP-223 PR4 — read tools that talk to MemoryService.
+  registerMemoryHandlers(handlerRegistry, { memoryService });
   // J5c HIGH-tier needs SocialImportService for import_recipe_from_url —
   // we build a fresh one per request from the per-request user client +
   // the existing extraction + save dependencies.
@@ -216,7 +223,7 @@ export function createAssistantAgentRouter(
     handlerRegistry,
     writer,
     signer,
-    { memoryService }
+    { memoryService, contextBuilder }
   );
 
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.

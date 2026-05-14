@@ -182,6 +182,12 @@ export interface VoiceAgentOptions {
    * standalone smoke), the service stays stateless on the memory side.
    */
   memoryService?: import('./MemoryService.js').MemoryService;
+  /**
+   * PRP-223 PR4 — optional ContextBuilder. When present, the recent
+   * memory + summary + session-context block is injected into the
+   * system prompt before the LLM call. Absent ⇒ stateless prompt.
+   */
+  contextBuilder?: import('./ContextBuilder.js').ContextBuilder;
 }
 
 // ---- Errors ---------------------------------------------------------
@@ -217,6 +223,8 @@ export class VoiceAgentService {
   private readonly confirmationTtlMs: number;
   /** PRP-223 PR3 — optional memory persistence; null disables conversation logging. */
   private readonly memoryService: import('./MemoryService.js').MemoryService | null;
+  /** PRP-223 PR4 — optional ContextBuilder for system prompt enrichment. */
+  private readonly contextBuilder: import('./ContextBuilder.js').ContextBuilder | null;
 
   constructor(
     private readonly ai: AICompletionClient,
@@ -234,6 +242,7 @@ export class VoiceAgentService {
     this.undoWindowMs = options.undoWindowMs ?? DEFAULT_UNDO_WINDOW_MS;
     this.systemPrompt = options.systemPrompt ?? AGENT_SYSTEM_PROMPT;
     this.memoryService = options.memoryService ?? null;
+    this.contextBuilder = options.contextBuilder ?? null;
   }
 
   // ---- /voice and /text -------------------------------------------
@@ -321,8 +330,26 @@ export class VoiceAgentService {
 
     // 2. LLM round 1 with tool catalog
     const tools = this.toolRegistry.toOpenAITools(input.allowedTools);
+
+    // PRP-223 PR4 — enrich the system prompt with the user's memory
+    // context (top memories, last summary, recent messages, session
+    // context). Best-effort: any ContextBuilder failure leaves the
+    // prompt at its baseline.
+    let systemContent = this.systemPrompt;
+    if (this.contextBuilder) {
+      try {
+        const block = await this.contextBuilder.build(input.userId, conversationId);
+        if (block.combinedText) {
+          systemContent = `${this.systemPrompt}\n\n--- Mémoire utilisateur ---\n${block.combinedText}`;
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[assistant.context] build failed:', err);
+      }
+    }
+
     const aiMessages: AICompletionRequest['messages'] = [
-      { role: 'system', content: this.systemPrompt },
+      { role: 'system', content: systemContent },
       { role: 'user', content: transcript },
     ];
 
@@ -348,7 +375,9 @@ export class VoiceAgentService {
           // Round 2 escalation : retry on fallback model with the same
           // user message + a hint about the invalid args (§18 Q4).
           const retryMessages: AICompletionRequest['messages'] = [
-            { role: 'system', content: this.systemPrompt },
+            // PRP-223 PR4 — keep the enriched system prompt on retry so
+            // the fallback model sees the same memory context.
+            { role: 'system', content: systemContent },
             { role: 'user', content: transcript },
             {
               role: 'assistant',

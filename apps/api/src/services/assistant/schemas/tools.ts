@@ -213,6 +213,33 @@ const undoActionArgs = z.object({
 });
 export type UndoActionArgs = z.infer<typeof undoActionArgs>;
 
+// ---- PRP-223 PR4 memory READ tools ----------------------------------
+
+const memoryKindSchema = z.enum([
+  'preference',
+  'negative_preference',
+  'habit',
+  'cooking_style',
+  'diet_goal',
+  'constraint',
+  'recipe_feedback',
+  'shopping_pattern',
+  'response_style',
+]);
+
+const readUserMemoriesArgs = z.object({
+  kind: memoryKindSchema.optional(),
+  query: z.string().max(200).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+});
+export type ReadUserMemoriesArgs = z.infer<typeof readUserMemoriesArgs>;
+
+const searchConversationHistoryArgs = z.object({
+  query: z.string().min(1).max(200),
+  limit: z.number().int().min(1).max(20).optional(),
+});
+export type SearchConversationHistoryArgs = z.infer<typeof searchConversationHistoryArgs>;
+
 // ---- Catalog --------------------------------------------------------
 
 export const TOOL_SPECS: readonly ToolSpec<any>[] = [
@@ -606,6 +633,59 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
       additionalProperties: false,
     },
     defaultRiskTier: 'low',
+    reversible: false,
+  },
+
+  // ===== PRP-223 PR4 memory READ =====
+  {
+    name: 'read_user_memories',
+    description:
+      "Read the user's long-term assistant memories (preferences, constraints, cooking style, etc.). Use it BEFORE making suggestions so they fit who the user is. Returns only active memories.",
+    schema: readUserMemoriesArgs,
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        kind: {
+          type: 'string',
+          enum: [
+            'preference',
+            'negative_preference',
+            'habit',
+            'cooking_style',
+            'diet_goal',
+            'constraint',
+            'recipe_feedback',
+            'shopping_pattern',
+            'response_style',
+          ],
+        },
+        query: {
+          type: 'string',
+          maxLength: 200,
+          description: 'optional ILIKE substring on the memory content',
+        },
+        limit: { type: 'integer', minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'read',
+    reversible: false,
+  },
+  {
+    name: 'search_conversation_history',
+    description:
+      'Search the previous assistant conversations for a string and return matching messages and summaries. Use to recall what was discussed earlier.',
+    schema: searchConversationHistoryArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['query'],
+      properties: {
+        query: { type: 'string', minLength: 1, maxLength: 200 },
+        limit: { type: 'integer', minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'read',
     reversible: false,
   },
 ];
