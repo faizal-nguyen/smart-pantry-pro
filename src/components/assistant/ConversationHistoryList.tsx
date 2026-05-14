@@ -1,29 +1,36 @@
 /**
- * PRP-223 PR6 — ConversationHistoryList.
+ * ConversationHistoryList — sidebar listing of recent conversations.
  *
- * Minimal list of recent assistant conversations. Click → navigates to
- * `/assistant/chat?conversation=:id` which PRP-224's full ChatGPT-like UX
- * will pick up. Until then, the legacy AssistantAI page receives the
- * param and can simply ignore it.
+ * PRP-223 PR6 — first version: list + click → navigate.
+ * PRP-224 PR2 — orchestrateur léger : header + AssistantSearchBar
+ * (toggleable) + ConversationListItem (chacun avec rename/archive/
+ * delete via dropdown menu).
  */
 import React from 'react';
 import { MessageCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useAssistantConversations } from '@/hooks/useAssistantConversations';
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+import AssistantSearchBar from './AssistantSearchBar';
+import ConversationListItem from './ConversationListItem';
+
+interface ConversationHistoryListProps {
+  /** Show the inline search bar at the top. Default: true. */
+  showSearch?: boolean;
+  /** Max conversations to fetch in the recent list. Default 8. */
+  limit?: number;
 }
 
-export default function ConversationHistoryList() {
-  const navigate = useNavigate();
-  const { conversations, isLoading } = useAssistantConversations({ status: 'active', limit: 8 });
+export default function ConversationHistoryList({
+  showSearch = true,
+  limit = 8,
+}: ConversationHistoryListProps) {
+  const { conversations, isLoading } = useAssistantConversations({
+    status: 'active',
+    limit,
+  });
 
   if (isLoading) {
     return (
@@ -37,43 +44,31 @@ export default function ConversationHistoryList() {
     );
   }
 
-  if (conversations.length === 0) {
-    return (
-      <EmptyState
-        icon={MessageCircle}
-        title="Aucune conversation"
-        description="Tes échanges avec l'assistant apparaîtront ici."
-      />
-    );
-  }
+  const isEmpty = conversations.length === 0;
 
   return (
     <Card>
-      <CardContent className="p-6">
-        <h3 className="font-semibold mb-3 flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-primary" />
-          Conversations récentes
+      <CardContent className="p-6 space-y-4">
+        <h3 className="font-semibold flex items-center gap-2">
+          <MessageCircle className="h-4 w-4 text-primary" aria-hidden="true" />
+          Conversations
         </h3>
-        <ul className="divide-y divide-border">
-          {conversations.map(c => (
-            <li key={c.id} className="py-2">
-              <Button
-                variant="ghost"
-                className="w-full justify-start h-auto py-2"
-                onClick={() => navigate(`/assistant?conversation=${c.id}`)}
-              >
-                <div className="text-left">
-                  <p className="font-medium truncate">
-                    {c.title ?? 'Conversation sans titre'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDate(c.last_message_at ?? c.created_at)} · {c.mode}
-                  </p>
-                </div>
-              </Button>
-            </li>
-          ))}
-        </ul>
+
+        {showSearch && <AssistantSearchBar limit={10} />}
+
+        {isEmpty ? (
+          <EmptyState
+            icon={MessageCircle}
+            title="Aucune conversation"
+            description="Tes échanges avec l'assistant apparaîtront ici."
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {conversations.map(c => (
+              <ConversationListItem key={c.id} conversation={c} />
+            ))}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );
