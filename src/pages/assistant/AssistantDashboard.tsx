@@ -1,14 +1,15 @@
 /**
- * AssistantDashboard — page Assistant (/assistant).
+ * AssistantDashboard — page /assistant.
  *
- * PRP-233 PR1 — cleanup vitrine : retire le wording "Chat IA"/"IA Rapide"
- * /"Assistant IA"/"Actions Rapides" et les 2 quick actions qui pointaient
- * vers `/assistant/chat`. PR2 ajoutera la surface conversation MVP
- * (composer inline + fil messages). Pour PR1, la page ne montre que
- * MemoryPanel + ConversationHistoryList (PRP-223 PR6).
+ * PRP-233 PR2 — surface conversation MVP :
+ *  - lit `?conversation=:id` depuis l'URL
+ *  - rend AssistantConversationSurface (fil + composer inline)
+ *  - sidebar memory + history (desktop md+), masquée mobile
+ *
+ * PR3 ajoutera le sticky FAB 2h. PRP-224 portera le polish ChatGPT-like.
  */
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { Bot } from 'lucide-react';
@@ -19,11 +20,14 @@ import AppNavigation from '@/components/navigation/AppNavigation';
 import { PageLoader } from '@/components/layout/PageLoader';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
+import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
 
 const AssistantDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
+  const [searchParams] = useSearchParams();
+  const conversationId = searchParams.get('conversation');
 
   useEffect(() => {
     const getUser = async () => {
@@ -41,12 +45,12 @@ const AssistantDashboard: React.FC = () => {
     <AppNavigation user={user}>
       <div
         className={cn(
-          'container mx-auto p-6 space-y-8',
+          'container mx-auto p-4 sm:p-6 space-y-6',
           getStyleClasses(),
           adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
         )}
       >
-        <header className="flex flex-col space-y-4">
+        <header className="flex flex-col space-y-2">
           <div className="flex items-center gap-3">
             <Bot
               className={cn(
@@ -58,27 +62,28 @@ const AssistantDashboard: React.FC = () => {
             <h1
               className={cn(
                 'font-bold text-foreground',
-                adaptiveInterface.largerText ? 'text-4xl' : 'text-3xl',
+                adaptiveInterface.largerText ? 'text-3xl' : 'text-2xl',
               )}
             >
               Assistant
             </h1>
           </div>
-          <p
-            className={cn(
-              'text-muted-foreground',
-              adaptiveInterface.largerText ? 'text-lg' : 'text-base',
-            )}
-          >
-            Pose-moi une question avec le bouton micro en bas à droite, ou ouvre une
-            conversation existante.
+          <p className="text-sm text-muted-foreground">
+            Pose ta question ci-dessous ou utilise le bouton micro.
           </p>
         </header>
 
-        {/* PRP-223 PR6 — memory + conversations récentes. Empty states gérés
-            par les composants eux-mêmes. PR2 ajoutera la conversation surface
-            inline (composer + fil messages). */}
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <AssistantConversationSurface conversationId={conversationId} />
+
+          <aside className="space-y-6 hidden lg:block">
+            <MemoryPanel />
+            <ConversationHistoryList />
+          </aside>
+        </div>
+
+        {/* Mobile : memory + history sous le fil */}
+        <div className="lg:hidden space-y-6">
           <MemoryPanel />
           <ConversationHistoryList />
         </div>
