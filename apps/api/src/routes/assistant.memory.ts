@@ -20,6 +20,10 @@ import { z } from 'zod';
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
 import { ok, fail } from '../utils/responses.js';
 import { MemoryService, MemoryServiceError } from '../services/assistant/MemoryService.js';
+import {
+  CookingJournalService,
+  CookingJournalServiceError,
+} from '../services/cooking/CookingJournalService.js';
 import type { Database } from '../types/supabase.js';
 import {
   CreateConversationSchema,
@@ -187,6 +191,62 @@ export function createAssistantMemoryRouter(
       return ok(res, { memory }, 'Promoted', 'ASSISTANT_MEMORY_PROMOTED');
     } catch (err) {
       if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
+      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
+      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+    }
+  });
+
+  // ----- PRP-223 PR7 — Cooking journal ----------------------------------
+
+  const cookingJournal = new CookingJournalService(adminClient);
+
+  const ListCookingJournalQuerySchema = z.object({
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().positive().max(100).optional(),
+    recipe_id: z.string().uuid().optional(),
+  });
+
+  const PostCookingJournalSchema = z.object({
+    recipe_id: z.string().uuid().optional().nullable(),
+    recipe_title: z.string().min(1).max(300),
+    outcome: z.enum(['loved', 'liked', 'ok', 'disliked', 'failed']).optional().nullable(),
+    rating: z.number().int().min(1).max(5).optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+    would_cook_again: z.boolean().optional().nullable(),
+    substitutions: z.array(z.unknown()).optional(),
+    adjustments: z.record(z.string(), z.unknown()).optional(),
+    created_from_message_id: z.string().uuid().optional().nullable(),
+  });
+
+  router.get('/cooking-journal', async (req: Request, res: Response) => {
+    try {
+      const query = ListCookingJournalQuerySchema.parse(req.query);
+      const result = await cookingJournal.list(req.user.id, query);
+      return ok(res, result, 'OK', 'COOKING_JOURNAL_LIST');
+    } catch (err) {
+      if (err instanceof CookingJournalServiceError) return fail(res, err.message, 500, err.code);
+      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
+      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+    }
+  });
+
+  router.post('/cooking-journal', async (req: Request, res: Response) => {
+    try {
+      const body = PostCookingJournalSchema.parse(req.body ?? {});
+      const entry = await cookingJournal.record(req.user.id, {
+        recipe_id: body.recipe_id ?? null,
+        recipe_title: body.recipe_title,
+        outcome: body.outcome ?? null,
+        rating: body.rating ?? null,
+        notes: body.notes ?? null,
+        substitutions: body.substitutions,
+        adjustments: body.adjustments,
+        would_cook_again: body.would_cook_again ?? null,
+        created_from_message_id: body.created_from_message_id ?? null,
+      });
+      return ok(res, { entry }, 'Recorded', 'COOKING_JOURNAL_RECORDED', 201);
+    } catch (err) {
+      if (err instanceof CookingJournalServiceError) return fail(res, err.message, 500, err.code);
       if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
       return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
     }

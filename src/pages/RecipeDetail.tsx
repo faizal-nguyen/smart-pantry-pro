@@ -34,6 +34,7 @@ import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
+import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
 import { supabase } from "@/integrations/supabase/client";
 
 interface RecipeIngredient {
@@ -236,6 +237,18 @@ const RecipeDetail = () => {
       }
 
       await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.next }).eq('id', u.id)));
+
+      // PRP-223 PR7 — best-effort cooking journal entry on every cook.
+      // Failures here don't undo the inventory decrement above.
+      try {
+        await postCookingJournalEntry({
+          recipe_id: recipe?.id,
+          recipe_title: recipe?.name ?? 'Recette',
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[recipe] cooking journal write failed:', err);
+      }
 
       toast({
         title: "Cuisiné",

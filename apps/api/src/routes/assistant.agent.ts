@@ -36,6 +36,7 @@ import { MemoryService } from '../services/assistant/MemoryService.js';
 import { ContextBuilder } from '../services/assistant/ContextBuilder.js';
 import { MemoryExtractor } from '../services/assistant/MemoryExtractor.js';
 import { registerMemoryHandlers } from '../services/assistant/handlers/memory.js';
+import { CookingJournalService } from '../services/cooking/CookingJournalService.js';
 import type { Database } from '../types/supabase.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
@@ -204,10 +205,14 @@ export function createAssistantAgentRouter(
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
   registerInternalHandlers(handlerRegistry);
-  // PRP-223 PR4/PR5 — read + write tools that talk to MemoryService.
+  // PRP-223 PR4/PR5/PR7 — read + write tools that talk to MemoryService
+  // and CookingJournalService.
+  const cookingJournalService = new CookingJournalService(
+    adminClient as unknown as SupabaseClient<Database>,
+  );
   registerMemoryHandlers(handlerRegistry, {
     memoryService,
-    adminClient: adminClient as unknown as SupabaseClient<Database>,
+    cookingJournal: cookingJournalService,
   });
   // J5c HIGH-tier needs SocialImportService for import_recipe_from_url —
   // we build a fresh one per request from the per-request user client +

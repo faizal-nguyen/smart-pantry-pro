@@ -14,10 +14,9 @@
  * delegates DB access to `MemoryService` (which holds the admin client
  * with explicit user_id filters — defence in depth on top of RLS).
  */
-import type { SupabaseClient } from '@supabase/supabase-js';
-
 import type { ToolHandler, ToolHandlerRegistry } from './types.js';
 import type { MemoryService, AssistantMemoryItem } from '../MemoryService.js';
+import type { CookingJournalService } from '../../cooking/CookingJournalService.js';
 import type {
   ForgetMemoryArgs,
   ReadUserMemoriesArgs,
@@ -26,13 +25,12 @@ import type {
   SearchConversationHistoryArgs,
   UpdateResponseStyleArgs,
 } from '../schemas/tools.js';
-import type { Database } from '../../../types/supabase.js';
 
 export interface MemoryHandlerDeps {
   memoryService: MemoryService;
-  /** PRP-223 PR5 — admin client for writes that don't fit MemoryService yet
-   *  (notably cooking_journal_entries until PR7's dedicated service). */
-  adminClient: SupabaseClient<Database>;
+  /** PRP-223 PR7 — dedicated service for cooking_journal_entries (replaces
+   *  the direct admin-client write that PR5 had as a placeholder). */
+  cookingJournal: CookingJournalService;
 }
 
 interface MemoryView {
@@ -190,25 +188,23 @@ class UpdateResponseStyleHandler implements ToolHandler<UpdateResponseStyleArgs>
 class RecordRecipeFeedbackHandler implements ToolHandler<RecordRecipeFeedbackArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
   async execute(ctx: { userId: string }, args: RecordRecipeFeedbackArgs) {
-    // PRP-223 PR5 — direct write to cooking_journal_entries via the
-    // admin client. PR7 will move this behind CookingJournalService.
-    const { data, error } = await this.deps.adminClient
-      .from('cooking_journal_entries')
-      .insert({
-        user_id: ctx.userId,
-        recipe_id: args.recipe_id ?? null,
-        recipe_title: args.recipe_title,
-        outcome: args.outcome ?? null,
-        rating: args.rating ?? null,
-        notes: args.notes ?? null,
-        would_cook_again: args.would_cook_again ?? null,
-      })
-      .select('id, recipe_id, recipe_title, outcome, rating')
-      .single();
-    if (error || !data) {
-      throw new Error(error?.message ?? 'cooking_journal insert failed');
-    }
-    return { result: data };
+    const entry = await this.deps.cookingJournal.record(ctx.userId, {
+      recipe_id: args.recipe_id ?? null,
+      recipe_title: args.recipe_title,
+      outcome: args.outcome ?? null,
+      rating: args.rating ?? null,
+      notes: args.notes ?? null,
+      would_cook_again: args.would_cook_again ?? null,
+    });
+    return {
+      result: {
+        id: entry.id,
+        recipe_id: entry.recipe_id,
+        recipe_title: entry.recipe_title,
+        outcome: entry.outcome,
+        rating: entry.rating,
+      },
+    };
   }
 }
 
