@@ -22,14 +22,21 @@ import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
 import { useAssistantConversation } from '@/hooks/useAssistantConversation';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
-import type { AssistantPlanResponse } from '@/services/assistantApi';
+import type {
+  AssistantConversationMode,
+  AssistantPlanResponse,
+} from '@/services/assistantApi';
 
 interface AssistantConversationSurfaceProps {
   conversationId: string | null;
+  mode: AssistantConversationMode;
+  onModeChange: (mode: AssistantConversationMode) => void;
 }
 
 export default function AssistantConversationSurface({
   conversationId,
+  mode,
+  onModeChange,
 }: AssistantConversationSurfaceProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -68,6 +75,8 @@ export default function AssistantConversationSurface({
       </CardContent>
       <AssistantComposer
         conversationId={conversationId}
+        mode={mode}
+        onModeChange={onModeChange}
         onResponse={handleResponse}
       />
     </Card>

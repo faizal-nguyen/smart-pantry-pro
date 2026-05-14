@@ -5,10 +5,10 @@
  *  - lit `?conversation=:id` depuis l'URL
  *  - rend AssistantConversationSurface (fil + composer inline)
  *  - sidebar memory + history (desktop md+), masquée mobile
- *
- * PR3 ajoutera le sticky FAB 2h. PRP-224 portera le polish ChatGPT-like.
+ * PRP-224 PR3 — lit `?mode=` depuis l'URL, le passe au composer ;
+ *  toute modification met à jour l'URL + persiste côté backend.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
@@ -21,13 +21,47 @@ import { PageLoader } from '@/components/layout/PageLoader';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
 import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
+import type { AssistantConversationMode } from '@/services/assistantApi';
+
+const VALID_MODES: readonly AssistantConversationMode[] = [
+  'general',
+  'kitchen',
+  'shopping',
+  'inventory',
+  'recipes',
+  'nutrition',
+  'cooking',
+];
+
+function normaliseMode(raw: string | null): AssistantConversationMode {
+  if (!raw) return 'general';
+  return (VALID_MODES as readonly string[]).includes(raw)
+    ? (raw as AssistantConversationMode)
+    : 'general';
+}
 
 const AssistantDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const conversationId = searchParams.get('conversation');
+  const mode = useMemo(() => normaliseMode(searchParams.get('mode')), [searchParams]);
+
+  const handleModeChange = (next: AssistantConversationMode) => {
+    setSearchParams(
+      prev => {
+        const params = new URLSearchParams(prev);
+        if (next === 'general') {
+          params.delete('mode');
+        } else {
+          params.set('mode', next);
+        }
+        return params;
+      },
+      { replace: true },
+    );
+  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -74,7 +108,11 @@ const AssistantDashboard: React.FC = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-          <AssistantConversationSurface conversationId={conversationId} />
+          <AssistantConversationSurface
+            conversationId={conversationId}
+            mode={mode}
+            onModeChange={handleModeChange}
+          />
 
           <aside className="space-y-6 hidden lg:block">
             <MemoryPanel />
