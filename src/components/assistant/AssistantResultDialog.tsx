@@ -8,7 +8,8 @@
  * response into the displayed state.
  */
 import { useMemo, useState } from 'react';
-import { Check, AlertTriangle, RotateCcw, Loader2, X } from 'lucide-react';
+import { Check, AlertTriangle, RotateCcw, Loader2, MessageCircle, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   Dialog,
@@ -90,6 +91,7 @@ export function AssistantResultDialog({
   onResultPatched,
 }: AssistantResultDialogProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [executingConfirm, setExecutingConfirm] = useState(false);
   const [undoInFlight, setUndoInFlight] = useState<string | null>(null);
 
@@ -257,9 +259,24 @@ export function AssistantResultDialog({
                 </Button>
               </>
             ) : (
-              <Button type="button" onClick={() => onOpenChange(false)}>
-                Fermer
-              </Button>
+              <>
+                {result.conversation_id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate(`/assistant?conversation=${result.conversation_id}`);
+                    }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+                    Ouvrir la conversation
+                  </Button>
+                )}
+                <Button type="button" onClick={() => onOpenChange(false)}>
+                  Fermer
+                </Button>
+              </>
             )}
           </div>
         </DialogFooter>

@@ -37,6 +37,12 @@ export interface UseAssistantVoiceOptions {
   allowedTools?: readonly string[];
   /** Hard-cap recording length in ms. Default 60s. */
   maxRecordingMs?: number;
+  /**
+   * PRP-233 PR3 — resolver invoked at dispatch time to attach a
+   * conversation_id to the request. Called for both voice and text
+   * paths. Return `undefined` to start a fresh conversation server-side.
+   */
+  getConversationId?: () => string | undefined;
 }
 
 export interface UseAssistantVoiceReturn {
@@ -74,7 +80,7 @@ function pickSupportedMime(): string | null {
 export function useAssistantVoice(
   options: UseAssistantVoiceOptions = {}
 ): UseAssistantVoiceReturn {
-  const { language, allowedTools, maxRecordingMs = 60_000 } = options;
+  const { language, allowedTools, maxRecordingMs = 60_000, getConversationId } = options;
 
   const [status, setStatus] = useState<AssistantStatus>('idle');
   const [recordingMs, setRecordingMs] = useState(0);
@@ -134,6 +140,7 @@ export function useAssistantVoice(
           language,
           audioDurationSeconds: durationSeconds,
           allowedTools,
+          conversationId: getConversationId?.(),
         });
         setStatus('done');
         setResult(response);
@@ -142,7 +149,7 @@ export function useAssistantVoice(
         setError(err instanceof Error ? err.message : 'Upload failed');
       }
     },
-    [allowedTools, language]
+    [allowedTools, language, getConversationId]
   );
 
   const startRecording = useCallback(async () => {
@@ -233,6 +240,7 @@ export function useAssistantVoice(
           clientRequestId: requestIdRef.current,
           language,
           allowedTools,
+          conversationId: getConversationId?.(),
         });
         setStatus('done');
         setResult(response);
@@ -241,7 +249,7 @@ export function useAssistantVoice(
         setError(err instanceof Error ? err.message : 'Send failed');
       }
     },
-    [allowedTools, language]
+    [allowedTools, language, getConversationId]
   );
 
   const patchResult = useCallback(

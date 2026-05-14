@@ -100,6 +100,8 @@ export async function postAssistantVoice(input: {
   language?: string;
   audioDurationSeconds?: number;
   allowedTools?: readonly string[];
+  /** PRP-233 PR3 — sticky conversation id. Optional. */
+  conversationId?: string;
 }): Promise<AssistantPlanResponse> {
   const ext = mimeToExt(input.audioMime);
   const form = new FormData();
@@ -110,6 +112,7 @@ export async function postAssistantVoice(input: {
     form.append('audio_duration_seconds', String(Math.round(input.audioDurationSeconds)));
   }
   if (input.allowedTools?.length) form.append('allowed_tools', input.allowedTools.join(','));
+  if (input.conversationId) form.append('conversation_id', input.conversationId);
 
   const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/voice`, {
     method: 'POST',
@@ -124,12 +127,15 @@ export function postAssistantText(input: {
   clientRequestId: string;
   language?: string;
   allowedTools?: readonly string[];
+  /** PRP-233 PR3 — sticky conversation id. Optional. */
+  conversationId?: string;
 }): Promise<AssistantPlanResponse> {
   return apiPost<AssistantPlanResponse>(`${ASSISTANT_BASE}/text`, {
     text: input.text,
     client_request_id: input.clientRequestId,
     language: input.language,
     allowed_tools: input.allowedTools,
+    conversation_id: input.conversationId,
   });
 }
 
