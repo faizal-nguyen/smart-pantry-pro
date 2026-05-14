@@ -38,6 +38,17 @@ export type AssistantMemoryItem = MemoryRow;
 export type AssistantConversationSummary = SummaryRow;
 export type AssistantSessionContext = SessionContextRow;
 
+// PRP-224 PR1 — search result shape.
+export interface SearchMatch {
+  source: 'message' | 'summary';
+  conversation_id: string;
+  /** Message id when `source='message'`, summary id otherwise. */
+  message_id: string;
+  role?: MessageRow['role'];
+  snippet: string;
+  created_at: string;
+}
+
 export type MemoryKind = MemoryRow['kind'];
 export type MemoryScope = MemoryRow['scope'];
 export type MemoryStatus = MemoryRow['status'];
@@ -223,6 +234,55 @@ export class MemoryService {
     return data;
   }
 
+  /**
+   * PRP-224 PR1 — patch title and/or mode on a conversation. At least
+   * one field must be provided; the schema layer enforces that.
+   */
+  async updateConversation(
+    conversationId: string,
+    userId: string,
+    patch: { title?: string | null; mode?: ConversationMode },
+  ): Promise<ConversationRow> {
+    if (
+      patch.title === undefined &&
+      patch.mode === undefined
+    ) {
+      return this.getConversation(conversationId, userId);
+    }
+    const payload: Partial<ConversationRow> = {};
+    if (patch.title !== undefined) payload.title = patch.title;
+    if (patch.mode !== undefined) payload.mode = patch.mode;
+    const { data, error } = await this.admin
+      .from('assistant_conversations')
+      .update(payload)
+      .eq('id', conversationId)
+      .eq('user_id', userId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw this.dbError('updateConversation', error);
+    if (!data) throw new MemoryServiceError('NOT_FOUND', 'conversation not found');
+    return data;
+  }
+
+  /**
+   * PRP-224 PR1 — soft-delete by setting `status='deleted'`. The row is
+   * not removed; downstream lists filter `status != 'deleted'` per the
+   * default `listConversations` behaviour (unless status is explicitly
+   * passed in opts).
+   */
+  async softDeleteConversation(conversationId: string, userId: string): Promise<ConversationRow> {
+    const { data, error } = await this.admin
+      .from('assistant_conversations')
+      .update({ status: 'deleted' })
+      .eq('id', conversationId)
+      .eq('user_id', userId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw this.dbError('softDeleteConversation', error);
+    if (!data) throw new MemoryServiceError('NOT_FOUND', 'conversation not found');
+    return data;
+  }
+
   async touchLastMessageAt(
     conversationId: string,
     userId: string,
@@ -262,6 +322,23 @@ export class MemoryService {
     if (error || !data) throw this.dbError('recordMessage', error);
     // Touch conversation last_message_at on the back of every recorded message.
     await this.touchLastMessageAt(conversationId, userId, data.created_at);
+    // PRP-224 PR1 — auto-title from the first user message. Best-effort:
+    // we read the conversation row to check whether a title already
+    // exists. If the read fails we just skip; the next user message
+    // gets another shot at it.
+    if (opts.role === 'user') {
+      try {
+        const conv = await this.getConversation(conversationId, userId);
+        if (!conv.title) {
+          const candidate = opts.content.slice(0, 50).trim();
+          if (candidate) {
+            await this.updateConversation(conversationId, userId, { title: candidate });
+          }
+        }
+      } catch {
+        /* best-effort: title will be set on the next user message */
+      }
+    }
     return data;
   }
 
@@ -503,6 +580,65 @@ export class MemoryService {
     return data ?? null;
   }
 
+  // ----- Search (PRP-224 PR1) ----------------------------------------------
+
+  async searchMessages(
+    userId: string,
+    query: string,
+    limit = 20,
+  ): Promise<SearchMatch[]> {
+    const safeLimit = Math.max(1, Math.min(limit, MAX_LIMIT));
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    // V1: ilike substring. Escape the % and _ wildcards from user input
+    // so a literal `%` does not get treated as a wildcard.
+    const escaped = trimmed.replace(/([\\%_])/g, '\\$1');
+    const pattern = `%${escaped}%`;
+
+    const [messagesResult, summariesResult] = await Promise.all([
+      this.admin
+        .from('assistant_messages')
+        .select('id, conversation_id, content, role, created_at')
+        .eq('user_id', userId)
+        .ilike('content', pattern)
+        .order('created_at', { ascending: false })
+        .limit(safeLimit),
+      this.admin
+        .from('assistant_conversation_summaries')
+        .select('id, conversation_id, summary, created_at')
+        .eq('user_id', userId)
+        .ilike('summary', pattern)
+        .order('created_at', { ascending: false })
+        .limit(safeLimit),
+    ]);
+
+    if (messagesResult.error) throw this.dbError('searchMessages.messages', messagesResult.error);
+    if (summariesResult.error) throw this.dbError('searchMessages.summaries', summariesResult.error);
+
+    const matches: SearchMatch[] = [];
+    for (const row of messagesResult.data ?? []) {
+      matches.push({
+        source: 'message',
+        conversation_id: row.conversation_id,
+        message_id: row.id,
+        role: row.role,
+        snippet: snippetFor(row.content, trimmed),
+        created_at: row.created_at,
+      });
+    }
+    for (const row of summariesResult.data ?? []) {
+      matches.push({
+        source: 'summary',
+        conversation_id: row.conversation_id,
+        message_id: row.id, // reuse field for summary id (UI knows via source)
+        snippet: snippetFor(row.summary, trimmed),
+        created_at: row.created_at,
+      });
+    }
+    matches.sort((a, b) => (b.created_at < a.created_at ? -1 : 1));
+    return matches.slice(0, safeLimit);
+  }
+
   // ----- Summaries ---------------------------------------------------------
 
   async recordSummary(
@@ -597,4 +733,20 @@ export class MemoryService {
   private dbError(method: string, cause: unknown): MemoryServiceError {
     return new MemoryServiceError('DB_ERROR', `MemoryService.${method} failed`, cause);
   }
+}
+
+/**
+ * PRP-224 PR1 — snippet builder for search results. Returns roughly
+ * `[..-60 chars..]query[..+60 chars..]` so the UI can render context
+ * around the match without highlighting (V1 keeps the highlight client-
+ * side, the server just returns the snippet).
+ */
+function snippetFor(content: string, query: string): string {
+  const idx = content.toLowerCase().indexOf(query.toLowerCase());
+  if (idx < 0) return content.slice(0, 200);
+  const start = Math.max(0, idx - 60);
+  const end = Math.min(content.length, idx + query.length + 60);
+  const head = start > 0 ? '…' : '';
+  const tail = end < content.length ? '…' : '';
+  return `${head}${content.slice(start, end)}${tail}`;
 }

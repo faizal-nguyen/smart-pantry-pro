@@ -31,7 +31,9 @@ import {
   ListConversationsQuerySchema,
   ListMemoriesQuerySchema,
   ListMessagesQuerySchema,
+  PatchConversationSchema,
   PatchMemorySchema,
+  SearchQuerySchema,
 } from '../services/assistant/schemas/memory.js';
 
 function mapMemoryError(res: Response, err: MemoryServiceError): Response {
@@ -115,6 +117,46 @@ export function createAssistantMemoryRouter(
       const { id } = UuidParamsSchema.parse(req.params);
       const conversation = await service.archiveConversation(id, req.user.id);
       return ok(res, { conversation }, 'Archived', 'ASSISTANT_MEMORY_CONVERSATION_ARCHIVED');
+    } catch (err) {
+      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
+      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
+      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+    }
+  });
+
+  // PRP-224 PR1 — rename / mode change.
+  router.patch('/conversations/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = UuidParamsSchema.parse(req.params);
+      const body = PatchConversationSchema.parse(req.body ?? {});
+      const conversation = await service.updateConversation(id, req.user.id, body);
+      return ok(res, { conversation }, 'Updated', 'ASSISTANT_MEMORY_CONVERSATION_UPDATED');
+    } catch (err) {
+      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
+      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
+      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+    }
+  });
+
+  // PRP-224 PR1 — soft delete.
+  router.delete('/conversations/:id', async (req: Request, res: Response) => {
+    try {
+      const { id } = UuidParamsSchema.parse(req.params);
+      const conversation = await service.softDeleteConversation(id, req.user.id);
+      return ok(res, { conversation }, 'Deleted', 'ASSISTANT_MEMORY_CONVERSATION_DELETED');
+    } catch (err) {
+      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
+      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
+      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+    }
+  });
+
+  // PRP-224 PR1 — search messages + summaries.
+  router.get('/search', async (req: Request, res: Response) => {
+    try {
+      const query = SearchQuerySchema.parse(req.query);
+      const matches = await service.searchMessages(req.user.id, query.q, query.limit ?? 20);
+      return ok(res, { matches }, 'OK', 'ASSISTANT_MEMORY_SEARCH');
     } catch (err) {
       if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
       if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');

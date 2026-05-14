@@ -351,6 +351,48 @@ export function promoteAssistantMemory(
   );
 }
 
+// ---- PRP-224 PR1 — conversation update/delete + history search --------
+
+export interface AssistantSearchMatch {
+  source: 'message' | 'summary';
+  conversation_id: string;
+  message_id: string;
+  role?: AssistantMessageRole;
+  snippet: string;
+  created_at: string;
+}
+
+export function patchAssistantConversation(
+  id: string,
+  patch: { title?: string | null; mode?: AssistantConversationMode },
+): Promise<{ conversation: AssistantConversation }> {
+  return jsonRequest<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations/${id}`,
+    'PATCH',
+    patch,
+  );
+}
+
+export function softDeleteAssistantConversation(
+  id: string,
+): Promise<{ conversation: AssistantConversation }> {
+  return jsonRequest<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations/${id}`,
+    'DELETE',
+  );
+}
+
+export function searchAssistantHistory(
+  query: string,
+  limit?: number,
+): Promise<{ matches: AssistantSearchMatch[] }> {
+  const params = new URLSearchParams({ q: query });
+  if (limit) params.set('limit', String(limit));
+  return apiGet<{ matches: AssistantSearchMatch[] }>(
+    `${ASSISTANT_BASE}/search?${params.toString()}`,
+  );
+}
+
 async function jsonRequest<T>(
   path: string,
   method: 'PATCH' | 'PUT' | 'DELETE',

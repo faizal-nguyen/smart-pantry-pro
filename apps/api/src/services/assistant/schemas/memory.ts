@@ -111,3 +111,21 @@ export const ListMemoriesQuerySchema = z.object({
   kind: MemoryKindSchema.optional(),
 });
 export type ListMemoriesQuery = z.infer<typeof ListMemoriesQuerySchema>;
+
+// ---- PRP-224 PR1 — Conversation patch + history search ----------
+
+export const PatchConversationSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional().nullable(),
+    mode: ConversationModeSchema.optional(),
+  })
+  .refine(v => Object.keys(v).length > 0, {
+    message: 'at least one field must be provided',
+  });
+export type PatchConversationInput = z.infer<typeof PatchConversationSchema>;
+
+export const SearchQuerySchema = z.object({
+  q: z.string().min(1).max(200),
+  limit: z.coerce.number().int().positive().max(50).optional(),
+});
+export type SearchQuery = z.infer<typeof SearchQuerySchema>;
