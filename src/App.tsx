@@ -20,7 +20,9 @@ const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RecipesPage = lazy(() => import("./pages/RecipesPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
-const AssistantAI = lazy(() => import("./pages/AssistantAI"));
+// PRP-233 PR1: AssistantAI no longer routed (/assistant/chat redirects to
+// /assistant). Source file preserved for PRP-224 reference; the lazy import
+// is dropped to silence the unused-symbol warning.
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
@@ -73,9 +75,10 @@ const baseRoutes: RouteObject[] = [
   { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
 
-  // Assistant
+  // Assistant — PRP-233 PR1 : `/assistant/chat` redirige vers la surface
+  // principale `/assistant` (legacy chat UI déprécié, PRP-224 reprendra).
   { path: "/assistant", element: withSuspense(AssistantDashboard) },
-  { path: "/assistant/chat", element: withSuspense(AssistantAI) },
+  { path: "/assistant/chat", element: <Navigate to="/assistant" replace /> },
 
   // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },

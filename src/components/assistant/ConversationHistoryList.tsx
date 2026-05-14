@@ -60,7 +60,7 @@ export default function ConversationHistoryList() {
               <Button
                 variant="ghost"
                 className="w-full justify-start h-auto py-2"
-                onClick={() => navigate(`/assistant/chat?conversation=${c.id}`)}
+                onClick={() => navigate(`/assistant?conversation=${c.id}`)}
               >
                 <div className="text-left">
                   <p className="font-medium truncate">
