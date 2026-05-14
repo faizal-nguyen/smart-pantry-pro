@@ -16,6 +16,8 @@ import { PageLoader } from '@/components/layout/PageLoader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import MemoryPanel from '@/components/assistant/MemoryPanel';
+import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
 
 const AssistantDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -136,10 +138,13 @@ const AssistantDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* P1 polish: removed the "Interactions Récentes" mock list
-            (3 hardcoded questions about œufs/fromage, protéines de
-            poulet, conservation tomates) — fabricated. A real
-            assistant-history hook should land before re-enabling. */}
+        {/* PRP-223 PR6 — memory + recent conversations. Both components
+            handle their own empty/loading state, so the dashboard stays
+            clean when the user has no data yet. */}
+        <div className="mt-8 space-y-6">
+          <MemoryPanel />
+          <ConversationHistoryList />
+        </div>
 
       </div>
     </AppNavigation>
