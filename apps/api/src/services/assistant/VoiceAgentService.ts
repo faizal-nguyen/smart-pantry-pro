@@ -102,6 +102,13 @@ export interface VoiceAgentRequestInput {
    * shopping voice page only exposes add_shopping_items).
    */
   allowedTools?: readonly ToolName[];
+  /**
+   * PRP-223 PR3 — optional existing conversation id to link this turn
+   * to. When omitted, the service creates a new conversation via
+   * `MemoryService.createConversation`. Backward-compatible: callers
+   * that ignore this field simply get a fresh conversation each call.
+   */
+  conversationId?: string;
 }
 
 export interface ExecutedActionDescriptor {
@@ -141,6 +148,13 @@ export interface AssistantPlanResponse {
   duration_ms: number;
   /** True if this is a 10-minute audio_sha256 replay of a previous session. */
   replayed?: boolean;
+  /**
+   * PRP-223 PR3 — id of the conversation this turn was recorded into.
+   * Optional in the response shape so callers from before PRP-223 keep
+   * compiling; absent only when no `MemoryService` is wired into the
+   * service (legacy/test paths).
+   */
+  conversation_id?: string;
 }
 
 export interface ConfirmationInput {
@@ -161,6 +175,13 @@ export interface VoiceAgentOptions {
   systemPrompt?: string;
   /** Default undo window for low/medium successful actions. */
   undoWindowMs?: number;
+  /**
+   * PRP-223 PR3 — optional MemoryService. When present, every turn is
+   * recorded into `assistant_conversations` / `assistant_messages` and
+   * the response carries `conversation_id`. When absent (legacy tests,
+   * standalone smoke), the service stays stateless on the memory side.
+   */
+  memoryService?: import('./MemoryService.js').MemoryService;
 }
 
 // ---- Errors ---------------------------------------------------------
@@ -194,6 +215,8 @@ export class VoiceAgentService {
   private readonly undoWindowMs: number;
   private readonly systemPrompt: string;
   private readonly confirmationTtlMs: number;
+  /** PRP-223 PR3 — optional memory persistence; null disables conversation logging. */
+  private readonly memoryService: import('./MemoryService.js').MemoryService | null;
 
   constructor(
     private readonly ai: AICompletionClient,
@@ -210,6 +233,7 @@ export class VoiceAgentService {
     this.confirmationTtlMs = options.confirmationTtlMs ?? DEFAULT_CONFIRMATION_TTL_MS;
     this.undoWindowMs = options.undoWindowMs ?? DEFAULT_UNDO_WINDOW_MS;
     this.systemPrompt = options.systemPrompt ?? AGENT_SYSTEM_PROMPT;
+    this.memoryService = options.memoryService ?? null;
   }
 
   // ---- /voice and /text -------------------------------------------
@@ -220,6 +244,15 @@ export class VoiceAgentService {
   ): Promise<AssistantPlanResponse> {
     const start = Date.now();
     const sessionId = randomUUID();
+
+    // PRP-223 PR3 — resolve the conversation up-front so the same id is
+    // attached to both the input recording and the response. We touch
+    // the memory layer only when a MemoryService was injected; legacy
+    // tests/setups stay untouched.
+    let conversationId: string | undefined;
+    if (this.memoryService) {
+      conversationId = await this.resolveConversationId(input);
+    }
 
     // 1. Transcript: from Whisper for voice, raw text otherwise.
     let transcript = '';
@@ -240,7 +273,7 @@ export class VoiceAgentService {
           input.audioSha256
         );
         if (replayed) {
-          return this.buildReplayResponse(start, replayed);
+          return this.buildReplayResponse(start, replayed, conversationId);
         }
       }
       try {
@@ -265,7 +298,25 @@ export class VoiceAgentService {
     }
 
     if (!transcript) {
-      return this.emptyResponse(start, sessionId, transcript, detectedLanguage);
+      return this.emptyResponse(start, sessionId, transcript, detectedLanguage, conversationId);
+    }
+
+    // PRP-223 PR3 — record the user/transcript turn before tool dispatch.
+    // Best-effort: a memory write failure must not break the response
+    // path. Errors are logged and we continue.
+    if (this.memoryService && conversationId) {
+      try {
+        await this.memoryService.recordMessage(conversationId, input.userId, {
+          role: 'user',
+          content: transcript,
+          content_format: input.source === 'voice' ? 'transcript' : 'text',
+          audio_transcript: input.source === 'voice' ? transcript : null,
+          metadata: { source: input.source, language: detectedLanguage ?? null },
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[assistant.memory] recordMessage(user) failed:', err);
+      }
     }
 
     // 2. LLM round 1 with tool catalog
@@ -439,6 +490,30 @@ export class VoiceAgentService {
         ? activeResponse.content.trim()
         : synthesizeMessage(executed, pending);
 
+    // PRP-223 PR3 — record the assistant turn. Aggregate the action_log
+    // ids on the assistant message so the chat history can link back to
+    // the audit log. Pending actions are also referenced because they
+    // produced log rows in `planned` status.
+    if (this.memoryService && conversationId) {
+      try {
+        const actionLogIds = [
+          ...executed.map(e => e.action_id),
+          ...pending.map(p => p.action_id),
+        ];
+        await this.memoryService.recordMessage(conversationId, input.userId, {
+          role: 'assistant',
+          content: message,
+          content_format: 'text',
+          tool_calls: toolCalls.map(tc => ({ name: tc.name })),
+          action_log_ids: actionLogIds,
+          metadata: { model: activeResponse.model || this.model },
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[assistant.memory] recordMessage(assistant) failed:', err);
+      }
+    }
+
     return {
       session_id: sessionId,
       transcript,
@@ -454,7 +529,38 @@ export class VoiceAgentService {
       },
       model_used: activeResponse.model || this.model,
       duration_ms: Date.now() - start,
+      conversation_id: conversationId,
     };
+  }
+
+  /**
+   * PRP-223 PR3 — fetches/creates the conversation. If the input carries
+   * a `conversationId`, we verify it belongs to the user via
+   * `MemoryService.getConversation`; on cross-user or missing row we
+   * fall back to a fresh conversation (rather than throwing, to keep
+   * the assistant available).
+   */
+  private async resolveConversationId(input: VoiceAgentRequestInput): Promise<string | undefined> {
+    if (!this.memoryService) return undefined;
+    if (input.conversationId) {
+      try {
+        const existing = await this.memoryService.getConversation(input.conversationId, input.userId);
+        return existing.id;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[assistant.memory] getConversation failed, opening new one:', err);
+      }
+    }
+    try {
+      const created = await this.memoryService.createConversation(input.userId, {
+        mode: 'general',
+      });
+      return created.id;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[assistant.memory] createConversation failed:', err);
+      return undefined;
+    }
   }
 
   // ---- /confirm ---------------------------------------------------
@@ -602,7 +708,11 @@ export class VoiceAgentService {
     return (usage.prompt_tokens * price.in + usage.completion_tokens * price.out) / 1_000_000;
   }
 
-  private buildReplayResponse(start: number, row: ActionLogRow): AssistantPlanResponse {
+  private buildReplayResponse(
+    start: number,
+    row: ActionLogRow,
+    conversationId?: string,
+  ): AssistantPlanResponse {
     return {
       session_id: row.session_id,
       transcript: '',
@@ -614,6 +724,7 @@ export class VoiceAgentService {
       model_used: row.llm_model ?? DEFAULT_MODEL,
       duration_ms: Date.now() - start,
       replayed: true,
+      conversation_id: conversationId,
     };
   }
 
@@ -621,7 +732,8 @@ export class VoiceAgentService {
     start: number,
     sessionId: string,
     transcript: string,
-    detectedLanguage?: string
+    detectedLanguage?: string,
+    conversationId?: string,
   ): AssistantPlanResponse {
     return {
       session_id: sessionId,
@@ -634,6 +746,7 @@ export class VoiceAgentService {
       cost: { whisper_usd: 0, llm_usd: 0, total_usd: 0 },
       model_used: this.model,
       duration_ms: Date.now() - start,
+      conversation_id: conversationId,
     };
   }
 }

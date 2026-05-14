@@ -32,6 +32,8 @@ import {
 import { ToolRegistry } from '../services/assistant/ToolRegistry.js';
 import { ActionLogWriter } from '../services/assistant/ActionLogWriter.js';
 import { ConfirmationTokenSigner } from '../services/assistant/ConfirmationTokenSigner.js';
+import { MemoryService } from '../services/assistant/MemoryService.js';
+import type { Database } from '../types/supabase.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
 import { registerWriteHandlers } from '../services/assistant/handlers/write.js';
@@ -116,6 +118,9 @@ const TextRequestSchema = z.object({
   client_request_id: z.string().uuid(),
   language: z.string().regex(/^[a-z]{2}$/i).optional(),
   allowed_tools: z.array(z.string().min(1).max(64)).optional(),
+  // PRP-223 PR3 — optional conversation handle. Unknown/cross-user ids
+  // fall back to a fresh conversation in the service.
+  conversation_id: z.string().uuid().optional(),
 });
 
 const VoiceFormFieldsSchema = z.object({
@@ -123,6 +128,7 @@ const VoiceFormFieldsSchema = z.object({
   language: z.string().regex(/^[a-z]{2}$/i).optional(),
   audio_duration_seconds: z.coerce.number().nonnegative().optional(),
   allowed_tools: z.string().optional(), // comma-separated in form data
+  conversation_id: z.string().uuid().optional(), // PRP-223 PR3
 });
 
 const ConfirmRequestSchema = z.object({
@@ -183,6 +189,11 @@ export function createAssistantAgentRouter(
   const writer = new ActionLogWriter(adminClient);
   const signer = new ConfirmationTokenSigner(hmacSecret);
 
+  // PRP-223 PR3 — wire MemoryService so /text and /voice persist
+  // conversations + messages. Best-effort: if any memory write fails the
+  // service logs and continues, so the assistant path stays available.
+  const memoryService = new MemoryService(adminClient as unknown as SupabaseClient<Database>);
+
   const handlerRegistry = new ToolHandlerRegistry();
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
@@ -204,7 +215,8 @@ export function createAssistantAgentRouter(
     new ToolRegistry(),
     handlerRegistry,
     writer,
-    signer
+    signer,
+    { memoryService }
   );
 
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.
@@ -260,6 +272,7 @@ export function createAssistantAgentRouter(
         clientRequestId: fields.data.client_request_id,
         language: fields.data.language,
         allowedTools: allowedTools as readonly any[] | undefined,
+        conversationId: fields.data.conversation_id,
       };
       const ctx = {
         userId: req.user.id,
@@ -301,6 +314,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
+          conversationId: parsed.data.conversation_id,
         },
         ctx
       );

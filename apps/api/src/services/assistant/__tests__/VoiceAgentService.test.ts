@@ -683,3 +683,194 @@ describe('VoiceAgentService.handleUndo', () => {
     ).rejects.toMatchObject({ code: 'UNDO_NOT_FOUND' });
   });
 });
+
+// PRP-223 PR3 — memory integration tests.
+// We stub MemoryService at the public-method level rather than at the
+// Supabase chain level (that mock is already unit-covered by the
+// dedicated MemoryService.test.ts).
+
+class StubMemoryService {
+  conversations = new Map<string, { id: string; user_id: string }>();
+  messages: Array<{ conversation_id: string; user_id: string; role: string; content: string; action_log_ids: string[] }> = [];
+  createCalls = 0;
+  failNext = false;
+
+  async createConversation(userId: string) {
+    this.createCalls += 1;
+    if (this.failNext) {
+      this.failNext = false;
+      throw new Error('boom');
+    }
+    const id = randomUUID();
+    const conv = { id, user_id: userId };
+    this.conversations.set(id, conv);
+    return conv as any;
+  }
+  async getConversation(id: string, userId: string) {
+    const conv = this.conversations.get(id);
+    if (!conv || conv.user_id !== userId) {
+      const err: any = new Error('not found');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    return conv as any;
+  }
+  async recordMessage(conversationId: string, userId: string, opts: any) {
+    this.messages.push({
+      conversation_id: conversationId,
+      user_id: userId,
+      role: opts.role,
+      content: opts.content,
+      action_log_ids: opts.action_log_ids ?? [],
+    });
+    return { id: randomUUID(), conversation_id: conversationId, user_id: userId, ...opts } as any;
+  }
+}
+
+describe('VoiceAgentService memory integration (PRP-223 PR3)', () => {
+  function makeServiceWithMemory({ memory }: { memory: StubMemoryService }) {
+    const ai = makeAi([], 'OK pas d\'action.');
+    const handlerRegistry = new ToolHandlerRegistry();
+    const writer = new MockWriter();
+    const service = new VoiceAgentService(
+      ai,
+      mockWhisper,
+      new ToolRegistry(),
+      handlerRegistry,
+      writer as any,
+      new ConfirmationTokenSigner(SECRET),
+      { memoryService: memory as any },
+    );
+    return { service, writer };
+  }
+
+  it('creates a conversation when none is provided and returns its id', async () => {
+    const memory = new StubMemoryService();
+    const { service } = makeServiceWithMemory({ memory });
+
+    const res = await service.handleRequest(
+      {
+        source: 'text',
+        text: 'salut',
+        userId: USER,
+        clientRequestId: randomUUID(),
+      },
+      makeCtx(),
+    );
+
+    expect(res.conversation_id).toBeDefined();
+    expect(memory.createCalls).toBe(1);
+    expect(memory.messages).toHaveLength(2); // user + assistant
+    expect(memory.messages[0].role).toBe('user');
+    expect(memory.messages[1].role).toBe('assistant');
+  });
+
+  it('reuses an existing conversation when conversationId is provided', async () => {
+    const memory = new StubMemoryService();
+    // Pre-seed an owned conversation.
+    const seed = await memory.createConversation(USER);
+    memory.createCalls = 0; // reset for clarity
+
+    const { service } = makeServiceWithMemory({ memory });
+    const res = await service.handleRequest(
+      {
+        source: 'text',
+        text: 'rebonjour',
+        userId: USER,
+        clientRequestId: randomUUID(),
+        conversationId: seed.id,
+      },
+      makeCtx(),
+    );
+
+    expect(res.conversation_id).toBe(seed.id);
+    expect(memory.createCalls).toBe(0);
+    expect(memory.messages).toHaveLength(2);
+    expect(memory.messages[0].conversation_id).toBe(seed.id);
+  });
+
+  it('falls back to a fresh conversation when conversationId belongs to another user', async () => {
+    const memory = new StubMemoryService();
+    // Seed a conversation owned by someone else.
+    const otherUser = '99999999-9999-9999-9999-999999999999';
+    const stranger = await memory.createConversation(otherUser);
+    memory.createCalls = 0;
+
+    const { service } = makeServiceWithMemory({ memory });
+    const res = await service.handleRequest(
+      {
+        source: 'text',
+        text: 'hello',
+        userId: USER,
+        clientRequestId: randomUUID(),
+        conversationId: stranger.id, // wrong owner
+      },
+      makeCtx(),
+    );
+
+    expect(res.conversation_id).toBeDefined();
+    expect(res.conversation_id).not.toBe(stranger.id);
+    expect(memory.createCalls).toBe(1); // service opened a fresh one
+  });
+
+  it('memory write failures do not break the response', async () => {
+    const memory = new StubMemoryService();
+    memory.failNext = true; // first createConversation throws
+
+    const { service } = makeServiceWithMemory({ memory });
+    const res = await service.handleRequest(
+      {
+        source: 'text',
+        text: 'bonjour',
+        userId: USER,
+        clientRequestId: randomUUID(),
+      },
+      makeCtx(),
+    );
+
+    // No conversation_id because creation failed, but the response still came back.
+    expect(res.conversation_id).toBeUndefined();
+    expect(res.message).toBeTruthy();
+  });
+
+  it('records action_log_ids on the assistant message for executed tools', async () => {
+    const memory = new StubMemoryService();
+    const ai = makeAi([
+      {
+        name: 'add_shopping_items',
+        arguments: { items: [{ name: 'Tomate', quantity: 1 }] },
+      },
+    ]);
+    const handlerRegistry = new ToolHandlerRegistry();
+    handlerRegistry.register('add_shopping_items', {
+      async execute() {
+        return { result: { added: 1 } };
+      },
+    });
+    const writer = new MockWriter();
+    const service = new VoiceAgentService(
+      ai,
+      mockWhisper,
+      new ToolRegistry(),
+      handlerRegistry,
+      writer as any,
+      new ConfirmationTokenSigner(SECRET),
+      { memoryService: memory as any },
+    );
+
+    const res = await service.handleRequest(
+      {
+        source: 'text',
+        text: 'ajoute des tomates',
+        userId: USER,
+        clientRequestId: randomUUID(),
+      },
+      makeCtx(),
+    );
+
+    const assistantMsg = memory.messages.find(m => m.role === 'assistant');
+    expect(assistantMsg).toBeDefined();
+    expect(assistantMsg!.action_log_ids.length).toBeGreaterThan(0);
+    expect(assistantMsg!.action_log_ids[0]).toBe(res.actions_executed[0]?.action_id);
+  });
+});
