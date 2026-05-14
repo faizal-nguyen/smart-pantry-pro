@@ -11,7 +11,7 @@
  * le composer permet déjà d'envoyer du texte (et le backend ouvre une
  * conversation automatiquement, PRP-223 PR3).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { Bot } from 'lucide-react';
 
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
+import AssistantRecipeProposals from './AssistantRecipeProposals';
 import { useAssistantConversation } from '@/hooks/useAssistantConversation';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
@@ -45,8 +46,10 @@ export default function AssistantConversationSurface({
     conversationId,
     { limit: 50, enabled: !!conversationId },
   );
+  const [lastResponse, setLastResponse] = useState<AssistantPlanResponse | null>(null);
 
   const handleResponse = (response: AssistantPlanResponse) => {
+    setLastResponse(response);
     // If the backend opened a new conversation, navigate so the URL
     // becomes the source of truth and the messages reload.
     if (response.conversation_id && !conversationId) {
@@ -70,7 +73,10 @@ export default function AssistantConversationSurface({
             description="Tape une question ou utilise le bouton micro ci-dessous."
           />
         ) : (
-          <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
+          <>
+            <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
+            <AssistantRecipeProposals response={lastResponse} />
+          </>
         )}
       </CardContent>
       <AssistantComposer

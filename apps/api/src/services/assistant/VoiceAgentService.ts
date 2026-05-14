@@ -75,6 +75,11 @@ You help manage their inventory, shopping list, recipes, and meal plan via tool 
 
 GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE proposing actions if the user's intent depends on stock.
 
+RECIPE SUGGESTIONS — VERY IMPORTANT:
+- When the user asks for a recipe idea, a meal suggestion, "what can I cook", "qu'est-ce que je peux faire", "propose-moi", etc., you MUST first call find_cookable_recipes (preferred — filters by what's actually in inventory) or search_recipes / read_recent_recipes.
+- Only propose recipes that come back from these tools. If find_cookable_recipes returns nothing, say so honestly and ask the user if they want to add something to the shopping list or import a new recipe — DO NOT invent a recipe out of thin air.
+- When you propose recipes from the tool results, reference them by their exact \`name\` (e.g. « Pâtes carbonara » plutôt que « pâtes »). The UI will surface clickable cards based on the tool result, so do not paste long ingredient lists in your message — keep your reply short and let the cards speak.
+
 Be precise:
 - never invent products, quantities, or recipes the user did not mention
 - when the user mentions an item that may match several inventory rows, call ask_clarification
@@ -541,6 +546,51 @@ export class VoiceAgentService {
         actionLogIds: pending.map((p) => p.action_id),
         expiresAt: Date.now() + this.confirmationTtlMs,
       });
+    }
+
+    // PRP-224 follow-up — LLM Round 2 synthesis. The Round 1 call often
+    // returns only tool_calls and an empty `content`. Without a second
+    // round the user just sees "1 action exécutée." which is useless.
+    // We feed the executed tool results back to the LLM (as text-encoded
+    // assistant + user messages so we don't have to extend the OpenAI
+    // client to support the `tool` role) and ask for the final answer
+    // in the user's language. `tool_choice='none'` prevents another
+    // tool-call hop.
+    if (
+      executed.length > 0 &&
+      pending.length === 0 &&
+      (!activeResponse.content || activeResponse.content.trim().length === 0)
+    ) {
+      try {
+        const summaryParts = executed.map(a => {
+          const result = typeof a.result === 'string'
+            ? a.result
+            : JSON.stringify(a.result).slice(0, 1500);
+          return `• ${a.tool}(${JSON.stringify(a.args).slice(0, 200)}) → ${result}`;
+        });
+        const synthesisMessages: AICompletionRequest['messages'] = [
+          { role: 'system', content: systemContent },
+          { role: 'user', content: transcript },
+          {
+            role: 'assistant',
+            content:
+              `J'ai déjà exécuté ces outils pour répondre :\n${summaryParts.join('\n')}`,
+          },
+          {
+            role: 'user',
+            content:
+              "Maintenant rédige ta réponse finale, courte et utile, dans la langue de ma question. Appuie-toi sur les résultats ci-dessus, ne ré-invoque pas d'outil.",
+          },
+        ];
+        const synthesis = await this.callLLMSafe(this.model, synthesisMessages, []);
+        llmUsd += this.usdFromUsage(synthesis.model || this.model, synthesis.usage);
+        if (synthesis.content && synthesis.content.trim()) {
+          activeResponse = { ...synthesis, model: synthesis.model || this.model };
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[assistant.synthesis] round 2 failed, falling back:', err);
+      }
     }
 
     // 5. Build user-facing message

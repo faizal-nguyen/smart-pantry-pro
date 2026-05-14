@@ -518,8 +518,13 @@ describe('VoiceAgentService.handleRequest (text)', () => {
       makeCtx()
     );
 
-    expect(aiSpy).toHaveBeenCalledTimes(2);
+    // PRP-224 follow-up — three calls now: R1 (invalid args, default model),
+    // R2 (fallback retry with valid args), R3 (text synthesis on default
+    // model after the tool succeeded and the original response had no
+    // textual content).
+    expect(aiSpy).toHaveBeenCalledTimes(3);
     expect(aiSpy.mock.calls[1][0].model).toBe('gpt-4o');
+    expect(aiSpy.mock.calls[2][0].model).toBe('gpt-4o-mini');
     expect(res.actions_executed).toHaveLength(1);
   });
 });

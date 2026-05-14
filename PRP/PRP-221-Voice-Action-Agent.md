@@ -1,9 +1,53 @@
 # PRP-221 — Voice Action Agent
 
-> Statut : **DRAFT**, contrat ouvert à critique avant code.
+> Statut : **IMPLEMENTE V1 — validation e2e encore requise**.
 > Date : 2026-05-08.
 > Owner : @faizel.
 > Précédents : PRP-220 (vault recettes), PRP-220.24 (media + Whisper wired).
+> Audit statut : 2026-05-13.
+
+## 0. Statut d'implementation au 2026-05-13
+
+Le statut `DRAFT` historique n'est plus exact. Le repo contient deja
+l'implementation V1 principale :
+
+- migrations Supabase :
+  - `20260508120000_products_augmentation_assistant.sql`,
+  - `20260508120001_create_assistant_action_log.sql`,
+  - `20260508120002_assistant_fuzzy_search_products.sql`,
+  - `20260508130000_fix_assistant_action_log_unique.sql`,
+  - `20260508140000_fix_action_log_risk_tier_read.sql` ;
+- backend assistant :
+  - `apps/api/src/services/assistant/ProductResolver.ts`,
+  - `RiskClassifier.ts`,
+  - `ToolRegistry.ts`,
+  - `ActionLogWriter.ts`,
+  - `ConfirmationTokenSigner.ts`,
+  - `VoiceAgentService.ts`,
+  - handlers read/write/high/meta/internal ;
+- routes API montees :
+  - `POST /api/assistant/voice`,
+  - `POST /api/assistant/text`,
+  - `POST /api/assistant/actions/execute`,
+  - `POST /api/assistant/actions/:id/undo`,
+  - `GET /api/assistant/request-id` ;
+- frontend V1 :
+  - `src/hooks/useAssistantVoice.ts`,
+  - `src/services/assistantApi.ts`,
+  - `src/components/assistant/AssistantProvider.tsx`,
+  - `AssistantFAB`,
+  - `AssistantResultDialog`,
+  - provider monte dans `src/App.tsx`.
+
+Statut produit :
+
+- **Backend PRP-221 : implemente V1.**
+- **FAB + result dialog : implemente V1.**
+- **Page `/assistant` conversationnelle complete : hors PRP-221, couverte par PRP-224/233.**
+- **Validation e2e reelle micro -> Whisper -> LLM -> action Supabase : encore a executer avant de declarer "production ready".**
+
+Impact sur le chemin critique : PRP-221 n'est plus un chantier bloquant, mais
+un prerequis technique a stabiliser/smoke-tester pendant PRP-229/231.
 
 ## 1. Contexte
 
