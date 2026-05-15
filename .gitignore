@@ -62,3 +62,14 @@ services/video-processor/__pycache__/
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# macOS iCloud / Finder duplicates — files named "foo 2.ext" or dirs "foo 2/"
+*\ 2.*
+*\ 2/
+*\ 2
+
+# Local media drops (videos for recipe extraction, etc.) — not for the repo
+videos/
+
+# Supabase CLI cache
+supabase/.temp/
