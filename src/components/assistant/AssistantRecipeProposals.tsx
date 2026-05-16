@@ -28,8 +28,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { postAssistantText, getAssistantRequestId } from '@/services/assistantApi';
 import type { AssistantPlanResponse, ExecutedAction } from '@/services/assistantApi';
+import {
+  fireRecipeAssistantAction,
+  type RecipeAction,
+} from '@/lib/recipeActions';
 
 interface RecipeView {
   id: string;
@@ -133,51 +136,8 @@ function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
 }
 
 // ---- Action wiring -------------------------------------------------
-
-type RecipeAction = 'add_missing' | 'plan' | 'cooked';
-
-/**
- * Build the natural-language utterance for an action and post it to
- * the assistant text endpoint. Returns a short user-visible confirmation
- * string for the toast.
- */
-async function fireAssistantAction(
-  recipe: RecipeView,
-  action: RecipeAction,
-): Promise<string> {
-  const { client_request_id } = await getAssistantRequestId();
-  const text = buildActionPrompt(recipe, action);
-  await postAssistantText({ text, clientRequestId: client_request_id });
-  return actionToastTitle(action);
-}
-
-function buildActionPrompt(recipe: RecipeView, action: RecipeAction): string {
-  const name = recipe.name;
-  switch (action) {
-    case 'add_missing': {
-      const missing = (recipe.missing_ingredients ?? []).filter(Boolean);
-      if (missing.length === 0) {
-        return `Ajoute à ma liste de courses les ingrédients manquants pour la recette "${name}".`;
-      }
-      return `Ajoute à ma liste de courses : ${missing.join(', ')} (pour la recette "${name}").`;
-    }
-    case 'plan':
-      return `Ajoute la recette "${name}" à mon planning de la semaine.`;
-    case 'cooked':
-      return `Je viens de cuisiner la recette "${name}". Mets à jour mon inventaire en conséquence.`;
-  }
-}
-
-function actionToastTitle(action: RecipeAction): string {
-  switch (action) {
-    case 'add_missing':
-      return 'Demande envoyée à l’assistant';
-    case 'plan':
-      return 'Planification demandée';
-    case 'cooked':
-      return 'Bien noté — j’ai prévenu l’assistant';
-  }
-}
+// PRP-234 PR4 — prompts + fire helper extraits dans `src/lib/recipeActions.ts`
+// pour partage avec `TodayRecommendationsPanel` et `MenuEntryCard`.
 
 // ---- Card --------------------------------------------------------
 
@@ -198,7 +158,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
     if (pendingAction) return;
     setPendingAction(action);
     try {
-      const title = await fireAssistantAction(r, action);
+      const title = await fireRecipeAssistantAction(r, action);
       toast({ title, description: `Recette : ${r.name}` });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
