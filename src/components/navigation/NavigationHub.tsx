@@ -106,10 +106,10 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     subItems: [
       {
         id: 'kitchen-overview',
-        label: 'Dashboard cuisine',
+        label: 'Aujourd\'hui',
         path: '/kitchen',
         icon: Home,
-        description: 'Vue d\'ensemble de la cuisine'
+        description: 'Aujourd\'hui en cuisine'
       },
       {
         id: 'kitchen-recipes',
@@ -119,12 +119,15 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Catalogue de recettes'
       },
       {
+        // PRP-234 PR1 — `isNew` retiré : la page sous-jacente est
+        // encore CipherMealPlanningPage (legacy V0). PR2 livre Menus
+        // V1, à ce moment le label sera renommé en « Menus » et le
+        // badge `isNew` pourra revenir si pertinent.
         id: 'kitchen-meal-planning',
         label: 'Planification',
         path: '/kitchen/meal-planning',
         icon: CalendarDays,
-        description: 'Planification des repas',
-        isNew: true
+        description: 'Planification des repas'
       },
       {
         // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
