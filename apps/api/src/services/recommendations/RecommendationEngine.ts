@@ -25,6 +25,10 @@ import {
 } from './CookabilityScorer.js';
 import { scoreExpiry } from './ExpiryScorer.js';
 import { scorePreference } from './PreferenceScorer.js';
+import {
+  buildRecommendationCacheKey,
+  type RecommendationEventWriter,
+} from './RecommendationEventWriter.js';
 import type {
   InventorySnapshot,
   RecipeWithIngredients,
@@ -66,6 +70,18 @@ export interface RecommendationExecutionContext {
   now?: Date;
   conversationId?: string;
   assistantMessageId?: string;
+  /**
+   * PRP-226 PR3 — optional event writer for audit log + cache.
+   * When provided, the engine :
+   *   1. checks the per-user cache and short-circuits on a fresh hit ;
+   *   2. logs every call into `recommendation_events` (best-effort —
+   *      failures do not break the user flow) ;
+   *   3. populates `event_id` on the result so the assistant can
+   *      persist it in its message metadata.
+   * When absent, the engine behaves like PR2 (compute every time,
+   * no audit log).
+   */
+  eventWriter?: RecommendationEventWriter;
 }
 
 // ---- Engine ----------------------------------------------------------
@@ -85,6 +101,25 @@ export class RecommendationEngine {
     const nearExpiryDays = input.nearExpiryDays ?? DEFAULT_NEAR_EXPIRY_DAYS;
     const includeRecent = input.includeRecentFallback ?? true;
     const now = ctx.now ?? new Date();
+
+    // PRP-226 PR3 — cache short-circuit. The cache is user-scoped + 15
+    // min TTL ; invalidation runs from the assistant write handlers
+    // when inventory/recipes change. Cache hit returns the previous
+    // result verbatim and skips both the SQL queries + the scoring
+    // loop. We deliberately log NO new event on a cache hit ; the
+    // original event is still in `recommendation_events`.
+    const cacheKey = buildRecommendationCacheKey(input);
+    if (ctx.eventWriter) {
+      try {
+        const cached = await ctx.eventWriter.readCache(ctx.userId, cacheKey);
+        if (cached.hit && !cached.expired) {
+          return cached.hit.result;
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[RecommendationEngine] cache read failed:', err);
+      }
+    }
 
     const [recipes, inventory] = await Promise.all([
       this.loadRecipes(ctx, input),
@@ -187,12 +222,45 @@ export class RecommendationEngine {
     ]);
     const recentDeduped = includeRecent ? recent.filter((r) => !seen.has(r.id)) : [];
 
-    return {
+    const result: RecommendationResult = {
       cookable_now: cookableNow.slice(0, limit),
       almost_cookable: almostCookable.slice(0, limit),
       recent_suggestions: recentDeduped.slice(0, limit),
       total_user_recipes: recent.length,
     };
+
+    // PRP-226 PR3 — best-effort audit log + cache write. Both run
+    // sequentially but BOTH wrapped in try/catch so writer failures
+    // (RLS rejection, table missing in a stale env, etc.) never
+    // break the recommendation flow.
+    if (ctx.eventWriter) {
+      try {
+        const eventId = await ctx.eventWriter.recordEvent({
+          userId: ctx.userId,
+          conversationId: ctx.conversationId ?? null,
+          assistantMessageId: ctx.assistantMessageId ?? null,
+          requestText: input.requestText ?? null,
+          context: input,
+          result,
+        });
+        result.event_id = eventId;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[RecommendationEngine] recordEvent failed:', err);
+      }
+      try {
+        await ctx.eventWriter.writeCache({
+          userId: ctx.userId,
+          cacheKey,
+          payload: result,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[RecommendationEngine] writeCache failed:', err);
+      }
+    }
+
+    return result;
   }
 
   // ---- Data loaders -------------------------------------------------
