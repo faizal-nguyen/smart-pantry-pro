@@ -22,6 +22,10 @@ import { useBarcodeAPI, ProductInfo } from "@/hooks/useBarcodeAPI";
 import BarcodeScanner from "./BarcodeScanner";
 import { ImageUploadSection } from "./ImageUploadSection";
 import { toast } from "@/hooks/use-toast";
+// PRP-225 PR6 — Product Intelligence UI components.
+import { ProductBadge } from "@/components/products/ProductBadge";
+import { NutritionMiniPanel, type NutritionPer100g } from "@/components/products/NutritionMiniPanel";
+import { EnrichmentStatus } from "@/components/products/EnrichmentStatus";
 
 const CATEGORIES = [
   "Fruits et légumes",
@@ -55,6 +59,23 @@ const UNIT_TYPES = [
 
 interface AddProductDialogProps {
   trigger?: React.ReactNode;
+}
+
+/**
+ * PRP-225 PR6 — adapt the legacy `useBarcodeAPI` ProductInfo nutrition
+ * shape (energy_100g / proteins_100g / etc.) to the unified
+ * `NutritionMiniPanel` projection (energyKcal / proteinG / …). Keeps
+ * the modal forward-compatible with future barcode response shapes
+ * without breaking the existing form state.
+ */
+function apiNutritionToProjection(n: ProductInfo['nutrition']): NutritionPer100g {
+  if (!n) return {};
+  return {
+    energyKcal: n.energy_100g,
+    proteinG: n.proteins_100g,
+    carbsG: n.carbohydrates_100g,
+    fatG: n.fat_100g,
+  };
 }
 
 const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
@@ -512,48 +533,60 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                 </div>
               </div>
 
-              {/* Affichage des informations API */}
+              {/* PRP-225 PR6 — informations API : tokens PRP-237
+                  (surface-muted + accent-ai badge OFF) + NutritionMiniPanel +
+                  EnrichmentStatus pour re-sync manuel. */}
               {apiProductInfo && (
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm font-medium text-green-800">
-                      Informations récupérées automatiquement
-                    </span>
+                <div className="p-4 bg-surface-muted border rounded-md space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <ProductBadge status="enriched" source="openfoodfacts" />
+                    {/* `EnrichmentStatus` n'apparaît qu'après création produit
+                        (besoin de l'id). On expose un placeholder ici si
+                        `selectedProduct` existe déjà, sinon le bouton
+                        apparaîtra dans la `inventory` step. */}
+                    {selectedProduct && (
+                      <EnrichmentStatus
+                        productId={selectedProduct.id}
+                        status="enriched"
+                        force
+                        refreshLabel="Re-sync OFF"
+                      />
+                    )}
                   </div>
-                  
+
                   <div className="flex gap-3">
                     {apiProductInfo.image_url && (
-                      <img 
-                        src={apiProductInfo.image_url} 
+                      <img
+                        src={apiProductInfo.image_url}
                         alt={apiProductInfo.name}
-                        className="w-16 h-16 rounded-lg object-cover border"
+                        className="w-16 h-16 rounded-md object-cover border"
+                        loading="lazy"
                       />
                     )}
                     <div className="flex-1 space-y-1">
-                      <p className="font-medium text-sm">{apiProductInfo.name}</p>
+                      <p className="font-medium text-sm text-foreground">{apiProductInfo.name}</p>
                       {apiProductInfo.brand && (
-                        <p className="text-xs text-muted-foreground">Marque: {apiProductInfo.brand}</p>
+                        <p className="text-xs text-muted-foreground">Marque : {apiProductInfo.brand}</p>
                       )}
                       {apiProductInfo.category && (
-                        <p className="text-xs text-muted-foreground">Catégorie: {apiProductInfo.category}</p>
-                      )}
-                      {apiProductInfo.nutrition && (
-                        <p className="text-xs text-muted-foreground">
-                          {apiProductInfo.nutrition.energy_100g && 
-                            `${Math.round(apiProductInfo.nutrition.energy_100g)} kcal/100g`
-                          }
-                        </p>
+                        <p className="text-xs text-muted-foreground">Catégorie : {apiProductInfo.category}</p>
                       )}
                     </div>
                   </div>
-                  
+
+                  {apiProductInfo.nutrition && (
+                    <NutritionMiniPanel
+                      per100g={apiNutritionToProjection(apiProductInfo.nutrition)}
+                      sourceLabel="OpenFoodFacts"
+                    />
+                  )}
+
                   {apiProductInfo.ingredients && (
                     <details className="text-xs">
-                      <summary className="cursor-pointer text-green-700 font-medium">
+                      <summary className="cursor-pointer font-medium text-accent-ai">
                         Voir les ingrédients
                       </summary>
-                      <p className="mt-2 text-green-600">{apiProductInfo.ingredients}</p>
+                      <p className="mt-2 text-muted-foreground">{apiProductInfo.ingredients}</p>
                     </details>
                   )}
                 </div>
