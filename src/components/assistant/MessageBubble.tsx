@@ -99,8 +99,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     >
       {isAI && (
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-            <Bot className="w-5 h-5 text-primary-foreground" />
+          {/* PRP-237 PR3 — IA avatar en accent-ai. */}
+          <div className="w-8 h-8 rounded-full bg-accent-ai flex items-center justify-center">
+            <Bot className="w-5 h-5 text-accent-ai-foreground" />
           </div>
         </div>
       )}

@@ -146,8 +146,11 @@ function RecipeCard({ recipe: r, showCookabilityBadge }: RecipeCardProps) {
             className="w-16 h-16 rounded object-cover flex-shrink-0"
           />
         ) : (
-          <div className="w-16 h-16 rounded bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center flex-shrink-0">
-            <ChefHat className="h-6 w-6 text-orange-400" aria-hidden="true" />
+          /* PRP-237 PR3 — placeholder neutre (surface-muted + saffron
+             icon) au lieu du gradient orange/red qui traînait du look
+             "healthy demo" pré-refonte. */
+          <div className="w-16 h-16 rounded bg-surface-muted flex items-center justify-center flex-shrink-0">
+            <ChefHat className="h-6 w-6 text-saffron" aria-hidden="true" />
           </div>
         )}
         <div className="flex-1 min-w-0">
