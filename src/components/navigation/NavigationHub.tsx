@@ -1,9 +1,20 @@
 /**
- * NavigationHub - Configuration Centralisée pour Navigation Famille
- * Implémente la structure hiérarchique du PRP-040.1 avec mode famille
+ * NavigationHub — config navigation centralisée.
+ *
+ * PRP-237 PR2 :
+ *   - Drop des champs legacy PRP-040 (mode profil) des données. Les
+ *     champs restent `optional?` sur l'interface parce que
+ *     `NavigationPredictor` et `useCipherMealPlanning` les lisent
+ *     encore avec des defaults — leur suppression complète est cadrée
+ *     par PRP-234.
+ *   - Place Assistant en position 1 : PRP-224/233 mergée (PR #4 sur
+ *     main), donc la condition PRP-237 §9 est remplie.
+ *   - Supprime `getAdaptiveIcon` qui ne servait qu'au mode profil.
+ *
+ * L'ordre du tableau fait foi (pas de champ `order` séparé).
  */
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   Package,
   ChefHat,
@@ -26,27 +37,26 @@ export interface NavigationItem {
   path: string;
   section: NavigationSection;
   description: string;
-  
+
   // Hiérarchie
   subItems?: NavigationSubItem[];
   isMainSection: boolean;
-  
-  // Mode famille
-  minAge: number;
-  requiresSupervision: boolean;
-  availableInChildMode: boolean;
-  
+
   // États
   isNew?: boolean;
   isDisabled?: boolean;
   badge?: string | number;
-  
-  // Gamification pour enfants
-  gamification?: {
+
+  // PRP-234 legacy — kept optional for backward compat with
+  // NavigationPredictor / useCipherMealPlanning. Will be removed when
+  // those services are refactored.
+  minAge?: number; // allow: legacy field, never populated by PR2+
+  requiresSupervision?: boolean; // allow: legacy field, never populated by PR2+
+  availableInChildMode?: boolean; // allow: legacy field, never populated by PR2+
+  gamification?: { // allow: legacy field, never populated by PR2+
     points: number;
     level: number;
     achievements: string[];
-    funName?: string; // Nom amusant pour les enfants
   };
 }
 
@@ -58,17 +68,33 @@ export interface NavigationSubItem {
   description: string;
   isNew?: boolean;
   badge?: string | number;
-  
-  // Mode famille
-  minAge: number;
-  requiresParentalApproval?: boolean;
-  childFriendlyName?: string;
+
+  // PRP-234 legacy — kept optional for backward compat.
+  minAge?: number; // allow: legacy field, never populated by PR2+
+  requiresParentalApproval?: boolean; // allow: legacy field
 }
 
-// Configuration des routes hiérarchiques selon PRP-040.1
-// PRP-230 Commit 1: ordre V1 = Recettes → Inventaire → Courses → Anti-gaspi → Assistant.
-// L'ordre du tableau fait foi (pas de champ `order` séparé).
+// PRP-237 PR2 — order is Assistant first (PRP-224/233 done, see §9),
+// then Recettes → Inventaire → Courses → Anti-gaspi.
 export const NAVIGATION_CONFIG: NavigationItem[] = [
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    icon: Bot,
+    path: '/assistant',
+    section: 'assistant',
+    description: 'Assistant intelligent alimentaire',
+    isMainSection: true,
+    subItems: [
+      {
+        id: 'assistant-overview',
+        label: 'Assistant principal',
+        path: '/assistant',
+        icon: Home,
+        description: 'Interface principale de l\'assistant'
+      }
+    ]
+  },
   {
     id: 'kitchen',
     label: 'Recettes',
@@ -77,33 +103,20 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     section: 'kitchen',
     description: 'Recettes et planification des repas',
     isMainSection: true,
-    minAge: 3,
-    requiresSupervision: true,
-    availableInChildMode: true,
-    gamification: {
-      points: 320,
-      level: 4,
-      achievements: ['first_recipe', 'healthy_cook', 'family_chef'],
-      funName: 'Atelier de Cuisine'
-    },
     subItems: [
       {
         id: 'kitchen-overview',
         label: 'Dashboard cuisine',
         path: '/kitchen',
         icon: Home,
-        description: 'Vue d\'ensemble de la cuisine',
-        minAge: 3,
-        childFriendlyName: 'Mes recettes'
+        description: 'Vue d\'ensemble de la cuisine'
       },
       {
         id: 'kitchen-recipes',
         label: 'Recettes',
         path: '/kitchen/recipes',
         icon: ChefHat,
-        description: 'Catalogue de recettes',
-        minAge: 3,
-        childFriendlyName: 'Livre de recettes'
+        description: 'Catalogue de recettes'
       },
       {
         id: 'kitchen-meal-planning',
@@ -111,9 +124,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         path: '/kitchen/meal-planning',
         icon: CalendarDays,
         description: 'Planification des repas',
-        minAge: 7,
-        isNew: true,
-        childFriendlyName: 'Mon planning repas'
+        isNew: true
       },
       {
         // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
@@ -122,9 +133,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         label: 'Favoris',
         path: '/kitchen/recipes?tab=library&filter=favorites',
         icon: Heart,
-        description: 'Recettes favorites',
-        minAge: 3,
-        childFriendlyName: 'Mes recettes préférées'
+        description: 'Recettes favorites'
       }
     ]
   },
@@ -136,33 +145,20 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     section: 'pantry',
     description: 'Gérer votre inventaire alimentaire',
     isMainSection: true,
-    minAge: 3,
-    requiresSupervision: false,
-    availableInChildMode: true,
-    gamification: {
-      points: 150,
-      level: 2,
-      achievements: ['first_scan', 'week_tracker'],
-      funName: 'Ma Réserve Magique'
-    },
     subItems: [
       {
         id: 'pantry-overview',
         label: 'Vue d\'ensemble',
         path: '/pantry',
         icon: Home,
-        description: 'Dashboard du garde-manger',
-        minAge: 3,
-        childFriendlyName: 'Ma cuisine'
+        description: 'Dashboard du garde-manger'
       },
       {
         id: 'pantry-inventory',
         label: 'Inventaire',
         path: '/pantry/inventory',
         icon: Package,
-        description: 'Inventaire complet des produits',
-        minAge: 3,
-        childFriendlyName: 'Mes produits'
+        description: 'Inventaire complet des produits'
       }
     ]
   },
@@ -174,33 +170,20 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     section: 'shopping',
     description: 'Gestion des listes de courses',
     isMainSection: true,
-    minAge: 7,
-    requiresSupervision: true,
-    availableInChildMode: true,
-    gamification: {
-      points: 180,
-      level: 2,
-      achievements: ['smart_shopper', 'budget_master'],
-      funName: 'Mission Courses'
-    },
     subItems: [
       {
         id: 'shopping-overview',
         label: 'Dashboard achats',
         path: '/shopping',
         icon: Home,
-        description: 'Vue d\'ensemble des achats',
-        minAge: 7,
-        childFriendlyName: 'Mes courses'
+        description: 'Vue d\'ensemble des achats'
       },
       {
         id: 'shopping-list',
         label: 'Liste de courses',
         path: '/shopping/list',
         icon: ShoppingCart,
-        description: 'Liste de courses active',
-        minAge: 7,
-        childFriendlyName: 'Ma liste'
+        description: 'Liste de courses active'
       }
     ]
   },
@@ -212,62 +195,20 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     section: 'insights',
     description: 'Statistiques et analyses avancées',
     isMainSection: true,
-    minAge: 13,
-    requiresSupervision: false,
-    availableInChildMode: false,
-    gamification: {
-      points: 90,
-      level: 1,
-      achievements: ['data_explorer'],
-      funName: 'Mes Statistiques'
-    },
     subItems: [
       {
         id: 'insights-overview',
         label: 'Dashboard insights',
         path: '/insights',
         icon: Home,
-        description: 'Vue d\'ensemble des analyses',
-        minAge: 13,
-        childFriendlyName: 'Mes analyses'
+        description: 'Vue d\'ensemble des analyses'
       },
       {
         id: 'insights-waste',
         label: 'Anti-gaspi',
         path: '/insights/waste',
         icon: Shield,
-        description: 'Réduction du gaspillage',
-        minAge: 10,
-        childFriendlyName: 'Éviter le gaspillage'
-      }
-    ]
-  },
-  {
-    id: 'assistant',
-    label: 'Assistant',
-    icon: Bot,
-    path: '/assistant',
-    section: 'assistant',
-    description: 'Assistant intelligent alimentaire',
-    isMainSection: true,
-    minAge: 7,
-    requiresSupervision: true,
-    availableInChildMode: false,
-    gamification: {
-      points: 250,
-      level: 3,
-      achievements: ['ai_helper', 'smart_questions'],
-      funName: 'Mon Assistant Magique'
-    },
-    subItems: [
-      {
-        id: 'assistant-overview',
-        label: 'Assistant principal',
-        path: '/assistant',
-        icon: Home,
-        description: 'Interface principale de l\'assistant',
-        minAge: 7,
-        childFriendlyName: 'Mon assistant'
+        description: 'Réduction du gaspillage'
       }
     ]
   }
@@ -283,35 +224,22 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
     section: 'settings',
     description: 'Configuration de l\'application',
     isMainSection: false,
-    minAge: 18,
-    requiresSupervision: false,
-    availableInChildMode: false,
     subItems: [
       {
         id: 'settings-appearance',
         label: 'Apparence',
         path: '/settings/appearance',
         icon: Palette,
-        description: 'Personnalisation de l\'interface',
-        minAge: 13
+        description: 'Personnalisation de l\'interface'
       }
     ]
   }
 ];
 
 /**
- * Hook de configuration navigation.
- *
- * PRP-230 Commit 3 (pragmatique) : le shell d'adaptation par profil
- * famille (minAge / availableInChildMode / funName / childFriendlyName)
- * est désactivé côté navigation — la signature ne prend plus de
- * `familyConfig` et toute la branche de filtrage par âge a été retirée.
- *
- * Les champs `minAge`, `gamification`, etc. restent dans l'interface et
- * dans `NAVIGATION_CONFIG` parce que d'autres consommateurs (services
- * d'intelligence navigation, tests legacy) les lisent encore. Leur
- * suppression complète est cadrée par PRP-234 quand `useFamilyMode` et
- * `useCipherMealPlanning` seront refactorés.
+ * Hook de configuration navigation. Renvoie les listes telles quelles ;
+ * le filtre par profil famille (PRP-040) a été retiré en PRP-230 et la
+ * dette résiduelle (services intelligence) est cadrée par PRP-234.
  */
 export const useNavigationConfig = () => {
   return useMemo(() => ({
@@ -322,11 +250,10 @@ export const useNavigationConfig = () => {
 };
 
 /**
- * Fonction utilitaire pour obtenir les redirections de compatibilité
+ * Table de redirections de compatibilité historique. Réduite aux routes
+ * coeur V1 en PRP-222 PR1.
  */
 export const getLegacyRedirections = (): Record<string, string> => ({
-  // PRP-222 PR1 : table réduite aux routes coeur V1. Tout pointeur vers une
-  // route retirée a été retargeté sur le dashboard parent ou la liste canonique.
   '/inventory': '/pantry/inventory',
   '/recipes': '/kitchen/recipes',
   '/shopping': '/shopping',
@@ -348,15 +275,3 @@ export const getLegacyRedirections = (): Record<string, string> => ({
   '/dashboard': '/insights',
   '/main': '/insights'
 });
-
-/**
- * Fonction pour déterminer l'icône selon le contexte famille
- */
-export const getAdaptiveIcon = (
-  baseIcon: React.ComponentType<{ className?: string }>,
-  isChildMode: boolean,
-  funVariant?: React.ComponentType<{ className?: string }>
-): React.ComponentType<{ className?: string }> => {
-  return (isChildMode && funVariant) ? funVariant : baseIcon;
-};
-

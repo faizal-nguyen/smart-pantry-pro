@@ -74,11 +74,14 @@ describe('Meal Planning Navigation', () => {
     expect(redirections['/meal-planning']).toBe('/kitchen/meal-planning');
   });
 
-  it('should have proper age restrictions for meal planning', () => {
+  it('exposes meal planning as a kitchen sub-item with the canonical path', () => {
+    // PRP-237 PR2 — legacy fields (minAge, childFriendlyName) dropped
+    // from the navigation data ; the shape now asserts on the canonical
+    // path and the new-feature badge instead.
     const kitchenSection = NAVIGATION_CONFIG.find(item => item.id === 'kitchen');
     const mealPlanningSubItem = kitchenSection?.subItems?.find(item => item.id === 'kitchen-meal-planning');
-    
-    expect(mealPlanningSubItem?.minAge).toBe(7);
-    expect(mealPlanningSubItem?.childFriendlyName).toBe('Mon planning repas');
+
+    expect(mealPlanningSubItem?.path).toBe('/kitchen/meal-planning');
+    expect(mealPlanningSubItem?.isNew).toBe(true);
   });
 });
