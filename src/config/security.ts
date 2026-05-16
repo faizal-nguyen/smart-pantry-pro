@@ -65,12 +65,15 @@ export const CSP_POLICY = {
   'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.jsdelivr.net'],
   'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
   'font-src': ["'self'", 'https://fonts.gstatic.com'],
+  // PRP-225 PR4 — `img-src` keeps `https:` so product images loaded
+  // into <img> tags are allowed without listing each hostname
+  // explicitly. The front-end no longer contacts OpenFoodFacts
+  // directly (the OFF hostname was dropped from `connect-src`).
   'img-src': ["'self'", 'data:', 'blob:', 'https:'],
   'connect-src': [
     "'self'",
     'https://*.supabase.co',
     'https://api.openai.com',
-    'https://world.openfoodfacts.org',
     'wss://*.supabase.co'
   ]
 };

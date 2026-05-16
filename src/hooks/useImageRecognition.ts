@@ -2,6 +2,32 @@ import { useState, useCallback } from 'react';
 import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
 import { toast } from 'sonner';
 
+import { apiGet, ApiError } from '@/lib/api';
+
+interface BackendResolveResponse {
+  kind: 'matched' | 'created' | 'ambiguous' | 'not_found';
+  product?: {
+    name: string;
+    brand?: string | null;
+    image_url?: string | null;
+    category?: string | null;
+    nutrition_json?: {
+      per100g?: {
+        energyKcal?: number;
+        proteinG?: number;
+        carbsG?: number;
+        fatG?: number;
+      };
+    } | null;
+  };
+  candidates?: Array<{
+    name: string;
+    brand?: string | null;
+    image_url?: string | null;
+    category?: string | null;
+  }>;
+}
+
 export interface RecognitionResult {
   success: boolean;
   product?: {
@@ -189,49 +215,52 @@ export function useImageRecognition() {
   }, [supabase]);
 
   /**
-   * Search product by barcode in Open Food Facts
+   * Search product by barcode via the Product Intelligence proxy.
+   *
+   * PRP-225 PR4 — the direct OpenFoodFacts fetch is replaced by
+   * `/api/products/resolve?barcode=…` which centralises every OFF call
+   * behind a durable cache + rate-limited server client.
    */
   const searchByBarcode = useCallback(async (
     barcode: string
   ): Promise<RecognitionResult> => {
     try {
-      const response = await fetch(
-        `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
-      );
+      const data = await apiGet<BackendResolveResponse>('/products/resolve', { barcode });
 
-      if (!response.ok) {
+      if (data.kind === 'not_found') {
         return { success: false, error: 'Produit non trouvé' };
       }
 
-      const data = await response.json();
-
-      if (data.status === 1 && data.product) {
-        const product = data.product;
-        
-        return {
-          success: true,
-          product: {
-            id: barcode,
-            name: product.product_name || product.product_name_fr || 'Produit inconnu',
-            brand: product.brands,
-            barcode: barcode,
-            image_url: product.image_url || product.image_front_url,
-            category: product.categories,
-            nutrition: product.nutriments ? {
-              calories: Math.round(product.nutriments['energy-kcal_100g'] || 0),
-              proteins: Math.round(product.nutriments.proteins_100g || 0),
-              carbs: Math.round(product.nutriments.carbohydrates_100g || 0),
-              fats: Math.round(product.nutriments.fat_100g || 0)
-            } : undefined
-          },
-          confidence: 1.0
-        };
+      const source = data.product ?? data.candidates?.[0];
+      if (!source) {
+        return { success: false, error: 'Produit non trouvé' };
       }
 
-      return { success: false, error: 'Produit non trouvé' };
-
+      const per100g = data.product?.nutrition_json?.per100g;
+      return {
+        success: true,
+        product: {
+          id: barcode,
+          name: source.name || 'Produit inconnu',
+          brand: source.brand ?? undefined,
+          barcode,
+          image_url: source.image_url ?? undefined,
+          category: source.category ?? undefined,
+          nutrition: per100g
+            ? {
+                calories: Math.round(per100g.energyKcal ?? 0),
+                proteins: Math.round(per100g.proteinG ?? 0),
+                carbs: Math.round(per100g.carbsG ?? 0),
+                fats: Math.round(per100g.fatG ?? 0),
+              }
+            : undefined,
+        },
+        confidence: 1.0,
+      };
     } catch (error) {
-      console.error('Barcode search error:', error);
+      if (!(error instanceof ApiError)) {
+        console.error('Barcode search error:', error);
+      }
       return { success: false, error: 'Erreur lors de la recherche' };
     }
   }, []);

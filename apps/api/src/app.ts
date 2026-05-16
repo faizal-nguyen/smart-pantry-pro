@@ -38,6 +38,7 @@ import { createImportsSocialRouter } from './routes/imports.social.js';
 import { createMediaRouter } from './routes/media.js';
 import { createAssistantAgentRouter } from './routes/assistant.agent.js';
 import { createAssistantMemoryRouter } from './routes/assistant.memory.js';
+import { createProductsIntelligenceRouter } from './routes/products.intelligence.js';
 import { createMetricsRouter } from './routes/metrics.js';
 import { supabaseAdmin } from './config/supabase.js';
 import {
@@ -127,6 +128,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
   // PRP-223 PR2: memory CRUD (conversations, messages, memories).
   // Mounts disjoint sub-paths to keep the existing routers untouched.
   app.use('/api/assistant', createAssistantMemoryRouter(supabaseAdmin));
+  // PRP-225 PR4: Product Intelligence proxy (OpenFoodFacts + cache).
+  // Centralises every OFF call server-side ; the front-end speaks to
+  // this router instead of contacting OpenFoodFacts directly.
+  app.use('/api/products', createProductsIntelligenceRouter(supabaseAdmin));
   // PRP-220.15: Prometheus metrics. Auth via METRICS_AUTH_TOKEN bearer
   // (constant-time compare). Mounted last so it never collides with a
   // public catch-all.

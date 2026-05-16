@@ -14,3 +14,5 @@ export { createRecipesRouter } from './recipes.routes.js';
 export { createShoppingRouter } from './shopping.routes.js';
 export { createUsersRouter } from './users.routes.js';
 export { createReceiptsRouter } from './receipts.js';
+// PRP-225 PR4: Product Intelligence (OpenFoodFacts proxy, enrichment).
+export { createProductsIntelligenceRouter } from './products.intelligence.js';

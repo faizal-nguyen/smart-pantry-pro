@@ -1,7 +1,16 @@
 /**
- * Service pour interagir avec l'API OpenFoodFacts
- * Pour obtenir les informations nutritionnelles des produits
+ * Service pour interagir avec OpenFoodFacts.
+ *
+ * PRP-225 PR4 — l'appel direct à OpenFoodFacts a été retiré au
+ * profit du proxy `/api/products/external/search` +
+ * `/api/products/resolve` côté serveur (User-Agent enforced, cache
+ * durable, rate-limited). Le mapping nutriments + le calcul
+ * `calculateNutritionForQuantity` restent côté front pour ne pas
+ * casser `RecipeNutrition.tsx` (PRP-227 consolidera tout le calcul
+ * nutrition).
  */
+
+import { apiGet, ApiError } from '@/lib/api';
 
 interface NutritionalInfo {
   energy_kcal?: number;
@@ -26,9 +35,88 @@ interface OpenFoodFactsProduct {
   serving_quantity?: number;
 }
 
+// Backend (Product Intelligence proxy) response shapes.
+interface BackendExternalCandidate {
+  name?: string;
+  brand?: string | null;
+  category?: string | null;
+  barcode?: string | null;
+  image_url?: string | null;
+  score?: number;
+  source?: string;
+}
+
+interface BackendExternalSearchResponse {
+  results: BackendExternalCandidate[];
+  cached?: boolean;
+}
+
+interface BackendResolveResponse {
+  kind: 'matched' | 'created' | 'ambiguous' | 'not_found';
+  product?: {
+    name: string;
+    brand?: string | null;
+    image_url?: string | null;
+    quantity_label?: string | null;
+    nutrition_json?: {
+      per100g?: {
+        energyKcal?: number;
+        proteinG?: number;
+        carbsG?: number;
+        sugarG?: number;
+        fatG?: number;
+        saturatedFatG?: number;
+        fiberG?: number;
+        saltG?: number;
+      };
+      serving?: { label?: string; quantity?: number; unit?: string };
+      scores?: { nutriScore?: string };
+    } | null;
+  };
+  candidates?: BackendExternalCandidate[];
+}
+
+function backendCandidateToProduct(c: BackendExternalCandidate): OpenFoodFactsProduct {
+  return {
+    product_name: c.name ?? '',
+    brands: c.brand ?? undefined,
+    image_url: c.image_url ?? undefined,
+  };
+}
+
+function backendResolveToProduct(payload: BackendResolveResponse): OpenFoodFactsProduct | null {
+  if (payload.kind === 'not_found') return null;
+  const p = payload.product;
+  if (!p) {
+    const candidate = payload.candidates?.[0];
+    return candidate ? backendCandidateToProduct(candidate) : null;
+  }
+  const per100g = p.nutrition_json?.per100g;
+  const nutriments: NutritionalInfo | undefined = per100g
+    ? {
+        energy_kcal: per100g.energyKcal,
+        proteins: per100g.proteinG,
+        carbohydrates: per100g.carbsG,
+        sugars: per100g.sugarG,
+        fat: per100g.fatG,
+        saturated_fat: per100g.saturatedFatG,
+        fiber: per100g.fiberG,
+        salt: per100g.saltG,
+      }
+    : undefined;
+  return {
+    product_name: p.name,
+    brands: p.brand ?? undefined,
+    image_url: p.image_url ?? undefined,
+    serving_size: p.nutrition_json?.serving?.label ?? undefined,
+    serving_quantity: p.nutrition_json?.serving?.quantity ?? undefined,
+    nutriscore_grade: p.nutrition_json?.scores?.nutriScore ?? undefined,
+    nutriments,
+  };
+}
+
 export class OpenFoodFactsService {
   private static instance: OpenFoodFactsService;
-  private baseUrl = 'https://world.openfoodfacts.org/api/v2';
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheExpiry = 5 * 60 * 1000; // 5 minutes pour les tests
 
@@ -50,7 +138,11 @@ export class OpenFoodFactsService {
   }
 
   /**
-   * Recherche un produit par son nom
+   * Recherche un produit par son nom via le proxy serveur.
+   * Le mapping nutriments riche n'est plus nécessaire ici : le proxy
+   * renvoie `ProductCandidate` léger (juste nom/brand/image). Pour
+   * obtenir les nutriments, on appelle `/api/products/resolve` sur
+   * un candidat précis via `getProductByBarcode`.
    */
   async searchProduct(query: string): Promise<OpenFoodFactsProduct[]> {
     const cacheKey = `search_${query}`;
@@ -58,93 +150,27 @@ export class OpenFoodFactsService {
     if (cached) return cached;
 
     try {
-      // Inclure tous les champs nutritionnels possibles et chercher en français
-      // Utiliser des paramètres plus stricts pour obtenir des résultats pertinents
-      const searchUrl = `${this.baseUrl}/search?` + new URLSearchParams({
-        search_terms: query,
-        search_simple: '1',
-        action: 'process',
-        json: '1',
-        page_size: '50',
-        page: '1',
-        sort_by: 'unique_scans_n',
-        fields: 'code,product_name,generic_name,brands,categories,nutriments,nutriscore_grade,completeness'
-      }).toString();
-      
-      console.log(`   🌐 URL de recherche: ${searchUrl}`);
-      
-      const response = await fetch(searchUrl);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch from OpenFoodFacts');
-      }
-
-      const data = await response.json();
-      const products = data.products || [];
-      
-      // Vérifier et mapper les nutriments correctement
-      const mappedProducts = products.map((product: any) => {
-        if (product.nutriments) {
-          // OpenFoodFacts utilise parfois des noms de champs différents
-          const nutriments = product.nutriments;
-          
-          // Mapper les différentes variations possibles pour l'énergie
-          if (!nutriments.energy_kcal && nutriments['energy-kcal_100g']) {
-            nutriments.energy_kcal = nutriments['energy-kcal_100g'];
-          }
-          if (!nutriments.energy_kcal && nutriments['energy_100g']) {
-            // Convertir de kJ en kcal si nécessaire
-            nutriments.energy_kcal = nutriments['energy_100g'] / 4.184;
-          }
-          
-          // Mapper les protéines
-          if (!nutriments.proteins && nutriments['proteins_100g']) {
-            nutriments.proteins = nutriments['proteins_100g'];
-          }
-          
-          // Mapper les glucides
-          if (!nutriments.carbohydrates && nutriments['carbohydrates_100g']) {
-            nutriments.carbohydrates = nutriments['carbohydrates_100g'];
-          }
-          
-          // Mapper les lipides
-          if (!nutriments.fat && nutriments['fat_100g']) {
-            nutriments.fat = nutriments['fat_100g'];
-          }
-          
-          // Mapper les fibres
-          if (!nutriments.fiber && nutriments['fiber_100g']) {
-            nutriments.fiber = nutriments['fiber_100g'];
-          }
-          
-          // Mapper le sel
-          if (!nutriments.salt && nutriments['salt_100g']) {
-            nutriments.salt = nutriments['salt_100g'];
-          }
-          
-          // Mapper les sucres
-          if (!nutriments.sugars && nutriments['sugars_100g']) {
-            nutriments.sugars = nutriments['sugars_100g'];
-          }
-          
-          // Mapper les graisses saturées
-          if (!nutriments.saturated_fat && nutriments['saturated-fat_100g']) {
-            nutriments.saturated_fat = nutriments['saturated-fat_100g'];
-          }
-        }
-        return product;
+      const data = await apiGet<BackendExternalSearchResponse>('/products/external/search', {
+        q: query,
+        limit: 10,
       });
-      
-      this.setCache(cacheKey, mappedProducts);
-      return mappedProducts;
+      const products = (data.results ?? []).map(backendCandidateToProduct);
+      this.setCache(cacheKey, products);
+      return products;
     } catch (error) {
-      console.error('Error searching product:', error);
+      if (!(error instanceof ApiError)) {
+        console.error('Error searching product:', error);
+      }
       return [];
     }
   }
 
   /**
-   * Récupère un produit par son code-barres
+   * Récupère un produit par son code-barres via le proxy serveur.
+   * Le pipeline serveur fait : barcode local → cache OFF → OFF API,
+   * donc on récupère soit un produit local enrichi, soit un candidat
+   * OFF brut. Dans tous les cas la projection nutriments est
+   * re-construite côté backend.
    */
   async getProductByBarcode(barcode: string): Promise<OpenFoodFactsProduct | null> {
     const cacheKey = `barcode_${barcode}`;
@@ -152,22 +178,16 @@ export class OpenFoodFactsService {
     if (cached) return cached;
 
     try {
-      const response = await fetch(`${this.baseUrl}/product/${barcode}.json`);
-      
-      if (!response.ok) {
-        return null;
-      }
-
-      const data = await response.json();
-      const product = data.product;
-      
+      const data = await apiGet<BackendResolveResponse>('/products/resolve', { barcode });
+      const product = backendResolveToProduct(data);
       if (product) {
         this.setCache(cacheKey, product);
       }
-      
-      return product || null;
+      return product;
     } catch (error) {
-      console.error('Error fetching product by barcode:', error);
+      if (!(error instanceof ApiError)) {
+        console.error('Error fetching product by barcode:', error);
+      }
       return null;
     }
   }
