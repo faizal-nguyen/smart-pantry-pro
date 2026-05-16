@@ -1,47 +1,32 @@
 /**
- * KitchenDashboard — `/kitchen` surface.
+ * KitchenDashboard — `/kitchen` (Aujourd'hui en cuisine).
  *
- * PRP-234 PR1 (cleanup) :
- *   - renamed "Cuisine" → "Aujourd'hui en cuisine" to set a clear
- *     daily-action promise instead of a dashboard-hub framing ;
- *   - dropped the "Activité Récente" quick-action (it pointed at a
- *     generic recipes index with no actual activity behind it) ;
- *   - dropped the "Planification Repas" quick-action because its
- *     target page is still `CipherMealPlanningPage` — PR2 re-adds it
- *     as "Menus" once Menus V1 lands ;
- *   - dropped the "Mes Favoris" card — same destination as the
- *     Recettes deep-link, no value at this surface ;
- *   - removed `useAgeAdaptiveUI` (déclassé par PRP-228 — pas de
- *     child-mode override sur cette page) ;
- *   - removed the "Actions Rapides" section header — the grid speaks
- *     for itself, and the wording aligned with the dashboard framing
- *     we're stepping away from.
+ * PRP-234 PR3 — remplace les 3 nav cards de PR1 par les 4 panels
+ * Today branchés sur des données réelles :
+ *   - Continuer       (recipe_interactions.viewed + imports inbox)
+ *   - À cuisiner      (POST /api/v1/recommendations/suggest, top 3)
+ *   - Cette semaine   (useWeeklyMenu projeté à aujourd'hui+)
+ *   - Anti-gaspi      (inventory.expiry_date ≤ 7j)
  *
- * PR3 (Today data) will replace this minimal nav layer with the 5
- * `useTodayKitchen` blocs (Continuer / À cuisiner / À vérifier /
- * Cette semaine / Anti-gaspi).
+ * Chaque panel a son propre loading/error/empty state — pas de
+ * spinner global, pas de page blanche si un bloc tombe.
  */
-import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import { ChefHat, BookOpen, Package, ShoppingCart } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { ChefHat } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 
+import { supabase } from '@/integrations/supabase/client';
 import AppNavigation from '@/components/navigation/AppNavigation';
 import { PageLoader } from '@/components/layout/PageLoader';
-import { Card, CardContent } from '@/components/ui/card';
-
-interface QuickAction {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  to: string;
-}
+import TodayContinuePanel from '@/components/kitchen/TodayContinuePanel';
+import TodayRecommendationsPanel from '@/components/kitchen/TodayRecommendationsPanel';
+import TodayWeekPanel from '@/components/kitchen/TodayWeekPanel';
+import TodayAntiWastePanel from '@/components/kitchen/TodayAntiWastePanel';
 
 const KitchenDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const getUser = async () => {
@@ -60,32 +45,11 @@ const KitchenDashboard: React.FC = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  const quickActions: QuickAction[] = [
-    {
-      title: 'Mes recettes',
-      description: 'Parcourir ma bibliothèque et mes imports',
-      icon: <BookOpen className="w-6 h-6" />,
-      to: '/kitchen/recipes',
-    },
-    {
-      title: 'Mon inventaire',
-      description: 'Voir ce que j’ai en stock',
-      icon: <Package className="w-6 h-6" />,
-      to: '/pantry',
-    },
-    {
-      title: 'Ma liste de courses',
-      description: 'Préparer mes prochains achats',
-      icon: <ShoppingCart className="w-6 h-6" />,
-      to: '/shopping/list',
-    },
-  ];
-
   return (
     <AppNavigation user={user}>
-      <div className="container mx-auto p-6 space-y-8">
+      <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="flex flex-col space-y-4">
+        <div className="flex flex-col space-y-2">
           <div className="flex items-center gap-3">
             <ChefHat className="text-primary w-6 h-6" />
             <h1 className="font-bold text-foreground text-3xl">
@@ -97,38 +61,12 @@ const KitchenDashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {quickActions.map((action) => (
-            <Card
-              key={action.to}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => navigate(action.to)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  navigate(action.to);
-                }
-              }}
-              aria-label={`Ouvrir ${action.title}`}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    {action.icon}
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-base">{action.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {action.description}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        {/* 4 Today panels — 1 col mobile, 2 cols desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TodayContinuePanel />
+          <TodayRecommendationsPanel />
+          <TodayWeekPanel />
+          <TodayAntiWastePanel />
         </div>
       </div>
     </AppNavigation>

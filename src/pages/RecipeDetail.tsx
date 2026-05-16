@@ -64,6 +64,38 @@ const RecipeDetail = () => {
   // Détecter si la recette a été supprimée
   const recipeDeleted = !recipe && !loading && id;
 
+  // PRP-234 PR3 — writer `recipe_interactions.viewed` au mount.
+  // Alimente le bloc « Continuer » du dashboard Today (PR3
+  // useTodayContinue). Dedup via sessionStorage pour éviter de
+  // spammer la table sur hot reload / navigation back-and-forth.
+  // Best-effort : un échec ne casse pas la page.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    void (async () => {
+      const sessionKey = `viewed:${id}`;
+      if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const { error } = await supabase
+        .from('recipe_interactions')
+        .insert({
+          user_id: user.id,
+          recipe_id: id,
+          interaction_type: 'viewed',
+        });
+      if (!error && typeof window !== 'undefined') {
+        sessionStorage.setItem(sessionKey, '1');
+      }
+      // Swallow l'erreur : ne casse pas l'ouverture de la recette.
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
   useEffect(() => {
     if (id) {
       fetchRecipeDetails();
