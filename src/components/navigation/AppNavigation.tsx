@@ -1,6 +1,10 @@
 /**
- * AppNavigation - Composant Principal de Navigation avec Mode Famille
- * Implémente la structure hiérarchique du PRP-040.1 avec approche famille sécurisée
+ * AppNavigation - Composant Principal de Navigation.
+ *
+ * Wraps les shells responsive (MobileNavigation / TabletNavigation /
+ * DesktopNavigation) et oriente le rendu suivant le breakpoint. La
+ * structure hiérarchique vient de NavigationHub (PRP-237 PR2 :
+ * Assistant first, champs legacy PRP-040 supprimés).
  * Fixed: React hooks ordering violation (2025-10-04)
  */
 
@@ -424,14 +428,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
       isChildMode && "child-mode-active",
       isSupervisionActive && "supervision-active"
     )}>
-      {/* Indicateur Mode Famille */}
-      {currentProfile && (
-        <FamilyModeIndicator
-          currentProfile={currentProfile}
-          isSupervisionActive={isSupervisionActive}
-          onProfileSwitch={() => setShowProfileSelector(true)}
-        />
-      )}
+      {/* PRP-237 PR2 — FamilyModeIndicator + FamilyProfileSelector
+          retirés du shell. Family mode est inactif en V1 (PRP-222 PR3b)
+          ; les composants restent définis dans ce fichier pour permettre
+          un re-mount éventuel mais leur suppression complète est cadrée
+          par PRP-234 quand useFamilyMode aura été refactoré. */}
 
       {/* Navigation Responsive */}
       {isMobile && (
@@ -475,17 +476,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         </div>
       </main>
 
-      {/* Sélecteur de Profil */}
-      {currentProfile && (
-        <FamilyProfileSelector
-          isOpen={showProfileSelector}
-          onClose={() => setShowProfileSelector(false)}
-          currentProfile={currentProfile}
-          availableProfiles={availableProfiles}
-          onSwitchProfile={handleProfileSwitch}
-          isLoading={familyLoading}
-        />
-      )}
+      {/* PRP-237 PR2 — FamilyProfileSelector unmounted (see header note). */}
 
       {/* Alerte de Restriction d'Accès */}
       {accessRestriction && (

@@ -1,6 +1,8 @@
 /**
- * TabletNavigation - Navigation Tablette avec Mode Famille
- * Sidebar rétractable + bottom bar hybride
+ * TabletNavigation - Navigation Tablette hybride.
+ *
+ * Sidebar rétractable + bottom bar. Branches `isChildMode` toujours
+ * fausses en V1 — dead code à retirer sous PRP-234.
  */
 
 import React, { useState } from 'react';

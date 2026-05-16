@@ -68,7 +68,6 @@ const PageWrapper: React.FC<PageWrapperProps> = ({
     return <>{children}</>;
   }
 
-  // Page avec navigation famille
   return (
     <AppNavigation user={user}>
       {children}

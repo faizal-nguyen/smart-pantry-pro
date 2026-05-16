@@ -1,6 +1,9 @@
 /**
- * DesktopNavigation - Navigation Desktop avec Mode Famille
- * Sidebar persistante avec hiérarchie complète
+ * DesktopNavigation - Navigation Desktop sidebar persistante.
+ *
+ * Hiérarchie complète depuis NavigationHub. Les branches conditionnelles
+ * `isChildMode` restent (toujours `false` en V1 — dead code à supprimer
+ * sous PRP-234) ; aucun rendu visible ne dépend du mode famille en PRP-237.
  */
 
 import React, { useState } from 'react';

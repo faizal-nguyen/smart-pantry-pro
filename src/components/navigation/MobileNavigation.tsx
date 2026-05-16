@@ -1,5 +1,5 @@
 /**
- * MobileNavigation - Navigation Mobile avec Mode Famille
+ * MobileNavigation - Navigation Mobile responsive
  * Bottom navigation + interface adaptée enfants
  */
 
@@ -388,10 +388,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           path: '/more',
           section: 'pantry' as NavigationSection,
           description: 'Plus d\'options',
-          isMainSection: false,
-          minAge: 3,
-          requiresSupervision: false,
-          availableInChildMode: true
+          isMainSection: false
         }
       ];
     }
