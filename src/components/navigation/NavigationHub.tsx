@@ -119,15 +119,13 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Catalogue de recettes'
       },
       {
-        // PRP-234 PR1 — `isNew` retiré : la page sous-jacente est
-        // encore CipherMealPlanningPage (legacy V0). PR2 livre Menus
-        // V1, à ce moment le label sera renommé en « Menus » et le
-        // badge `isNew` pourra revenir si pertinent.
+        // PRP-234 PR2 — Menus V1 a remplacé `CipherMealPlanningPage`
+        // sur cette route. Label aligné sur la promesse produit.
         id: 'kitchen-meal-planning',
-        label: 'Planification',
+        label: 'Menus',
         path: '/kitchen/meal-planning',
         icon: CalendarDays,
-        description: 'Planification des repas'
+        description: 'Menus de la semaine'
       },
       {
         // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
