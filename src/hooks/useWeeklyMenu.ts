@@ -175,6 +175,25 @@ export function useWeeklyMenu(weekStart: string) {
         .select('id')
         .single();
       if (insertErr) throw insertErr;
+
+      // PRP-234 PR4 — log `recipe_interactions.planned` pour
+      // alimenter le PreferenceScorer V1 (PRP-226 PR6) : une recette
+      // planifiée signale un intérêt utilisateur même si elle n'est
+      // pas (encore) cuisinée. Best-effort : un échec d'insert ne
+      // remonte pas — l'entrée meal_plan est déjà créée.
+      void supabase
+        .from('recipe_interactions')
+        .insert({
+          user_id: userId,
+          recipe_id: input.recipe_id,
+          interaction_type: 'planned',
+        })
+        .then(({ error: interactionErr }) => {
+          if (interactionErr) {
+            console.warn('[useWeeklyMenu] planned interaction log failed:', interactionErr.message);
+          }
+        });
+
       return (entry as { id: string }).id;
     },
     onSuccess: () => {
