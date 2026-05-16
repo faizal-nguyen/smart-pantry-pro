@@ -24,11 +24,17 @@ import {
   type CookabilityResult,
 } from './CookabilityScorer.js';
 import { scoreExpiry } from './ExpiryScorer.js';
-import { scorePreference } from './PreferenceScorer.js';
+import {
+  scorePreference,
+  BEHAVIOUR_WINDOW_DAYS,
+  type PreferenceMemory,
+  type RecipeInteractionSummary,
+} from './PreferenceScorer.js';
 import {
   buildRecommendationCacheKey,
   type RecommendationEventWriter,
 } from './RecommendationEventWriter.js';
+import type { MemoryService } from '../assistant/MemoryService.js';
 import type {
   InventorySnapshot,
   RecipeWithIngredients,
@@ -82,6 +88,16 @@ export interface RecommendationExecutionContext {
    * no audit log).
    */
   eventWriter?: RecommendationEventWriter;
+  /**
+   * PRP-226 PR6 — optional MemoryService for the PreferenceScorer.
+   * When provided the engine loads the user's active preference /
+   * negative_preference / cooking_style / diet_goal / recipe_feedback
+   * memories once per call and threads them into the scorer.
+   * Best-effort : a memory load failure leaves the scorer with an
+   * empty memory list (neutral preference signal) instead of breaking
+   * the recommendation flow.
+   */
+  memoryService?: MemoryService;
 }
 
 // ---- Engine ----------------------------------------------------------
@@ -121,9 +137,14 @@ export class RecommendationEngine {
       }
     }
 
-    const [recipes, inventory] = await Promise.all([
+    // PRP-226 PR6 — fan out memories + interactions in parallel with
+    // the SQL reads. Memory loads run only when a service is wired ;
+    // tests + legacy paths get an empty snapshot (neutral preference).
+    const [recipes, inventory, memories, interactions] = await Promise.all([
       this.loadRecipes(ctx, input),
       this.loadInventory(ctx),
+      this.loadMemories(ctx),
+      this.loadRecentInteractions(ctx, now),
     ]);
 
     const cookableNow: RecommendedRecipeView[] = [];
@@ -152,7 +173,12 @@ export class RecommendationEngine {
       if (cookability.total_essential === 0) continue;
 
       const expiry = scoreExpiry(recipe, inventory, { now, nearExpiryDays });
-      const preference = scorePreference(recipe, { userId: ctx.userId });
+      const preference = scorePreference(recipe, {
+        userId: ctx.userId,
+        memories,
+        interactions,
+        now,
+      });
 
       const parts: RecommendationScoreParts = {
         cookability: cookability.score,
@@ -171,6 +197,7 @@ export class RecommendationEngine {
         expiry,
         goal: input.goal,
         recipe,
+        preferenceReasons: preference.reasons,
       });
 
       const view: RecommendedRecipeView = {
@@ -289,6 +316,81 @@ export class RecommendationEngine {
     return (data ?? []) as unknown as RecipeWithIngredients[];
   }
 
+  /**
+   * PRP-226 PR6 — load the user's active preference-related memories.
+   * Best-effort : a memory load failure (RLS rejection, schema
+   * mismatch in a stale env) returns an empty list so the engine
+   * still scores recipes with neutral preference signal.
+   */
+  private async loadMemories(
+    ctx: RecommendationExecutionContext,
+  ): Promise<PreferenceMemory[]> {
+    if (!ctx.memoryService) return [];
+    try {
+      const rows = await ctx.memoryService.getTopActiveMemories(ctx.userId, 100);
+      const relevant = new Set([
+        'preference',
+        'negative_preference',
+        'cooking_style',
+        'diet_goal',
+        'recipe_feedback',
+      ]);
+      return rows
+        .filter((r) => relevant.has(r.kind))
+        .map((r) => ({
+          id: r.id,
+          kind: r.kind as PreferenceMemory['kind'],
+          content: r.content,
+          normalized_content: r.normalized_content,
+          sensitivity: r.sensitivity,
+          subject_type: r.subject_type,
+          subject_id: r.subject_id,
+        }));
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[RecommendationEngine] loadMemories failed:', err);
+      return [];
+    }
+  }
+
+  /**
+   * PRP-226 PR6 — pull the last 30 days of `recipe_interactions` so
+   * the PreferenceScorer can apply behavioural decay. We filter to the
+   * three signal-bearing types ; the rest are kept for analytics but
+   * don't move the score in V1. RLS-bound via the user client.
+   */
+  private async loadRecentInteractions(
+    ctx: RecommendationExecutionContext,
+    now: Date,
+  ): Promise<RecipeInteractionSummary[]> {
+    const windowDays = Math.max(
+      BEHAVIOUR_WINDOW_DAYS.cooked,
+      BEHAVIOUR_WINDOW_DAYS.accepted,
+      BEHAVIOUR_WINDOW_DAYS.dismissed,
+    );
+    const cutoff = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+    try {
+      const { data, error } = await ctx.userClient
+        .from('recipe_interactions')
+        .select('recipe_id, interaction_type, created_at')
+        .eq('user_id', ctx.userId)
+        .in('interaction_type', ['cooked', 'accepted', 'dismissed'])
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return ((data ?? []) as Array<{
+        recipe_id: string | null;
+        interaction_type: RecipeInteractionSummary['interaction_type'];
+        created_at: string;
+      }>);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[RecommendationEngine] loadRecentInteractions failed:', err);
+      return [];
+    }
+  }
+
   private async loadInventory(
     ctx: RecommendationExecutionContext,
   ): Promise<InventorySnapshot> {
@@ -392,6 +494,12 @@ function buildReasons(input: {
   expiry: { expiring_ingredients: { product_name: string; days_to_expiry: number }[] };
   goal: RecommendationContext['goal'];
   recipe: RecipeWithIngredients;
+  /**
+   * PR6 — taste / behaviour-derived hints from the PreferenceScorer.
+   * Merged in after the cookability + expiry signals so the cooking
+   * context still leads, but always before the 4-reason cap.
+   */
+  preferenceReasons?: string[];
 }): string[] {
   const reasons: string[] = [];
   if (input.cookability.combined_gap === 0) {
@@ -429,6 +537,11 @@ function buildReasons(input: {
   if (input.goal === 'anti_waste' && input.expiry.expiring_ingredients.length === 0) {
     // Honest signal — anti_waste asked but the engine didn't find expiry leverage.
     reasons.push('Aucun produit proche péremption — recette neutre côté anti-gaspi');
+  }
+  if (input.preferenceReasons?.length) {
+    for (const r of input.preferenceReasons) {
+      if (!reasons.includes(r)) reasons.push(r);
+    }
   }
   return reasons.slice(0, 4);
 }

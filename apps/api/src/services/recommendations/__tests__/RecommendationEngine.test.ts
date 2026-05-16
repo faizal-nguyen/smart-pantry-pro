@@ -24,14 +24,23 @@ interface MockPlan {
   inventory: unknown[];
 }
 
-function makeClient(plan: MockPlan) {
-  const builder = (table: 'recipes' | 'inventory') => {
-    const data = table === 'recipes' ? plan.recipes : plan.inventory;
+function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
+  const builder = (table: string) => {
+    let data: unknown[] = [];
+    if (table === 'recipes') data = plan.recipes;
+    else if (table === 'inventory') data = plan.inventory;
+    else if (table === 'recipe_interactions') data = plan.interactions ?? [];
     const chain: any = {
       select() {
         return chain;
       },
       eq() {
+        return chain;
+      },
+      in() {
+        return chain;
+      },
+      gte() {
         return chain;
       },
       ilike() {
@@ -50,7 +59,7 @@ function makeClient(plan: MockPlan) {
     return chain;
   };
   return {
-    from: (table: string) => builder(table as 'recipes' | 'inventory'),
+    from: (table: string) => builder(table),
   };
 }
 
@@ -305,5 +314,120 @@ describe('RecommendationEngine — suggested_actions', () => {
     const result = await engine.suggestForUser(ctx, {});
     const actions = result.cookable_now[0]?.suggested_actions ?? [];
     expect(actions).not.toContain('add_missing_to_shopping');
+  });
+});
+
+// ---- PRP-226 PR6 — PreferenceScorer V1 wiring ----------------------
+
+describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
+  function buildEngineWithMemories(opts: {
+    recipes: unknown[];
+    inventory: unknown[];
+    interactions?: unknown[];
+    memories?: Array<{
+      id: string;
+      kind: string;
+      content: string;
+      normalized_content?: string | null;
+      sensitivity?: string;
+      subject_type?: string | null;
+      subject_id?: string | null;
+    }>;
+  }) {
+    const client = makeClient({
+      recipes: opts.recipes,
+      inventory: opts.inventory,
+      interactions: opts.interactions,
+    });
+    const memoryService = {
+      async getTopActiveMemories() {
+        return (opts.memories ?? []).map((m) => ({
+          ...m,
+          normalized_content: m.normalized_content ?? null,
+          sensitivity: m.sensitivity ?? 'normal',
+          subject_type: m.subject_type ?? null,
+          subject_id: m.subject_id ?? null,
+        }));
+      },
+    };
+    return {
+      engine: new RecommendationEngine(),
+      ctx: {
+        userId: USER,
+        userClient: client as any,
+        memoryService: memoryService as any,
+        now: NOW,
+      },
+    };
+  }
+
+  it('positive preference re-ranks the matching recipe ahead of a neutral one', async () => {
+    const { engine, ctx } = buildEngineWithMemories({
+      recipes: [
+        makeRecipe({ id: 'r-pasta', name: 'Pasta carbonara', ings: [{ pid: 'p-pates' }] }),
+        makeRecipe({ id: 'r-quinoa', name: 'Quinoa bowl', ings: [{ pid: 'p-quinoa' }] }),
+      ],
+      inventory: [makeInvRow('p-pates', 5), makeInvRow('p-quinoa', 5)],
+      memories: [
+        { id: 'm1', kind: 'preference', content: 'pasta' },
+      ],
+    });
+    const result = await engine.suggestForUser(ctx, {});
+    const ids = result.cookable_now.map((r) => r.id);
+    expect(ids).toEqual(['r-pasta', 'r-quinoa']);
+    const pasta = result.cookable_now[0];
+    expect(pasta.score_parts.preferenceMatch).toBeGreaterThan(0);
+    expect(pasta.reasons.some((r) => r.toLowerCase().includes('pasta'))).toBe(true);
+  });
+
+  it('negative_preference flips the ranking even when the recipe is cookable', async () => {
+    const { engine, ctx } = buildEngineWithMemories({
+      recipes: [
+        makeRecipe({ id: 'r-fish', name: 'Saumon grillé', ings: [{ pid: 'p-saumon' }] }),
+        makeRecipe({ id: 'r-veg', name: 'Légumes rôtis', ings: [{ pid: 'p-leg' }] }),
+      ],
+      inventory: [makeInvRow('p-saumon', 5), makeInvRow('p-leg', 5)],
+      memories: [
+        { id: 'm1', kind: 'negative_preference', content: 'saumon' },
+      ],
+    });
+    const result = await engine.suggestForUser(ctx, {});
+    const ids = result.cookable_now.map((r) => r.id);
+    expect(ids[0]).toBe('r-veg');
+    const fish = result.cookable_now.find((r) => r.id === 'r-fish');
+    expect(fish?.score_parts.preferenceMatch).toBeLessThan(0);
+  });
+
+  it('recent dismissed interaction penalises that specific recipe only', async () => {
+    const { engine, ctx } = buildEngineWithMemories({
+      recipes: [
+        makeRecipe({ id: 'r-a', name: 'Recette A', ings: [{ pid: 'p-1' }] }),
+        makeRecipe({ id: 'r-b', name: 'Recette B', ings: [{ pid: 'p-1' }] }),
+      ],
+      inventory: [makeInvRow('p-1', 10)],
+      interactions: [
+        {
+          recipe_id: 'r-a',
+          interaction_type: 'dismissed',
+          created_at: new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ],
+    });
+    const result = await engine.suggestForUser(ctx, {});
+    const ids = result.cookable_now.map((r) => r.id);
+    expect(ids[0]).toBe('r-b');
+    const dismissed = result.cookable_now.find((r) => r.id === 'r-a');
+    expect(dismissed?.score_parts.preferenceMatch).toBeLessThan(0);
+  });
+
+  it('engine still scores recipes when no memoryService is wired (PR2 path preserved)', async () => {
+    // Same buildEngine shape as the existing PR2 tests — no
+    // memoryService, no interactions. Preference must default to 0.
+    const { engine, ctx } = buildEngine({
+      recipes: [makeRecipe({ id: 'r-pasta', name: 'Pasta', ings: [{ pid: 'p-1' }] })],
+      inventory: [makeInvRow('p-1', 5)],
+    });
+    const result = await engine.suggestForUser(ctx, {});
+    expect(result.cookable_now[0].score_parts.preferenceMatch).toBe(0);
   });
 });
