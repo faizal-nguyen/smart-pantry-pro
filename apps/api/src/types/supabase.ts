@@ -65,6 +65,22 @@ export type Database = {
           category: string | null
           barcode: string | null
           brand: string | null
+          image_url: string | null
+          // PRP-221 — fuzzy search + provenance
+          normalized_name: string | null
+          source: 'unknown' | 'user_manual' | 'assistant_auto' | 'imported' | 'seeded'
+          created_by: string | null
+          // PRP-225 — Product Intelligence + OpenFoodFacts
+          quantity_label: string | null
+          ingredients_text: string | null
+          nutrition_json: Json
+          allergens_json: Json
+          off_product_code: string | null
+          off_last_synced_at: string | null
+          off_raw_updated_at: string | null
+          enrichment_status: 'none' | 'pending' | 'enriched' | 'ambiguous' | 'failed' | 'stale'
+          enrichment_source: 'none' | 'openfoodfacts' | 'manual' | 'assistant' | 'barcode_scan'
+          enrichment_confidence: number
           created_at: string
           updated_at: string
         }
@@ -74,6 +90,20 @@ export type Database = {
           category?: string | null
           barcode?: string | null
           brand?: string | null
+          image_url?: string | null
+          normalized_name?: string | null
+          source?: 'unknown' | 'user_manual' | 'assistant_auto' | 'imported' | 'seeded'
+          created_by?: string | null
+          quantity_label?: string | null
+          ingredients_text?: string | null
+          nutrition_json?: Json
+          allergens_json?: Json
+          off_product_code?: string | null
+          off_last_synced_at?: string | null
+          off_raw_updated_at?: string | null
+          enrichment_status?: 'none' | 'pending' | 'enriched' | 'ambiguous' | 'failed' | 'stale'
+          enrichment_source?: 'none' | 'openfoodfacts' | 'manual' | 'assistant' | 'barcode_scan'
+          enrichment_confidence?: number
           created_at?: string
           updated_at?: string
         }
@@ -83,8 +113,164 @@ export type Database = {
           category?: string | null
           barcode?: string | null
           brand?: string | null
+          image_url?: string | null
+          normalized_name?: string | null
+          source?: 'unknown' | 'user_manual' | 'assistant_auto' | 'imported' | 'seeded'
+          created_by?: string | null
+          quantity_label?: string | null
+          ingredients_text?: string | null
+          nutrition_json?: Json
+          allergens_json?: Json
+          off_product_code?: string | null
+          off_last_synced_at?: string | null
+          off_raw_updated_at?: string | null
+          enrichment_status?: 'none' | 'pending' | 'enriched' | 'ambiguous' | 'failed' | 'stale'
+          enrichment_source?: 'none' | 'openfoodfacts' | 'manual' | 'assistant' | 'barcode_scan'
+          enrichment_confidence?: number
           created_at?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      // PRP-225 §5.2 — alias graph (alias text → canonical product).
+      product_aliases: {
+        Row: {
+          id: string
+          product_id: string
+          alias: string
+          normalized_alias: string
+          source: 'user' | 'assistant' | 'import' | 'openfoodfacts' | 'receipt'
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          alias: string
+          normalized_alias: string
+          source?: 'user' | 'assistant' | 'import' | 'openfoodfacts' | 'receipt'
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          alias?: string
+          normalized_alias?: string
+          source?: 'user' | 'assistant' | 'import' | 'openfoodfacts' | 'receipt'
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      // PRP-225 §5.3 — durable cache of OpenFoodFacts responses.
+      // Service-role only (no anon/authenticated policy in SQL).
+      product_enrichment_cache: {
+        Row: {
+          id: string
+          provider: 'openfoodfacts'
+          cache_key: string
+          query: string | null
+          response_json: Json
+          status: 'hit' | 'miss' | 'ambiguous' | 'error'
+          http_status: number | null
+          error_code: string | null
+          expires_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          provider?: 'openfoodfacts'
+          cache_key: string
+          query?: string | null
+          response_json?: Json
+          status?: 'hit' | 'miss' | 'ambiguous' | 'error'
+          http_status?: number | null
+          error_code?: string | null
+          expires_at: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          provider?: 'openfoodfacts'
+          cache_key?: string
+          query?: string | null
+          response_json?: Json
+          status?: 'hit' | 'miss' | 'ambiguous' | 'error'
+          http_status?: number | null
+          error_code?: string | null
+          expires_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      // PRP-225 §5.4 — user-scoped audit log of every product resolution.
+      product_resolution_events: {
+        Row: {
+          id: string
+          user_id: string
+          raw_input: string
+          barcode: string | null
+          resolved_product_id: string | null
+          method:
+            | 'barcode_local'
+            | 'alias'
+            | 'exact'
+            | 'fuzzy'
+            | 'openfoodfacts_barcode'
+            | 'openfoodfacts_search'
+            | 'manual_create'
+            | 'clarification'
+            | 'failed'
+          confidence: number
+          candidates: Json
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          raw_input: string
+          barcode?: string | null
+          resolved_product_id?: string | null
+          method:
+            | 'barcode_local'
+            | 'alias'
+            | 'exact'
+            | 'fuzzy'
+            | 'openfoodfacts_barcode'
+            | 'openfoodfacts_search'
+            | 'manual_create'
+            | 'clarification'
+            | 'failed'
+          confidence?: number
+          candidates?: Json
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          raw_input?: string
+          barcode?: string | null
+          resolved_product_id?: string | null
+          method?:
+            | 'barcode_local'
+            | 'alias'
+            | 'exact'
+            | 'fuzzy'
+            | 'openfoodfacts_barcode'
+            | 'openfoodfacts_search'
+            | 'manual_create'
+            | 'clarification'
+            | 'failed'
+          confidence?: number
+          candidates?: Json
+          metadata?: Json
+          created_at?: string
         }
         Relationships: []
       }
