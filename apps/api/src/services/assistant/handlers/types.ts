@@ -13,6 +13,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { ProductResolver } from '../ProductResolver.js';
+import type { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
+import type { RecommendationEventWriter } from '../../recommendations/RecommendationEventWriter.js';
 
 /**
  * Per-request context passed to every handler. Contains both clients
@@ -37,6 +39,28 @@ export interface ToolExecutionContext {
    * tests, future batch admin path).
    */
   sessionId?: string;
+  /**
+   * PRP-223 PR3 — current conversation id (when the assistant is wired
+   * to MemoryService). Threaded into `recommendation_events` so we can
+   * link an event back to the conversation that triggered it.
+   */
+  conversationId?: string;
+  /**
+   * Original user utterance (transcript / typed text). Stored verbatim
+   * in `recommendation_events.request_text` for audit + V2 learning.
+   */
+  requestText?: string;
+  /**
+   * PRP-226 PR3 — shared RecommendationEngine instance. The engine is
+   * stateless ; reusing one avoids GC churn but tests can swap a mock.
+   */
+  recommendationEngine?: RecommendationEngine;
+  /**
+   * PRP-226 PR3 — per-request writer for the recommendation event log
+   * + scoring cache + interaction journal. Built from the per-request
+   * userClient so RLS scopes every write to the current user.
+   */
+  eventWriter?: RecommendationEventWriter;
 }
 
 /**

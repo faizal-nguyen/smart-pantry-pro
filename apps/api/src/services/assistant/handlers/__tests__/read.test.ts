@@ -808,4 +808,103 @@ describe('SuggestRecipesForContextHandler', () => {
     expect(result.result.almost_cookable.map((r) => r.id)).not.toContain('r-almost');
     expect(result.result.almost_cookable.map((r) => r.id)).not.toContain('r-legacy');
   });
+
+  // ---- PRP-226 PR4 — event writer wiring ------------------------------
+
+  it('PRP-226 PR4 — surfaces event_id from the writer in the handler result', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const calls = { recordEvent: 0, writeCache: 0, readCache: 0 };
+    const eventWriter = {
+      async readCache() {
+        calls.readCache++;
+        return { hit: null, expired: false };
+      },
+      async recordEvent() {
+        calls.recordEvent++;
+        return 'event-abc';
+      },
+      async writeCache() {
+        calls.writeCache++;
+      },
+      async recordInteraction() {},
+      async invalidateUserCache() {
+        return 0;
+      },
+      async purgeExpired() {
+        return 0;
+      },
+    };
+    const ctx: ToolExecutionContext = {
+      ...makeCtx(client),
+      eventWriter: eventWriter as unknown as ToolExecutionContext['eventWriter'],
+      conversationId: 'conv-1',
+      requestText: 'Que cuisiner ce soir ?',
+    };
+    const result = await new SuggestRecipesForContextHandler().execute(ctx, {});
+    expect(result.result.event_id).toBe('event-abc');
+    expect(calls.readCache).toBe(1);
+    expect(calls.recordEvent).toBe(1);
+    expect(calls.writeCache).toBe(1);
+  });
+
+  it('PRP-226 PR4 — cache hit short-circuits scoring and returns the cached buckets', async () => {
+    const cached = {
+      cookable_now: [
+        {
+          id: 'r-cached',
+          name: 'From cache',
+          prep_time: 5,
+          cook_time: 0,
+          total_essential: 1,
+          linked_essential: 1,
+          missing_count: 0,
+          missing_ingredients: [],
+          unlinked: false,
+          unlinked_count: 0,
+          score_total: 88,
+          score_parts: {} as Record<string, number>,
+          reasons: ['Tu as tout en stock'],
+          suggested_actions: ['open_recipe'] as const,
+        },
+      ],
+      almost_cookable: [],
+      recent_suggestions: [],
+      total_user_recipes: 1,
+      event_id: 'event-old',
+    };
+    let recorded = 0;
+    const eventWriter = {
+      async readCache() {
+        return { hit: { result: cached }, expired: false };
+      },
+      async recordEvent() {
+        recorded++;
+        return 'event-new';
+      },
+      async writeCache() {},
+      async recordInteraction() {},
+      async invalidateUserCache() {
+        return 0;
+      },
+      async purgeExpired() {
+        return 0;
+      },
+    };
+    // Empty SQL routes — would surface as empty buckets if the engine
+    // queried instead of short-circuiting on the cache.
+    const { client } = makeClient({
+      routes: { recipes: { data: [] }, inventory: { data: [] } },
+    });
+    const ctx: ToolExecutionContext = {
+      ...makeCtx(client),
+      eventWriter: eventWriter as unknown as ToolExecutionContext['eventWriter'],
+    };
+    const result = await new SuggestRecipesForContextHandler().execute(ctx, {});
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-cached']);
+    expect(result.result.event_id).toBe('event-old');
+    // Cache hit MUST NOT emit a new event — the original one is still
+    // authoritative ; double-logging would break the «event_id ↔
+    // originating recommendation» linkage.
+    expect(recorded).toBe(0);
+  });
 });

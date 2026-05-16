@@ -491,7 +491,10 @@ export class VoiceAgentService {
           const handler = this.handlerRegistry.get(tc.name);
           // eslint-disable-next-line no-console
           console.log(`[assistant.handler] executing ${tc.name} args=${JSON.stringify(parsedArgs).slice(0, 300)}`);
-          const exec = await handler.execute({ ...ctx, sessionId }, parsedArgs);
+          const exec = await handler.execute(
+            { ...ctx, sessionId, conversationId, requestText: transcript },
+            parsedArgs,
+          );
           await this.writer.markExecuted(planned.id, {
             result: exec.result as Record<string, unknown>,
             reversibleAction: spec.reversible
@@ -969,6 +972,14 @@ interface RecipeProposalsBuckets {
   cookable_now: unknown[];
   almost_cookable: unknown[];
   recent_suggestions: unknown[];
+  /**
+   * PRP-226 PR4 — id of the `recommendation_events` row this proposal
+   * was emitted from. The frontend echoes it on every interaction
+   * (« cuisinée », « planifier », « ajouter les manquants ») so the
+   * audit log links each action back to its originating recommendation.
+   * Absent when the LLM only called legacy single-bucket tools.
+   */
+  event_id?: string;
 }
 
 const LEGACY_RECIPE_TOOLS = new Set<string>([
@@ -1012,11 +1023,18 @@ export function extractRecipeProposalsFromExecuted(
   for (const a of executed) {
     if (a.tool !== 'suggest_recipes_for_context') continue;
     hadAnyRecipeTool = true;
-    const result = a.result as Partial<RecipeProposalsBuckets> | undefined;
+    const result = a.result as
+      | (Partial<RecipeProposalsBuckets> & { event_id?: unknown })
+      | undefined;
     if (!result || typeof result !== 'object') continue;
     if (Array.isArray(result.cookable_now)) pushUnique(buckets.cookable_now, result.cookable_now);
     if (Array.isArray(result.almost_cookable)) pushUnique(buckets.almost_cookable, result.almost_cookable);
     if (Array.isArray(result.recent_suggestions)) pushUnique(buckets.recent_suggestions, result.recent_suggestions);
+    // PRP-226 PR4 — capture the originating event id (first non-empty
+    // wins, since a single turn rarely calls the tool twice).
+    if (!buckets.event_id && typeof result.event_id === 'string' && result.event_id.length > 0) {
+      buckets.event_id = result.event_id;
+    }
   }
 
   // Fallback: legacy single-bucket tools (find_cookable_recipes etc.).

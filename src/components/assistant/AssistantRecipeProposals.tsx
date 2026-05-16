@@ -12,16 +12,23 @@
  * find_cookable_recipes / search_recipes / read_recent_recipes, on
  * retombe sur l'ancien comportement single-bucket pour ne rien casser.
  *
- * V2 : persister ces propositions dans `assistant_messages.metadata`
- * pour que la reload historique les reaffiche (aujourd'hui c'est une
- * vue éphémère sur le dernier turn).
+ * PRP-226 PR4 — chaque card affiche :
+ *  - le `score_total` (pill discrète quand ≥ 70)
+ *  - 1-2 `reasons` déterministes en sous-titre
+ *  - 3 actions rapides (Ajouter les manquants / Planifier / Cuisinée)
+ *    qui re-prompt l'assistant via `/api/assistant/text` avec un wording
+ *    explicite. Pas d'appel direct DB ici — on garde la boucle assistant
+ *    (mémoire + action_log + undo) comme single source of truth.
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChefHat, Clock, Users } from 'lucide-react';
+import { ChefHat, Clock, Users, Plus, CalendarPlus, Check } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
+import { postAssistantText, getAssistantRequestId } from '@/services/assistantApi';
 import type { AssistantPlanResponse, ExecutedAction } from '@/services/assistantApi';
 
 interface RecipeView {
@@ -33,15 +40,21 @@ interface RecipeView {
   image_url?: string | null;
   cuisine_category?: string | null;
   missing_count?: number;
+  missing_ingredients?: string[];
   total_essential?: number;
   unlinked?: boolean;
   unlinked_count?: number;
+  // PRP-226 PR4 — engine-emitted fields (optional, missing on legacy results).
+  score_total?: number;
+  reasons?: string[];
 }
 
 interface RecipeBuckets {
   cookable_now: RecipeView[];
   almost_cookable: RecipeView[];
   recent_suggestions: RecipeView[];
+  /** PRP-226 PR4 — id of the originating `recommendation_events` row. */
+  event_id?: string;
 }
 
 const LEGACY_RECIPE_TOOLS = new Set([
@@ -73,12 +86,17 @@ function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
   // Primary: suggest_recipes_for_context returns the 3 buckets directly.
   for (const a of actions) {
     if (a.tool !== 'suggest_recipes_for_context') continue;
-    const result = a.result as Partial<RecipeBuckets> | undefined;
+    const result = a.result as
+      | (Partial<RecipeBuckets> & { event_id?: unknown })
+      | undefined;
     if (!result || typeof result !== 'object') continue;
     for (const key of ['cookable_now', 'almost_cookable', 'recent_suggestions'] as const) {
       const arr = (result as Record<string, unknown>)[key];
       if (!Array.isArray(arr)) continue;
       buckets[key].push(...dedupe(arr.filter(isRecipeView), seen));
+    }
+    if (!buckets.event_id && typeof result.event_id === 'string' && result.event_id.length > 0) {
+      buckets.event_id = result.event_id;
     }
   }
 
@@ -114,88 +132,223 @@ function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
   return buckets;
 }
 
+// ---- Action wiring -------------------------------------------------
+
+type RecipeAction = 'add_missing' | 'plan' | 'cooked';
+
+/**
+ * Build the natural-language utterance for an action and post it to
+ * the assistant text endpoint. Returns a short user-visible confirmation
+ * string for the toast.
+ */
+async function fireAssistantAction(
+  recipe: RecipeView,
+  action: RecipeAction,
+): Promise<string> {
+  const { client_request_id } = await getAssistantRequestId();
+  const text = buildActionPrompt(recipe, action);
+  await postAssistantText({ text, clientRequestId: client_request_id });
+  return actionToastTitle(action);
+}
+
+function buildActionPrompt(recipe: RecipeView, action: RecipeAction): string {
+  const name = recipe.name;
+  switch (action) {
+    case 'add_missing': {
+      const missing = (recipe.missing_ingredients ?? []).filter(Boolean);
+      if (missing.length === 0) {
+        return `Ajoute à ma liste de courses les ingrédients manquants pour la recette "${name}".`;
+      }
+      return `Ajoute à ma liste de courses : ${missing.join(', ')} (pour la recette "${name}").`;
+    }
+    case 'plan':
+      return `Ajoute la recette "${name}" à mon planning de la semaine.`;
+    case 'cooked':
+      return `Je viens de cuisiner la recette "${name}". Mets à jour mon inventaire en conséquence.`;
+  }
+}
+
+function actionToastTitle(action: RecipeAction): string {
+  switch (action) {
+    case 'add_missing':
+      return 'Demande envoyée à l’assistant';
+    case 'plan':
+      return 'Planification demandée';
+    case 'cooked':
+      return 'Bien noté — j’ai prévenu l’assistant';
+  }
+}
+
+// ---- Card --------------------------------------------------------
+
 interface RecipeCardProps {
   recipe: RecipeView;
   showCookabilityBadge: boolean;
+  showActions: boolean;
 }
 
-function RecipeCard({ recipe: r, showCookabilityBadge }: RecipeCardProps) {
+function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCardProps) {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
   const totalTime = (r.prep_time ?? 0) + (r.cook_time ?? 0);
   const open = () => navigate(`/kitchen/recipes/${r.id}`);
 
+  const handleAction = async (action: RecipeAction) => {
+    if (pendingAction) return;
+    setPendingAction(action);
+    try {
+      const title = await fireAssistantAction(r, action);
+      toast({ title, description: `Recette : ${r.name}` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      toast({
+        title: 'Action impossible',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const score = typeof r.score_total === 'number' ? r.score_total : null;
+  const reasons = (r.reasons ?? []).slice(0, 2);
+  const missing = r.missing_count ?? 0;
+  const hasMissingIngredients = missing > 0;
+
   return (
-    <Card
-      className="cursor-pointer hover:shadow-md transition-shadow"
-      onClick={open}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          open();
-        }
-      }}
-      aria-label={`Ouvrir la recette ${r.name}`}
-    >
-      <CardContent className="p-3 flex gap-3">
-        {r.image_url ? (
-          <img
-            src={r.image_url}
-            alt=""
-            className="w-16 h-16 rounded object-cover flex-shrink-0"
-          />
-        ) : (
-          /* PRP-237 PR3 — placeholder neutre (surface-muted + saffron
-             icon) au lieu du gradient orange/red qui traînait du look
-             "healthy demo" pré-refonte. */
-          <div className="w-16 h-16 rounded bg-surface-muted flex items-center justify-center flex-shrink-0">
-            <ChefHat className="h-6 w-6 text-saffron" aria-hidden="true" />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <h4 className="font-medium text-sm line-clamp-2">{r.name}</h4>
-          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-            {totalTime > 0 && (
-              <span className="flex items-center gap-0.5">
-                <Clock className="h-3 w-3" aria-hidden="true" />
-                {totalTime} min
-              </span>
+    <Card className="overflow-hidden">
+      <button
+        type="button"
+        onClick={open}
+        className="w-full text-left transition-colors hover:bg-surface-muted/50 focus:bg-surface-muted/50 focus:outline-none"
+        aria-label={`Ouvrir la recette ${r.name}`}
+      >
+        <CardContent className="p-3 flex gap-3">
+          {r.image_url ? (
+            <img
+              src={r.image_url}
+              alt=""
+              className="w-16 h-16 rounded object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded bg-surface-muted flex items-center justify-center flex-shrink-0">
+              <ChefHat className="h-6 w-6 text-saffron" aria-hidden="true" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2">
+              <h4 className="font-medium text-sm line-clamp-2 flex-1">{r.name}</h4>
+              {score !== null && score >= 70 && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-saffron/10 text-saffron border-saffron/40 flex-shrink-0"
+                  aria-label={`Score de pertinence ${score} sur 100`}
+                  title={`Score ${score}/100`}
+                >
+                  {score}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+              {totalTime > 0 && (
+                <span className="flex items-center gap-0.5">
+                  <Clock className="h-3 w-3" aria-hidden="true" />
+                  {totalTime} min
+                </span>
+              )}
+              {r.servings != null && (
+                <span className="flex items-center gap-0.5">
+                  <Users className="h-3 w-3" aria-hidden="true" />
+                  {r.servings}
+                </span>
+              )}
+              {r.cuisine_category && (
+                <Badge variant="secondary" className="text-[10px] py-0">
+                  {r.cuisine_category}
+                </Badge>
+              )}
+            </div>
+            {reasons.length > 0 && (
+              <p className="text-[11px] text-muted-foreground italic mt-1 line-clamp-2">
+                {reasons.join(' · ')}
+              </p>
             )}
-            {r.servings != null && (
-              <span className="flex items-center gap-0.5">
-                <Users className="h-3 w-3" aria-hidden="true" />
-                {r.servings}
-              </span>
-            )}
-            {r.cuisine_category && (
-              <Badge variant="secondary" className="text-[10px] py-0">
-                {r.cuisine_category}
-              </Badge>
-            )}
-          </div>
-          {showCookabilityBadge && (() => {
-            const missing = r.missing_count ?? 0;
-            const unknown = r.unlinked_count ?? 0;
-            const total = missing + unknown;
-            if (total === 0) {
+            {showCookabilityBadge && (() => {
+              const unknown = r.unlinked_count ?? 0;
+              const total = missing + unknown;
+              if (total === 0) {
+                return (
+                  <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
+                    Tu as tout
+                  </Badge>
+                );
+              }
+              const parts: string[] = [];
+              if (missing > 0) parts.push(`${missing} manquant${missing > 1 ? 's' : ''}`);
+              if (unknown > 0) parts.push(`${unknown} à vérifier`);
               return (
-                <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
-                  Tu as tout
+                <Badge variant="outline" className="mt-1 text-[10px]">
+                  {parts.join(' · ')}
                 </Badge>
               );
-            }
-            const parts: string[] = [];
-            if (missing > 0) parts.push(`${missing} manquant${missing > 1 ? 's' : ''}`);
-            if (unknown > 0) parts.push(`${unknown} à vérifier`);
-            return (
-              <Badge variant="outline" className="mt-1 text-[10px]">
-                {parts.join(' · ')}
-              </Badge>
-            );
-          })()}
+            })()}
+          </div>
+        </CardContent>
+      </button>
+      {showActions && (
+        <div
+          className="flex flex-wrap gap-1 px-3 pb-3 -mt-1"
+          role="group"
+          aria-label={`Actions pour ${r.name}`}
+        >
+          {hasMissingIngredients && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px] gap-1"
+              disabled={pendingAction !== null}
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleAction('add_missing');
+              }}
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              Ajouter les manquants
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px] gap-1"
+            disabled={pendingAction !== null}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleAction('plan');
+            }}
+          >
+            <CalendarPlus className="h-3 w-3" aria-hidden="true" />
+            Planifier
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-[11px] gap-1"
+            disabled={pendingAction !== null}
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleAction('cooked');
+            }}
+          >
+            <Check className="h-3 w-3" aria-hidden="true" />
+            Cuisinée
+          </Button>
         </div>
-      </CardContent>
+      )}
     </Card>
   );
 }
@@ -205,9 +358,10 @@ interface BucketSectionProps {
   recipes: RecipeView[];
   limit: number;
   showCookabilityBadge: boolean;
+  showActions: boolean;
 }
 
-function BucketSection({ title, recipes, limit, showCookabilityBadge }: BucketSectionProps) {
+function BucketSection({ title, recipes, limit, showCookabilityBadge, showActions }: BucketSectionProps) {
   const visible = recipes.slice(0, limit);
   if (visible.length === 0) return null;
   return (
@@ -217,7 +371,12 @@ function BucketSection({ title, recipes, limit, showCookabilityBadge }: BucketSe
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {visible.map((r) => (
-          <RecipeCard key={r.id} recipe={r} showCookabilityBadge={showCookabilityBadge} />
+          <RecipeCard
+            key={r.id}
+            recipe={r}
+            showCookabilityBadge={showCookabilityBadge}
+            showActions={showActions}
+          />
         ))}
       </div>
     </div>
@@ -233,6 +392,8 @@ function bucketsFromMetadata(metadata: Record<string, unknown> | undefined | nul
     const arr = (proposals as Record<string, unknown>)[key];
     if (Array.isArray(arr)) out[key] = arr.filter(isRecipeView);
   }
+  const eventId = (proposals as Record<string, unknown>).event_id;
+  if (typeof eventId === 'string' && eventId.length > 0) out.event_id = eventId;
   return out;
 }
 
@@ -271,18 +432,21 @@ export default function AssistantRecipeProposals({
         recipes={buckets.cookable_now}
         limit={limit}
         showCookabilityBadge
+        showActions
       />
       <BucketSection
         title="Presque cuisinable"
         recipes={buckets.almost_cookable}
         limit={limit}
         showCookabilityBadge
+        showActions
       />
       <BucketSection
         title="Idées de ta base"
         recipes={buckets.recent_suggestions}
         limit={limit}
         showCookabilityBadge={false}
+        showActions
       />
     </div>
   );

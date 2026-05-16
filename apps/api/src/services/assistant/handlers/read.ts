@@ -497,6 +497,15 @@ export interface SuggestRecipesResult {
   recent_suggestions: RecipeSummaryView[];
   /** Total recipes the user has, useful for the LLM to phrase fallbacks. */
   total_user_recipes: number;
+  /**
+   * PRP-226 PR4 — id of the `recommendation_events` row this call
+   * produced. The assistant persists it in
+   * `assistant_messages.metadata.recipe_proposals.event_id` so each
+   * frontend action (« j'ai cuisiné », « ajouter les manquants », …)
+   * can attribute itself back to the originating recommendation.
+   * Absent when the writer is not wired (legacy tests).
+   */
+  event_id?: string;
 }
 
 /**
@@ -540,12 +549,23 @@ export class SuggestRecipesForContextHandler
       servings: args.servings,
       almostThreshold: args.almost_threshold,
       limitPerBucket: args.limit_per_bucket,
+      // PRP-226 PR4 — forward the raw transcript so it lands in
+      // `recommendation_events.request_text`. Stripped from the JSONB
+      // `context` by the writer (PR3 sanitiseContext).
+      requestText: ctx.requestText,
     };
 
-    const result = await this.engine.suggestForUser(
+    // PRP-226 PR4 — prefer the shared engine + writer from the route
+    // ctx so cache + audit run in production. Tests that don't inject
+    // them fall back to the local engine and skip the audit log (PR2
+    // behaviour preserved).
+    const engine = ctx.recommendationEngine ?? this.engine;
+    const result = await engine.suggestForUser(
       {
         userId: ctx.userId,
         userClient: ctx.userClient,
+        eventWriter: ctx.eventWriter,
+        conversationId: ctx.conversationId,
       },
       recommendationContext,
     );
@@ -559,6 +579,7 @@ export class SuggestRecipesForContextHandler
         almost_cookable: result.almost_cookable as unknown as CookableRecipeView[],
         recent_suggestions: result.recent_suggestions,
         total_user_recipes: result.total_user_recipes,
+        event_id: result.event_id,
       },
     };
   }
