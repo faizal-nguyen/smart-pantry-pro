@@ -59,6 +59,28 @@ export default {
 					DEFAULT: 'oklch(var(--accent) / <alpha-value>)',
 					foreground: 'oklch(var(--accent-foreground) / <alpha-value>)'
 				},
+				/* PRP-237 PR1 — explicit AI accent name. Same hue as
+				   the legacy `accent` slot ; available so callers can
+				   read intent (`bg-accent-ai`) instead of generic accent. */
+				'accent-ai': {
+					DEFAULT: 'oklch(var(--accent-ai) / <alpha-value>)',
+					foreground: 'oklch(var(--accent-ai-foreground) / <alpha-value>)'
+				},
+				/* PRP-237 PR1 — semantic culinary accents. */
+				saffron: {
+					DEFAULT: 'oklch(var(--saffron) / <alpha-value>)',
+					foreground: 'oklch(var(--saffron-foreground) / <alpha-value>)'
+				},
+				tomato: {
+					DEFAULT: 'oklch(var(--tomato) / <alpha-value>)',
+					foreground: 'oklch(var(--tomato-foreground) / <alpha-value>)'
+				},
+				/* PRP-237 PR1 — surface scale (page > muted > raised). */
+				surface: {
+					DEFAULT: 'oklch(var(--surface) / <alpha-value>)',
+					muted: 'oklch(var(--surface-muted) / <alpha-value>)',
+					raised: 'oklch(var(--surface-raised) / <alpha-value>)'
+				},
 				popover: {
 					DEFAULT: 'oklch(var(--popover) / <alpha-value>)',
 					foreground: 'oklch(var(--popover-foreground) / <alpha-value>)'
