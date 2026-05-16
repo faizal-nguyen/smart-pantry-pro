@@ -116,6 +116,23 @@ async function resolveItems(
   return { resolved, ambiguous };
 }
 
+/**
+ * PRP-226 PR4 — drop the per-user recommendation cache after any
+ * mutation that could change scoring (inventory delta, recipe planned,
+ * future recipe CRUD). Best-effort : a cache miss is a real (but
+ * harmless) regression vs a stale-but-wrong hit, so we never let a
+ * writer error bubble up and break the user-facing write.
+ */
+export async function invalidateRecoCache(ctx: ToolExecutionContext): Promise<void> {
+  if (!ctx.eventWriter) return;
+  try {
+    await ctx.eventWriter.invalidateUserCache(ctx.userId);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[reco.cache] invalidate failed:', err);
+  }
+}
+
 // ---- LOW : add_inventory_items --------------------------------------
 
 export interface AddInventoryItemsResult {
@@ -175,6 +192,8 @@ export class AddInventoryItemsHandler
             args: { inventory_ids: inserted.map((r) => r.id) },
           }
         : null;
+
+    if (inserted.length > 0) await invalidateRecoCache(ctx);
 
     return { result: { added, ambiguous }, reversibleAction };
   }
@@ -368,6 +387,8 @@ export class AddRecipeToMealPlanHandler
     if (insertErr) throw insertErr;
     const entryId = (entry as { id: string }).id;
 
+    await invalidateRecoCache(ctx);
+
     return {
       result: {
         entry_id: entryId,
@@ -486,6 +507,8 @@ export class ConsumeInventoryItemsHandler
           }
         : null;
 
+    if (deltas.length > 0) await invalidateRecoCache(ctx);
+
     return { result: { consumed, insufficient }, reversibleAction };
   }
 }
@@ -541,6 +564,11 @@ export class UpdateInventoryItemHandler
       expiry_date: args.expiry_date !== undefined ? args.expiry_date : before.expiry_date,
       location: args.location !== undefined ? args.location : before.location,
     };
+
+    // Quantity or expiry_date change moves the recipe cookability /
+    // expiry signals — drop the cache. Location-only edits never
+    // affect scoring, but the cost of one extra DELETE is negligible.
+    await invalidateRecoCache(ctx);
 
     return {
       result: { inventory_id: args.inventory_id, before, after },

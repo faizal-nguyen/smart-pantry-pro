@@ -17,6 +17,7 @@ import {
   type ToolExecutionContext,
   type ToolExecutionResult,
 } from './types.js';
+import { invalidateRecoCache } from './write.js';
 
 // ---- _remove_inventory_items ----------------------------------------
 
@@ -38,6 +39,7 @@ export class RemoveInventoryItemsInternalHandler
       .eq('user_id', ctx.userId)
       .in('id', args.inventory_ids);
     if (error) throw error;
+    await invalidateRecoCache(ctx);
     return { result: { removed: count ?? 0 } };
   }
 }
@@ -85,6 +87,7 @@ export class RestoreInventoryQuantitiesInternalHandler
       if (error) throw error;
       restored += 1;
     }
+    if (restored > 0) await invalidateRecoCache(ctx);
     return { result: { restored } };
   }
 }
@@ -124,6 +127,7 @@ export class RestoreInventoryItemSnapshotInternalHandler
       .eq('user_id', ctx.userId)
       .eq('id', args.inventory_id);
     if (error) throw error;
+    await invalidateRecoCache(ctx);
     return { result: { restored: true } };
   }
 }
@@ -196,6 +200,7 @@ export class RemoveMealPlanEntriesInternalHandler
       .delete({ count: 'exact' })
       .in('id', args.entry_ids);
     if (error) throw error;
+    await invalidateRecoCache(ctx);
     return { result: { removed: count ?? 0 } };
   }
 }
