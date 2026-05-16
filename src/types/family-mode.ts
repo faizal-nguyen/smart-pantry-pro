@@ -293,7 +293,7 @@ export const FAMILY_NAVIGATION_SECTIONS: Record<NavigationSection, {
   assistant: {
     label: 'Assistant',
     icon: 'Bot',
-    description: 'Assistant IA alimentaire',
+    description: 'Assistant alimentaire',
     minAge: 7,
     requiresSupervision: true,
     availableInChildMode: false

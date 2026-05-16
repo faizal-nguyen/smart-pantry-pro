@@ -1,0 +1,452 @@
+/**
+ * PRP-221 Sprint 1 frontend — typed client over /api/assistant/*.
+ *
+ * Wraps the 5 endpoints :
+ *   POST /api/assistant/voice            multipart audio
+ *   POST /api/assistant/text             { text, client_request_id }
+ *   POST /api/assistant/actions/execute  { confirmation_token }
+ *   POST /api/assistant/actions/:id/undo
+ *   GET  /api/assistant/request-id       (helper)
+ *
+ * Reuses the project's existing `apiPost` for JSON endpoints; rolls
+ * its own multipart helper for /voice (apiPost is JSON-only).
+ */
+import { supabase } from '@/integrations/supabase/client';
+
+import { apiGet, apiPost, ApiError } from '@/lib/api';
+
+// ---- Response shapes (mirror VoiceAgentService) ---------------------
+
+export type RiskTier = 'read' | 'low' | 'medium' | 'high';
+
+export interface ExecutedAction {
+  action_id: string;
+  step_seq: number;
+  tool: string;
+  args: Record<string, unknown>;
+  result: unknown;
+  reversible: boolean;
+  undo_expires_at: string | null;
+  risk_tier: RiskTier;
+}
+
+export interface PendingAction {
+  action_id: string;
+  step_seq: number;
+  tool: string;
+  args: Record<string, unknown>;
+  risk_tier: RiskTier;
+  reason: string;
+}
+
+export interface AssistantPlanResponse {
+  session_id: string;
+  transcript: string;
+  detected_language?: string;
+  message: string;
+  actions_executed: ExecutedAction[];
+  actions_pending: PendingAction[];
+  confirmation_token: string | null;
+  cost: {
+    whisper_usd: number;
+    llm_usd: number;
+    total_usd: number;
+  };
+  model_used: string;
+  duration_ms: number;
+  replayed?: boolean;
+}
+
+export interface ExecuteConfirmationResponse {
+  actions_executed: ExecutedAction[];
+  actions_failed: Array<{ action_id: string; tool: string; error_code: string }>;
+}
+
+export interface UndoResponse {
+  undone: boolean;
+  result?: unknown;
+}
+
+// ---- API ------------------------------------------------------------
+
+const ASSISTANT_BASE = '/assistant';
+
+async function authHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function resolveApiBase(): string {
+  const fromEnv = import.meta.env.VITE_API_BASE_URL;
+  return (fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, '') : '') + '/api';
+}
+
+/** Generate a v4 UUID. Stable on retries — caller decides when to mint a new one. */
+export function newClientRequestId(): string {
+  // crypto.randomUUID is universally available since 2022 — Vite's
+  // browserslist doesn't target older browsers.
+  return crypto.randomUUID();
+}
+
+/**
+ * Sends an audio blob with multipart/form-data. apiPost is JSON-only,
+ * so we hand-roll fetch here. Auth header is the same Supabase JWT.
+ */
+export async function postAssistantVoice(input: {
+  audio: Blob;
+  audioMime: string;
+  clientRequestId: string;
+  language?: string;
+  audioDurationSeconds?: number;
+  allowedTools?: readonly string[];
+  /** PRP-233 PR3 — sticky conversation id. Optional. */
+  conversationId?: string;
+}): Promise<AssistantPlanResponse> {
+  const ext = mimeToExt(input.audioMime);
+  const form = new FormData();
+  form.append('audio', input.audio, `recording.${ext}`);
+  form.append('client_request_id', input.clientRequestId);
+  if (input.language) form.append('language', input.language);
+  if (typeof input.audioDurationSeconds === 'number') {
+    form.append('audio_duration_seconds', String(Math.round(input.audioDurationSeconds)));
+  }
+  if (input.allowedTools?.length) form.append('allowed_tools', input.allowedTools.join(','));
+  if (input.conversationId) form.append('conversation_id', input.conversationId);
+
+  const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/voice`, {
+    method: 'POST',
+    headers: { ...(await authHeader()) },
+    body: form,
+  });
+  return await unwrapAssistant<AssistantPlanResponse>(res);
+}
+
+export function postAssistantText(input: {
+  text: string;
+  clientRequestId: string;
+  language?: string;
+  allowedTools?: readonly string[];
+  /** PRP-233 PR3 — sticky conversation id. Optional. */
+  conversationId?: string;
+}): Promise<AssistantPlanResponse> {
+  return apiPost<AssistantPlanResponse>(`${ASSISTANT_BASE}/text`, {
+    text: input.text,
+    client_request_id: input.clientRequestId,
+    language: input.language,
+    allowed_tools: input.allowedTools,
+    conversation_id: input.conversationId,
+  });
+}
+
+export function postAssistantConfirm(
+  confirmationToken: string
+): Promise<ExecuteConfirmationResponse> {
+  return apiPost<ExecuteConfirmationResponse>(
+    `${ASSISTANT_BASE}/actions/execute`,
+    { confirmation_token: confirmationToken }
+  );
+}
+
+export function postAssistantUndo(actionId: string): Promise<UndoResponse> {
+  return apiPost<UndoResponse>(`${ASSISTANT_BASE}/actions/${actionId}/undo`);
+}
+
+export function getAssistantRequestId(): Promise<{ client_request_id: string }> {
+  return apiGet<{ client_request_id: string }>(`${ASSISTANT_BASE}/request-id`);
+}
+
+// ---- PRP-223 PR6 — Memory CRUD client ------------------------------------
+//
+// Mirrors the routes mounted by `apps/api/src/routes/assistant.memory.ts`.
+// Local TS interfaces (not generated) — the front Supabase types are still
+// auto-regenerated by `supabase gen types`, which would overwrite manual
+// edits. PR6 keeps these flat shapes here so PR1's tables can be consumed
+// safely until the next regen.
+
+export type AssistantConversationMode =
+  | 'general'
+  | 'kitchen'
+  | 'shopping'
+  | 'inventory'
+  | 'recipes'
+  | 'nutrition'
+  | 'cooking';
+
+export type AssistantConversationStatus = 'active' | 'archived' | 'deleted';
+
+export interface AssistantConversation {
+  id: string;
+  user_id: string;
+  title: string | null;
+  mode: AssistantConversationMode;
+  status: AssistantConversationStatus;
+  last_message_at: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AssistantMessageRole = 'user' | 'assistant' | 'system' | 'tool';
+export type AssistantMessageFormat = 'text' | 'transcript' | 'tool_result' | 'summary';
+
+export interface AssistantMessage {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: AssistantMessageRole;
+  content: string;
+  content_format: AssistantMessageFormat;
+  audio_transcript: string | null;
+  tool_calls: unknown[];
+  action_log_ids: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export type AssistantMemoryKind =
+  | 'preference'
+  | 'negative_preference'
+  | 'habit'
+  | 'cooking_style'
+  | 'diet_goal'
+  | 'constraint'
+  | 'recipe_feedback'
+  | 'shopping_pattern'
+  | 'response_style';
+
+export type AssistantMemoryStatus = 'candidate' | 'active' | 'rejected' | 'deleted';
+export type AssistantMemorySensitivity = 'normal' | 'personal' | 'health_sensitive';
+
+export interface AssistantMemoryItem {
+  id: string;
+  user_id: string;
+  kind: AssistantMemoryKind;
+  scope: 'global' | 'recipe' | 'ingredient' | 'product' | 'conversation' | 'temporary';
+  status: AssistantMemoryStatus;
+  subject_type: string | null;
+  subject_id: string | null;
+  content: string;
+  normalized_content: string | null;
+  confidence: number;
+  sensitivity: AssistantMemorySensitivity;
+  source: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system';
+  approved_at: string | null;
+  last_used_at: string | null;
+  expires_at: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+interface ListConversationsOpts {
+  cursor?: string;
+  limit?: number;
+  status?: AssistantConversationStatus;
+}
+
+interface ListMessagesOpts {
+  cursor?: string;
+  limit?: number;
+}
+
+interface ListMemoriesOpts {
+  cursor?: string;
+  limit?: number;
+  status?: AssistantMemoryStatus;
+  kind?: AssistantMemoryKind;
+}
+
+function buildQuery(params: Record<string, string | number | undefined>): string {
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+    .join('&');
+  return qs ? `?${qs}` : '';
+}
+
+export function getAssistantConversations(
+  opts: ListConversationsOpts = {},
+): Promise<CursorPage<AssistantConversation>> {
+  const q = buildQuery({ cursor: opts.cursor, limit: opts.limit, status: opts.status });
+  return apiGet<CursorPage<AssistantConversation>>(`${ASSISTANT_BASE}/conversations${q}`);
+}
+
+export function createAssistantConversation(
+  opts: { mode?: AssistantConversationMode; title?: string } = {},
+): Promise<{ conversation: AssistantConversation }> {
+  return apiPost<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations`,
+    opts,
+  );
+}
+
+export function getAssistantConversation(
+  id: string,
+): Promise<{ conversation: AssistantConversation }> {
+  return apiGet<{ conversation: AssistantConversation }>(`${ASSISTANT_BASE}/conversations/${id}`);
+}
+
+export function getAssistantMessages(
+  conversationId: string,
+  opts: ListMessagesOpts = {},
+): Promise<CursorPage<AssistantMessage>> {
+  const q = buildQuery({ cursor: opts.cursor, limit: opts.limit });
+  return apiGet<CursorPage<AssistantMessage>>(
+    `${ASSISTANT_BASE}/conversations/${conversationId}/messages${q}`,
+  );
+}
+
+export function archiveAssistantConversation(
+  id: string,
+): Promise<{ conversation: AssistantConversation }> {
+  return apiPost<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations/${id}/archive`,
+  );
+}
+
+export function getAssistantMemories(
+  opts: ListMemoriesOpts = {},
+): Promise<CursorPage<AssistantMemoryItem>> {
+  const q = buildQuery({
+    cursor: opts.cursor,
+    limit: opts.limit,
+    status: opts.status,
+    kind: opts.kind,
+  });
+  return apiGet<CursorPage<AssistantMemoryItem>>(`${ASSISTANT_BASE}/memories${q}`);
+}
+
+export function patchAssistantMemory(
+  id: string,
+  patch: { content?: string; status?: AssistantMemoryStatus; sensitivity?: AssistantMemorySensitivity; normalized_content?: string },
+): Promise<{ memory: AssistantMemoryItem }> {
+  // apiPost is JSON-only, but apiPatch isn't exported in this codebase;
+  // we fall back to a manual fetch here.
+  return jsonRequest<{ memory: AssistantMemoryItem }>(
+    `${ASSISTANT_BASE}/memories/${id}`,
+    'PATCH',
+    patch,
+  );
+}
+
+export function forgetAssistantMemory(
+  id: string,
+): Promise<{ memory: AssistantMemoryItem }> {
+  return apiPost<{ memory: AssistantMemoryItem }>(
+    `${ASSISTANT_BASE}/memories/${id}/forget`,
+  );
+}
+
+export function promoteAssistantMemory(
+  id: string,
+): Promise<{ memory: AssistantMemoryItem }> {
+  return apiPost<{ memory: AssistantMemoryItem }>(
+    `${ASSISTANT_BASE}/memories/${id}/promote`,
+  );
+}
+
+// ---- PRP-224 PR1 — conversation update/delete + history search --------
+
+export interface AssistantSearchMatch {
+  source: 'message' | 'summary';
+  conversation_id: string;
+  message_id: string;
+  role?: AssistantMessageRole;
+  snippet: string;
+  created_at: string;
+}
+
+export function patchAssistantConversation(
+  id: string,
+  patch: { title?: string | null; mode?: AssistantConversationMode },
+): Promise<{ conversation: AssistantConversation }> {
+  return jsonRequest<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations/${id}`,
+    'PATCH',
+    patch,
+  );
+}
+
+export function softDeleteAssistantConversation(
+  id: string,
+): Promise<{ conversation: AssistantConversation }> {
+  return jsonRequest<{ conversation: AssistantConversation }>(
+    `${ASSISTANT_BASE}/conversations/${id}`,
+    'DELETE',
+  );
+}
+
+export function searchAssistantHistory(
+  query: string,
+  limit?: number,
+): Promise<{ matches: AssistantSearchMatch[] }> {
+  const params = new URLSearchParams({ q: query });
+  if (limit) params.set('limit', String(limit));
+  return apiGet<{ matches: AssistantSearchMatch[] }>(
+    `${ASSISTANT_BASE}/search?${params.toString()}`,
+  );
+}
+
+async function jsonRequest<T>(
+  path: string,
+  method: 'PATCH' | 'PUT' | 'DELETE',
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${resolveApiBase()}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeader()),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return unwrapAssistant<T>(res);
+}
+
+// ---- internals ------------------------------------------------------
+
+function mimeToExt(mime: string): string {
+  if (mime.includes('webm')) return 'webm';
+  if (mime.includes('mp4') || mime.includes('m4a')) return 'm4a';
+  if (mime.includes('ogg')) return 'ogg';
+  if (mime.includes('wav')) return 'wav';
+  return 'webm';
+}
+
+async function unwrapAssistant<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  let body: unknown = null;
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = text;
+    }
+  }
+  if (!res.ok) {
+    const err = body as { error?: { message?: string; code?: string } } | undefined;
+    throw new ApiError(err?.error?.message ?? `HTTP ${res.status}`, {
+      status: res.status,
+      code: err?.error?.code,
+      details: err?.error,
+    });
+  }
+  if (body && typeof body === 'object' && 'success' in (body as object)) {
+    const envelope = body as { success: boolean; data?: T; error?: { message?: string } };
+    if (!envelope.success) {
+      throw new ApiError(envelope.error?.message ?? 'Assistant failed', {
+        status: res.status,
+      });
+    }
+    return envelope.data as T;
+  }
+  return body as T;
+}
+
+export { ApiError };

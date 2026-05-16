@@ -72,19 +72,11 @@ export const useInsightsData = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      // Simulate historical spending data for demo
-      // In a real app, you'd fetch this from purchase history
-      const mockData = [
-        { month: 'Jan', amount: 420, budget: 500 },
-        { month: 'Fév', amount: 380, budget: 500 },
-        { month: 'Mar', amount: 450, budget: 500 },
-        { month: 'Avr', amount: 320, budget: 500 },
-        { month: 'Mai', amount: 280, budget: 500 },
-        { month: 'Juin', amount: 347, budget: 500 },
-      ];
-
-      setHistoricalData(mockData);
-      setLastMonthSpending(mockData[mockData.length - 2]?.amount || 380);
+      // PRP-229: historical spending requires a purchase_history table that
+      // doesn't exist yet (P3). Returning an empty timeline so the UI shows
+      // an honest empty state instead of fabricated months.
+      setHistoricalData([]);
+      setLastMonthSpending(0);
     } catch (error) {
       console.error('Error fetching historical data:', error);
     }

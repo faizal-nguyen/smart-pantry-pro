@@ -48,8 +48,8 @@ export const MaterialButton = React.forwardRef<HTMLButtonElement, MotionButtonPr
     // Variant-specific styles with fallbacks
     const variantStyles = {
       elevated: {
-        backgroundColor: colors?.surfaceVariant || 'hsl(var(--secondary))',
-        color: colors?.onSurfaceVariant || 'hsl(var(--secondary-foreground))',
+        backgroundColor: colors?.surfaceVariant || 'oklch(var(--secondary))',
+        color: colors?.onSurfaceVariant || 'oklch(var(--secondary-foreground))',
         boxShadow: theme.elevation?.level1?.shadow || '0px 1px 2px rgba(0, 0, 0, 0.3)',
         border: 'none',
         hover: {
@@ -60,8 +60,8 @@ export const MaterialButton = React.forwardRef<HTMLButtonElement, MotionButtonPr
         },
       },
       filled: {
-        backgroundColor: colors?.primary || 'hsl(var(--primary))',
-        color: colors?.onPrimary || 'hsl(var(--primary-foreground))',
+        backgroundColor: colors?.primary || 'oklch(var(--primary))',
+        color: colors?.onPrimary || 'oklch(var(--primary-foreground))',
         border: 'none',
         hover: {
           boxShadow: theme.elevation?.level1?.shadow || '0px 1px 2px rgba(0, 0, 0, 0.3)',
@@ -71,8 +71,8 @@ export const MaterialButton = React.forwardRef<HTMLButtonElement, MotionButtonPr
         },
       },
       tonal: {
-        backgroundColor: colors?.secondaryContainer || 'hsl(var(--secondary))',
-        color: colors?.onSecondaryContainer || 'hsl(var(--secondary-foreground))',
+        backgroundColor: colors?.secondaryContainer || 'oklch(var(--secondary))',
+        color: colors?.onSecondaryContainer || 'oklch(var(--secondary-foreground))',
         border: 'none',
         hover: {
           boxShadow: theme.elevation?.level1?.shadow || '0px 1px 2px rgba(0, 0, 0, 0.3)',
@@ -83,24 +83,24 @@ export const MaterialButton = React.forwardRef<HTMLButtonElement, MotionButtonPr
       },
       outlined: {
         backgroundColor: prepareColorForAnimation('transparent'),
-        color: colors?.primary || 'hsl(var(--primary))',
-        border: `1px solid ${colors?.outline || 'hsl(var(--border))'}`,
+        color: colors?.primary || 'oklch(var(--primary))',
+        border: `1px solid ${colors?.outline || 'oklch(var(--border))'}`,
         hover: {
-          backgroundColor: `${colors?.primary || 'hsl(var(--primary))'}${Math.round(stateOpacity.hover * 255).toString(16).padStart(2, '0')}`,
+          backgroundColor: `${colors?.primary || 'oklch(var(--primary))'}${Math.round(stateOpacity.hover * 255).toString(16).padStart(2, '0')}`,
         },
         active: {
-          backgroundColor: `${colors?.primary || 'hsl(var(--primary))'}${Math.round(stateOpacity.pressed * 255).toString(16).padStart(2, '0')}`,
+          backgroundColor: `${colors?.primary || 'oklch(var(--primary))'}${Math.round(stateOpacity.pressed * 255).toString(16).padStart(2, '0')}`,
         },
       },
       text: {
         backgroundColor: prepareColorForAnimation('transparent'),
-        color: colors?.primary || 'hsl(var(--primary))',
+        color: colors?.primary || 'oklch(var(--primary))',
         border: 'none',
         hover: {
-          backgroundColor: `${colors?.primary || 'hsl(var(--primary))'}${Math.round(stateOpacity.hover * 255).toString(16).padStart(2, '0')}`,
+          backgroundColor: `${colors?.primary || 'oklch(var(--primary))'}${Math.round(stateOpacity.hover * 255).toString(16).padStart(2, '0')}`,
         },
         active: {
-          backgroundColor: `${colors?.primary || 'hsl(var(--primary))'}${Math.round(stateOpacity.pressed * 255).toString(16).padStart(2, '0')}`,
+          backgroundColor: `${colors?.primary || 'oklch(var(--primary))'}${Math.round(stateOpacity.pressed * 255).toString(16).padStart(2, '0')}`,
         },
       },
     };

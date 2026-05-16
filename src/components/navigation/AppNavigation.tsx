@@ -31,7 +31,6 @@ import { FamilyProfile, NavigationSection } from '@/types/family-mode';
 
 // Styles
 import '@/styles/enhanced-layout.css';
-import '@/styles/family-mode.css';
 
 interface AppNavigationProps {
   children: React.ReactNode;
@@ -263,24 +262,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
   const { zones } = useResponsiveZones();
   const touchZones = usePlatformAdaptiveTouch();
   
-  // Configuration de navigation adaptée au mode famille
-  const navigationConfig = useNavigationConfig(
-    currentProfile ? {
-      currentProfile,
-      availableProfiles,
-      parentalControls: null,
-      isFamilyModeActive,
-      isSupervisionMode: isSupervisionActive,
-      isEmergencyMode: false,
-      adaptiveInterface,
-      securityLevel: isChildProfile ? 'strict' : 'minimal',
-      supervisionSettings: {
-        showParentNotifications: false,
-        logNavigationHistory: isChildProfile,
-        requireConfirmation: []
-      }
-    } : undefined
-  );
+  // PRP-230 Commit 3 : useNavigationConfig ne prend plus de familyConfig —
+  // la nav ne se ramifie plus par profil/âge. Voir NavigationHub.tsx pour
+  // le rationale et le hors-scope vers PRP-234.
+  const navigationConfig = useNavigationConfig();
 
   // Badges de navigation (à consommer / items courses)
   const { inventory } = useInventory();

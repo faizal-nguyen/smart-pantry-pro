@@ -2,6 +2,7 @@ import React, { useState, useMemo, Suspense } from "react";
 import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card";
 import { Badge } from "@/components/ui/badge";
 import { MaterialButton } from "@/components/ui/material/Button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Package, 
@@ -21,7 +22,9 @@ import {
   BarChart3
 } from "lucide-react";
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
+import { useFoodWaste, RecordWasteInput } from "@/hooks/useFoodWaste";
 import { SmartProductCard } from "@/components/inventory/SmartProductCard";
+import DiscardItemDialog from "@/components/inventory/DiscardItemDialog";
 import { IntelligentSearch } from "@/components/inventory/IntelligentSearch";
 import { FloatingActionButton } from "@/components/inventory/FloatingActionButton";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
@@ -95,6 +98,8 @@ const Inventory = () => {
   
   const { inventory, loading, updateInventory, deleteInventoryItem, addInventory } = useInventory();
   const { addToShoppingList } = useShoppingList();
+  const { recordWaste } = useFoodWaste();
+  const [discardingItem, setDiscardingItem] = useState<InventoryItem | null>(null);
   const navigate = useNavigate();
 
   // Filter inventory by zone
@@ -270,6 +275,30 @@ const Inventory = () => {
 
   const handleFindRecipes = (item: InventoryItem) => {
     navigate(`/recipes?ingredient=${item.product?.name}`);
+  };
+
+  const handleDiscard = (item: InventoryItem) => {
+    setDiscardingItem(item);
+  };
+
+  const confirmDiscard = async (input: RecordWasteInput) => {
+    if (!discardingItem) return;
+
+    const event = await recordWaste(input);
+    if (!event) {
+      toast({
+        variant: 'destructive',
+        title: "Échec de l'enregistrement",
+        description: "Impossible d'enregistrer le gaspillage. Réessaye.",
+      });
+      return;
+    }
+
+    await deleteInventoryItem(discardingItem.id);
+    toast({
+      title: 'Produit jeté',
+      description: `${discardingItem.product?.name ?? 'Article'} ajouté à l'historique anti-gaspi.`,
+    });
   };
 
   // P1 polish: removed the `handleSubstitute` toast that promised
@@ -725,6 +754,7 @@ const Inventory = () => {
                       onConsume={handleConsume}
                       onEdit={handleEdit}
                       onFindRecipes={handleFindRecipes}
+                      onDiscard={handleDiscard}
                     />
                   ))}
                 </div>
@@ -748,6 +778,7 @@ const Inventory = () => {
               onConsume={handleConsume}
               onEdit={handleEdit}
               onFindRecipes={handleFindRecipes}
+              onDiscard={handleDiscard}
             />
           ))}
         </div>
@@ -755,22 +786,15 @@ const Inventory = () => {
 
       {/* Empty State */}
       {inventory.length === 0 && (
-        <MaterialCard variant="elevated">
-          <MaterialCardContent className="p-12 text-center">
-            <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Inventaire vide</h3>
-            <p className="text-muted-foreground mb-4">
-              Commencez par ajouter vos premiers produits
-            </p>
-            <MaterialButton 
-              variant="filled"
-              onClick={() => setAddDialogOpen(true)}
-              icon={<Sparkles className="w-4 h-4" />}
-            >
-              Ajouter un produit
-            </MaterialButton>
-          </MaterialCardContent>
-        </MaterialCard>
+        <EmptyState
+          icon={Package}
+          title="Inventaire vide"
+          description="Commence par ajouter tes premiers produits pour suivre ton garde-manger."
+          action={{
+            label: "Ajouter un produit",
+            onClick: () => setAddDialogOpen(true),
+          }}
+        />
       )}
 
       {/* Floating Action Button */}
@@ -794,14 +818,22 @@ const Inventory = () => {
       {editingItem && (
         <EditItemDialog
           open={editDialogOpen}
-          onOpenChange={setEditDialogOpen}
-          item={editingItem}
-          onClose={() => {
-            setEditDialogOpen(false);
-            setEditingItem(null);
+          onOpenChange={(open) => {
+            setEditDialogOpen(open);
+            if (!open) setEditingItem(null);
           }}
+          item={editingItem}
         />
       )}
+
+      <DiscardItemDialog
+        item={discardingItem}
+        open={Boolean(discardingItem)}
+        onOpenChange={(open) => {
+          if (!open) setDiscardingItem(null);
+        }}
+        onConfirm={confirmDiscard}
+      />
       
       {/* Mobile Scanner */}
       <MobileBarcodeScanner

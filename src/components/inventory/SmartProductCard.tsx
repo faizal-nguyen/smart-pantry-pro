@@ -6,7 +6,7 @@ import { QuantitySelector } from './QuantitySelector';
 import { SwipeableActions } from './SwipeableActions';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
-import { Edit, ChefHat, RefreshCw } from 'lucide-react';
+import { Edit, ChefHat, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useMaterialYouTheme } from '@/contexts/MaterialYouThemeContext';
 import { standardizeUnit } from '@/utils/units';
@@ -18,6 +18,11 @@ interface SmartProductCardProps {
   onConsume: (product: InventoryItem) => void;
   onEdit: (product: InventoryItem) => void;
   onFindRecipes: (product: InventoryItem) => void;
+  /**
+   * PRP-222 PR5: opens the DiscardItemDialog so the user can log a
+   * food_waste_events row when throwing the item out.
+   */
+  onDiscard?: (product: InventoryItem) => void;
   /**
    * P1 polish: optional. The substitute lookup feature is not built
    * yet (toast read "Cette fonctionnalité arrive bientôt !"). The
@@ -59,6 +64,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
   onConsume,
   onEdit,
   onFindRecipes,
+  onDiscard,
   onSubstitute
 }) => {
   const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
@@ -88,11 +94,10 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
       )}
 
       <MaterialCardContent className="p-3 sm:p-4">
-        {/* Image avec placeholder intelligent */}
-        <div 
-          className="aspect-square rounded-lg bg-muted mb-2 sm:mb-3 overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
+        {/* Image avec placeholder intelligent. PR5-followup: pas de
+            stopPropagation ici — le click sur l'image doit ouvrir
+            le dialog d'édition comme partout ailleurs sur la card. */}
+        <div className="aspect-square rounded-lg bg-muted mb-2 sm:mb-3 overflow-hidden">
           {product.product?.image_url ? (
             <img 
               src={product.product.image_url} 
@@ -141,6 +146,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
           <MaterialButton
             variant="text"
             className="h-7 w-7 p-0"
+            aria-label="Modifier le produit"
             icon={<Edit className="h-3 w-3" />}
             onClick={(e) => {
               e.stopPropagation();
@@ -150,6 +156,7 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
           <MaterialButton
             variant="text"
             className="h-7 w-7 p-0"
+            aria-label="Voir des recettes avec ce produit"
             icon={<ChefHat className="h-3 w-3" />}
             onClick={(e) => {
               e.stopPropagation();
@@ -160,10 +167,23 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
             <MaterialButton
               variant="text"
               className="h-7 w-7 p-0"
+              aria-label="Trouver un produit de substitution"
               icon={<RefreshCw className="h-3 w-3" />}
               onClick={(e) => {
                 e.stopPropagation();
                 onSubstitute(product);
+              }}
+            />
+          )}
+          {onDiscard && (
+            <MaterialButton
+              variant="text"
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+              aria-label="Jeter ce produit"
+              icon={<Trash2 className="h-3 w-3" />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDiscard(product);
               }}
             />
           )}

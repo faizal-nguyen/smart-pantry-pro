@@ -1,27 +1,67 @@
 /**
- * AssistantDashboard - Dashboard principal de la section Assistant IA
- * Implémente la vue d'ensemble du PRP-040.1 pour la section Assistant
+ * AssistantDashboard — page /assistant.
+ *
+ * PRP-233 PR2 — surface conversation MVP :
+ *  - lit `?conversation=:id` depuis l'URL
+ *  - rend AssistantConversationSurface (fil + composer inline)
+ *  - sidebar memory + history (desktop md+), masquée mobile
+ * PRP-224 PR3 — lit `?mode=` depuis l'URL, le passe au composer ;
+ *  toute modification met à jour l'URL + persiste côté backend.
  */
-
-import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { Bot, MessageCircle, Lightbulb, Target, Brain, Zap } from 'lucide-react';
+import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import AppNavigation from '@/components/navigation/AppNavigation';
 import { PageLoader } from '@/components/layout/PageLoader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import MemoryPanel from '@/components/assistant/MemoryPanel';
+import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
+import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
+import type { AssistantConversationMode } from '@/services/assistantApi';
+
+const VALID_MODES: readonly AssistantConversationMode[] = [
+  'general',
+  'kitchen',
+  'shopping',
+  'inventory',
+  'recipes',
+  'nutrition',
+  'cooking',
+];
+
+function normaliseMode(raw: string | null): AssistantConversationMode {
+  if (!raw) return 'general';
+  return (VALID_MODES as readonly string[]).includes(raw)
+    ? (raw as AssistantConversationMode)
+    : 'general';
+}
 
 const AssistantDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const conversationId = searchParams.get('conversation');
+  const mode = useMemo(() => normaliseMode(searchParams.get('mode')), [searchParams]);
+
+  const handleModeChange = (next: AssistantConversationMode) => {
+    setSearchParams(
+      prev => {
+        const params = new URLSearchParams(prev);
+        if (next === 'general') {
+          params.delete('mode');
+        } else {
+          params.set('mode', next);
+        }
+        return params;
+      },
+      { replace: true },
+    );
+  };
 
   useEffect(() => {
     const getUser = async () => {
@@ -32,184 +72,59 @@ const AssistantDashboard: React.FC = () => {
     getUser();
   }, []);
 
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  // P1 polish: removed the mock `dashboardStats` (47 questions, 12
-  // suggestions, "2h 30min" saved — fabricated) and the hardcoded
-  // `recentInteractions` list flagged by the UI/UX audit. Until a
-  // real assistant_history hook lands, the dashboard shows the action
-  // grid + features cards only.
-  const quickActions = [
-    {
-      title: 'Chat IA',
-      description: 'Poser une question à votre assistant',
-      icon: <MessageCircle className="w-6 h-6" />,
-      action: () => navigate('/assistant/chat'),
-      badge: undefined,
-      childFriendlyName: 'Parler avec l\'assistant',
-    },
-    {
-      title: 'Suggestions',
-      description: 'Découvrir des recommandations personnalisées',
-      icon: <Lightbulb className="w-6 h-6" />,
-      action: () => navigate('/assistant/suggestions'),
-      badge: undefined,
-      childFriendlyName: 'Mes suggestions',
-    },
-    {
-      title: 'Analyse Nutritionnelle',
-      description: 'Analyser vos habitudes alimentaires',
-      icon: <Target className="w-6 h-6" />,
-      action: () => navigate('/assistant/nutrition'),
-      badge: undefined,
-      childFriendlyName: 'Mes nutriments',
-    },
-    {
-      title: 'IA Rapide',
-      description: 'Questions rapides et réponses instantanées',
-      icon: <Zap className="w-6 h-6" />,
-      action: () => navigate('/assistant/chat'),
-      badge: undefined,
-      childFriendlyName: 'Questions rapides',
-    },
-  ];
-
-  const features = [
-    {
-      title: 'Recommandations Recettes',
-      description: 'L\'IA analyse vos goûts et votre inventaire pour suggérer des recettes parfaites',
-      icon: <Brain className="w-5 h-5" />,
-      status: 'active'
-    },
-    {
-      title: 'Analyse Nutritionnelle',
-      description: 'Évaluation automatique de vos repas et conseils personnalisés',
-      icon: <Target className="w-5 h-5" />,
-      status: 'active'
-    },
-    {
-      title: 'Planning Intelligent',
-      description: 'Planification automatique des repas selon vos préférences',
-      icon: <Lightbulb className="w-5 h-5" />,
-      status: 'coming-soon'
-    }
-  ];
+  if (loading) return <PageLoader />;
+  if (!user) return <Navigate to="/auth" replace />;
 
   return (
     <AppNavigation user={user}>
-      <div className={cn(
-        "container mx-auto p-6 space-y-8",
-        getStyleClasses(),
-        adaptiveInterface.buttonSpacing === 'spacious' && "space-y-12"
-      )}>
-        {/* Header */}
-        <div className="flex flex-col space-y-4">
+      <div
+        className={cn(
+          'container mx-auto p-4 sm:p-6 space-y-6',
+          getStyleClasses(),
+          adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
+        )}
+      >
+        <header className="flex flex-col space-y-2">
           <div className="flex items-center gap-3">
-            <Bot className={cn(
-              "text-primary",
-              adaptiveInterface.iconSize === 'large' ? "w-8 h-8" : "w-6 h-6"
-            )} />
-            <h1 className={cn(
-              "font-bold text-foreground",
-              adaptiveInterface.largerText ? "text-4xl" : "text-3xl"
-            )}>
-              Assistant IA
+            <Bot
+              className={cn(
+                'text-primary',
+                adaptiveInterface.iconSize === 'large' ? 'w-8 h-8' : 'w-6 h-6',
+              )}
+              aria-hidden="true"
+            />
+            <h1
+              className={cn(
+                'font-bold text-foreground',
+                adaptiveInterface.largerText ? 'text-3xl' : 'text-2xl',
+              )}
+            >
+              Assistant
             </h1>
           </div>
-          <p className={cn(
-            "text-muted-foreground",
-            adaptiveInterface.largerText ? "text-lg" : "text-base"
-          )}>
-            Votre assistant intelligent pour la cuisine et la nutrition
+          <p className="text-sm text-muted-foreground">
+            Pose ta question ci-dessous ou utilise le bouton micro.
           </p>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+          <AssistantConversationSurface
+            conversationId={conversationId}
+            mode={mode}
+            onModeChange={handleModeChange}
+          />
+
+          <aside className="space-y-6 hidden lg:block">
+            <MemoryPanel />
+            <ConversationHistoryList />
+          </aside>
         </div>
 
-        {/* Actions rapides */}
-        <div>
-          <h2 className={cn(
-            "font-semibold mb-4",
-            adaptiveInterface.largerText ? "text-2xl" : "text-xl"
-          )}>
-            Actions Rapides
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {quickActions.map((action, index) => (
-              <Card 
-                key={index} 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={action.action}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-primary/10 rounded-lg">
-                        {action.icon}
-                      </div>
-                      <div>
-                        <h3 className={cn(
-                          "font-medium",
-                          adaptiveInterface.largerText ? "text-lg" : "text-base"
-                        )}>
-                          {action.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {action.description}
-                        </p>
-                      </div>
-                    </div>
-                    {action.badge && (
-                      <Badge variant="secondary">{action.badge}</Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+        {/* Mobile : memory + history sous le fil */}
+        <div className="lg:hidden space-y-6">
+          <MemoryPanel />
+          <ConversationHistoryList />
         </div>
-
-        {/* P1 polish: removed the "Interactions Récentes" mock list
-            (3 hardcoded questions about œufs/fromage, protéines de
-            poulet, conservation tomates) — fabricated. A real
-            assistant-history hook should land before re-enabling. */}
-
-        {/* Fonctionnalités IA */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Fonctionnalités IA</CardTitle>
-            <CardDescription>
-              Découvrez tout ce que votre assistant peut faire
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              {features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-4 p-4 border rounded-lg">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    {feature.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="font-medium">{feature.title}</h4>
-                      <Badge 
-                        variant={feature.status === 'active' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {feature.status === 'active' ? 'Actif' : 'Bientôt'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{feature.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </AppNavigation>
   );

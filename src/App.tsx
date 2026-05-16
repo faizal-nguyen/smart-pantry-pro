@@ -1,11 +1,12 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider, RouteObject } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { LayoutPerformanceProvider } from "./components/performance/PerformanceMonitor";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
+import { AssistantProvider } from "./components/assistant/AssistantProvider";
 
 // Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
@@ -19,8 +20,9 @@ const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RecipesPage = lazy(() => import("./pages/RecipesPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
-const AssistantAI = lazy(() => import("./pages/AssistantAI"));
-const RecipeSeeding = lazy(() => import("./pages/RecipeSeeding"));
+// PRP-233 PR1: AssistantAI no longer routed (/assistant/chat redirects to
+// /assistant). Source file preserved for PRP-224 reference; the lazy import
+// is dropped to silence the unused-symbol warning.
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
@@ -29,18 +31,10 @@ const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 // Dashboards hiérarchiques (lazy)
 const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
-const ShoppingDashboard = lazy(() => import("./pages/shopping/ShoppingDashboard"));
+const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
+// PRP-230 Commit 2: ShoppingDashboard no longer routed (/shopping redirects
+// to /shopping/list). File preserved for PRP-234 Today resurrection if needed.
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
-
-// Pages de test (lazy - dev only)
-const VideoImportTest = lazy(() => import("./pages/VideoImportTest"));
-const MaterialYouDemo = lazy(() => import("./pages/MaterialYouDemo"));
-const TestMaterialYou = lazy(() => import("./pages/TestMaterialYou"));
-const YouTubeRecipeTest = lazy(() => import("./pages/YouTubeRecipeTest"));
-const TestMinimal = lazy(() => import("./pages/TestMinimal"));
-const YouTubeTestDirect = lazy(() => import("./pages/YouTubeTestDirect"));
-const YouTubeTestWorking = lazy(() => import("./pages/YouTubeTestWorking"));
-const Diagnostics = lazy(() => import("./pages/Diagnostics"));
 
 // Composants de navigation
 import LegacyRedirect from "./components/navigation/LegacyRedirect";
@@ -54,95 +48,103 @@ const withSuspense = (Component: React.ComponentType) => (
 
 const queryClient = new QueryClient();
 
-// Create router with new hierarchical structure + legacy support
+// PRP-222 PR1 — Navigation diet : seulement les routes coeur produit V1.
 const baseRoutes: RouteObject[] = [
-  // Pages critiques (pas de lazy loading)
   { path: "/", element: <Index /> },
   { path: "/auth", element: <Auth /> },
-
-  // PWA Web Share Target landing (PRP-220.18). Captures the shared
-  // URL and bounces to the inbox.
   { path: "/share-target", element: withSuspense(ShareTarget) },
-
-  // Pages avec lazy loading
   { path: "/onboarding", element: withSuspense(OnboardingPage) },
 
-  // === NOUVELLE STRUCTURE HIÉRARCHIQUE PRP-040.1 ===
-
-  // Pantry Section
+  // Pantry
   { path: "/pantry", element: withSuspense(PantryDashboard) },
   { path: "/pantry/inventory", element: withSuspense(InventoryPage) },
-  { path: "/pantry/scanner", element: withSuspense(InventoryPage) },
-  { path: "/pantry/alerts", element: withSuspense(InventoryPage) },
 
-  // Kitchen Section
+  // Kitchen
   { path: "/kitchen", element: withSuspense(KitchenDashboard) },
   { path: "/kitchen/recipes", element: withSuspense(RecipesPage) },
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
-  { path: "/kitchen/favorites", element: withSuspense(RecipesPage) },
+  // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
+  // Le redirect legacy `/kitchen/favorites` pointe désormais vers cette
+  // URL complète (au lieu du fallback `/kitchen/recipes` sans filtre).
+  { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
 
-  // Shopping Section
-  { path: "/shopping", element: withSuspense(ShoppingDashboard) },
+  // Shopping — PRP-230 Commit 2 : `/shopping` redirige vers la liste, qui
+  // est l'expérience principale (dashboard reporté à PRP-234 Today).
+  { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
-  { path: "/shopping/store-mode", element: withSuspense(SmartShoppingList) },
-  { path: "/shopping/history", element: withSuspense(SmartShoppingList) },
 
-  // Assistant Section
+  // Assistant — PRP-233 PR1 : `/assistant/chat` redirige vers la surface
+  // principale `/assistant` (legacy chat UI déprécié, PRP-224 reprendra).
   { path: "/assistant", element: withSuspense(AssistantDashboard) },
-  { path: "/assistant/chat", element: withSuspense(AssistantAI) },
-  { path: "/assistant/suggestions", element: withSuspense(AssistantAI) },
-  { path: "/assistant/nutrition", element: withSuspense(AssistantAI) },
+  { path: "/assistant/chat", element: <Navigate to="/assistant" replace /> },
 
-  // Insights Section
+  // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },
-  { path: "/insights/analytics", element: withSuspense(InsightsPage) },
-  { path: "/insights/waste", element: withSuspense(InsightsPage) },
-  { path: "/insights/goals", element: withSuspense(InsightsPage) },
+  { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
 
-  // Games Section (Mode Famille)
-  { path: "/games", element: withSuspense(RecipesPage) },
-  { path: "/games/memory", element: withSuspense(RecipesPage) },
-  { path: "/games/nutrition", element: withSuspense(RecipesPage) },
-  { path: "/games/recipes", element: withSuspense(RecipesPage) },
-
-  // === PARAMÈTRES ET CONFIGURATION ===
+  // Settings — PRP-230 Commit 2 : ancrage `?section=appearance` reporté
+  // (cas d'usage marginal) ; la sous-route legacy redirige vers /settings.
   { path: "/settings", element: withSuspense(Settings) },
-  { path: "/settings/family", element: withSuspense(Settings) },
-  { path: "/settings/parental", element: withSuspense(Settings) },
-  { path: "/settings/appearance", element: withSuspense(Settings) },
+  { path: "/settings/appearance", element: <Navigate to="/settings" replace /> },
+
+  // Redirections vers routes coeur. /games/* et /shopping/store-mode étaient
+  // exposées dans la nav avant PRP-222 — on garde un redirect minimal pour
+  // ne pas casser les favoris utilisateurs.
+  { path: "/games", element: <Navigate to="/kitchen/recipes" replace /> },
+  { path: "/games/*", element: <Navigate to="/kitchen/recipes" replace /> },
+  { path: "/shopping/store-mode", element: <Navigate to="/shopping/list" replace /> },
+  { path: "/shopping/history", element: <Navigate to="/shopping/list" replace /> },
+  { path: "/pantry/scanner", element: <Navigate to="/pantry/inventory" replace /> },
+  { path: "/pantry/alerts", element: <Navigate to="/pantry/inventory" replace /> },
+  { path: "/assistant/suggestions", element: <Navigate to="/assistant" replace /> },
+  { path: "/assistant/nutrition", element: <Navigate to="/assistant" replace /> },
+  { path: "/insights/analytics", element: <Navigate to="/insights" replace /> },
+  { path: "/insights/goals", element: <Navigate to="/insights" replace /> },
+  { path: "/settings/family", element: <Navigate to="/settings" replace /> },
+  { path: "/settings/parental", element: <Navigate to="/settings" replace /> },
 ];
 
-// Dev-only routes (legacy + tests)
+// Dev-only redirects pour anciennes routes /inventory et /recipes.
+// Fix PRP-222 : /recipes pointait vers /kitchen via LegacyRedirect — on
+// redirige directement vers /kitchen/recipes pour éviter le saut indirect.
 if (import.meta.env.DEV) {
   baseRoutes.push(
-    // Legacy compatibility
-    { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
-    { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
-    { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
-    // Test & dev pages
-    { path: "/recipe-seeding", element: withSuspense(RecipeSeeding) },
-    { path: "/video-test", element: withSuspense(VideoImportTest) },
-    { path: "/demo/material-you", element: withSuspense(MaterialYouDemo) },
-    { path: "/test-material-you", element: withSuspense(TestMaterialYou) },
-    { path: "/test/minimal", element: withSuspense(TestMinimal) },
-    { path: "/youtube-test", element: withSuspense(YouTubeTestWorking) },
-    { path: "/test/youtube-recipe", element: withSuspense(YouTubeTestDirect) },
-    { path: "/test/youtube-recipe-full", element: withSuspense(YouTubeRecipeTest) },
-    { path: "/diagnostics", element: withSuspense(Diagnostics) },
+    { path: "/inventory", element: <Navigate to="/pantry/inventory" replace /> },
+    { path: "/recipes", element: <Navigate to="/kitchen/recipes" replace /> },
+    { path: "/shopping-legacy", element: <Navigate to="/shopping/list" replace /> },
   );
 }
+
+void LegacyRedirect;
 
 // 404 - must be last
 baseRoutes.push({ path: "*", element: <NotFound /> });
 
-const router = createBrowserRouter(baseRoutes, {
-  future: {
-    v7_startTransition: true,
-    v7_relativeSplatPath: true,
-  },
-});
+// PRP-221: wrap every route under a layout that mounts the global
+// voice-assistant FAB + dialog. The FAB self-hides on /auth and when
+// the user is not signed in, so this is safe across the entire app.
+const RootLayout = () => (
+  <AssistantProvider>
+    <Outlet />
+  </AssistantProvider>
+);
+
+const router = createBrowserRouter(
+  [
+    {
+      element: <RootLayout />,
+      children: baseRoutes,
+    },
+  ],
+  {
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    },
+  }
+);
 
 const App = () => (
   <ErrorBoundary>

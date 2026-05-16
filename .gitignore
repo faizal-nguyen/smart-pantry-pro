@@ -47,10 +47,29 @@ services/**/.env
 .mcp/config.json
 .cursorrules
 .vercel
-api/video-processor/venv/
+# Python build artefacts — services/video-processor/ uses a local venv that
+# must never be committed (libtorch_cpu.dylib alone is ~215MB). The wrong
+# path `api/video-processor/venv/` was previously listed here; it never
+# matched the real layout (`services/video-processor/`).
+services/video-processor/venv/
+services/video-processor/.venv/
+services/video-processor/__pycache__/
+**/__pycache__/
+*.pyc
 
 # Playwright (PRP-220.21)
 /playwright-report/
 /test-results/
 /blob-report/
 /playwright/.cache/
+
+# macOS iCloud / Finder duplicates — files named "foo 2.ext" or dirs "foo 2/"
+*\ 2.*
+*\ 2/
+*\ 2
+
+# Local media drops (videos for recipe extraction, etc.) — not for the repo
+videos/
+
+# Supabase CLI cache
+supabase/.temp/

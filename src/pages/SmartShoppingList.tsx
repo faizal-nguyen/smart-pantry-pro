@@ -7,6 +7,7 @@ import { PageLoader } from "@/components/layout/PageLoader";
 import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,7 +47,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ShoppingItem } from "@/hooks/useShoppingList";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import InStoreShopping from "@/components/shopping/InStoreShopping";
 import { ShoppingListErrorBoundary } from "@/components/shopping/ShoppingListErrorBoundary";
 
 const STORE_SECTIONS = [
@@ -73,7 +73,6 @@ const SmartShoppingList = () => {
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [showInStoreMode, setShowInStoreMode] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(STORE_SECTIONS));
   const [showFABMenu, setShowFABMenu] = useState(false);
 
@@ -203,8 +202,9 @@ const SmartShoppingList = () => {
     await removeFromShoppingList(id);
   };
 
-  const handleSmartItemsAdded = async (items: any[]) => {
-    console.log(`✅ ${items.length} items added via smart input`);
+  const handleSmartItemsAdded = async () => {
+    // Items are added to Supabase by SmartGroceryInput directly; the list
+    // refreshes via useShoppingList's realtime subscription.
   };
 
   const toggleSectionExpanded = (section: string) => {
@@ -224,17 +224,6 @@ const SmartShoppingList = () => {
     if (total === 0) return 0;
     return Math.round((getPurchasedCount() / total) * 100);
   };
-
-  // Mode magasin
-  if (showInStoreMode) {
-    return (
-      <AppNavigation user={user}>
-        <ShoppingListErrorBoundary>
-          <InStoreShopping onExit={() => setShowInStoreMode(false)} />
-        </ShoppingListErrorBoundary>
-      </AppNavigation>
-    );
-  }
 
   if (loading) {
     return (
@@ -270,16 +259,6 @@ const SmartShoppingList = () => {
                 </p>
               </div>
               
-              {/* Mode magasin pour mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInStoreMode(true)}
-                className="md:hidden"
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                Mode magasin
-              </Button>
             </div>
             
             {/* Input principal */}
@@ -368,16 +347,15 @@ const SmartShoppingList = () => {
 
             {/* Liste des articles par rayon */}
             {Object.keys(groupedItems).length === 0 ? (
-              <MaterialCard variant="elevated">
-                <MaterialCardContent className="p-8 text-center">
-                  <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    {searchQuery || selectedSection !== "Tous" 
-                      ? "Aucun article ne correspond à votre recherche."
-                      : "Votre liste est vide. Ajoutez des articles pour commencer."}
-                  </p>
-                </MaterialCardContent>
-              </MaterialCard>
+              <EmptyState
+                icon={ShoppingCart}
+                title={searchQuery || selectedSection !== "Tous"
+                  ? "Aucun article trouvé"
+                  : "Liste de courses vide"}
+                description={searchQuery || selectedSection !== "Tous"
+                  ? "Aucun article ne correspond à ta recherche. Modifie les filtres ou ajoute un article."
+                  : "Ajoute tes premiers articles via le champ ci-dessus ou depuis une recette."}
+              />
             ) : (
               Object.entries(groupedItems).map(([section, items]) => (
                 <div key={section} className="space-y-2">
@@ -485,18 +463,6 @@ const SmartShoppingList = () => {
               Partager la liste
             </Button>
             
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setShowInStoreMode(true);
-                setShowFABMenu(false);
-              }}
-              className="w-full justify-start shadow-lg hidden md:flex"
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Mode magasin
-            </Button>
           </div>
           
           <Button

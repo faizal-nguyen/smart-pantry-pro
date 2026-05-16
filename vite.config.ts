@@ -10,7 +10,10 @@ export default defineConfig(({ mode }) => ({
     historyApiFallback: true, // Pour React Router
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        // API listens on port 3030 by default (see apps/api/src/index.ts).
+        // Use 127.0.0.1 explicitly to avoid IPv6 (::1) resolution issues
+        // some setups hit. Override with VITE_API_PROXY_TARGET if needed.
+        target: process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3030',
         changeOrigin: true,
         secure: false,
         ws: true

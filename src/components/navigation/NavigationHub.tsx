@@ -4,30 +4,20 @@
  */
 
 import React, { useMemo } from 'react';
-import { 
-  Package, 
-  ChefHat, 
-  ShoppingCart, 
-  Bot, 
-  BarChart3, 
+import {
+  Package,
+  ChefHat,
+  ShoppingCart,
+  Bot,
+  BarChart3,
   Settings,
-  Users,
-  Gamepad2,
   Home,
-  Search,
-  ScanQrCode,
-  Bell,
   CalendarDays,
   Heart,
-  Store,
-  History,
-  MessageCircle,
-  Lightbulb,
-  Target,
   Shield,
   Palette
 } from 'lucide-react';
-import { NavigationSection, FamilyNavigationConfig, FAMILY_NAVIGATION_SECTIONS } from '@/types/family-mode';
+import { NavigationSection } from '@/types/family-mode';
 
 export interface NavigationItem {
   id: string;
@@ -76,68 +66,12 @@ export interface NavigationSubItem {
 }
 
 // Configuration des routes hiérarchiques selon PRP-040.1
+// PRP-230 Commit 1: ordre V1 = Recettes → Inventaire → Courses → Anti-gaspi → Assistant.
+// L'ordre du tableau fait foi (pas de champ `order` séparé).
 export const NAVIGATION_CONFIG: NavigationItem[] = [
   {
-    id: 'pantry',
-    label: 'Garde-Manger',
-    icon: Package,
-    path: '/pantry',
-    section: 'pantry',
-    description: 'Gérer votre inventaire alimentaire',
-    isMainSection: true,
-    minAge: 3,
-    requiresSupervision: false,
-    availableInChildMode: true,
-    gamification: {
-      points: 150,
-      level: 2,
-      achievements: ['first_scan', 'week_tracker'],
-      funName: 'Ma Réserve Magique'
-    },
-    subItems: [
-      {
-        id: 'pantry-overview',
-        label: 'Vue d\'ensemble',
-        path: '/pantry',
-        icon: Home,
-        description: 'Dashboard du garde-manger',
-        minAge: 3,
-        childFriendlyName: 'Ma cuisine'
-      },
-      {
-        id: 'pantry-inventory',
-        label: 'Inventaire',
-        path: '/pantry/inventory',
-        icon: Package,
-        description: 'Inventaire complet des produits',
-        minAge: 3,
-        childFriendlyName: 'Mes produits'
-      },
-      {
-        id: 'pantry-scanner',
-        label: 'Scanner',
-        path: '/pantry/scanner',
-        icon: ScanQrCode,
-        description: 'Scanner des codes-barres',
-        minAge: 7,
-        requiresParentalApproval: true,
-        childFriendlyName: 'Scanner magique'
-      },
-      {
-        id: 'pantry-alerts',
-        label: 'Alertes',
-        path: '/pantry/alerts',
-        icon: Bell,
-        description: 'Alertes de péremption',
-        minAge: 7,
-        badge: 'Nouveau',
-        childFriendlyName: 'Alertes de fraîcheur'
-      }
-    ]
-  },
-  {
     id: 'kitchen',
-    label: 'Cuisine',
+    label: 'Recettes',
     icon: ChefHat,
     path: '/kitchen',
     section: 'kitchen',
@@ -182,13 +116,53 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         childFriendlyName: 'Mon planning repas'
       },
       {
+        // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
+        // Évite la chaîne de redirect `/kitchen/favorites → /kitchen/recipes`.
         id: 'kitchen-favorites',
         label: 'Favoris',
-        path: '/kitchen/favorites',
+        path: '/kitchen/recipes?tab=library&filter=favorites',
         icon: Heart,
         description: 'Recettes favorites',
         minAge: 3,
         childFriendlyName: 'Mes recettes préférées'
+      }
+    ]
+  },
+  {
+    id: 'pantry',
+    label: 'Inventaire',
+    icon: Package,
+    path: '/pantry',
+    section: 'pantry',
+    description: 'Gérer votre inventaire alimentaire',
+    isMainSection: true,
+    minAge: 3,
+    requiresSupervision: false,
+    availableInChildMode: true,
+    gamification: {
+      points: 150,
+      level: 2,
+      achievements: ['first_scan', 'week_tracker'],
+      funName: 'Ma Réserve Magique'
+    },
+    subItems: [
+      {
+        id: 'pantry-overview',
+        label: 'Vue d\'ensemble',
+        path: '/pantry',
+        icon: Home,
+        description: 'Dashboard du garde-manger',
+        minAge: 3,
+        childFriendlyName: 'Ma cuisine'
+      },
+      {
+        id: 'pantry-inventory',
+        label: 'Inventaire',
+        path: '/pantry/inventory',
+        icon: Package,
+        description: 'Inventaire complet des produits',
+        minAge: 3,
+        childFriendlyName: 'Mes produits'
       }
     ]
   },
@@ -227,89 +201,12 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Liste de courses active',
         minAge: 7,
         childFriendlyName: 'Ma liste'
-      },
-      {
-        id: 'shopping-store-mode',
-        label: 'Mode magasin',
-        path: '/shopping/store-mode',
-        icon: Store,
-        description: 'Interface optimisée magasin',
-        minAge: 10,
-        requiresParentalApproval: true,
-        isNew: true,
-        childFriendlyName: 'Mode magasin'
-      },
-      {
-        id: 'shopping-history',
-        label: 'Historique',
-        path: '/shopping/history',
-        icon: History,
-        description: 'Historique des achats',
-        minAge: 13,
-        childFriendlyName: 'Mes anciens achats'
-      }
-    ]
-  },
-  {
-    id: 'assistant',
-    label: 'Assistant IA',
-    icon: Bot,
-    path: '/assistant',
-    section: 'assistant',
-    description: 'Assistant intelligent alimentaire',
-    isMainSection: true,
-    minAge: 7,
-    requiresSupervision: true,
-    availableInChildMode: false,
-    gamification: {
-      points: 250,
-      level: 3,
-      achievements: ['ai_helper', 'smart_questions'],
-      funName: 'Mon Assistant Magique'
-    },
-    subItems: [
-      {
-        id: 'assistant-overview',
-        label: 'Assistant principal',
-        path: '/assistant',
-        icon: Home,
-        description: 'Interface principale de l\'assistant',
-        minAge: 7,
-        childFriendlyName: 'Mon assistant'
-      },
-      {
-        id: 'assistant-chat',
-        label: 'Chat IA',
-        path: '/assistant/chat',
-        icon: MessageCircle,
-        description: 'Conversation avec l\'assistant',
-        minAge: 10,
-        requiresParentalApproval: true,
-        childFriendlyName: 'Parler avec l\'assistant'
-      },
-      {
-        id: 'assistant-suggestions',
-        label: 'Suggestions',
-        path: '/assistant/suggestions',
-        icon: Lightbulb,
-        description: 'Suggestions personnalisées',
-        minAge: 7,
-        childFriendlyName: 'Mes suggestions'
-      },
-      {
-        id: 'assistant-nutrition',
-        label: 'Analyse nutritionnelle',
-        path: '/assistant/nutrition',
-        icon: Target,
-        description: 'Analyse nutritionnelle avancée',
-        minAge: 13,
-        childFriendlyName: 'Mes nutriments'
       }
     ]
   },
   {
     id: 'insights',
-    label: 'Analyses',
+    label: 'Anti-gaspi',
     icon: BarChart3,
     path: '/insights',
     section: 'insights',
@@ -335,15 +232,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         childFriendlyName: 'Mes analyses'
       },
       {
-        id: 'insights-analytics',
-        label: 'Analyses',
-        path: '/insights/analytics',
-        icon: BarChart3,
-        description: 'Analyses détaillées',
-        minAge: 13,
-        childFriendlyName: 'Graphiques'
-      },
-      {
         id: 'insights-waste',
         label: 'Anti-gaspi',
         path: '/insights/waste',
@@ -351,71 +239,35 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Réduction du gaspillage',
         minAge: 10,
         childFriendlyName: 'Éviter le gaspillage'
-      },
-      {
-        id: 'insights-goals',
-        label: 'Objectifs',
-        path: '/insights/goals',
-        icon: Target,
-        description: 'Objectifs et progression',
-        minAge: 13,
-        childFriendlyName: 'Mes objectifs'
       }
     ]
   },
   {
-    id: 'games',
-    label: 'Jeux Éducatifs',
-    icon: Gamepad2,
-    path: '/games',
-    section: 'games',
-    description: 'Mini-jeux éducatifs sur l\'alimentation',
+    id: 'assistant',
+    label: 'Assistant',
+    icon: Bot,
+    path: '/assistant',
+    section: 'assistant',
+    description: 'Assistant intelligent alimentaire',
     isMainSection: true,
-    minAge: 3,
-    requiresSupervision: false,
-    availableInChildMode: true,
+    minAge: 7,
+    requiresSupervision: true,
+    availableInChildMode: false,
     gamification: {
-      points: 450,
-      level: 5,
-      achievements: ['game_master', 'food_expert', 'healthy_champion'],
-      funName: 'Mes Jeux Amusants'
+      points: 250,
+      level: 3,
+      achievements: ['ai_helper', 'smart_questions'],
+      funName: 'Mon Assistant Magique'
     },
     subItems: [
       {
-        id: 'games-overview',
-        label: 'Mes jeux',
-        path: '/games',
+        id: 'assistant-overview',
+        label: 'Assistant principal',
+        path: '/assistant',
         icon: Home,
-        description: 'Sélection de jeux éducatifs',
-        minAge: 3,
-        childFriendlyName: 'Tous mes jeux'
-      },
-      {
-        id: 'games-memory',
-        label: 'Mémoire alimentaire',
-        path: '/games/memory',
-        icon: Gamepad2,
-        description: 'Jeu de mémoire avec aliments',
-        minAge: 3,
-        childFriendlyName: 'Jeu de mémoire'
-      },
-      {
-        id: 'games-nutrition',
-        label: 'Nutrition Quiz',
-        path: '/games/nutrition',
-        icon: Target,
-        description: 'Quiz sur la nutrition',
+        description: 'Interface principale de l\'assistant',
         minAge: 7,
-        childFriendlyName: 'Quiz nutrition'
-      },
-      {
-        id: 'games-recipes',
-        label: 'Chef en herbe',
-        path: '/games/recipes',
-        icon: ChefHat,
-        description: 'Créer des recettes virtuelles',
-        minAge: 5,
-        childFriendlyName: 'Petit chef'
+        childFriendlyName: 'Mon assistant'
       }
     ]
   }
@@ -436,22 +288,6 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
     availableInChildMode: false,
     subItems: [
       {
-        id: 'settings-profile',
-        label: 'Profil famille',
-        path: '/settings/family',
-        icon: Users,
-        description: 'Gestion des profils famille',
-        minAge: 18
-      },
-      {
-        id: 'settings-parental',
-        label: 'Contrôles parentaux',
-        path: '/settings/parental',
-        icon: Shield,
-        description: 'Configuration des contrôles parentaux',
-        minAge: 18
-      },
-      {
         id: 'settings-appearance',
         label: 'Apparence',
         path: '/settings/appearance',
@@ -460,137 +296,54 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
         minAge: 13
       }
     ]
-  },
-  {
-    id: 'social',
-    label: 'Social',
-    icon: Users,
-    path: '/social',
-    section: 'social',
-    description: 'Partage et communauté',
-    isMainSection: false,
-    minAge: 13,
-    requiresSupervision: true,
-    availableInChildMode: false,
-    subItems: [
-      {
-        id: 'social-community',
-        label: 'Communauté',
-        path: '/social/community',
-        icon: Users,
-        description: 'Rejoindre la communauté',
-        minAge: 13,
-        requiresParentalApproval: true
-      },
-      {
-        id: 'social-sharing',
-        label: 'Partages',
-        path: '/social/sharing',
-        icon: Users,
-        description: 'Partager vos recettes',
-        minAge: 13,
-        requiresParentalApproval: true
-      }
-    ]
   }
 ];
 
 /**
- * Hook pour obtenir la configuration de navigation adaptée au profil famille
+ * Hook de configuration navigation.
+ *
+ * PRP-230 Commit 3 (pragmatique) : le shell d'adaptation par profil
+ * famille (minAge / availableInChildMode / funName / childFriendlyName)
+ * est désactivé côté navigation — la signature ne prend plus de
+ * `familyConfig` et toute la branche de filtrage par âge a été retirée.
+ *
+ * Les champs `minAge`, `gamification`, etc. restent dans l'interface et
+ * dans `NAVIGATION_CONFIG` parce que d'autres consommateurs (services
+ * d'intelligence navigation, tests legacy) les lisent encore. Leur
+ * suppression complète est cadrée par PRP-234 quand `useFamilyMode` et
+ * `useCipherMealPlanning` seront refactorés.
  */
-export const useNavigationConfig = (familyConfig?: FamilyNavigationConfig) => {
-  return useMemo(() => {
-    if (!familyConfig || !familyConfig.isFamilyModeActive) {
-      return {
-        mainNavigation: NAVIGATION_CONFIG,
-        specialNavigation: SPECIAL_NAVIGATION_ITEMS,
-        allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS]
-      };
-    }
-
-    const { currentProfile, adaptiveInterface } = familyConfig;
-    const profileAge = currentProfile.age || 18;
-    const isChildProfile = currentProfile.type === 'child';
-
-    // Filtrer les éléments selon l'âge et les restrictions
-    const filterNavigationItems = (items: NavigationItem[]) => {
-      return items
-        .filter(item => {
-          // Vérifier l'âge minimum
-          if (profileAge < item.minAge) return false;
-          
-          // Vérifier la disponibilité en mode enfant
-          if (isChildProfile && !item.availableInChildMode) return false;
-          
-          // Vérifier les restrictions du profil
-          if (!currentProfile.restrictions.allowedSections.includes(item.section)) return false;
-          
-          return true;
-        })
-        .map(item => ({
-          ...item,
-          // Adapter les libellés pour les enfants
-          label: (isChildProfile && item.gamification?.funName) 
-            ? item.gamification.funName 
-            : item.label,
-          subItems: item.subItems?.filter(subItem => {
-            if (profileAge < subItem.minAge) return false;
-            return true;
-          }).map(subItem => ({
-            ...subItem,
-            label: (isChildProfile && subItem.childFriendlyName) 
-              ? subItem.childFriendlyName 
-              : subItem.label
-          }))
-        }));
-    };
-
-    const filteredMainNavigation = filterNavigationItems(NAVIGATION_CONFIG);
-    const filteredSpecialNavigation = filterNavigationItems(SPECIAL_NAVIGATION_ITEMS);
-
-    return {
-      mainNavigation: filteredMainNavigation,
-      specialNavigation: filteredSpecialNavigation,
-      allNavigation: [...filteredMainNavigation, ...filteredSpecialNavigation],
-      adaptiveInterface
-    };
-  }, [familyConfig]);
+export const useNavigationConfig = () => {
+  return useMemo(() => ({
+    mainNavigation: NAVIGATION_CONFIG,
+    specialNavigation: SPECIAL_NAVIGATION_ITEMS,
+    allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS]
+  }), []);
 };
 
 /**
  * Fonction utilitaire pour obtenir les redirections de compatibilité
  */
 export const getLegacyRedirections = (): Record<string, string> => ({
-  // Redirections principales vers les nouveaux dashboards
-  '/inventory': '/pantry',
-  '/recipes': '/kitchen',
+  // PRP-222 PR1 : table réduite aux routes coeur V1. Tout pointeur vers une
+  // route retirée a été retargeté sur le dashboard parent ou la liste canonique.
+  '/inventory': '/pantry/inventory',
+  '/recipes': '/kitchen/recipes',
   '/shopping': '/shopping',
   '/assistant': '/assistant',
   '/insights': '/insights',
-  
-  // Redirections vers les sous-sections spécifiques
+
   '/pantry-inventory': '/pantry/inventory',
   '/kitchen-recipes': '/kitchen/recipes',
   '/shopping-list': '/shopping/list',
   '/meal-planning': '/kitchen/meal-planning',
-  '/recipe-assistant': '/assistant/suggestions',
   '/ai-assistant': '/assistant/chat',
   '/assistant-chat': '/assistant/chat',
-  '/assistant-suggestions': '/assistant/suggestions',
-  '/nutrition': '/assistant/nutrition',
-  
-  // Anciennes routes spécifiques
+
   '/recipe-catalog': '/kitchen/recipes',
-  '/pantry-scanner': '/pantry/scanner',
-  '/pantry-alerts': '/pantry/alerts',
   '/kitchen-favorites': '/kitchen/favorites',
-  '/shopping-history': '/shopping/history',
-  '/shopping-store': '/shopping/store-mode',
-  '/insights-analytics': '/insights/analytics',
   '/insights-waste': '/insights/waste',
-  '/insights-goals': '/insights/goals',
-  
-  // Redirections très anciennes
+
   '/home': '/insights',
   '/dashboard': '/insights',
   '/main': '/insights'

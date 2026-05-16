@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { voiceOutputService } from "@/services/voice/voiceOutputService";
+import { useAgentDbInvalidation } from "@/lib/agentEvents";
 
 export interface Product {
   id: string;
@@ -118,8 +119,6 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       if (insertError) throw insertError;
 
       setProducts(prev => [...prev, data]);
-      console.log(`Produit ajouté: ${productData.name}`);
-
       return data;
     } catch (err) {
       console.error('Error adding product:', err);
@@ -180,7 +179,6 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
         );
       }
 
-      console.log("Produit ajouté à l'inventaire");
       return data;
     } catch (err) {
       console.error('Error adding to inventory:', err);
@@ -214,7 +212,6 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
       // Clear from pending
       optimisticRef.current.pendingUpdates.delete(id);
-      console.log("Produit mis à jour");
     } catch (err) {
       console.error('Error updating inventory item:', err);
       throw err;
@@ -253,8 +250,6 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       if (enableVoiceFeedback && item?.product?.name) {
         voiceOutputService.announceItemRemoved(item.product.name);
       }
-
-      console.log("Produit supprimé");
     } catch (err) {
       console.error('Error deleting inventory item:', err);
       throw err;
@@ -390,6 +385,13 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
     loadData();
   }, []);
+
+  // PRP-221: refetch when the voice agent has touched inventory or
+  // products (a new auto-created product cascades into name/category
+  // displayed alongside inventory rows).
+  useAgentDbInvalidation(['inventory', 'products'], () =>
+    Promise.all([fetchInventory(), fetchProducts()])
+  );
 
   return {
     // Data

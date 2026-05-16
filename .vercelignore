@@ -7,12 +7,15 @@ node_modules
 .env.production.local
 
 # Ignorer les dossiers non-frontend
+# NB: leading `/` ancre au root — sans ça, `supabase/` matche aussi
+# `src/integrations/supabase/` et `services/` matche `src/services/`,
+# ce qui casse le build Vite (client supabase + services manquants).
 .claude/
-apps/
-agents/
-services/
-PRP/
-supabase/
+/apps/
+/agents/
+/services/
+/PRP/
+/supabase/
 
 # Ignorer les fichiers de cache
 .cache
@@ -38,7 +41,14 @@ BARCODE_API.md
 DEPLOYMENT.md
 
 # Ignorer les fichiers de développement
-scripts/
+# NB: on utilise `scripts/*` (glob) et pas `scripts/` (dir) — gitignore
+# ne sait pas ré-inclure un fichier d'un dossier déjà exclu. Avec le
+# glob, la négation `!scripts/prepare-husky.cjs` fonctionne.
+scripts/*
+# … sauf ceux référencés par les lifecycle scripts (npm prepare /
+# postinstall). Sans cette exception, Vercel exclut le script et
+# `npm install` plante avec MODULE_NOT_FOUND.
+!scripts/prepare-husky.cjs
 .vscode/
 .idea/
 *.log

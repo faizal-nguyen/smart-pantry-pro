@@ -4,33 +4,27 @@ import { MaterialCard, MaterialCardContent, MaterialCardHeader } from '@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Download, 
-  Share2, 
+import {
+  BarChart3,
+  TrendingUp,
+  Download,
+  Share2,
   RefreshCw,
   Calendar,
-  Filter,
-  Award,
-  Target,
-  Lightbulb,
-  Bell
+  Filter
 } from 'lucide-react';
 
 import { AnimatedMetricCard } from './AnimatedMetricCard';
-import { 
-  SpendingTrendsChart, 
-  CategoryBreakdownChart, 
-  NutritionRadarChart, 
-  CombinedTrendsChart 
+import {
+  SpendingTrendsChart,
+  CategoryBreakdownChart,
+  NutritionRadarChart,
+  CombinedTrendsChart
 } from './InteractiveCharts';
-import { AchievementsList } from './AchievementsList';
 
 import { useInsightsData } from '@/hooks/useInsightsData';
-import { useAchievements } from '@/hooks/useAchievements';
 import { useChartData } from '@/hooks/useChartData';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -39,73 +33,17 @@ interface InsightsDashboardProps {
   className?: string;
 }
 
-interface InsightCardProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  action?: () => void;
-  actionLabel?: string;
-}
-
-const InsightCard: React.FC<InsightCardProps> = ({ 
-  title, 
-  description, 
-  icon, 
-  action, 
-  actionLabel 
-}) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    whileHover={{ scale: 1.02 }}
-    className="cursor-pointer"
-  >
-    <MaterialCard variant="elevated" interactive className="h-full transition-all duration-200">
-      <MaterialCardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="text-2xl">{icon}</div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-1">
-              {title}
-            </h3>
-            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2">
-              {description}
-            </p>
-            {action && actionLabel && (
-              <MaterialButton 
-                variant="text" 
-                size="sm" 
-                className="h-6 px-2 mt-2 text-xs"
-                onClick={action}
-              >
-                {actionLabel}
-              </MaterialButton>
-            )}
-          </div>
-        </div>
-      </MaterialCardContent>
-    </MaterialCard>
-  </motion.div>
-);
-
 export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className }) => {
   const { insightsData, loading: insightsLoading, refetch: refetchInsights } = useInsightsData();
-  const { 
-    achievements, 
-    userProgress, 
-    recentAchievements, 
-    nextMilestone, 
-    leaderboard 
-  } = useAchievements();
-  const { 
-    spendingTrendsData, 
-    categoryBreakdownData, 
-    nutritionBalanceData, 
+  const {
+    spendingTrendsData,
+    categoryBreakdownData,
+    nutritionBalanceData,
     combinedTrendsData,
-    formatCurrency 
+    formatCurrency
   } = useChartData();
-  
-  const [activeTab, setActiveTab] = useState<'overview' | 'charts' | 'achievements'>('overview');
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'charts'>('overview');
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
@@ -166,39 +104,23 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
     }
   };
 
-  // Generate smart insights based on data
-  const smartInsights = [
-    {
-      title: "Optimisez vos achats de légumes",
-      description: "Vous pourriez économiser 15€/mois en achetant vos légumes au marché local.",
-      icon: <Lightbulb className="h-5 w-5 text-yellow-500" />,
-      action: () => {},
-      actionLabel: "Voir les conseils"
-    },
-    {
-      title: "Réduisez le gaspillage",
-      description: "3 produits expirent bientôt. Planifiez vos repas pour les utiliser.",
-      icon: <Bell className="h-5 w-5 text-red-500" />,
-      action: () => {},
-      actionLabel: "Voir les produits"
-    },
-    {
-      title: "Atteignez votre objectif nutrition",
-      description: "Ajoutez 2 portions de légumes pour atteindre votre objectif quotidien.",
-      icon: <Target className="h-5 w-5 text-green-500" />,
-      action: () => {},
-      actionLabel: "Voir les recettes"
-    }
-  ];
+  // PRP-229 Commit 4: removed the hardcoded "smartInsights" sidebar
+  // (3 marketing cards "Optimisez vos achats", "Réduisez le gaspillage",
+  // "Atteignez votre objectif nutrition" with fabricated numbers).
+  // A real insight engine should land before re-enabling this surface.
 
   if (insightsLoading) {
     return (
       <div className={cn("space-y-6", className)}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 dark:text-gray-400">Chargement de vos insights...</p>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-72 w-full" />
         </div>
       </div>
     );
@@ -272,7 +194,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
         <div className="flex items-center justify-between">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Vue d'ensemble
@@ -280,10 +202,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
             <TabsTrigger value="charts" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Analyses
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Succès
             </TabsTrigger>
           </TabsList>
           
@@ -310,62 +228,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
                   </div>
                 </div>
 
-                {/* Sidebar */}
-                <div className="space-y-6">
-                  {/* Smart Insights */}
-                  <MaterialCard variant="elevated">
-                    <MaterialCardHeader>
-                      <div className="text-lg font-semibold">Insights Intelligents</div>
-                    </MaterialCardHeader>
-                    <MaterialCardContent>
-                      <ScrollArea className="h-80">
-                        <div className="space-y-3">
-                          {smartInsights.map((insight, index) => (
-                            <motion.div
-                              key={`insight-${index}`}
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.1 }}
-                            >
-                              <InsightCard {...insight} />
-                            </motion.div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </MaterialCardContent>
-                  </MaterialCard>
-
-                  {/* Recent Achievements */}
-                  {recentAchievements.length > 0 && (
-                    <MaterialCard variant="elevated">
-                      <MaterialCardHeader>
-                        <div className="text-lg font-semibold">Derniers Succès</div>
-                      </MaterialCardHeader>
-                      <MaterialCardContent>
-                        <div className="space-y-3">
-                          {recentAchievements.slice(0, 2).map((achievement, index) => (
-                            <motion.div
-                              key={achievement.id || `achievement-${index}`}
-                              initial={{ opacity: 0, scale: 0.9 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg"
-                            >
-                              <div className="text-2xl">{achievement.icon}</div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm text-green-800 dark:text-green-400">
-                                  {achievement.title}
-                                </p>
-                                <p className="text-xs text-green-600 dark:text-green-500">
-                                  +{achievement.reward.points} points
-                                </p>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </MaterialCardContent>
-                    </MaterialCard>
-                  )}
-                </div>
               </motion.div>
             </TabsContent>
           )}
@@ -390,23 +252,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
             </TabsContent>
           )}
 
-          {activeTab === 'achievements' && (
-            <TabsContent key="achievements-content" value="achievements">
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <AchievementsList
-                  achievements={achievements}
-                  userProgress={userProgress}
-                  recentAchievements={recentAchievements}
-                  nextMilestone={nextMilestone}
-                  leaderboard={leaderboard}
-                />
-              </motion.div>
-            </TabsContent>
-          )}
         </AnimatePresence>
       </Tabs>
     </div>
