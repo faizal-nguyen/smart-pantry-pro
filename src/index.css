@@ -7,69 +7,99 @@
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
  *
- * PRP-231 Commit 1: tokens migrated from HSL to OKLCH. The visible palette
- * (fresh green primary, warm orange secondary) is preserved. Values are
- * stored as raw `L% C H` tuples and consumed via `oklch(var(--token))` in
- * `tailwind.config.ts`. To preserve dark-mode contrast and Tailwind's
- * `bg-foreground/50` opacity syntax, keep this raw-tuple format.
+ * PRP-237 PR1 — Culinary Intelligence OS visual identity.
+ *   Palette : Ink (cool dark) / Porcelain (cool near-white) / Saffron
+ *   (warm primary) / Tomato (destructive/food accent) / Electric Blue
+ *   (accent-ai, focus rings).
+ *   Hue convention : ~260 for neutrals (cool ink), ~52 for saffron,
+ *   ~28 for tomato, ~255 for electric blue, ~150 for the *semantic*
+ *   green that stays only for success/freshness — never brand.
+ *
+ *   Format unchanged since PRP-231 : raw `L% C H` tuples consumed via
+ *   `oklch(var(--token) / <alpha-value>)` in `tailwind.config.ts`,
+ *   which preserves Tailwind's opacity slash syntax.
+ *
+ *   Legacy slots (--card, --secondary, --accent, --info, --sidebar-*)
+ *   are kept and re-pointed at the new palette so existing consumers
+ *   (shadcn primitives, Material You CSS file at src/styles/material-you.css)
+ *   keep working. Material consumers read these tokens through
+ *   `--md-sys-color-*` aliases — no separate bridge needed.
  */
 
 @layer base {
   :root {
-    /* Food-focused color palette */
-    --background: 98.5% 0.018 95;
-    --foreground: 25% 0.035 165;
+    /* ---- Surfaces (Porcelain) ------------------------------------- */
+    --background: 98.5% 0.004 260;
+    --foreground: 18% 0.012 260;
 
+    --surface: 100% 0 0;
+    --surface-muted: 96.5% 0.006 260;
+    --surface-raised: 99% 0.004 260;
+
+    /* Legacy aliases so existing shadcn consumers keep rendering */
     --card: 100% 0 0;
-    --card-foreground: 25% 0.035 165;
+    --card-foreground: 18% 0.012 260;
 
-    --popover: 100% 0 0;
-    --popover-foreground: 25% 0.035 165;
+    --popover: 99% 0.004 260;
+    --popover-foreground: 18% 0.012 260;
 
-    /* Primary: Fresh Green */
-    --primary: 55% 0.17 145;
-    --primary-foreground: 100% 0 0;
-    --primary-hover: 50% 0.16 145;
-    --primary-active: 45% 0.15 145;
+    /* ---- Primary: Saffron (warm, culinary, not orange-permanent) -- */
+    --primary: 62% 0.150 52;
+    --primary-foreground: 99% 0.004 80;
+    --primary-hover: 57% 0.155 50;
+    --primary-active: 52% 0.155 50;
 
-    /* Secondary: Warm Orange */
-    --secondary: 68% 0.20 50;
-    --secondary-foreground: 100% 0 0;
-    --secondary-hover: 63% 0.19 50;
+    /* ---- Secondary: muted Saffron tint for low-emphasis surfaces -- */
+    --secondary: 94.5% 0.014 60;
+    --secondary-foreground: 22% 0.025 50;
+    --secondary-hover: 91% 0.018 60;
 
-    /* Accent: Fresh herbs (distinct from success) */
-    --accent: 60% 0.10 195;
-    --accent-foreground: 100% 0 0;
+    /* ---- Accent: Electric Blue, the AI presence ------------------- */
+    /* Legacy `--accent` slot is now electric blue ; new `--accent-ai`
+       points at the same token so callers can opt into the explicit
+       name without breaking the shadcn ecosystem. */
+    --accent: 62% 0.150 255;
+    --accent-foreground: 99% 0.004 260;
+    --accent-ai: 62% 0.150 255;
+    --accent-ai-foreground: 99% 0.004 260;
 
-    /* Muted: Neutral earth tones */
-    --muted: 96% 0.012 95;
-    --muted-foreground: 45% 0.04 165;
+    /* ---- Semantic food colors (used by recipes/inventory cards) --- */
+    --saffron: 72% 0.150 75;
+    --saffron-foreground: 20% 0.025 50;
+    --tomato: 61% 0.180 28;
+    --tomato-foreground: 99% 0.004 80;
 
-    /* Success: Fresh green */
-    --success: 55% 0.17 145;
-    --success-foreground: 100% 0 0;
+    /* ---- Muted / borders ----------------------------------------- */
+    --muted: 94.5% 0.006 260;
+    --muted-foreground: 47% 0.014 260;
 
-    /* Info: Calm blue */
-    --info: 60% 0.18 245;
-    --info-foreground: 100% 0 0;
+    --border: 90% 0.010 260;
+    --input: 94% 0.008 260;
+    --ring: 62% 0.150 255;
 
-    /* Warning: Sunset orange */
-    --warning: 72% 0.18 65;
-    --warning-foreground: 100% 0 0;
+    /* ---- Semantic states ----------------------------------------- */
+    /* Green is allowed only here : success + freshness — never brand. */
+    --success: 58% 0.115 150;
+    --success-foreground: 99% 0.004 80;
 
-    /* Destructive: Tomato red */
-    --destructive: 62% 0.23 25;
-    --destructive-foreground: 100% 0 0;
+    /* Info aliased to accent-ai so the IA color is the single info hue. */
+    --info: 62% 0.150 255;
+    --info-foreground: 99% 0.004 260;
 
-    --border: 92% 0.012 95;
-    --input: 94% 0.012 95;
-    --ring: 55% 0.17 145;
+    --warning: 74% 0.140 78;
+    --warning-foreground: 22% 0.025 50;
 
-    /* Enhanced radius system */
-    --radius: 0.75rem;
-    --radius-sm: 0.5rem;
-    --radius-lg: 1rem;
-    --radius-xl: 1.5rem;
+    --destructive: 58% 0.190 25;
+    --destructive-foreground: 99% 0.004 80;
+
+    /* Radius system — PRP-237 §7 : 8px default, 12px for media,
+       16px reserved for large modal/sheet exceptions only.
+       `--radius-sm` is derived from --radius via tailwind.config.ts ;
+       the explicit values below are used by hand-rolled CSS. */
+    --radius: 0.5rem;        /* 8px */
+    --radius-sm: 0.375rem;   /* 6px */
+    --radius-lg: 0.75rem;    /* 12px — media frames */
+    --radius-xl: 1rem;       /* 16px — large modals only */
 
     /* Shadows for depth */
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -100,76 +130,84 @@
     --duration-normal: 300ms;
     --duration-slow: 500ms;
 
-    /* Sidebar colors */
-    --sidebar-background: 98.5% 0.018 95;
-    --sidebar-foreground: 30% 0.035 165;
-    --sidebar-primary: 55% 0.17 145;
-    --sidebar-primary-foreground: 100% 0 0;
-    --sidebar-accent: 96% 0.012 95;
-    --sidebar-accent-foreground: 30% 0.035 165;
-    --sidebar-border: 92% 0.012 95;
-    --sidebar-ring: 55% 0.17 145;
+    /* ---- Sidebar (light) — derived from main palette ------------- */
+    --sidebar-background: 96.5% 0.006 260;
+    --sidebar-foreground: 25% 0.014 260;
+    --sidebar-primary: 62% 0.150 52;
+    --sidebar-primary-foreground: 99% 0.004 80;
+    --sidebar-accent: 94.5% 0.006 260;
+    --sidebar-accent-foreground: 25% 0.014 260;
+    --sidebar-border: 90% 0.010 260;
+    --sidebar-ring: 62% 0.150 255;
   }
 
   .dark {
-    /* Dark mode: Rich earthy palette */
-    --background: 18% 0.025 165;
-    --foreground: 96% 0.025 95;
+    /* ---- Surfaces (Ink) ------------------------------------------ */
+    --background: 14% 0.010 260;
+    --foreground: 94% 0.006 260;
 
-    --card: 20% 0.025 165;
-    --card-foreground: 96% 0.025 95;
+    --surface: 18% 0.012 260;
+    --surface-muted: 23% 0.012 260;
+    --surface-raised: 21% 0.014 260;
 
-    --popover: 20% 0.025 165;
-    --popover-foreground: 96% 0.025 95;
+    --card: 18% 0.012 260;
+    --card-foreground: 94% 0.006 260;
 
-    /* Primary: Bright green for contrast */
-    --primary: 60% 0.18 145;
-    --primary-foreground: 100% 0 0;
-    --primary-hover: 65% 0.19 145;
-    --primary-active: 55% 0.17 145;
+    --popover: 21% 0.014 260;
+    --popover-foreground: 94% 0.006 260;
 
-    /* Secondary: Warm orange preserved */
-    --secondary: 68% 0.18 50;
-    --secondary-foreground: 100% 0 0;
-    --secondary-hover: 73% 0.19 50;
+    /* ---- Primary: Saffron, slightly lifted for dark surfaces ----- */
+    --primary: 74% 0.145 55;
+    --primary-foreground: 16% 0.012 260;
+    --primary-hover: 78% 0.145 55;
+    --primary-active: 70% 0.145 55;
 
-    /* Accent: Softer teal (distinct from success) */
-    --accent: 65% 0.11 195;
-    --accent-foreground: 100% 0 0;
+    --secondary: 25% 0.014 60;
+    --secondary-foreground: 90% 0.012 60;
+    --secondary-hover: 30% 0.018 60;
 
-    /* Muted: Dark earth tones */
-    --muted: 28% 0.02 165;
-    --muted-foreground: 80% 0.04 95;
+    /* ---- Accent: Electric Blue ----------------------------------- */
+    --accent: 72% 0.130 255;
+    --accent-foreground: 14% 0.010 260;
+    --accent-ai: 72% 0.130 255;
+    --accent-ai-foreground: 14% 0.010 260;
 
-    /* Success: Bright green */
-    --success: 60% 0.18 145;
-    --success-foreground: 100% 0 0;
+    /* ---- Semantic food colors ------------------------------------ */
+    --saffron: 80% 0.130 75;
+    --saffron-foreground: 16% 0.012 260;
+    --tomato: 70% 0.160 28;
+    --tomato-foreground: 16% 0.012 260;
 
-    /* Info: Calm blue */
-    --info: 65% 0.17 245;
-    --info-foreground: 100% 0 0;
+    /* ---- Muted / borders ----------------------------------------- */
+    --muted: 25% 0.012 260;
+    --muted-foreground: 72% 0.010 260;
 
-    /* Warning: Bright orange */
-    --warning: 75% 0.17 65;
-    --warning-foreground: 100% 0 0;
+    --border: 32% 0.014 260;
+    --input: 28% 0.014 260;
+    --ring: 72% 0.130 255;
 
-    /* Destructive: Bright red */
-    --destructive: 60% 0.21 25;
-    --destructive-foreground: 100% 0 0;
+    /* ---- Semantic states ----------------------------------------- */
+    --success: 72% 0.105 150;
+    --success-foreground: 16% 0.012 260;
 
-    --border: 30% 0.02 165;
-    --input: 28% 0.02 165;
-    --ring: 60% 0.18 145;
+    --info: 72% 0.130 255;
+    --info-foreground: 14% 0.010 260;
 
-    /* Dark mode sidebar */
-    --sidebar-background: 15% 0.025 165;
-    --sidebar-foreground: 92% 0.025 95;
-    --sidebar-primary: 60% 0.18 145;
-    --sidebar-primary-foreground: 100% 0 0;
-    --sidebar-accent: 25% 0.02 165;
-    --sidebar-accent-foreground: 92% 0.025 95;
-    --sidebar-border: 28% 0.02 165;
-    --sidebar-ring: 60% 0.18 145;
+    --warning: 82% 0.125 78;
+    --warning-foreground: 16% 0.012 260;
+
+    --destructive: 70% 0.165 25;
+    --destructive-foreground: 16% 0.012 260;
+
+    /* ---- Sidebar (dark) ------------------------------------------ */
+    --sidebar-background: 16% 0.012 260;
+    --sidebar-foreground: 90% 0.008 260;
+    --sidebar-primary: 74% 0.145 55;
+    --sidebar-primary-foreground: 16% 0.012 260;
+    --sidebar-accent: 23% 0.012 260;
+    --sidebar-accent-foreground: 90% 0.008 260;
+    --sidebar-border: 30% 0.014 260;
+    --sidebar-ring: 72% 0.130 255;
   }
 }
 

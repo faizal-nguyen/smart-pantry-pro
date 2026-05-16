@@ -2,6 +2,15 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Card — PRP-237 PR1 §8.
+ *   - Radius pulled from `--radius` (8px) via `rounded-md` instead of
+ *     the legacy `rounded-lg` (which was 12px under PRP-231).
+ *   - Border kept ; shadow downgraded to `shadow-none` so cards rely on
+ *     border + surface contrast, matching the "calm, dense" direction.
+ *     Specific consumers can opt into elevation via `shadow-sm` in
+ *     `className` when they really need to lift off the page.
+ */
 const Card = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -9,7 +18,7 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      "rounded-md border bg-card text-card-foreground shadow-none",
       className
     )}
     {...props}
