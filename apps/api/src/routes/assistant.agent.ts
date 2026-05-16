@@ -243,6 +243,8 @@ export function createAssistantAgentRouter(
   // PRP-226 PR4 — one shared engine (stateless ; safe to reuse across
   // requests). The EventWriter on the other hand is per-request because
   // it binds the user-scoped Supabase client for RLS.
+  // PRP-226 PR6 — also thread the existing MemoryService so the
+  // PreferenceScorer can pull active memories.
   const recommendationEngine = new RecommendationEngine();
   const buildRecommendationCtx = (uc: SupabaseClient<any, any, any>) => ({
     recommendationEngine,
@@ -250,6 +252,7 @@ export function createAssistantAgentRouter(
       uc as SupabaseClient<Database>,
       adminClient as SupabaseClient<Database>,
     ),
+    memoryService,
   });
 
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.

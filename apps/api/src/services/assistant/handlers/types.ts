@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProductResolver } from '../ProductResolver.js';
 import type { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
 import type { RecommendationEventWriter } from '../../recommendations/RecommendationEventWriter.js';
+import type { MemoryService } from '../MemoryService.js';
 
 /**
  * Per-request context passed to every handler. Contains both clients
@@ -61,6 +62,12 @@ export interface ToolExecutionContext {
    * userClient so RLS scopes every write to the current user.
    */
   eventWriter?: RecommendationEventWriter;
+  /**
+   * PRP-226 PR6 — shared MemoryService instance threaded into the
+   * RecommendationEngine so the PreferenceScorer can read the user's
+   * active memories. Same instance the assistant uses for messaging.
+   */
+  memoryService?: MemoryService;
 }
 
 /**

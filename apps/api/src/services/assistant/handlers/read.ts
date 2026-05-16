@@ -565,6 +565,7 @@ export class SuggestRecipesForContextHandler
         userId: ctx.userId,
         userClient: ctx.userClient,
         eventWriter: ctx.eventWriter,
+        memoryService: ctx.memoryService,
         conversationId: ctx.conversationId,
       },
       recommendationContext,
