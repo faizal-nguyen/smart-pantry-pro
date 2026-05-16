@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { Bot, User as UserIcon, Cog } from 'lucide-react';
 
 import type { AssistantMessage } from '@/services/assistantApi';
+import AssistantRecipeProposals from './AssistantRecipeProposals';
 
 interface AssistantMessageThreadProps {
   messages: AssistantMessage[];
@@ -38,44 +39,51 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
   }
 
   return (
-    <div
-      className={cn(
-        'flex gap-2 my-3',
-        isUser ? 'justify-end' : 'justify-start',
-      )}
-    >
-      {isAssistant && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-          <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
-        </div>
-      )}
+    <div className="my-3">
       <div
         className={cn(
-          'max-w-[80%] rounded-2xl px-4 py-2',
-          isUser
-            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-            : 'bg-muted text-foreground rounded-tl-sm',
+          'flex gap-2',
+          isUser ? 'justify-end' : 'justify-start',
         )}
       >
-        {msg.content_format === 'transcript' && (
-          <p className="text-xs italic opacity-70 mb-1">Transcrit depuis l'audio</p>
+        {isAssistant && (
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
+          </div>
         )}
-        <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-        <p
+        <div
           className={cn(
-            'text-[10px] mt-1 opacity-60',
-            isUser ? 'text-right' : 'text-left',
+            'max-w-[80%] rounded-2xl px-4 py-2',
+            isUser
+              ? 'bg-primary text-primary-foreground rounded-tr-sm'
+              : 'bg-muted text-foreground rounded-tl-sm',
           )}
         >
-          {formatTime(msg.created_at)}
-          {msg.action_log_ids.length > 0 && (
-            <span> · {msg.action_log_ids.length} action{msg.action_log_ids.length > 1 ? 's' : ''}</span>
+          {msg.content_format === 'transcript' && (
+            <p className="text-xs italic opacity-70 mb-1">Transcrit depuis l'audio</p>
           )}
-        </p>
+          <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+          <p
+            className={cn(
+              'text-[10px] mt-1 opacity-60',
+              isUser ? 'text-right' : 'text-left',
+            )}
+          >
+            {formatTime(msg.created_at)}
+            {msg.action_log_ids.length > 0 && (
+              <span> · {msg.action_log_ids.length} action{msg.action_log_ids.length > 1 ? 's' : ''}</span>
+            )}
+          </p>
+        </div>
+        {isUser && (
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+            <UserIcon className="h-4 w-4" aria-hidden="true" />
+          </div>
+        )}
       </div>
-      {isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-          <UserIcon className="h-4 w-4" aria-hidden="true" />
+      {isAssistant && (
+        <div className="ml-10">
+          <AssistantRecipeProposals metadata={msg.metadata} />
         </div>
       )}
     </div>

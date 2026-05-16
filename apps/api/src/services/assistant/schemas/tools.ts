@@ -112,6 +112,17 @@ const searchRecipesArgs = z.object({
 });
 export type SearchRecipesArgs = z.infer<typeof searchRecipesArgs>;
 
+const suggestRecipesForContextArgs = z.object({
+  /** Optional free-text narrowing applied via ilike on recipe.name. */
+  query: z.string().max(200).optional(),
+  max_prep_time: z.number().int().min(0).max(600).optional(),
+  /** Per-bucket limit (default 6). Each bucket capped independently. */
+  limit_per_bucket: z.number().int().min(1).max(20).optional(),
+  /** Cap for almost_cookable bucket (default 3). */
+  almost_threshold: z.number().int().min(0).max(10).optional(),
+});
+export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForContextArgs>;
+
 // ---- LOW write tools -------------------------------------------------
 
 const addInventoryItemsArgs = z.object({
@@ -367,6 +378,24 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
       properties: {
         query: { type: 'string', minLength: 1, maxLength: 200 },
         limit: { type: 'integer', minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'read',
+    reversible: false,
+  },
+  {
+    name: 'suggest_recipes_for_context',
+    description:
+      'One-shot recipe suggestion: returns 3 buckets — cookable_now (everything in stock), almost_cookable (1..N missing/unknown ingredients), recent_suggestions (recent recipes regardless of stock). Use this for open questions like "what can I cook tonight?" instead of chaining find_cookable_recipes + read_recent_recipes.',
+    schema: suggestRecipesForContextArgs,
+    jsonSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', maxLength: 200, description: 'optional ilike narrowing on recipe name' },
+        max_prep_time: { type: 'integer', minimum: 0, maximum: 600, description: 'minutes' },
+        limit_per_bucket: { type: 'integer', minimum: 1, maximum: 20, description: 'default 6' },
+        almost_threshold: { type: 'integer', minimum: 0, maximum: 10, description: 'max missing+unknown for almost bucket, default 3' },
       },
       additionalProperties: false,
     },

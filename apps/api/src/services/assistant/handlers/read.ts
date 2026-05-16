@@ -25,6 +25,7 @@ import type {
   ReadMealPlanArgs,
   FindCookableArgs,
   SearchRecipesArgs,
+  SuggestRecipesForContextArgs,
 } from '../schemas/tools.js';
 
 // ---- Flat output shapes ---------------------------------------------
@@ -485,6 +486,153 @@ export class FindCookableRecipesHandler
   }
 }
 
+// ---- Suggest recipes for context (3-bucket convenience tool) --------
+
+export interface SuggestRecipesResult {
+  /** Cookable now: missing_count + unlinked_count == 0. */
+  cookable_now: CookableRecipeView[];
+  /** Almost cookable: 1..almost_threshold missing or unknown. */
+  almost_cookable: CookableRecipeView[];
+  /** Recent recipes regardless of inventory match (deduped vs the two above). */
+  recent_suggestions: RecipeSummaryView[];
+  /** Total recipes the user has, useful for the LLM to phrase fallbacks. */
+  total_user_recipes: number;
+}
+
+/**
+ * One-shot recipe suggestion. Wraps the same data sources as
+ * `find_cookable_recipes` + `read_recent_recipes` and returns a
+ * structured 3-bucket response so the LLM never lands on "empty" with
+ * nothing to propose. Saves one LLM round-trip vs chaining the two tools.
+ */
+export class SuggestRecipesForContextHandler
+  implements ToolHandler<SuggestRecipesForContextArgs, SuggestRecipesResult>
+{
+  async execute(
+    ctx: ToolExecutionContext,
+    args: SuggestRecipesForContextArgs
+  ): Promise<ToolExecutionResult<SuggestRecipesResult>> {
+    const limit = args.limit_per_bucket ?? 6;
+    const almostThreshold = args.almost_threshold ?? 3;
+    const maxPrep = args.max_prep_time;
+    const query = args.query?.trim();
+
+    let recipesQuery = ctx.userClient
+      .from('recipes')
+      .select(
+        'id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, created_at, recipe_ingredients(id, ingredient_name, quantity, inventory_product_id, is_essential)'
+      )
+      .eq('user_id', ctx.userId)
+      .order('created_at', { ascending: false });
+
+    if (query) recipesQuery = recipesQuery.ilike('name', `%${query}%`);
+
+    const [recipesRes, invRes] = await Promise.all([
+      recipesQuery,
+      ctx.userClient.from('inventory').select('product_id, quantity').eq('user_id', ctx.userId),
+    ]);
+
+    if (recipesRes.error) throw recipesRes.error;
+    if (invRes.error) throw invRes.error;
+
+    const inventory = (invRes.data ?? []) as InventorySnapshotRow[];
+    const inventoryByProduct = new Map<string, number>();
+    for (const inv of inventory) {
+      inventoryByProduct.set(inv.product_id, (inventoryByProduct.get(inv.product_id) ?? 0) + inv.quantity);
+    }
+
+    type RawWithMeta = RawRecipeWithIngs & {
+      description: string | null;
+      servings: number | null;
+      cuisine_category: string | null;
+      meal_type: string | null;
+      tags: string[] | null;
+      created_at: string;
+    };
+
+    const cookableNow: CookableRecipeView[] = [];
+    const almostCookable: CookableRecipeView[] = [];
+    const recent: RecipeSummaryView[] = [];
+
+    for (const r of (recipesRes.data ?? []) as RawWithMeta[]) {
+      if (maxPrep !== undefined && r.prep_time !== null && r.prep_time > maxPrep) {
+        continue;
+      }
+
+      // Always keep a "recent" view of every recipe.
+      recent.push({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        prep_time: r.prep_time,
+        cook_time: r.cook_time,
+        servings: r.servings,
+        image_url: r.image_url,
+        cuisine_category: r.cuisine_category,
+        meal_type: r.meal_type,
+        tags: r.tags,
+      });
+
+      const ings = r.recipe_ingredients ?? [];
+      const essentials = ings.filter((i) => i.is_essential !== false);
+      if (essentials.length === 0) continue; // can't bucket cookability without essentials
+
+      const linked = essentials.filter((i) => i.inventory_product_id);
+      const unlinkedCount = essentials.length - linked.length;
+
+      const missing: string[] = [];
+      for (const ing of linked) {
+        const have = inventoryByProduct.get(ing.inventory_product_id!) ?? 0;
+        if (have < ing.quantity) missing.push(ing.ingredient_name);
+      }
+
+      const view: CookableRecipeView = {
+        id: r.id,
+        name: r.name,
+        prep_time: r.prep_time,
+        cook_time: r.cook_time,
+        image_url: r.image_url,
+        total_essential: essentials.length,
+        linked_essential: linked.length,
+        missing_count: missing.length,
+        missing_ingredients: missing,
+        unlinked: unlinkedCount > 0,
+        unlinked_count: unlinkedCount,
+      };
+
+      const score = missing.length + unlinkedCount;
+      if (score === 0) cookableNow.push(view);
+      else if (score <= almostThreshold) almostCookable.push(view);
+    }
+
+    // Sort the cookable buckets: lower score first, then alpha.
+    const byScoreThenName = (a: CookableRecipeView, b: CookableRecipeView) => {
+      const aScore = a.missing_count + a.unlinked_count;
+      const bScore = b.missing_count + b.unlinked_count;
+      if (aScore !== bScore) return aScore - bScore;
+      return a.name.localeCompare(b.name);
+    };
+    cookableNow.sort(byScoreThenName);
+    almostCookable.sort(byScoreThenName);
+
+    // Dedupe recent against the two cookable buckets.
+    const seen = new Set<string>([
+      ...cookableNow.map((r) => r.id),
+      ...almostCookable.map((r) => r.id),
+    ]);
+    const recentDeduped = recent.filter((r) => !seen.has(r.id));
+
+    return {
+      result: {
+        cookable_now: cookableNow.slice(0, limit),
+        almost_cookable: almostCookable.slice(0, limit),
+        recent_suggestions: recentDeduped.slice(0, limit),
+        total_user_recipes: recent.length,
+      },
+    };
+  }
+}
+
 // ---- Convenience registration helper --------------------------------
 
 import { ToolHandlerRegistry } from './types.js';
@@ -496,4 +644,5 @@ export function registerReadHandlers(registry: ToolHandlerRegistry): void {
   registry.register('read_meal_plan', new ReadMealPlanHandler());
   registry.register('search_recipes', new SearchRecipesHandler());
   registry.register('find_cookable_recipes', new FindCookableRecipesHandler());
+  registry.register('suggest_recipes_for_context', new SuggestRecipesForContextHandler());
 }

@@ -9,6 +9,7 @@ describe('RiskClassifier', () => {
       ['read_inventory', 'read'],
       ['read_shopping_list', 'read'],
       ['find_cookable_recipes', 'read'],
+      ['suggest_recipes_for_context', 'read'],
       ['add_inventory_items', 'low'],
       ['mark_shopping_items_bought', 'low'],
       ['consume_inventory_items', 'medium'],

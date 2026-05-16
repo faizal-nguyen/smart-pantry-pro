@@ -11,7 +11,7 @@
  * le composer permet déjà d'envoyer du texte (et le backend ouvre une
  * conversation automatiquement, PRP-223 PR3).
  */
-import React, { useState } from 'react';
+import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +20,6 @@ import { Bot } from 'lucide-react';
 
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
-import AssistantRecipeProposals from './AssistantRecipeProposals';
 import { useAssistantConversation } from '@/hooks/useAssistantConversation';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
@@ -46,17 +45,15 @@ export default function AssistantConversationSurface({
     conversationId,
     { limit: 50, enabled: !!conversationId },
   );
-  const [lastResponse, setLastResponse] = useState<AssistantPlanResponse | null>(null);
 
+  // Recipe proposals now ride on assistant_messages.metadata, so the
+  // thread renders them inline. We just need to invalidate after a turn
+  // so the latest message (with its persisted buckets) flows back in.
   const handleResponse = (response: AssistantPlanResponse) => {
-    setLastResponse(response);
-    // If the backend opened a new conversation, navigate so the URL
-    // becomes the source of truth and the messages reload.
     if (response.conversation_id && !conversationId) {
       navigate(`/assistant?conversation=${response.conversation_id}`, { replace: true });
       return;
     }
-    // Same conversation: invalidate messages so the new turn shows up.
     if (response.conversation_id) {
       queryClient.invalidateQueries({ queryKey: ['assistant-messages', response.conversation_id] });
       queryClient.invalidateQueries({ queryKey: ['assistant-conversations'] });
@@ -73,10 +70,7 @@ export default function AssistantConversationSurface({
             description="Tape une question ou utilise le bouton micro ci-dessous."
           />
         ) : (
-          <>
-            <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
-            <AssistantRecipeProposals response={lastResponse} />
-          </>
+          <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
         )}
       </CardContent>
       <AssistantComposer

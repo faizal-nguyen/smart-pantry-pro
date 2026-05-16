@@ -10,6 +10,7 @@ import {
   ReadMealPlanHandler,
   SearchRecipesHandler,
   FindCookableRecipesHandler,
+  SuggestRecipesForContextHandler,
 } from '../read.js';
 import type { ToolExecutionContext } from '../types.js';
 
@@ -551,5 +552,161 @@ describe('FindCookableRecipesHandler', () => {
       max_prep_time: 10,
     });
     expect(result.result.recipes.map((r) => r.id)).toEqual(['fast']);
+  });
+});
+
+describe('SuggestRecipesForContextHandler', () => {
+  const recipesPlan = {
+    recipes: {
+      data: [
+        // r-now: fully cookable
+        {
+          id: 'r-now',
+          name: 'Tomate-mozza',
+          description: null,
+          prep_time: 10,
+          cook_time: 0,
+          servings: 2,
+          image_url: null,
+          cuisine_category: 'italien',
+          meal_type: 'dinner',
+          tags: null,
+          created_at: '2026-05-15T18:00:00Z',
+          recipe_ingredients: [
+            { id: 'i1', ingredient_name: 'Tomate', quantity: 2, inventory_product_id: 'p-tomate', is_essential: true },
+            { id: 'i2', ingredient_name: 'Mozzarella', quantity: 100, inventory_product_id: 'p-mozza', is_essential: true },
+          ],
+        },
+        // r-almost: 1 missing ingredient (linked, not in stock)
+        {
+          id: 'r-almost',
+          name: 'Risotto',
+          description: null,
+          prep_time: 30,
+          cook_time: 0,
+          servings: 4,
+          image_url: null,
+          cuisine_category: null,
+          meal_type: null,
+          tags: null,
+          created_at: '2026-05-14T18:00:00Z',
+          recipe_ingredients: [
+            { id: 'i3', ingredient_name: 'Riz', quantity: 200, inventory_product_id: 'p-riz', is_essential: true },
+            { id: 'i4', ingredient_name: 'Bouillon', quantity: 1, inventory_product_id: 'p-bouillon', is_essential: true },
+          ],
+        },
+        // r-legacy: unlinked essential, lands in almost (1 unknown ≤ 3)
+        {
+          id: 'r-legacy',
+          name: 'Vieille recette',
+          description: null,
+          prep_time: 15,
+          cook_time: 0,
+          servings: 2,
+          image_url: null,
+          cuisine_category: null,
+          meal_type: null,
+          tags: null,
+          created_at: '2026-05-13T18:00:00Z',
+          recipe_ingredients: [
+            { id: 'i5', ingredient_name: 'Truc', quantity: 1, inventory_product_id: null, is_essential: true },
+          ],
+        },
+        // r-noing: no essentials → only in recent_suggestions
+        {
+          id: 'r-noing',
+          name: 'Pas d ingredients',
+          description: null,
+          prep_time: 5,
+          cook_time: 0,
+          servings: 1,
+          image_url: null,
+          cuisine_category: null,
+          meal_type: null,
+          tags: null,
+          created_at: '2026-05-12T18:00:00Z',
+          recipe_ingredients: [],
+        },
+      ],
+    },
+    inventory: {
+      data: [
+        { product_id: 'p-tomate', quantity: 5 },
+        { product_id: 'p-mozza', quantity: 200 },
+        { product_id: 'p-riz', quantity: 500 },
+      ],
+    },
+  };
+
+  it('buckets recipes into cookable_now, almost_cookable, recent_suggestions', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
+
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
+    expect(result.result.cookable_now[0].missing_count).toBe(0);
+    expect(result.result.cookable_now[0].unlinked_count).toBe(0);
+
+    // r-almost (1 missing) and r-legacy (1 unlinked) both fit in almost.
+    const almostIds = result.result.almost_cookable.map((r) => r.id).sort();
+    expect(almostIds).toEqual(['r-almost', 'r-legacy']);
+
+    // recent_suggestions excludes anything already in the cookable buckets.
+    // Only r-noing remains.
+    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-noing']);
+
+    expect(result.result.total_user_recipes).toBe(4);
+  });
+
+  it('respects almost_threshold: tightening to 0 promotes only fully cookable', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
+      almost_threshold: 0,
+    });
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
+    expect(result.result.almost_cookable).toHaveLength(0);
+    // r-almost and r-legacy now fall through to recent_suggestions.
+    const recentIds = result.result.recent_suggestions.map((r) => r.id).sort();
+    expect(recentIds).toEqual(['r-almost', 'r-legacy', 'r-noing']);
+  });
+
+  it('respects max_prep_time filter', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
+      max_prep_time: 12,
+    });
+    // Only r-now (10) and r-noing (5) survive the prep filter.
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
+    expect(result.result.almost_cookable).toHaveLength(0);
+    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-noing']);
+    expect(result.result.total_user_recipes).toBe(2);
+  });
+
+  it('limit_per_bucket caps each bucket independently', async () => {
+    const manyRecipes = Array.from({ length: 8 }, (_, i) => ({
+      id: `r-bulk-${i}`,
+      name: `Recipe ${i}`,
+      description: null,
+      prep_time: 10,
+      cook_time: 0,
+      servings: 2,
+      image_url: null,
+      cuisine_category: null,
+      meal_type: null,
+      tags: null,
+      created_at: `2026-05-${10 + i}T00:00:00Z`,
+      recipe_ingredients: [
+        { id: `i-${i}`, ingredient_name: 'Tomate', quantity: 1, inventory_product_id: 'p-tomate', is_essential: true },
+      ],
+    }));
+    const { client } = makeClient({
+      routes: {
+        recipes: { data: manyRecipes },
+        inventory: { data: [{ product_id: 'p-tomate', quantity: 100 }] },
+      },
+    });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
+      limit_per_bucket: 3,
+    });
+    expect(result.result.cookable_now).toHaveLength(3);
   });
 });

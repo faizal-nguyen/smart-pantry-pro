@@ -76,12 +76,14 @@ You help manage their inventory, shopping list, recipes, and meal plan via tool 
 GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE proposing actions if the user's intent depends on stock.
 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
-- When the user asks for a recipe idea, a meal suggestion, "what can I cook", "qu'est-ce que je peux faire", "propose-moi", etc., follow this CHAIN strictly:
-    1. Call find_cookable_recipes with { "max_missing_ingredients": 3 }. Look at the returned recipes — fully cookable ones have missing_count=0 AND unlinked_count=0. Recipes with unlinked=true are best-effort estimates (we don't know the user's exact stock for those ingredients).
-    2. If find_cookable_recipes returns an empty array, IMMEDIATELY call read_recent_recipes with { "limit": 10 } and propose those — they are the user's own recipes, just without inventory matching. Frame them as: "Voici tes recettes récentes — tu n'as peut-être pas tout en stock, mais voici des idées de ta base."
-    3. Only if BOTH tools return nothing should you ask the user whether to import a new recipe or add items to the shopping list.
-- DO NOT invent recipes out of thin air. Only propose recipes that come back from these tools.
-- When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara » plutôt que « pâtes »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak. If a recipe has unlinked=true or missing_count>0, you may briefly mention it ("il te manque 2 ingrédients") but stay concise.
+- When the user asks for a recipe idea, a meal suggestion, "what can I cook", "qu'est-ce que je peux faire", "propose-moi", etc., call suggest_recipes_for_context (no args needed for an open question). It returns three buckets in one call:
+    - cookable_now : you have everything → recommend these first
+    - almost_cookable : 1–3 ingredients missing or unknown → mention the gap briefly ("il te manque 2 ingrédients")
+    - recent_suggestions : the user's own recipes regardless of stock → fallback when the first two are empty
+- Only if all three buckets are empty (total_user_recipes=0 too) should you ask the user to import a new recipe or add items to the shopping list.
+- For narrower asks (e.g. "une recette italienne", "rapide ce soir"), pass { "query": "italien" } or { "max_prep_time": 20 } to the same tool.
+- DO NOT invent recipes out of thin air. Only propose recipes returned by the tool.
+- When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
 
 Be precise:
 - never invent products, quantities, or recipes the user did not mention
@@ -606,19 +608,31 @@ export class VoiceAgentService {
     // ids on the assistant message so the chat history can link back to
     // the audit log. Pending actions are also referenced because they
     // produced log rows in `planned` status.
+    //
+    // Sprint 2 (recipe-anchor follow-up) — also persist the recipe bucket
+    // proposals into metadata.recipe_proposals so reload of historical
+    // conversations re-renders the clickable cards instead of losing
+    // them when the live response goes out of scope.
     if (this.memoryService && conversationId) {
       try {
         const actionLogIds = [
           ...executed.map(e => e.action_id),
           ...pending.map(p => p.action_id),
         ];
+        const recipeProposals = extractRecipeProposalsFromExecuted(executed);
+        const messageMetadata: Record<string, unknown> = {
+          model: activeResponse.model || this.model,
+        };
+        if (recipeProposals) {
+          messageMetadata.recipe_proposals = recipeProposals;
+        }
         await this.memoryService.recordMessage(conversationId, input.userId, {
           role: 'assistant',
           content: message,
           content_format: 'text',
           tool_calls: toolCalls.map(tc => ({ name: tc.name })),
           action_log_ids: actionLogIds,
-          metadata: { model: activeResponse.model || this.model },
+          metadata: messageMetadata,
         });
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -940,4 +954,96 @@ function synthesizeMessage(
  */
 export function hashArgs(args: unknown): string {
   return createHash('sha256').update(JSON.stringify(args ?? {})).digest('hex');
+}
+
+interface RecipeProposalsBuckets {
+  cookable_now: unknown[];
+  almost_cookable: unknown[];
+  recent_suggestions: unknown[];
+}
+
+const LEGACY_RECIPE_TOOLS = new Set<string>([
+  'find_cookable_recipes',
+  'search_recipes',
+  'read_recent_recipes',
+]);
+
+/**
+ * Pull the 3-bucket recipe proposals from the executed tool calls so we
+ * can stash them in `assistant_messages.metadata.recipe_proposals`. The
+ * frontend then re-hydrates the clickable cards on history reload
+ * instead of losing them when the live response goes out of scope.
+ *
+ * Returns null when no recipe tool ran on this turn.
+ */
+export function extractRecipeProposalsFromExecuted(
+  executed: ExecutedActionDescriptor[]
+): RecipeProposalsBuckets | null {
+  const buckets: RecipeProposalsBuckets = {
+    cookable_now: [],
+    almost_cookable: [],
+    recent_suggestions: [],
+  };
+  const seen = new Set<string>();
+  let hadAnyRecipeTool = false;
+
+  const pushUnique = (target: unknown[], list: unknown[]) => {
+    for (const r of list) {
+      if (!r || typeof r !== 'object') continue;
+      const id = (r as { id?: unknown }).id;
+      const name = (r as { name?: unknown }).name;
+      if (typeof id !== 'string' || typeof name !== 'string') continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      target.push(r);
+    }
+  };
+
+  // Primary: suggest_recipes_for_context returns the 3 buckets directly.
+  for (const a of executed) {
+    if (a.tool !== 'suggest_recipes_for_context') continue;
+    hadAnyRecipeTool = true;
+    const result = a.result as Partial<RecipeProposalsBuckets> | undefined;
+    if (!result || typeof result !== 'object') continue;
+    if (Array.isArray(result.cookable_now)) pushUnique(buckets.cookable_now, result.cookable_now);
+    if (Array.isArray(result.almost_cookable)) pushUnique(buckets.almost_cookable, result.almost_cookable);
+    if (Array.isArray(result.recent_suggestions)) pushUnique(buckets.recent_suggestions, result.recent_suggestions);
+  }
+
+  // Fallback: legacy single-bucket tools (find_cookable_recipes etc.).
+  for (const a of executed) {
+    if (!LEGACY_RECIPE_TOOLS.has(a.tool)) continue;
+    hadAnyRecipeTool = true;
+    const result = a.result as { recipes?: unknown } | undefined;
+    if (!result || typeof result !== 'object') continue;
+    const list = result.recipes;
+    if (!Array.isArray(list)) continue;
+    if (a.tool === 'find_cookable_recipes') {
+      // Bucket by cookability score when the field is present.
+      const cookable: unknown[] = [];
+      const almost: unknown[] = [];
+      for (const r of list) {
+        if (!r || typeof r !== 'object') continue;
+        const score =
+          ((r as { missing_count?: number }).missing_count ?? 0) +
+          ((r as { unlinked_count?: number }).unlinked_count ?? 0);
+        if (score === 0) cookable.push(r);
+        else almost.push(r);
+      }
+      pushUnique(buckets.cookable_now, cookable);
+      pushUnique(buckets.almost_cookable, almost);
+    } else {
+      pushUnique(buckets.recent_suggestions, list);
+    }
+  }
+
+  if (!hadAnyRecipeTool) return null;
+  if (
+    buckets.cookable_now.length === 0 &&
+    buckets.almost_cookable.length === 0 &&
+    buckets.recent_suggestions.length === 0
+  ) {
+    return null;
+  }
+  return buckets;
 }
