@@ -1,8 +1,29 @@
 /**
- * Product Matcher Service
- * Matches scanned products with OpenFoodFacts and local alias database
+ * Product Matcher Service.
+ *
+ * Matches scanned receipt lines against a local alias dictionary and
+ * (when alias fails) against OpenFoodFacts.
+ *
+ * PRP-225 PR2 — consolidates the OpenFoodFacts integration through the
+ * shared `OpenFoodFactsClient` (rate-limited, retried, User-Agent
+ * enforced) and the durable `ProductEnrichmentRepository` cache. The
+ * legacy 5-minute in-process cache + ad-hoc fetch are gone — every
+ * OFF caller now hits the same code path.
  */
 import Fuse from 'fuse.js';
+
+import { supabaseAdmin } from '../../config/supabase.js';
+import {
+  CACHE_TTL_MS,
+  ProductEnrichmentRepository,
+} from '../products/ProductEnrichmentRepository.js';
+import {
+  OpenFoodFactsClient,
+  OpenFoodFactsClientError,
+  getDefaultOpenFoodFactsClient,
+  type OffProductPayload,
+} from '../products/OpenFoodFactsClient.js';
+import { buildSearchCacheKey } from '../products/ProductNormalizer.js';
 import {
   ScannedProduct,
   EnrichedProduct,
@@ -13,10 +34,15 @@ import { FRENCH_RECEIPT_ABBREVIATIONS } from './abbreviationDictionary.js';
 
 export class ProductMatcherService {
   private aliasCache: Map<string, string> = new Map();
-  private offCache: Map<string, OpenFoodFactsProduct[]> = new Map();
-  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly off: OpenFoodFactsClient;
+  private readonly repo: ProductEnrichmentRepository;
 
-  constructor() {
+  constructor(deps: {
+    offClient?: OpenFoodFactsClient;
+    repository?: ProductEnrichmentRepository;
+  } = {}) {
+    this.off = deps.offClient ?? getDefaultOpenFoodFactsClient();
+    this.repo = deps.repository ?? new ProductEnrichmentRepository(supabaseAdmin);
     this.buildAliasCache();
   }
 
@@ -90,67 +116,94 @@ export class ProductMatcherService {
   }
 
   /**
-   * Search in OpenFoodFacts
+   * Search in OpenFoodFacts via the shared client + durable cache.
+   *
+   * PRP-225 PR2 — replaces the legacy ad-hoc fetch + in-memory 5 min
+   * Map. Cache hits / misses both land in `product_enrichment_cache`
+   * so all OFF callers (this matcher + assistant + scanner) share the
+   * same eviction policy.
    */
   private async matchFromOpenFoodFacts(productName: string): Promise<MatchResult> {
+    const cacheKey = buildSearchCacheKey(productName, 'fr', 5);
+
+    // 1) Try the durable cache first.
+    let cached: OpenFoodFactsProduct[] | null = null;
     try {
-      // Check cache first
-      const cacheKey = productName.toLowerCase();
-      if (this.offCache.has(cacheKey)) {
-        const cached = this.offCache.get(cacheKey)!;
-        if (cached.length > 0) {
-          return {
-            matched: true,
-            confidence: 0.8,
-            method: 'off_api',
-            product: cached[0],
-          };
-        }
+      const { hit, expired } = await this.repo.readCache(cacheKey);
+      if (hit && !expired) {
+        const payload = hit.response_json as { products?: unknown } | unknown[];
+        cached = normaliseCachedProducts(payload);
       }
+    } catch (err) {
+      console.error('[ProductMatcher] cache read failed:', err);
+    }
 
-      // API call to OpenFoodFacts
-      const searchTerms = encodeURIComponent(productName);
-      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${searchTerms}&search_simple=1&action=process&json=1&page_size=5&lc=fr`;
-
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'SmartPantryPro/1.0 (contact@smartpantry.app)',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`OFF API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const products: OpenFoodFactsProduct[] = (data.products || []).map((p: Record<string, unknown>) => ({
-        code: String(p.code || ''),
-        product_name: String(p.product_name || ''),
-        brands: String(p.brands || ''),
-        categories: String(p.categories || ''),
-        nutriscore_grade: String(p.nutriscore_grade || ''),
-        image_url: String(p.image_url || ''),
-      }));
-
-      // Cache the results
-      this.offCache.set(cacheKey, products);
-
-      if (products.length > 0) {
-        // Find the best match
-        const bestMatch = this.findBestMatch(productName, products);
-        return {
-          matched: true,
-          confidence: bestMatch.score,
-          method: 'off_api',
-          product: bestMatch.product,
-        };
-      }
-
-      return { matched: false, confidence: 0, method: 'off_api' };
-    } catch (error) {
-      console.error('[ProductMatcher] OpenFoodFacts search error:', error);
+    if (cached && cached.length > 0) {
+      const bestMatch = this.findBestMatch(productName, cached);
+      return {
+        matched: true,
+        confidence: bestMatch.score,
+        method: 'off_api',
+        product: bestMatch.product,
+      };
+    }
+    if (cached && cached.length === 0) {
+      // Cache hit confirming a miss — no point hitting OFF again.
       return { matched: false, confidence: 0, method: 'off_api' };
     }
+
+    // 2) Cache miss → hit OFF through the shared client.
+    let payloads: OffProductPayload[] = [];
+    try {
+      payloads = await this.off.searchProducts(productName, { limit: 5, locale: 'fr' });
+    } catch (err) {
+      // Persist the error so we don't spam OFF on every receipt line ;
+      // 30 min TTL keeps the cache breathable.
+      const code = err instanceof OpenFoodFactsClientError ? err.code : 'OFF_HTTP';
+      const httpStatus = err instanceof OpenFoodFactsClientError ? err.httpStatus ?? null : null;
+      const ttlMs =
+        code === 'OFF_RATE_LIMITED' ? CACHE_TTL_MS.rateLimited : CACHE_TTL_MS.error;
+      void this.repo
+        .writeCache({
+          cacheKey,
+          query: productName,
+          response: { products: [] },
+          status: 'error',
+          errorCode: code,
+          httpStatus,
+          ttlMs,
+        })
+        .catch((cacheErr) =>
+          console.error('[ProductMatcher] error-cache write failed:', cacheErr)
+        );
+      console.error('[ProductMatcher] OpenFoodFacts search error:', err);
+      return { matched: false, confidence: 0, method: 'off_api' };
+    }
+
+    const products: OpenFoodFactsProduct[] = payloads.map(payloadToReceiptShape);
+    // 3) Persist the result (hit or miss) so the next call short-circuits.
+    void this.repo
+      .writeCache({
+        cacheKey,
+        query: productName,
+        response: { products: payloads },
+        status: products.length > 0 ? 'hit' : 'miss',
+        ttlMs: products.length > 0 ? CACHE_TTL_MS.searchHit : CACHE_TTL_MS.searchAmbiguous,
+      })
+      .catch((cacheErr) =>
+        console.error('[ProductMatcher] cache write failed:', cacheErr)
+      );
+
+    if (products.length > 0) {
+      const bestMatch = this.findBestMatch(productName, products);
+      return {
+        matched: true,
+        confidence: bestMatch.score,
+        method: 'off_api',
+        product: bestMatch.product,
+      };
+    }
+    return { matched: false, confidence: 0, method: 'off_api' };
   }
 
   /**
@@ -459,11 +512,48 @@ export class ProductMatcherService {
   }
 
   /**
-   * Clear caches (useful for testing or memory management)
+   * Re-build the alias cache. The OFF cache lives in
+   * `product_enrichment_cache` and is purged by the repository on TTL
+   * expiry — no in-memory state to drop here anymore.
    */
   clearCaches(): void {
-    this.offCache.clear();
+    this.aliasCache.clear();
+    this.buildAliasCache();
   }
+}
+
+// ---- Helpers --------------------------------------------------------
+
+/**
+ * Project the rich `OffProductPayload` into the legacy 6-field
+ * `OpenFoodFactsProduct` shape consumed by the rest of the receipt
+ * pipeline (Fuse.js indexes, EnrichedProduct mapping).
+ */
+function payloadToReceiptShape(p: OffProductPayload): OpenFoodFactsProduct {
+  return {
+    code: String(p.code ?? ''),
+    product_name: String(p.product_name ?? p.generic_name ?? ''),
+    brands: p.brands,
+    categories: p.categories,
+    nutriscore_grade: p.nutriscore_grade ?? p.nutrition_grades,
+    image_url: p.image_front_url ?? p.image_url,
+  };
+}
+
+/**
+ * Cache rows store the raw `{ products: [...] }` envelope (so we can
+ * reconstitute the original OFF shape on hit). Older rows might still
+ * have a bare array — accept both for forward compatibility.
+ */
+function normaliseCachedProducts(payload: unknown): OpenFoodFactsProduct[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) {
+    return (payload as OffProductPayload[]).map(payloadToReceiptShape);
+  }
+  if (typeof payload === 'object' && payload && Array.isArray((payload as { products?: unknown }).products)) {
+    return ((payload as { products: OffProductPayload[] }).products).map(payloadToReceiptShape);
+  }
+  return [];
 }
 
 // Singleton instance
@@ -474,6 +564,11 @@ export function getProductMatcherService(): ProductMatcherService {
     instance = new ProductMatcherService();
   }
   return instance;
+}
+
+/** Reset the singleton — used by tests + env-reload scenarios. */
+export function resetProductMatcherService(): void {
+  instance = null;
 }
 
 export default ProductMatcherService;
