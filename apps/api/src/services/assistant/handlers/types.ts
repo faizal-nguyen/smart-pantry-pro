@@ -13,6 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { ProductResolver } from '../ProductResolver.js';
+import type { ProductIntelligenceService } from '../../products/ProductIntelligenceService.js';
 
 /**
  * Per-request context passed to every handler. Contains both clients
@@ -24,6 +25,15 @@ export interface ToolExecutionContext {
   userClient: SupabaseClient<any, any, any>;
   adminClient: SupabaseClient<any, any, any>;
   productResolver: ProductResolver;
+  /**
+   * PRP-225 PR5 — Product Intelligence orchestrator used by the new
+   * read tools (`search_product_candidates`, `resolve_product_by_barcode`,
+   * `enrich_product`, `confirm_product_candidate`). Optional so
+   * existing handlers + tests that build a context without OFF stay
+   * compatible ; the product handlers lazily build one from
+   * `adminClient` when this field is undefined.
+   */
+  productIntelligence?: ProductIntelligenceService;
   /**
    * Inventory ids that ProductResolver flagged as ambiguous in this
    * request. Read by RiskClassifier to escalate consume_inventory_items
