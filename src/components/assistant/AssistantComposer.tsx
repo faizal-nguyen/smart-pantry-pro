@@ -171,9 +171,13 @@ export default function AssistantComposer({
             <Mic className="h-4 w-4" aria-hidden="true" />
           )}
         </Button>
+        {/* PRP-237 PR3 — Send adopte le variant `ai` (electric blue) :
+            c'est l'action qui invoque l'assistant, donc accent-ai
+            renforce la presence IA dans le composer. */}
         <Button
           type="submit"
           size="icon"
+          variant="ai"
           disabled={disabled || sending || !text.trim() || isRecording}
           aria-label="Envoyer"
           className="min-w-[44px] min-h-[44px]"

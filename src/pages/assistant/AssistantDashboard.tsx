@@ -86,9 +86,12 @@ const AssistantDashboard: React.FC = () => {
       >
         <header className="flex flex-col space-y-2">
           <div className="flex items-center gap-3">
+            {/* PRP-237 PR3 — Bot icon en accent-ai (electric blue) au
+                lieu de primary saffron : signe la presence IA dans le
+                header de la surface. */}
             <Bot
               className={cn(
-                'text-primary',
+                'text-accent-ai',
                 adaptiveInterface.iconSize === 'large' ? 'w-8 h-8' : 'w-6 h-6',
               )}
               aria-hidden="true"

@@ -69,6 +69,9 @@ export function AssistantFAB({
       ? 'Traitement en cours…'
       : 'Activer l’assistant vocal';
 
+  // PRP-237 PR3 — FAB porte la presence assistant donc utilise
+  // `accent-ai` (electric blue) au lieu du primary saffron. Le red
+  // recording state reste sur `destructive` pour rester semantique.
   return (
     <Button
       type="button"
@@ -79,22 +82,22 @@ export function AssistantFAB({
         'fixed z-40 h-14 w-14 rounded-full shadow-xl transition-all',
         'bottom-6 right-6 sm:bottom-8 sm:right-8',
         isRecording
-          ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-          : 'bg-primary hover:bg-primary/90'
+          ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse'
+          : 'bg-accent-ai text-accent-ai-foreground hover:bg-accent-ai/90'
       )}
       data-testid="assistant-fab"
     >
       {isBusy ? (
-        <Loader2 className="h-6 w-6 animate-spin text-white" />
+        <Loader2 className="h-6 w-6 animate-spin" />
       ) : isRecording ? (
-        <div className="flex flex-col items-center justify-center text-white">
+        <div className="flex flex-col items-center justify-center">
           <Square className="h-5 w-5" fill="currentColor" />
           <span className="mt-0.5 text-[10px] font-mono leading-none">
             {formatMs(recordingMs)}
           </span>
         </div>
       ) : (
-        <Mic className="h-6 w-6 text-white" />
+        <Mic className="h-6 w-6" />
       )}
     </Button>
   );

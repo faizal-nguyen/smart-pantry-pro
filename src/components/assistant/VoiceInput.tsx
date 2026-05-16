@@ -122,8 +122,9 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
             exit={{ opacity: 0, scale: 0.8 }}
             className="absolute inset-0 -z-10"
           >
-            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping" />
-            <div className="absolute inset-0 bg-primary/10 rounded-full animate-ping animation-delay-200" />
+            {/* PRP-237 PR3 — ping rings en accent-ai (assistant presence). */}
+            <div className="absolute inset-0 bg-accent-ai/20 rounded-full animate-ping" />
+            <div className="absolute inset-0 bg-accent-ai/10 rounded-full animate-ping animation-delay-200" />
           </motion.div>
         )}
       </AnimatePresence>

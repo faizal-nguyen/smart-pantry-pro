@@ -46,9 +46,12 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
           isUser ? 'justify-end' : 'justify-start',
         )}
       >
+        {/* PRP-237 PR3 — assistant avatar circle in accent-ai (electric
+            blue) to mark the IA presence, while the user message bubble
+            keeps the saffron primary for the user voice. */}
         {isAssistant && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-ai/10 flex items-center justify-center">
+            <Bot className="h-4 w-4 text-accent-ai" aria-hidden="true" />
           </div>
         )}
         <div
