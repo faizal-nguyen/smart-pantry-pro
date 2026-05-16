@@ -326,7 +326,7 @@ describe('ReadMealPlanHandler', () => {
 });
 
 describe('FindCookableRecipesHandler', () => {
-  it('excludes recipes with any unlinked essential ingredient (V1 strict)', async () => {
+  it('returns recipes with unlinked essentials flagged (best-effort estimate)', async () => {
     const { client } = makeClient({
       routes: {
         recipes: {
@@ -382,9 +382,51 @@ describe('FindCookableRecipesHandler', () => {
     });
 
     const result = await new FindCookableRecipesHandler().execute(makeCtx(client), {});
-    expect(result.result.recipes).toHaveLength(1);
+    expect(result.result.recipes).toHaveLength(2);
+    // Fully cookable first (missing=0, unlinked=0).
     expect(result.result.recipes[0].id).toBe('r-good');
     expect(result.result.recipes[0].missing_count).toBe(0);
+    expect(result.result.recipes[0].unlinked).toBe(false);
+    expect(result.result.recipes[0].unlinked_count).toBe(0);
+    // Legacy unlinked recipe surfaces with unlinked=true.
+    expect(result.result.recipes[1].id).toBe('r-legacy');
+    expect(result.result.recipes[1].unlinked).toBe(true);
+    expect(result.result.recipes[1].unlinked_count).toBe(1);
+  });
+
+  it('drops unlinked recipes when caller passes max_missing_ingredients=0', async () => {
+    // Strict mode is still reachable explicitly — used by callers that
+    // genuinely want "you have everything for sure".
+    const { client } = makeClient({
+      routes: {
+        recipes: {
+          data: [
+            {
+              id: 'r-legacy',
+              name: 'Vieille recette',
+              prep_time: 5,
+              cook_time: 0,
+              image_url: null,
+              recipe_ingredients: [
+                {
+                  id: 'i3',
+                  ingredient_name: 'Truc',
+                  quantity: 1,
+                  inventory_product_id: null,
+                  is_essential: true,
+                },
+              ],
+            },
+          ],
+        },
+        inventory: { data: [] },
+      },
+    });
+
+    const result = await new FindCookableRecipesHandler().execute(makeCtx(client), {
+      max_missing_ingredients: 0,
+    });
+    expect(result.result.recipes).toHaveLength(0);
   });
 
   it('reports missing ingredients within max_missing_ingredients tolerance', async () => {
@@ -423,11 +465,13 @@ describe('FindCookableRecipesHandler', () => {
       },
     });
 
-    // max_missing = 0 → excluded
-    const r0 = await new FindCookableRecipesHandler().execute(makeCtx(client), {});
+    // max_missing = 0 → excluded (1 missing > 0)
+    const r0 = await new FindCookableRecipesHandler().execute(makeCtx(client), {
+      max_missing_ingredients: 0,
+    });
     expect(r0.result.recipes).toHaveLength(0);
 
-    // max_missing = 1 → included with missing_ingredients reported
+    // Default (max_missing = 3) → included with missing_ingredients reported
     const { client: client2 } = makeClient({
       routes: {
         recipes: {
@@ -460,11 +504,11 @@ describe('FindCookableRecipesHandler', () => {
         inventory: { data: [{ product_id: 'p-riz', quantity: 500 }] },
       },
     });
-    const r1 = await new FindCookableRecipesHandler().execute(makeCtx(client2), {
-      max_missing_ingredients: 1,
-    });
+    const r1 = await new FindCookableRecipesHandler().execute(makeCtx(client2), {});
     expect(r1.result.recipes).toHaveLength(1);
     expect(r1.result.recipes[0].missing_ingredients).toEqual(['Bouillon']);
+    expect(r1.result.recipes[0].missing_count).toBe(1);
+    expect(r1.result.recipes[0].unlinked).toBe(false);
   });
 
   it('respects max_prep_time filter', async () => {

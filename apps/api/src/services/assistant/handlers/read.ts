@@ -86,8 +86,18 @@ export interface CookableRecipeView {
   cook_time: number | null;
   image_url: string | null;
   total_essential: number;
+  /** Essentials currently linked to inventory_product_id. */
+  linked_essential: number;
+  /** Essentials we know we lack (in linked subset only). */
   missing_count: number;
   missing_ingredients: string[];
+  /**
+   * True when at least one essential ingredient is unlinked
+   * (`inventory_product_id IS NULL`). Cookability is a best-effort estimate.
+   */
+  unlinked: boolean;
+  /** Count of essentials whose inventory link is missing. */
+  unlinked_count: number;
 }
 
 // ---- helpers ---------------------------------------------------------
@@ -378,9 +388,18 @@ interface InventorySnapshotRow {
 }
 
 /**
- * V1 strict (PRP-221 §5.1) : only recipes whose essential ingredients
- * all have `inventory_product_id IS NOT NULL` are eligible. Legacy
- * recipes with unlinked ingredients are silently excluded.
+ * Match recipes against the user's inventory. Two evolutions vs PRP-221 §5.1:
+ *
+ *  - Default `max_missing_ingredients` is 3 (was 0). Hard-zero defaulted to
+ *    "user has every single ingredient at the right quantity" which almost
+ *    never happens in practice, so the LLM saw `recipes: []` and refused
+ *    to propose anything.
+ *  - Recipes with unlinked essentials (`inventory_product_id IS NULL`) are
+ *    no longer silently dropped — they are returned with `unlinked: true`
+ *    and `unlinked_count`. Cookability becomes a best-effort estimate
+ *    rather than a binary, and the LLM/UI can mark them as approximate.
+ *    Most user-imported recipes (URL/OCR) ship without product linkage,
+ *    so the strict path was excluding them en masse.
  */
 export class FindCookableRecipesHandler
   implements ToolHandler<FindCookableArgs, { recipes: CookableRecipeView[] }>
@@ -389,7 +408,7 @@ export class FindCookableRecipesHandler
     ctx: ToolExecutionContext,
     args: FindCookableArgs
   ): Promise<ToolExecutionResult<{ recipes: CookableRecipeView[] }>> {
-    const maxMissing = args.max_missing_ingredients ?? 0;
+    const maxMissing = args.max_missing_ingredients ?? 3;
     const maxPrep = args.max_prep_time;
 
     const recipesQuery = ctx.userClient
@@ -424,17 +443,19 @@ export class FindCookableRecipesHandler
       const essentials = ings.filter((i) => i.is_essential !== false);
       if (essentials.length === 0) continue;
 
-      // V1 strict: drop recipes with any unlinked essential ingredient
-      const hasUnlinked = essentials.some((i) => !i.inventory_product_id);
-      if (hasUnlinked) continue;
+      const linked = essentials.filter((i) => i.inventory_product_id);
+      const unlinkedCount = essentials.length - linked.length;
 
       const missing: string[] = [];
-      for (const ing of essentials) {
+      for (const ing of linked) {
         const have = inventoryByProduct.get(ing.inventory_product_id!) ?? 0;
         if (have < ing.quantity) missing.push(ing.ingredient_name);
       }
 
-      if (missing.length > maxMissing) continue;
+      // Effective missing = known-missing (linked subset) + unknowns we
+      // cannot verify. Treats "unlinked" as "we don't know if you have it".
+      const effectiveMissing = missing.length + unlinkedCount;
+      if (effectiveMissing > maxMissing) continue;
 
       out.push({
         id: r.id,
@@ -443,12 +464,22 @@ export class FindCookableRecipesHandler
         cook_time: r.cook_time,
         image_url: r.image_url,
         total_essential: essentials.length,
+        linked_essential: linked.length,
         missing_count: missing.length,
         missing_ingredients: missing,
+        unlinked: unlinkedCount > 0,
+        unlinked_count: unlinkedCount,
       });
     }
 
-    out.sort((a, b) => a.missing_count - b.missing_count || a.name.localeCompare(b.name));
+    // Fully cookable first (no missing, no unknowns), then by missing count,
+    // then alphabetical.
+    out.sort((a, b) => {
+      const aScore = a.missing_count + a.unlinked_count;
+      const bScore = b.missing_count + b.unlinked_count;
+      if (aScore !== bScore) return aScore - bScore;
+      return a.name.localeCompare(b.name);
+    });
 
     return { result: { recipes: out.slice(0, 20) } };
   }
