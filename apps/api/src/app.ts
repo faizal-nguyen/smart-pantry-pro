@@ -197,6 +197,27 @@ export function createApp(options: CreateAppOptions = {}): Express {
         console.error('✗ Failed to load v1Router:', error);
         console.warn('⚠️  Repository-pattern routes are not available');
       });
+
+    // === Admin routes (token-protected, service-role ops) ===
+    Promise.all([
+      import('express'),
+      import('./routes/admin.deletions.routes.js'),
+      import('./middleware/adminAuth.middleware.js'),
+      import('./config/supabase.js'),
+    ])
+      .then(([expressMod, deletionsMod, authMod, supabaseMod]) => {
+        const adminRouter = expressMod.Router();
+        adminRouter.use(authMod.createAdminAuthMiddleware());
+        adminRouter.use(
+          '/deletions',
+          deletionsMod.createAdminDeletionsRouter(supabaseMod.supabaseAdmin),
+        );
+        app.use('/api/admin', adminRouter);
+        console.log('✓ adminRouter loaded');
+      })
+      .catch((error) => {
+        console.error('✗ Failed to load adminRouter:', error);
+      });
   }
 
   // 404 handler (registered last, before error handler)
