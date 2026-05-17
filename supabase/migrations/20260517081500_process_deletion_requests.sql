@@ -30,6 +30,80 @@
 -- on fait les DELETE explicites en SQL ici.
 
 -- ============================================================================
+-- 0. Préludes idempotents — tables + RLS si la migration legacy
+--    `20250105000009_add_privacy_tables.sql` n'a jamais tourné sur
+--    cette env (Supabase migration history désynchro avec le repo).
+--    Tout est en `IF NOT EXISTS` / `DROP POLICY IF EXISTS` pour
+--    rester idempotent.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.user_privacy_settings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+  settings JSONB NOT NULL DEFAULT '{
+    "hasConsent": false,
+    "allowAnalytics": false,
+    "saveHistory": true,
+    "allowImageProcessing": true,
+    "shareAnonymizedData": false,
+    "batterySaver": false,
+    "dataRetention": "standard"
+  }'::jsonb,
+  consent_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.data_deletion_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  completed_at TIMESTAMP WITH TIME ZONE,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_privacy_settings_user
+  ON public.user_privacy_settings(user_id);
+CREATE INDEX IF NOT EXISTS idx_deletion_requests_status_requested
+  ON public.data_deletion_requests(status, requested_at);
+
+ALTER TABLE public.user_privacy_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_deletion_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS user_privacy_settings_select_own ON public.user_privacy_settings;
+CREATE POLICY user_privacy_settings_select_own
+  ON public.user_privacy_settings
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS user_privacy_settings_insert_own ON public.user_privacy_settings;
+CREATE POLICY user_privacy_settings_insert_own
+  ON public.user_privacy_settings
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS user_privacy_settings_update_own ON public.user_privacy_settings;
+CREATE POLICY user_privacy_settings_update_own
+  ON public.user_privacy_settings
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS data_deletion_requests_insert_own ON public.data_deletion_requests;
+CREATE POLICY data_deletion_requests_insert_own
+  ON public.data_deletion_requests
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS data_deletion_requests_select_own ON public.data_deletion_requests;
+CREATE POLICY data_deletion_requests_select_own
+  ON public.data_deletion_requests
+  FOR SELECT TO authenticated
+  USING (auth.uid() = user_id);
+
+-- DELETE / UPDATE : pas de policy → service_role only (worker).
+
+-- ============================================================================
 -- 1. Ajouter la colonne `error` pour tracer les échecs
 -- ============================================================================
 
