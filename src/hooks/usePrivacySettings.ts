@@ -117,16 +117,21 @@ export function usePrivacySettings() {
     }
 
     try {
-      // Delete from database
-      await supabase.rpc('delete_user_data', { user_id: user.id });
-      
+      // Le RPC SECURITY DEFINER `delete_user_data(p_user_id UUID)` est
+      // durci (migration 20260517071100) : il rejette tout call où
+      // `auth.uid() != p_user_id`. Le param name côté SQL est
+      // `p_user_id` — passer `{ user_id }` envoyait NULL et ne
+      // supprimait rien côté legit (bug silencieux pré-hotfix).
+      const { error: rpcError } = await supabase.rpc('delete_user_data', { p_user_id: user.id });
+      if (rpcError) throw rpcError;
+
       // Clear local storage
       localStorage.clear();
       sessionStorage.clear();
-      
+
       // Reset settings
       setSettings(DEFAULT_SETTINGS);
-      
+
       toast.success('Toutes vos données ont été supprimées');
     } catch (error) {
       console.error('Error deleting user data:', error);
@@ -142,8 +147,13 @@ export function usePrivacySettings() {
     }
 
     try {
-      const { data, error } = await supabase.rpc('export_user_data', { 
-        user_id: user.id 
+      // Param name SQL = `p_user_id` (cf. migration hotfix
+      // 20260517071100). Passer `user_id` envoyait NULL côté Postgres,
+      // l'export retournait des objets `null` partout. Avec le param
+      // correct + le guard `auth.uid() = p_user_id`, le call retourne
+      // uniquement les données du caller authentifié.
+      const { data, error } = await supabase.rpc('export_user_data', {
+        p_user_id: user.id
       });
 
       if (error) throw error;
