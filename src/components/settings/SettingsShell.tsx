@@ -32,7 +32,7 @@ import {
 import AccountSection from './AccountSection';
 import AppearanceSection from './AppearanceSection';
 import AssistantMemorySection from './AssistantMemorySection';
-import CookingPreferencesStub from './CookingPreferencesStub';
+import CookingPreferencesSection from './CookingPreferencesSection';
 import DataPrivacySection from './DataPrivacySection';
 import NotificationsSection from './NotificationsSection';
 import NutritionWellbeingStub from './NutritionWellbeingStub';
@@ -106,7 +106,7 @@ export default function SettingsShell({ user }: SettingsShellProps) {
           <AssistantMemorySection />
         </TabsContent>
         <TabsContent value="cooking" className="m-0">
-          <CookingPreferencesStub />
+          <CookingPreferencesSection />
         </TabsContent>
         <TabsContent value="nutrition" className="m-0">
           <NutritionWellbeingStub />
