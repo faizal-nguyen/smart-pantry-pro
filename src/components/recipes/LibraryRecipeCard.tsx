@@ -38,9 +38,9 @@ export default function LibraryRecipeCard({ recipe, viewMode }: LibraryRecipeCar
             {image ? (
               <img src={image} alt={title} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+              <div className="w-full h-full bg-surface-muted flex items-center justify-center">
                 <ChefHat
-                  className={`${viewMode === 'list' ? 'h-6 w-6' : 'h-12 w-12'} text-blue-400`}
+                  className={`${viewMode === 'list' ? 'h-6 w-6' : 'h-12 w-12'} text-muted-foreground`}
                 />
               </div>
             )}
@@ -52,11 +52,11 @@ export default function LibraryRecipeCard({ recipe, viewMode }: LibraryRecipeCar
             </h3>
 
             {recipe.personal_notes && (
-              <p className="text-gray-600 text-sm mb-2 line-clamp-2">{recipe.personal_notes}</p>
+              <p className="text-muted-foreground text-sm mb-2 line-clamp-2">{recipe.personal_notes}</p>
             )}
 
             <div className="flex items-center gap-2 flex-wrap">
-              {!recipe.is_from_catalog && <Badge className="bg-purple-500 text-white">Custom</Badge>}
+              {!recipe.is_from_catalog && <Badge variant="secondary">Custom</Badge>}
 
               {recipe.collections.map(collection => (
                 <Badge key={collection} variant="outline" className="text-xs">

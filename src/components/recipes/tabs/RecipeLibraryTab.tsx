@@ -26,30 +26,29 @@ function StatCard({
   icon: Icon,
   label,
   value,
-  color,
+  accent = 'neutral',
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
-  color: 'blue' | 'purple' | 'green' | 'red';
+  accent?: 'neutral' | 'destructive' | 'saffron';
 }) {
-  const colorClasses = {
-    blue: 'bg-blue-100 text-blue-600',
-    purple: 'bg-purple-100 text-purple-600',
-    green: 'bg-green-100 text-green-600',
-    red: 'bg-red-100 text-red-600',
+  const iconClasses = {
+    neutral: 'text-foreground',
+    destructive: 'text-destructive',
+    saffron: 'text-saffron',
   } as const;
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-sm transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
-            <Icon className="h-5 w-5" />
+          <div className="p-2 rounded-md bg-surface-muted">
+            <Icon className={`h-5 w-5 ${iconClasses[accent]}`} />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{value}</p>
-            <p className="text-sm text-gray-600">{label}</p>
+            <p className="text-2xl font-semibold text-foreground">{value}</p>
+            <p className="text-sm text-muted-foreground">{label}</p>
           </div>
         </div>
       </CardContent>
@@ -62,10 +61,10 @@ function LibrarySkeleton() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {Array.from({ length: 8 }).map((_, i) => (
         <Card key={i} className="h-full">
-          <div className="w-full h-44 md:h-52 lg:h-56 bg-gray-200 animate-pulse" />
+          <div className="w-full h-44 md:h-52 lg:h-56 bg-surface-muted animate-pulse" />
           <CardContent className="p-4 space-y-3">
-            <div className="h-4 bg-gray-200 rounded animate-pulse" />
-            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
+            <div className="h-4 bg-surface-muted rounded animate-pulse" />
+            <div className="h-3 bg-surface-muted rounded animate-pulse w-3/4" />
           </CardContent>
         </Card>
       ))}
@@ -106,17 +105,17 @@ export default function RecipeLibraryTab({
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
-        <StatCard icon={BookOpen} label="Total" value={stats.total} color="blue" />
-        <StatCard icon={Heart} label="Favorites" value={stats.favorites} color="red" />
-        <StatCard icon={ChefHat} label="Cuisinées" value={stats.cooked} color="green" />
-        <StatCard icon={Plus} label="Personnelles" value={stats.custom} color="purple" />
+        <StatCard icon={BookOpen} label="Total" value={stats.total} />
+        <StatCard icon={Heart} label="Favorites" value={stats.favorites} accent="destructive" />
+        <StatCard icon={ChefHat} label="Cuisinées" value={stats.cooked} accent="saffron" />
+        <StatCard icon={Plus} label="Personnelles" value={stats.custom} />
       </motion.div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="bg-white rounded-2xl shadow-lg p-6"
+        className="bg-surface border border-border rounded-lg p-6"
       >
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex gap-3">

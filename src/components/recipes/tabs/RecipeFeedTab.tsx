@@ -41,10 +41,10 @@ function FeedSkeleton() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {Array.from({ length: 8 }).map((_, i) => (
         <Card key={i} className="h-full">
-          <div className="w-full h-44 md:h-52 lg:h-56 bg-gray-200 animate-pulse" />
+          <div className="w-full h-44 md:h-52 lg:h-56 bg-surface-muted animate-pulse" />
           <CardContent className="p-4 space-y-3">
-            <div className="h-4 bg-gray-200 rounded animate-pulse" />
-            <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4" />
+            <div className="h-4 bg-surface-muted rounded animate-pulse" />
+            <div className="h-3 bg-surface-muted rounded animate-pulse w-3/4" />
           </CardContent>
         </Card>
       ))}
@@ -77,16 +77,16 @@ export default function RecipeFeedTab({
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-lg p-6"
+        className="bg-surface border border-border rounded-lg p-6"
       >
         <div className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
             <Input
               placeholder="Rechercher dans le catalogue..."
               value={searchQuery}
               onChange={e => handleSearch(e.target.value)}
-              className="pl-10 h-12 border-gray-200 focus:border-orange-500"
+              className="pl-10 h-12"
             />
           </div>
 
@@ -111,8 +111,8 @@ export default function RecipeFeedTab({
           transition={{ delay: 0.1 }}
         >
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-6 w-6 text-orange-500" />
-            <h2 className="text-2xl font-bold text-gray-900">Tendances du moment</h2>
+            <TrendingUp className="h-6 w-6 text-saffron" aria-hidden="true" />
+            <h2 className="text-2xl font-semibold text-foreground">Tendances du moment</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -135,7 +135,7 @@ export default function RecipeFeedTab({
         transition={{ delay: 0.2 }}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Catalogue ({totalCount})</h2>
+          <h2 className="text-2xl font-semibold text-foreground">Catalogue ({totalCount})</h2>
         </div>
 
         {isLoading ? (
