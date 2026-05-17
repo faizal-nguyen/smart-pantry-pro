@@ -227,9 +227,11 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
     isMainSection: false,
     subItems: [
       {
+        // PRP-235 PR1 — pointe directement vers la section deep-link
+        // pour éviter la redirection inutile.
         id: 'settings-appearance',
         label: 'Apparence',
-        path: '/settings/appearance',
+        path: '/settings?section=appearance',
         icon: Palette,
         description: 'Personnalisation de l\'interface'
       }

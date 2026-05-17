@@ -84,10 +84,12 @@ const baseRoutes: RouteObject[] = [
   { path: "/insights", element: withSuspense(InsightsPage) },
   { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
 
-  // Settings — PRP-230 Commit 2 : ancrage `?section=appearance` reporté
-  // (cas d'usage marginal) ; la sous-route legacy redirige vers /settings.
+  // Settings — PRP-235 PR1 : `/settings` est désormais sectionné via
+  // `?section=...` (geré par `useSettingsSection`). L'ancien lien
+  // `/settings/appearance` redirige vers la section Apparence pour
+  // préserver les favoris utilisateurs.
   { path: "/settings", element: withSuspense(Settings) },
-  { path: "/settings/appearance", element: <Navigate to="/settings" replace /> },
+  { path: "/settings/appearance", element: <Navigate to="/settings?section=appearance" replace /> },
 
   // Redirections vers routes coeur. /games/* et /shopping/store-mode étaient
   // exposées dans la nav avant PRP-222 — on garde un redirect minimal pour
