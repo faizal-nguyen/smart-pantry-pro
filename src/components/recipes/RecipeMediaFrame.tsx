@@ -28,8 +28,8 @@ export default function RecipeMediaFrame({ imageUrl, alt }: RecipeMediaFrameProp
             className="w-full max-h-[72vh] md:max-h-[560px] object-cover rounded-lg shadow-sm"
           />
         ) : (
-          <div className="w-full h-64 md:h-[420px] bg-gradient-to-br from-orange-100 to-red-100 rounded-lg flex items-center justify-center">
-            <ChefHat className="h-16 w-16 text-orange-400" aria-hidden="true" />
+          <div className="w-full h-64 md:h-[420px] bg-surface-muted rounded-lg flex items-center justify-center">
+            <ChefHat className="h-16 w-16 text-muted-foreground" aria-hidden="true" />
           </div>
         )}
       </div>

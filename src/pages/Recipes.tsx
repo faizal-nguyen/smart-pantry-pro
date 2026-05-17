@@ -11,8 +11,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { BookOpen, ChefHat, Inbox, Plus, Sparkles } from 'lucide-react';
+import { BookOpen, Inbox, Plus, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -110,23 +109,16 @@ export default function Recipes() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      <div className="container mx-auto px-4 py-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <ChefHat className="h-8 w-8 text-orange-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-              Recettes
-            </h1>
-          </div>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Votre univers culinaire : explorez le catalogue ou gérez votre bibliothèque personnelle
+    <div className="min-h-screen bg-surface">
+      <div className="container mx-auto px-4 pt-8 pb-6 md:pt-10">
+        <header className="mb-6">
+          <h1 className="text-3xl md:text-4xl font-semibold text-foreground tracking-tight">
+            Recettes
+          </h1>
+          <p className="mt-1 text-sm md:text-base text-muted-foreground">
+            Explore, sauvegarde, importe — tout ton répertoire culinaire en un seul endroit.
           </p>
-        </motion.div>
+        </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-8 h-14">

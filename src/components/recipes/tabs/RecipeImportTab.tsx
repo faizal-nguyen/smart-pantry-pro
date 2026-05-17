@@ -6,7 +6,6 @@
  * remontent au parent (Recipes.tsx) qui gère les modales globales.
  */
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Heart, Plus, Search, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -28,26 +27,24 @@ export default function RecipeImportTab({
 }: RecipeImportTabProps) {
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-8"
-      >
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Ajouter des recettes</h2>
-        <p className="text-gray-600">Importez depuis le web ou créez vos propres recettes</p>
-      </motion.div>
+      <div className="mb-2">
+        <h2 className="text-2xl font-semibold text-foreground mb-1">Ajouter des recettes</h2>
+        <p className="text-muted-foreground text-sm md:text-base">
+          Importez depuis le web ou créez vos propres recettes.
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="hover:shadow-sm transition-shadow">
           <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto">
-                <Heart className="h-8 w-8 text-white" />
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
+                <Heart className="h-6 w-6 text-saffron" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2">Instagram</h3>
-                <p className="text-gray-600 text-sm">
-                  Importez des recettes depuis les vidéos Instagram
+                <h3 className="font-semibold text-lg mb-1 text-foreground">Instagram</h3>
+                <p className="text-muted-foreground text-sm">
+                  Importez des recettes depuis les vidéos Instagram.
                 </p>
               </div>
               <InstagramVideoExtractor
@@ -64,16 +61,16 @@ export default function RecipeImportTab({
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="hover:shadow-sm transition-shadow">
           <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto">
-                <Search className="h-8 w-8 text-white" />
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
+                <Search className="h-6 w-6 text-foreground" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2">Site web</h3>
-                <p className="text-gray-600 text-sm">
-                  Importez depuis n'importe quel site de recettes
+                <h3 className="font-semibold text-lg mb-1 text-foreground">Site web</h3>
+                <p className="text-muted-foreground text-sm">
+                  Importez depuis n'importe quel site de recettes.
                 </p>
               </div>
               <Button onClick={onOpenAddDialog} className="w-full">
@@ -84,15 +81,17 @@ export default function RecipeImportTab({
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
+        <Card className="hover:shadow-sm transition-shadow">
           <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mx-auto">
-                <TrendingUp className="h-8 w-8 text-white" />
+            <div className="space-y-4">
+              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-tomato" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg mb-2">Réseaux sociaux</h3>
-                <p className="text-gray-600 text-sm">TikTok, YouTube et autres plateformes</p>
+                <h3 className="font-semibold text-lg mb-1 text-foreground">Réseaux sociaux</h3>
+                <p className="text-muted-foreground text-sm">
+                  TikTok, YouTube et autres plateformes.
+                </p>
               </div>
               <SocialImportCard
                 onImport={async recipe => onRecipeExtracted(recipe)}

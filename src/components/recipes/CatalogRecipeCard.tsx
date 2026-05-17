@@ -58,11 +58,11 @@ export default function CatalogRecipeCard({
             />
           ) : (
             <div
-              className={`w-full bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center ${
+              className={`w-full bg-surface-muted flex items-center justify-center ${
                 compact ? 'h-32' : 'h-44 md:h-52 lg:h-56'
               }`}
             >
-              <ChefHat className={`${compact ? 'h-8 w-8' : 'h-12 w-12'} text-orange-400`} />
+              <ChefHat className={`${compact ? 'h-8 w-8' : 'h-12 w-12'} text-muted-foreground`} />
             </div>
           )}
 
@@ -72,8 +72,8 @@ export default function CatalogRecipeCard({
               variant={isInLibrary ? 'secondary' : 'default'}
               className={`h-10 w-10 p-0 rounded-full ${
                 isInLibrary
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-white text-gray-900 hover:bg-gray-100'
+                  ? 'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                  : 'bg-surface text-foreground hover:bg-surface-muted'
               }`}
               onClick={() => !isInLibrary && onAddToLibrary(recipe.id, recipe.title)}
               disabled={!!isInLibrary || isAdding}
@@ -86,14 +86,14 @@ export default function CatalogRecipeCard({
 
         <CardContent className={compact ? 'p-3' : 'p-4'}>
           <h3
-            className={`font-bold mb-2 line-clamp-2 group-hover:text-orange-600 transition-colors ${
+            className={`font-semibold mb-2 line-clamp-2 text-foreground group-hover:text-saffron transition-colors ${
               compact ? 'text-sm' : 'text-lg'
             }`}
           >
             {recipe.title}
           </h3>
 
-          <div className="flex items-center gap-4 mb-3 text-sm text-gray-500">
+          <div className="flex items-center gap-4 mb-3 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Clock className="h-4 w-4" />
               {formatCookingTime(recipe.prep_time, recipe.cook_time)}
