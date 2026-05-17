@@ -1,14 +1,16 @@
 /**
- * PRP-235 PR1 — AppearanceSection.
+ * PRP-235 PR6 — AppearanceSection (theme V1).
  *
- * Apparence V1 minimale : toggle theme light/dark via `useTheme`.
- * Déclassé en PR1 : Material You demo (bouton vers une route
- * inexistante) et badge Langue « Bientôt » — alignés avec le
- * principe PRP-235 « no fake feature ».
+ * Inchangé depuis PR1 : theme toggle light/dark via `useTheme`. Le
+ * design system global vit dans PRP-237 (tokens), Smart Pantry
+ * respecte automatiquement les préférences OS d'accessibilité
+ * (`prefers-reduced-motion`, `prefers-contrast`) via les classes CSS.
  *
- * PRP-237 gère le design system global (tokens, palette). Si une
- * preference de densité ou de palette devient stable plus tard, ce
- * fichier l'expose ici en V2 sans toucher au wiring shell.
+ * **Out of scope** : afficher les préférences OS détectées
+ * (reduced-motion, high-contrast, large-text). `useAccessibility.ts`
+ * est cassé sur `main` (fichier malformé avec `\n` littéraux à
+ * partir de L68, jamais importé donc jamais détecté). Fix de ce
+ * fichier reste hors scope PR6 — sera traité en suivi dédié.
  */
 import React from 'react';
 import { Moon, Palette, Sun } from 'lucide-react';
@@ -40,7 +42,9 @@ export default function AppearanceSection() {
           Apparence
         </CardTitle>
         <CardDescription>
-          Personnalise l&apos;interface selon ton confort visuel.
+          Personnalise l&apos;interface selon ton confort visuel. Smart
+          Pantry respecte automatiquement les préférences
+          d&apos;accessibilité de ton système.
         </CardDescription>
       </CardHeader>
       <CardContent>
