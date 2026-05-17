@@ -15,3 +15,4 @@ export { createShoppingRouter } from './shopping.routes.js';
 export { createUsersRouter } from './users.routes.js';
 export { createReceiptsRouter } from './receipts.js';
 export { createRecommendationsRouter } from './recommendations.routes.js';
+export { createSettingsPrivacyRouter } from './settings.privacy.routes.js';
