@@ -40,21 +40,43 @@ interface RecipeSourceCardProps {
 const LOW_CONFIDENCE_THRESHOLD = 0.6;
 
 /**
+ * Best-effort detection of the source platform from a URL when the
+ * recipe wasn't tagged at import time (legacy `recipes` rows, manual
+ * SQL seeds, etc.). 2026-05-18 — seeded recipes (Ayam Percik, Tiv
+ * set) carry only `source_url` and used to hide this card entirely.
+ */
+function inferPlatformFromUrl(url: string | null | undefined): SourcePlatform {
+  if (!url) return 'unknown';
+  const lower = url.toLowerCase();
+  if (lower.includes('instagram.com')) return 'instagram';
+  if (lower.includes('tiktok.com')) return 'tiktok';
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'youtube';
+  if (lower.includes('pinterest.')) return 'pinterest';
+  return 'web';
+}
+
+/**
  * Source provenance card for the recipe detail view (PRP-220.17).
  *
  * Renders the originating platform, author, import date, and a hard
- * link back to the source URL. Hidden entirely when the recipe was
- * created manually (no `source_platform` or platform === 'manual')
- * so existing manually-typed recipes don't grow a confusing
- * "Imported from manual" label.
+ * link back to the source URL. Hidden entirely when both `source_url`
+ * and `source_platform` are absent — i.e. truly hand-typed recipes.
+ * When only a URL is present, the platform is inferred from the host.
  *
  * Outbound link is `target="_blank"` + `rel="noopener noreferrer
  * nofollow"` so the user-supplied URL can't break out of the SPA or
  * leak referrer data.
  */
 export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, className }) => {
-  const platform = recipe.source_platform ?? null;
-  if (!platform || platform === 'manual') return null;
+  const rawPlatform = (recipe.source_platform ?? null) as SourcePlatform | string | null;
+  // Hide only when both signals are missing. If we have a URL alone
+  // (seeded rows, legacy imports before PRP-220.16), infer and show.
+  if ((!rawPlatform || rawPlatform === 'manual') && !recipe.source_url) return null;
+
+  const platform: SourcePlatform =
+    rawPlatform && rawPlatform !== 'manual'
+      ? (rawPlatform as SourcePlatform)
+      : inferPlatformFromUrl(recipe.source_url ?? null);
 
   const meta = recipe.source_metadata ?? {};
   const confidence = typeof meta.confidence === 'number' ? meta.confidence : null;

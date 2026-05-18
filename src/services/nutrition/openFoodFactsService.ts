@@ -28,7 +28,11 @@ interface OpenFoodFactsProduct {
 
 export class OpenFoodFactsService {
   private static instance: OpenFoodFactsService;
-  private baseUrl = 'https://world.openfoodfacts.org/api/v2';
+  // Route through the API server proxy (apps/api/src/routes/proxy.ts).
+  // Bypasses OFF's inconsistent CORS handling for browser origins and
+  // lets the backend send the descriptive User-Agent OFF requires.
+  // The Vite dev proxy forwards `/api/*` to the API server on :3030.
+  private baseUrl = '/api/proxy/openfoodfacts';
   private cache = new Map<string, { data: any; timestamp: number }>();
   private cacheExpiry = 5 * 60 * 1000; // 5 minutes pour les tests
 
@@ -58,25 +62,23 @@ export class OpenFoodFactsService {
     if (cached) return cached;
 
     try {
-      // Inclure tous les champs nutritionnels possibles et chercher en français
-      // Utiliser des paramètres plus stricts pour obtenir des résultats pertinents
+      // The backend proxy fills in the OFF-specific defaults
+      // (`search_simple`, `sort_by`, etc.). We only forward the query,
+      // the page size and the field list we actually need.
       const searchUrl = `${this.baseUrl}/search?` + new URLSearchParams({
-        search_terms: query,
-        search_simple: '1',
-        action: 'process',
-        json: '1',
+        q: query,
         page_size: '50',
-        page: '1',
-        sort_by: 'unique_scans_n',
         fields: 'code,product_name,generic_name,brands,categories,nutriments,nutriscore_grade,completeness'
       }).toString();
-      
+
       console.log(`   🌐 URL de recherche: ${searchUrl}`);
-      
+
       const response = await fetch(searchUrl);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch from OpenFoodFacts');
+        // Carry the HTTP status into the error message so the catch
+        // block can downgrade transient 5xx/429 noise (cf. notes there).
+        throw new Error(`Failed to fetch from OpenFoodFacts (HTTP ${response.status})`);
       }
 
       const data = await response.json();
@@ -138,7 +140,19 @@ export class OpenFoodFactsService {
       this.setCache(cacheKey, mappedProducts);
       return mappedProducts;
     } catch (error) {
-      console.error('Error searching product:', error);
+      // Transient upstream failures (5xx, 429, network) are expected
+      // for OFF and already handled gracefully by the caller (the
+      // ingredient falls back to the local DB or is flagged "missing
+      // nutritional data"). We downgrade the log so the console stays
+      // readable; the proxy already negative-caches the failure so we
+      // won't re-hammer OFF in the next 30s.
+      const message = error instanceof Error ? error.message : String(error);
+      const isTransient = /Failed to fetch from OpenFoodFacts|HTTP 5\d\d|HTTP 429|Failed to fetch|NetworkError/i.test(message);
+      if (isTransient) {
+        console.debug('OpenFoodFacts transient miss (cached):', message);
+      } else {
+        console.error('Error searching product:', error);
+      }
       return [];
     }
   }

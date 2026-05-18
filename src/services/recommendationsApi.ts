@@ -74,5 +74,5 @@ export interface RecommendationResultView {
 export function postRecommendationSuggest(
   input: SuggestRecommendationsInput = {},
 ): Promise<RecommendationResultView> {
-  return apiPost<RecommendationResultView>('/api/v1/recommendations/suggest', input);
+  return apiPost<RecommendationResultView>('/v1/recommendations/suggest', input);
 }
