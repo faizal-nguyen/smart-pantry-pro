@@ -12,12 +12,13 @@
  * spinner global, pas de page blanche si un bloc tombe.
  */
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { ChefHat } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
+import { BookOpen, ChefHat, Plus } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
 
 import { supabase } from '@/integrations/supabase/client';
 import AppNavigation from '@/components/navigation/AppNavigation';
+import { Button } from '@/components/ui/button';
 import { PageLoader } from '@/components/layout/PageLoader';
 import TodayContinuePanel from '@/components/kitchen/TodayContinuePanel';
 import TodayRecommendationsPanel from '@/components/kitchen/TodayRecommendationsPanel';
@@ -47,19 +48,36 @@ const KitchenDashboard: React.FC = () => {
 
   return (
     <AppNavigation user={user}>
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center gap-3">
-            <ChefHat className="text-primary w-6 h-6" />
-            <h1 className="font-bold text-foreground text-3xl">
-              Aujourd&apos;hui en cuisine
-            </h1>
+      <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+        {/* Header — PRP-237 PR4: actions directes vers la library
+            depuis le dashboard, demandé par l'utilisateur 2026-05-17. */}
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ChefHat className="text-primary h-5 w-5" aria-hidden="true" />
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+                Aujourd&apos;hui en cuisine
+              </h1>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Qu&apos;est-ce qu&apos;on cuisine ?
+            </p>
           </div>
-          <p className="text-muted-foreground text-base">
-            Qu&apos;est-ce qu&apos;on cuisine ?
-          </p>
-        </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/kitchen/recipes?tab=library">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Mes recettes
+              </Link>
+            </Button>
+            <Button variant="default" size="sm" asChild>
+              <Link to="/kitchen/recipes?tab=import">
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter
+              </Link>
+            </Button>
+          </div>
+        </header>
 
         {/* 4 Today panels — 1 col mobile, 2 cols desktop */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

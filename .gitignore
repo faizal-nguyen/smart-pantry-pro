@@ -73,3 +73,6 @@ videos/
 
 # Supabase CLI cache
 supabase/.temp/
+
+# Dev process PID files
+*.pid

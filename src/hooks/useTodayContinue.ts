@@ -98,14 +98,14 @@ export function useTodayContinue() {
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
+      // PRP-220 : le status machine vit sur `social_recipe_imports`,
+      // pas sur `imported_recipe_drafts` (qui versionne les drafts JSON).
       const { count, error } = await supabase
-        .from('imported_recipe_drafts')
+        .from('social_recipe_imports')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId!)
         .in('status', ['captured', 'metadata_ready', 'draft_ready', 'needs_review']);
       if (error) {
-        // Cette table peut ne pas exister sur tous les envs (PRP-220
-        // partiel) — on best-effort à 0 plutôt qu'erreur fatale.
         console.warn('[useTodayContinue] pending imports count failed:', error.message);
         return 0;
       }

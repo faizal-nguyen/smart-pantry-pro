@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Camera, Mic, FileText, Receipt } from 'lucide-react';
+import { Plus, Camera, Mic, FileText, Receipt, Pencil } from 'lucide-react';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { useMaterialYouTheme } from '@/contexts/MaterialYouThemeContext';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,12 @@ interface FloatingActionButtonProps {
   onVoiceInput: () => void;
   onManualAdd: () => void;
   /**
+   * 2026-05-17 — bulk text input (paste/type a free-form list,
+   * parsed via the shopping LLM endpoint). Optional so callers can
+   * opt-in without breaking older mounts.
+   */
+  onTextBulkAdd?: () => void;
+  /**
    * P1 polish: optional. The receipt-scanner is not built (toast read
    * "Fonctionnalité bientôt disponible"). Hide the button when no
    * handler is supplied — re-enable when the OCR pipeline ships.
@@ -28,6 +34,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
   onCameraScan,
   onVoiceInput,
   onManualAdd,
+  onTextBulkAdd,
   onReceiptScan,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -69,6 +76,16 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
       action: 'manual-add',
       onClick: onManualAdd,
     },
+    ...(onTextBulkAdd
+      ? [
+          {
+            icon: <Pencil className="w-5 h-5" />,
+            label: 'Texte',
+            action: 'text-bulk-add',
+            onClick: onTextBulkAdd,
+          } as FABOption,
+        ]
+      : []),
     ...(onReceiptScan
       ? [
           {
@@ -88,7 +105,11 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-50"
+      // 2026-05-18 — offset to `bottom-24` so this page-level FAB
+      // doesn't sit underneath the global `AssistantFAB` (also at
+      // bottom-6 right-6). Keeps both reachable for a one-thumb tap
+      // and avoids the "stacked buttons" visual reported on /pantry.
+      className="fixed bottom-24 right-6 z-50"
       role="group"
       aria-label="Actions rapides d'ajout de produit"
     >

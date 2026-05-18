@@ -94,18 +94,27 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('User not authenticated');
 
-    // 1. Vérifier cache existant (pattern Cipher performance)
-    const cachedAnalysis = await getCachedAnalysis(recipeId, user.user.id);
-    if (cachedAnalysis && !isExpired(cachedAnalysis)) {
-      console.log('📊 Using cached inventory analysis');
-      return cachedAnalysis.analysis_result;
-    }
-
-    // 2. Récupérer données recette + inventaire
+    // 1. Récupérer la recette via le résolveur unifié AVANT de toucher
+    //    au cache. `recipe_inventory_cache.recipe_id` a une FK vers
+    //    `recipes(id)` ; un id `user_recipes` wrapper la viole. Si la
+    //    source n'est pas `recipes`, on skip le cache (read + write) et
+    //    on recalcule à chaque fois — acceptable pour une page detail
+    //    et bien moins bruyant qu'un cycle "406 → cleanup → re-insert
+    //    fail → 23503" qui spamait la console.
     const [recipe, inventory] = await Promise.all([
       getRecipeWithIngredients(recipeId),
       getUserInventory(user.user.id)
     ]);
+    const cacheableId: string | null =
+      recipe.source === 'recipes' ? recipe.canonicalId : null;
+
+    if (cacheableId) {
+      const cachedAnalysis = await getCachedAnalysis(cacheableId, user.user.id);
+      if (cachedAnalysis && !isExpired(cachedAnalysis)) {
+        console.log('📊 Using cached inventory analysis');
+        return cachedAnalysis.analysis_result;
+      }
+    }
 
     if (!recipe) {
       throw new Error(`RECIPE_NOT_FOUND: Recipe ${recipeId} not found`);
@@ -165,8 +174,13 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     analysis.totalRecipeCost = await calculateTotalRecipeCost(recipe.ingredients);
     analysis.shoppingList = generateShoppingList(analysis);
 
-    // 6. Stocker en cache (pattern Cipher performance)
-    await cacheAnalysis(recipeId, user.user.id, analysis);
+    // 6. Stocker en cache (pattern Cipher performance).
+    //    Only write the cache for sources that satisfy the FK
+    //    (`recipe_inventory_cache.recipe_id` → `recipes(id)`). Catalog
+    //    wrappers recalculate on every visit, no cache.
+    if (cacheableId) {
+      await cacheAnalysis(cacheableId, user.user.id, analysis);
+    }
 
     console.log(`🍳 Recipe analysis completed: ${analysis.canMake ? '✅ Can make' : '❌ Missing ingredients'}`);
     
@@ -241,38 +255,55 @@ const cacheAnalysis = async (recipeId: string, userId: string, analysis: Invento
   }
 };
 
-// Helpers pour données
+// Helpers pour données.
+//
+// Resolves the recipe via the unified lookup (legacy `recipes`, then
+// `user_recipes` wrapper, then `recipes_catalog`). RECIPE_NOT_FOUND is
+// only thrown when ALL three sources miss — that is the *only* case that
+// warrants the cache-cleanup path. Before this change, library cards
+// backed by the catalog hit `recipes` only, returned PGRST116, and
+// triggered an infinite cleanup loop.
 const getRecipeWithIngredients = async (recipeId: string) => {
   try {
-    const [recipeResult, ingredientsResult] = await Promise.all([
-      supabase.from('recipes').select('*').eq('id', recipeId).single(),
-      supabase.from('recipe_ingredients').select('*').eq('recipe_id', recipeId)
-    ]);
+    const { fetchUnifiedRecipe } = await import('@/lib/recipeSource');
+    const recipe = await fetchUnifiedRecipe(recipeId);
 
-    // Gestion spécifique des recettes supprimées
-    if (recipeResult.error) {
-      if (recipeResult.error.code === 'PGRST116') {
-        console.warn(`🗑️ Recipe ${recipeId} not found (deleted) - stopping analysis`);
-        throw new Error(`RECIPE_NOT_FOUND: Recipe ${recipeId} has been deleted`);
+    if (!recipe) {
+      throw new Error(`RECIPE_NOT_FOUND: Recipe ${recipeId} not found in any source`);
+    }
+
+    // Catalog-backed rows ship ingredients inline as JSONB. Legacy
+    // `recipes` rows use the dedicated `recipe_ingredients` table.
+    let ingredients: any[];
+    if (recipe.inlineIngredients && recipe.inlineIngredients.length > 0) {
+      ingredients = recipe.inlineIngredients.map((it, idx) => ({
+        id: `${recipe.id}-${idx}`,
+        recipe_id: recipe.canonicalId,
+        ingredient_name: it.ingredient_name,
+        quantity: it.quantity,
+        unit: it.unit,
+        is_essential: it.is_essential,
+        notes: it.notes,
+      }));
+    } else {
+      const { data, error } = await supabase
+        .from('recipe_ingredients')
+        .select('*')
+        .eq('recipe_id', recipe.canonicalId);
+      if (error) {
+        console.warn(`⚠️ Error fetching ingredients for recipe ${recipeId}:`, error);
       }
-      throw recipeResult.error;
+      ingredients = data || [];
     }
-    
-    // Log si des ingrédients manquent (non-bloquant)
-    if (ingredientsResult.error) {
-      console.warn(`⚠️ Error fetching ingredients for recipe ${recipeId}:`, ingredientsResult.error);
-    }
-    
+
     return {
-      ...recipeResult.data,
-      ingredients: ingredientsResult.data || []
+      ...recipe,
+      ingredients,
     };
   } catch (error: any) {
-    // Re-throw les erreurs de recettes supprimées avec un type spécifique
     if (error.message?.includes('RECIPE_NOT_FOUND')) {
       throw error;
     }
-    // Log et re-throw les autres erreurs
     console.error(`Error fetching recipe ${recipeId} with ingredients:`, error);
     throw error;
   }

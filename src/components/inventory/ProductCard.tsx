@@ -5,6 +5,7 @@ import { useMaterialYouTheme } from "@/contexts/MaterialYouThemeContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatQuantityCompact } from "@/utils/units";
 import { 
   MoreVertical, 
   MapPin, 
@@ -161,7 +162,7 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Package className="w-4 h-4" />
               <span className="font-medium text-foreground">
-                {item.quantity} {item.product?.unit_type}
+                {formatQuantityCompact(item.quantity, item.product?.unit_type)}
               </span>
             </div>
           </div>

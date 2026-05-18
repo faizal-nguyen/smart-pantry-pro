@@ -1,17 +1,23 @@
 /**
  * RecipeImportTab — onglet "Ajouter".
  *
- * PRP-232 PR2 — extrait de `src/pages/Recipes.tsx`. Présente les 3 sources
- * d'import : Instagram, Site web (URL), Réseaux sociaux. Les callbacks
- * remontent au parent (Recipes.tsx) qui gère les modales globales.
+ * PRP-232 PR2 — extrait de `src/pages/Recipes.tsx`.
+ * PRP-237 PR4 §10 (2026-05-17) — refondu :
+ *  - tokenise les 3 source-cards (anciens gradients purple/blue/green
+ *    incompatibles avec la palette PRP-237) ;
+ *  - absorbe la section "À vérifier" (anciens imports en cours
+ *    d'extraction, ex-onglet Inbox quasi vide en pratique).
  */
-import React from 'react';
-import { Heart, Plus, Search, TrendingUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, Inbox, Instagram, Link2, Plus, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { InstagramVideoExtractor } from '@/components/recipes/InstagramVideoExtractor';
 import { SocialImportCard } from '@/components/social/SocialImportCard';
+import { RecipeInbox } from '@/components/recipes/RecipeInbox';
+import type { CurrentDraftResponse } from '@/services/recipe-import/types';
 
 interface RecipeImportTabProps {
   // Le payload extrait reste hétérogène (Instagram extractor + SocialImportCard
@@ -19,87 +25,153 @@ interface RecipeImportTabProps {
   // qui unifie l'ExtractedRecipeModal.
   onRecipeExtracted: (recipe: unknown, sourceUrl?: string) => void;
   onOpenAddDialog: () => void;
+  pendingCount?: number;
+  onVerifyDraft?: (payload: CurrentDraftResponse) => void;
+}
+
+interface SourceCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}
+
+function SourceCard({ icon: Icon, title, description, children }: SourceCardProps) {
+  return (
+    <Card className="border-border hover:border-foreground/20 hover:shadow-sm transition-shadow">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground shrink-0"
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          </div>
+        </div>
+        <div>{children}</div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function RecipeImportTab({
   onRecipeExtracted,
   onOpenAddDialog,
+  pendingCount = 0,
+  onVerifyDraft,
 }: RecipeImportTabProps) {
+  // PRP-237 PR4 — la zone "À vérifier" est repliable et n'apparaît
+  // que quand il y a au moins un import en cours. Évite le faux
+  // signal d'un onglet vide observé dans l'audit 2026-05-17.
+  const [showInbox, setShowInbox] = useState(pendingCount > 0);
+
   return (
-    <div className="space-y-6">
-      <div className="mb-2">
-        <h2 className="text-2xl font-semibold text-foreground mb-1">Ajouter des recettes</h2>
-        <p className="text-muted-foreground text-sm md:text-base">
-          Importez depuis le web ou créez vos propres recettes.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="hover:shadow-sm transition-shadow">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
-                <Heart className="h-6 w-6 text-saffron" aria-hidden="true" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1 text-foreground">Instagram</h3>
-                <p className="text-muted-foreground text-sm">
-                  Importez des recettes depuis les vidéos Instagram.
-                </p>
-              </div>
-              <InstagramVideoExtractor
-                onRecipeExtracted={recipe => onRecipeExtracted(recipe)}
-                onError={error => {
-                  toast({
-                    title: "Erreur d'extraction",
-                    description: error.message,
-                    variant: 'destructive',
-                  });
-                }}
-              />
+    <div className="space-y-8">
+      {pendingCount > 0 && onVerifyDraft && (
+        <section
+          aria-labelledby="import-inbox-heading"
+          className="rounded-lg border border-border bg-surface-muted/50"
+        >
+          <button
+            type="button"
+            onClick={() => setShowInbox(prev => !prev)}
+            aria-expanded={showInbox}
+            aria-controls="import-inbox-panel"
+            className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/40 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary"
+              >
+                <Inbox className="h-4 w-4" />
+              </span>
+              <h2
+                id="import-inbox-heading"
+                className="text-base font-semibold text-foreground"
+              >
+                À vérifier
+              </h2>
+              <Badge variant="secondary" className="font-normal">
+                {pendingCount}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+            <ChevronDown
+              className={`h-4 w-4 text-muted-foreground transition-transform ${
+                showInbox ? 'rotate-180' : ''
+              }`}
+              aria-hidden="true"
+            />
+          </button>
 
-        <Card className="hover:shadow-sm transition-shadow">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
-                <Search className="h-6 w-6 text-foreground" aria-hidden="true" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1 text-foreground">Site web</h3>
-                <p className="text-muted-foreground text-sm">
-                  Importez depuis n'importe quel site de recettes.
-                </p>
-              </div>
-              <Button onClick={onOpenAddDialog} className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Importer depuis URL
-              </Button>
+          {showInbox && (
+            <div
+              id="import-inbox-panel"
+              className="border-t border-border p-4"
+            >
+              <RecipeInbox onVerifyDraft={onVerifyDraft} />
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </section>
+      )}
 
-        <Card className="hover:shadow-sm transition-shadow">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="w-12 h-12 bg-surface-muted rounded-md flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-tomato" aria-hidden="true" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-1 text-foreground">Réseaux sociaux</h3>
-                <p className="text-muted-foreground text-sm">
-                  TikTok, YouTube et autres plateformes.
-                </p>
-              </div>
-              <SocialImportCard
-                onImport={async recipe => onRecipeExtracted(recipe)}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <section aria-labelledby="import-sources-heading">
+        <div className="mb-4">
+          <h2
+            id="import-sources-heading"
+            className="text-base font-semibold text-foreground"
+          >
+            Ajouter une recette
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Importe depuis le web, des réseaux sociaux, ou crée à la main.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <SourceCard
+            icon={Instagram}
+            title="Instagram"
+            description="Extraction depuis les vidéos et posts Instagram."
+          >
+            <InstagramVideoExtractor
+              onRecipeExtracted={recipe => onRecipeExtracted(recipe)}
+              onError={error => {
+                toast({
+                  title: "Erreur d'extraction",
+                  description: error.message,
+                  variant: 'destructive',
+                });
+              }}
+            />
+          </SourceCard>
+
+          <SourceCard
+            icon={Link2}
+            title="URL ou site web"
+            description="Colle un lien vers une recette publiée n'importe où."
+          >
+            <Button onClick={onOpenAddDialog} variant="default" className="w-full">
+              <Plus className="h-4 w-4 mr-2" />
+              Importer depuis URL
+            </Button>
+          </SourceCard>
+
+          <SourceCard
+            icon={Video}
+            title="TikTok, YouTube, autres"
+            description="Capture depuis les autres plateformes sociales."
+          >
+            <SocialImportCard
+              onImport={async recipe => onRecipeExtracted(recipe)}
+            />
+          </SourceCard>
+        </div>
+      </section>
     </div>
   );
 }
