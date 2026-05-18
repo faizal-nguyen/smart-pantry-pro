@@ -15,7 +15,14 @@ const EnvSchema = z.object({
   // Optional in env so dev boots without it; the assistant router will
   // refuse to mount if it's absent at request time.
   ASSISTANT_HMAC_SECRET: z.string().min(32).optional(),
-  ASSISTANT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().optional()
+  ASSISTANT_AUDIO_MAX_BYTES: z.coerce.number().int().positive().optional(),
+  // PRP-225 PR2: OpenFoodFacts client configuration. User-Agent is the
+  // only field OFF actually requires per their reuse policy ; the
+  // client refuses to call OFF in production if it's missing.
+  OPENFOODFACTS_BASE_URL: z.string().url().optional(),
+  OPENFOODFACTS_USER_AGENT: z.string().min(8).optional(),
+  OPENFOODFACTS_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  OPENFOODFACTS_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().optional()
 });
 
 const parsed = EnvSchema.safeParse(process.env);
