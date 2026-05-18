@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User } from '@supabase/supabase-js';
 import { Loader2 } from "lucide-react";
@@ -63,9 +64,12 @@ const PageWrapper: React.FC<PageWrapperProps> = ({
     );
   }
 
-  // Si l'authentification n'est pas requise ou si pas d'utilisateur
-  if (!requireAuth || !user) {
+  if (!requireAuth) {
     return <>{children}</>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
   }
 
   return (

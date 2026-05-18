@@ -128,7 +128,7 @@ const OnboardingStep: React.FC<OnboardingStepProps> = ({
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header with progress */}
-      <div className="safe-area-top px-6 pt-4 pb-2">
+      <div className="safe-area-inset-top px-6 pt-4 pb-2">
         <div className="flex items-center justify-between mb-4">
           {canGoBack && onPrevious && (
             <Button
@@ -161,7 +161,7 @@ const OnboardingStep: React.FC<OnboardingStepProps> = ({
       </motion.div>
 
       {/* Actions */}
-      <div className="safe-area-bottom px-6 pb-6">
+      <div className="safe-area-inset-bottom px-6 pb-6">
         <div className="flex gap-3">
           {step.skipable && (
             <Button
