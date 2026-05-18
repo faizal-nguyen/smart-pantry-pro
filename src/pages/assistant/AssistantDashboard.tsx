@@ -55,22 +55,6 @@ const AssistantDashboard: React.FC = () => {
       childFriendlyName: 'Parler avec l\'assistant',
     },
     {
-      title: 'Suggestions',
-      description: 'Découvrir des recommandations personnalisées',
-      icon: <Lightbulb className="w-6 h-6" />,
-      action: () => navigate('/assistant/suggestions'),
-      badge: undefined,
-      childFriendlyName: 'Mes suggestions',
-    },
-    {
-      title: 'Analyse Nutritionnelle',
-      description: 'Analyser vos habitudes alimentaires',
-      icon: <Target className="w-6 h-6" />,
-      action: () => navigate('/assistant/nutrition'),
-      badge: undefined,
-      childFriendlyName: 'Mes nutriments',
-    },
-    {
       title: 'IA Rapide',
       description: 'Questions rapides et réponses instantanées',
       icon: <Zap className="w-6 h-6" />,

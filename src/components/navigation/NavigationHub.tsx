@@ -4,26 +4,17 @@
  */
 
 import React, { useMemo } from 'react';
-import { 
-  Package, 
-  ChefHat, 
-  ShoppingCart, 
-  Bot, 
-  BarChart3, 
+import {
+  Package,
+  ChefHat,
+  ShoppingCart,
+  Bot,
+  BarChart3,
   Settings,
-  Users,
-  Gamepad2,
   Home,
-  Search,
-  ScanQrCode,
-  Bell,
   CalendarDays,
   Heart,
-  Store,
-  History,
   MessageCircle,
-  Lightbulb,
-  Target,
   Shield,
   Palette
 } from 'lucide-react';
@@ -112,26 +103,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Inventaire complet des produits',
         minAge: 3,
         childFriendlyName: 'Mes produits'
-      },
-      {
-        id: 'pantry-scanner',
-        label: 'Scanner',
-        path: '/pantry/scanner',
-        icon: ScanQrCode,
-        description: 'Scanner des codes-barres',
-        minAge: 7,
-        requiresParentalApproval: true,
-        childFriendlyName: 'Scanner magique'
-      },
-      {
-        id: 'pantry-alerts',
-        label: 'Alertes',
-        path: '/pantry/alerts',
-        icon: Bell,
-        description: 'Alertes de péremption',
-        minAge: 7,
-        badge: 'Nouveau',
-        childFriendlyName: 'Alertes de fraîcheur'
       }
     ]
   },
@@ -227,26 +198,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Liste de courses active',
         minAge: 7,
         childFriendlyName: 'Ma liste'
-      },
-      {
-        id: 'shopping-store-mode',
-        label: 'Mode magasin',
-        path: '/shopping/store-mode',
-        icon: Store,
-        description: 'Interface optimisée magasin',
-        minAge: 10,
-        requiresParentalApproval: true,
-        isNew: true,
-        childFriendlyName: 'Mode magasin'
-      },
-      {
-        id: 'shopping-history',
-        label: 'Historique',
-        path: '/shopping/history',
-        icon: History,
-        description: 'Historique des achats',
-        minAge: 13,
-        childFriendlyName: 'Mes anciens achats'
       }
     ]
   },
@@ -286,24 +237,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         minAge: 10,
         requiresParentalApproval: true,
         childFriendlyName: 'Parler avec l\'assistant'
-      },
-      {
-        id: 'assistant-suggestions',
-        label: 'Suggestions',
-        path: '/assistant/suggestions',
-        icon: Lightbulb,
-        description: 'Suggestions personnalisées',
-        minAge: 7,
-        childFriendlyName: 'Mes suggestions'
-      },
-      {
-        id: 'assistant-nutrition',
-        label: 'Analyse nutritionnelle',
-        path: '/assistant/nutrition',
-        icon: Target,
-        description: 'Analyse nutritionnelle avancée',
-        minAge: 13,
-        childFriendlyName: 'Mes nutriments'
       }
     ]
   },
@@ -335,15 +268,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         childFriendlyName: 'Mes analyses'
       },
       {
-        id: 'insights-analytics',
-        label: 'Analyses',
-        path: '/insights/analytics',
-        icon: BarChart3,
-        description: 'Analyses détaillées',
-        minAge: 13,
-        childFriendlyName: 'Graphiques'
-      },
-      {
         id: 'insights-waste',
         label: 'Anti-gaspi',
         path: '/insights/waste',
@@ -351,71 +275,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Réduction du gaspillage',
         minAge: 10,
         childFriendlyName: 'Éviter le gaspillage'
-      },
-      {
-        id: 'insights-goals',
-        label: 'Objectifs',
-        path: '/insights/goals',
-        icon: Target,
-        description: 'Objectifs et progression',
-        minAge: 13,
-        childFriendlyName: 'Mes objectifs'
-      }
-    ]
-  },
-  {
-    id: 'games',
-    label: 'Jeux Éducatifs',
-    icon: Gamepad2,
-    path: '/games',
-    section: 'games',
-    description: 'Mini-jeux éducatifs sur l\'alimentation',
-    isMainSection: true,
-    minAge: 3,
-    requiresSupervision: false,
-    availableInChildMode: true,
-    gamification: {
-      points: 450,
-      level: 5,
-      achievements: ['game_master', 'food_expert', 'healthy_champion'],
-      funName: 'Mes Jeux Amusants'
-    },
-    subItems: [
-      {
-        id: 'games-overview',
-        label: 'Mes jeux',
-        path: '/games',
-        icon: Home,
-        description: 'Sélection de jeux éducatifs',
-        minAge: 3,
-        childFriendlyName: 'Tous mes jeux'
-      },
-      {
-        id: 'games-memory',
-        label: 'Mémoire alimentaire',
-        path: '/games/memory',
-        icon: Gamepad2,
-        description: 'Jeu de mémoire avec aliments',
-        minAge: 3,
-        childFriendlyName: 'Jeu de mémoire'
-      },
-      {
-        id: 'games-nutrition',
-        label: 'Nutrition Quiz',
-        path: '/games/nutrition',
-        icon: Target,
-        description: 'Quiz sur la nutrition',
-        minAge: 7,
-        childFriendlyName: 'Quiz nutrition'
-      },
-      {
-        id: 'games-recipes',
-        label: 'Chef en herbe',
-        path: '/games/recipes',
-        icon: ChefHat,
-        description: 'Créer des recettes virtuelles',
-        minAge: 5,
-        childFriendlyName: 'Petit chef'
       }
     ]
   }
@@ -436,60 +295,12 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
     availableInChildMode: false,
     subItems: [
       {
-        id: 'settings-profile',
-        label: 'Profil famille',
-        path: '/settings/family',
-        icon: Users,
-        description: 'Gestion des profils famille',
-        minAge: 18
-      },
-      {
-        id: 'settings-parental',
-        label: 'Contrôles parentaux',
-        path: '/settings/parental',
-        icon: Shield,
-        description: 'Configuration des contrôles parentaux',
-        minAge: 18
-      },
-      {
         id: 'settings-appearance',
         label: 'Apparence',
         path: '/settings/appearance',
         icon: Palette,
         description: 'Personnalisation de l\'interface',
         minAge: 13
-      }
-    ]
-  },
-  {
-    id: 'social',
-    label: 'Social',
-    icon: Users,
-    path: '/social',
-    section: 'social',
-    description: 'Partage et communauté',
-    isMainSection: false,
-    minAge: 13,
-    requiresSupervision: true,
-    availableInChildMode: false,
-    subItems: [
-      {
-        id: 'social-community',
-        label: 'Communauté',
-        path: '/social/community',
-        icon: Users,
-        description: 'Rejoindre la communauté',
-        minAge: 13,
-        requiresParentalApproval: true
-      },
-      {
-        id: 'social-sharing',
-        label: 'Partages',
-        path: '/social/sharing',
-        icon: Users,
-        description: 'Partager vos recettes',
-        minAge: 13,
-        requiresParentalApproval: true
       }
     ]
   }
@@ -561,36 +372,25 @@ export const useNavigationConfig = (familyConfig?: FamilyNavigationConfig) => {
  * Fonction utilitaire pour obtenir les redirections de compatibilité
  */
 export const getLegacyRedirections = (): Record<string, string> => ({
-  // Redirections principales vers les nouveaux dashboards
-  '/inventory': '/pantry',
-  '/recipes': '/kitchen',
+  // PRP-222 PR1 : table réduite aux routes coeur V1. Tout pointeur vers une
+  // route retirée a été retargeté sur le dashboard parent ou la liste canonique.
+  '/inventory': '/pantry/inventory',
+  '/recipes': '/kitchen/recipes',
   '/shopping': '/shopping',
   '/assistant': '/assistant',
   '/insights': '/insights',
-  
-  // Redirections vers les sous-sections spécifiques
+
   '/pantry-inventory': '/pantry/inventory',
   '/kitchen-recipes': '/kitchen/recipes',
   '/shopping-list': '/shopping/list',
   '/meal-planning': '/kitchen/meal-planning',
-  '/recipe-assistant': '/assistant/suggestions',
   '/ai-assistant': '/assistant/chat',
   '/assistant-chat': '/assistant/chat',
-  '/assistant-suggestions': '/assistant/suggestions',
-  '/nutrition': '/assistant/nutrition',
-  
-  // Anciennes routes spécifiques
+
   '/recipe-catalog': '/kitchen/recipes',
-  '/pantry-scanner': '/pantry/scanner',
-  '/pantry-alerts': '/pantry/alerts',
   '/kitchen-favorites': '/kitchen/favorites',
-  '/shopping-history': '/shopping/history',
-  '/shopping-store': '/shopping/store-mode',
-  '/insights-analytics': '/insights/analytics',
   '/insights-waste': '/insights/waste',
-  '/insights-goals': '/insights/goals',
-  
-  // Redirections très anciennes
+
   '/home': '/insights',
   '/dashboard': '/insights',
   '/main': '/insights'

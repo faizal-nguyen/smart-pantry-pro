@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
-import { ShoppingCart, Store, History, Plus, CheckCircle2, Euro } from 'lucide-react';
+import { ShoppingCart, Plus, CheckCircle2, Euro } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
@@ -52,22 +52,6 @@ const ShoppingDashboard: React.FC = () => {
       action: () => navigate('/shopping/list'),
       badge: undefined,
       childFriendlyName: 'Ma liste',
-    },
-    {
-      title: 'Mode Magasin',
-      description: 'Interface optimisée pour faire ses courses',
-      icon: <Store className="w-6 h-6" />,
-      action: () => navigate('/shopping/store-mode'),
-      badge: undefined,
-      childFriendlyName: 'Mode magasin',
-    },
-    {
-      title: 'Historique',
-      description: 'Voir mes achats précédents',
-      icon: <History className="w-6 h-6" />,
-      action: () => navigate('/shopping/history'),
-      badge: undefined,
-      childFriendlyName: 'Mes anciens achats',
     },
     {
       title: 'Ajouter Rapidement',

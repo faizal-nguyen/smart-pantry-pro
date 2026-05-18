@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider, RouteObject, Outlet } from "react-router-dom";
+import { createBrowserRouter, Navigate, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { LayoutPerformanceProvider } from "./components/performance/PerformanceMonitor";
@@ -44,28 +44,18 @@ const withSuspense = (Component: React.ComponentType) => (
 
 const queryClient = new QueryClient();
 
-// Create router with new hierarchical structure + legacy support
+// PRP-222 PR1 — Navigation diet : seulement les routes coeur produit V1.
 const baseRoutes: RouteObject[] = [
-  // Pages critiques (pas de lazy loading)
   { path: "/", element: <Index /> },
   { path: "/auth", element: <Auth /> },
-
-  // PWA Web Share Target landing (PRP-220.18). Captures the shared
-  // URL and bounces to the inbox.
   { path: "/share-target", element: withSuspense(ShareTarget) },
-
-  // Pages avec lazy loading
   { path: "/onboarding", element: withSuspense(OnboardingPage) },
 
-  // === NOUVELLE STRUCTURE HIÉRARCHIQUE PRP-040.1 ===
-
-  // Pantry Section
+  // Pantry
   { path: "/pantry", element: withSuspense(PantryDashboard) },
   { path: "/pantry/inventory", element: withSuspense(InventoryPage) },
-  { path: "/pantry/scanner", element: withSuspense(InventoryPage) },
-  { path: "/pantry/alerts", element: withSuspense(InventoryPage) },
 
-  // Kitchen Section
+  // Kitchen
   { path: "/kitchen", element: withSuspense(KitchenDashboard) },
   { path: "/kitchen/recipes", element: withSuspense(RecipesPage) },
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
@@ -73,46 +63,51 @@ const baseRoutes: RouteObject[] = [
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
   { path: "/kitchen/favorites", element: withSuspense(RecipesPage) },
 
-  // Shopping Section
+  // Shopping
   { path: "/shopping", element: withSuspense(ShoppingDashboard) },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
-  { path: "/shopping/store-mode", element: withSuspense(SmartShoppingList) },
-  { path: "/shopping/history", element: withSuspense(SmartShoppingList) },
 
-  // Assistant Section
+  // Assistant
   { path: "/assistant", element: withSuspense(AssistantDashboard) },
   { path: "/assistant/chat", element: withSuspense(AssistantAI) },
-  { path: "/assistant/suggestions", element: withSuspense(AssistantAI) },
-  { path: "/assistant/nutrition", element: withSuspense(AssistantAI) },
 
-  // Insights Section
+  // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },
-  { path: "/insights/analytics", element: withSuspense(InsightsPage) },
   { path: "/insights/waste", element: withSuspense(InsightsPage) },
-  { path: "/insights/goals", element: withSuspense(InsightsPage) },
 
-  // Games Section (Mode Famille)
-  { path: "/games", element: withSuspense(RecipesPage) },
-  { path: "/games/memory", element: withSuspense(RecipesPage) },
-  { path: "/games/nutrition", element: withSuspense(RecipesPage) },
-  { path: "/games/recipes", element: withSuspense(RecipesPage) },
-
-  // === PARAMÈTRES ET CONFIGURATION ===
+  // Settings (PRP-222 garde uniquement /settings ; apparence reste comme sous-page utile)
   { path: "/settings", element: withSuspense(Settings) },
-  { path: "/settings/family", element: withSuspense(Settings) },
-  { path: "/settings/parental", element: withSuspense(Settings) },
   { path: "/settings/appearance", element: withSuspense(Settings) },
+
+  // Redirections vers routes coeur. /games/* et /shopping/store-mode étaient
+  // exposées dans la nav avant PRP-222 — on garde un redirect minimal pour
+  // ne pas casser les favoris utilisateurs.
+  { path: "/games", element: <Navigate to="/kitchen/recipes" replace /> },
+  { path: "/games/*", element: <Navigate to="/kitchen/recipes" replace /> },
+  { path: "/shopping/store-mode", element: <Navigate to="/shopping/list" replace /> },
+  { path: "/shopping/history", element: <Navigate to="/shopping/list" replace /> },
+  { path: "/pantry/scanner", element: <Navigate to="/pantry/inventory" replace /> },
+  { path: "/pantry/alerts", element: <Navigate to="/pantry/inventory" replace /> },
+  { path: "/assistant/suggestions", element: <Navigate to="/assistant" replace /> },
+  { path: "/assistant/nutrition", element: <Navigate to="/assistant" replace /> },
+  { path: "/insights/analytics", element: <Navigate to="/insights" replace /> },
+  { path: "/insights/goals", element: <Navigate to="/insights" replace /> },
+  { path: "/settings/family", element: <Navigate to="/settings" replace /> },
+  { path: "/settings/parental", element: <Navigate to="/settings" replace /> },
 ];
 
-// Dev-only legacy redirects
+// Dev-only redirects pour anciennes routes /inventory et /recipes.
+// Fix PRP-222 : /recipes pointait vers /kitchen via LegacyRedirect — on
+// redirige directement vers /kitchen/recipes pour éviter le saut indirect.
 if (import.meta.env.DEV) {
   baseRoutes.push(
-    // Legacy compatibility
-    { path: "/inventory", element: <><LegacyRedirect />{withSuspense(InventoryPage)}</> },
-    { path: "/recipes", element: <><LegacyRedirect />{withSuspense(RecipesPage)}</> },
-    { path: "/shopping-legacy", element: withSuspense(SmartShoppingList) },
+    { path: "/inventory", element: <Navigate to="/pantry/inventory" replace /> },
+    { path: "/recipes", element: <Navigate to="/kitchen/recipes" replace /> },
+    { path: "/shopping-legacy", element: <Navigate to="/shopping/list" replace /> },
   );
 }
+
+void LegacyRedirect;
 
 // 404 - must be last
 baseRoutes.push({ path: "*", element: <NotFound /> });
