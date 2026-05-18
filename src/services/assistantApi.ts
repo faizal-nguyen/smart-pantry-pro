@@ -310,6 +310,28 @@ export function archiveAssistantConversation(
   );
 }
 
+export interface CreateAssistantMemoryInput {
+  kind: AssistantMemoryKind;
+  content: string;
+  normalized_content?: string;
+  scope?: 'global' | 'recipe' | 'ingredient' | 'product' | 'conversation' | 'temporary';
+  sensitivity?: AssistantMemorySensitivity;
+  source?: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system';
+  subject_type?: string | null;
+  subject_id?: string | null;
+  confidence?: number;
+  evidence?: Record<string, unknown>;
+}
+
+export function createAssistantMemory(
+  input: CreateAssistantMemoryInput,
+): Promise<{ memory: AssistantMemoryItem }> {
+  return apiPost<{ memory: AssistantMemoryItem }>(
+    `${ASSISTANT_BASE}/memories`,
+    input,
+  );
+}
+
 export function getAssistantMemories(
   opts: ListMemoriesOpts = {},
 ): Promise<CursorPage<AssistantMemoryItem>> {

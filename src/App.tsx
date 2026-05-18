@@ -7,6 +7,7 @@ import { LayoutPerformanceProvider } from "./components/performance/PerformanceM
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 import { AssistantProvider } from "./components/assistant/AssistantProvider";
+import { usePersonalizationMigration } from "./hooks/usePersonalizationMigration";
 
 // Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
@@ -127,11 +128,18 @@ baseRoutes.push({ path: "*", element: <NotFound /> });
 // PRP-221: wrap every route under a layout that mounts the global
 // voice-assistant FAB + dialog. The FAB self-hides on /auth and when
 // the user is not signed in, so this is safe across the entire app.
-const RootLayout = () => (
-  <AssistantProvider>
-    <Outlet />
-  </AssistantProvider>
-);
+//
+// PRP-235 backlog 2 : `usePersonalizationMigration` est mounté ici
+// pour s'exécuter une fois par app session (no-op si déjà migré ou
+// si pas de données legacy à migrer).
+const RootLayout = () => {
+  usePersonalizationMigration();
+  return (
+    <AssistantProvider>
+      <Outlet />
+    </AssistantProvider>
+  );
+};
 
 const router = createBrowserRouter(
   [
