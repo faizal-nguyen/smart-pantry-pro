@@ -46,7 +46,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ShoppingItem } from "@/hooks/useShoppingList";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import InStoreShopping from "@/components/shopping/InStoreShopping";
 import { ShoppingListErrorBoundary } from "@/components/shopping/ShoppingListErrorBoundary";
 
 const STORE_SECTIONS = [
@@ -73,7 +72,6 @@ const SmartShoppingList = () => {
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [showInStoreMode, setShowInStoreMode] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(STORE_SECTIONS));
   const [showFABMenu, setShowFABMenu] = useState(false);
 
@@ -225,17 +223,6 @@ const SmartShoppingList = () => {
     return Math.round((getPurchasedCount() / total) * 100);
   };
 
-  // Mode magasin
-  if (showInStoreMode) {
-    return (
-      <AppNavigation user={user}>
-        <ShoppingListErrorBoundary>
-          <InStoreShopping onExit={() => setShowInStoreMode(false)} />
-        </ShoppingListErrorBoundary>
-      </AppNavigation>
-    );
-  }
-
   if (loading) {
     return (
       <AppNavigation user={user!}>
@@ -270,16 +257,6 @@ const SmartShoppingList = () => {
                 </p>
               </div>
               
-              {/* Mode magasin pour mobile */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowInStoreMode(true)}
-                className="md:hidden"
-              >
-                <ShoppingCart className="w-4 h-4 mr-2" />
-                Mode magasin
-              </Button>
             </div>
             
             {/* Input principal */}
@@ -485,18 +462,6 @@ const SmartShoppingList = () => {
               Partager la liste
             </Button>
             
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setShowInStoreMode(true);
-                setShowFABMenu(false);
-              }}
-              className="w-full justify-start shadow-lg hidden md:flex"
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Mode magasin
-            </Button>
           </div>
           
           <Button
