@@ -28,7 +28,7 @@ import DiscardItemDialog from "@/components/inventory/DiscardItemDialog";
 import { IntelligentSearch } from "@/components/inventory/IntelligentSearch";
 import { FloatingActionButton } from "@/components/inventory/FloatingActionButton";
 import AddProductDialog from "@/components/inventory/AddProductDialog";
-import VoiceInputButton from "@/components/inventory/VoiceInputButton";
+import TextBulkAddDialog from "@/components/inventory/TextBulkAddDialog";
 import EditItemDialog from "@/components/inventory/EditItemDialog";
 import { EnhancedVoiceButton } from "@/components/voice/EnhancedVoiceButton";
 import { MobileBarcodeScanner } from "@/components/scanner/MobileBarcodeScanner";
@@ -92,11 +92,22 @@ const Inventory = () => {
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [textBulkDialogOpen, setTextBulkDialogOpen] = useState(false);
   const [voiceDialogOpen, setVoiceDialogOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [activeVisualizationTab, setActiveVisualizationTab] = useState('overview');
   
-  const { inventory, loading, updateInventory, deleteInventoryItem, addInventory } = useInventory();
+  // 2026-05-18 — fix: the hook exposes `updateInventoryItem` and
+  // `addToInventory`, not the previously-destructured (and undefined)
+  // `updateInventory` / `addInventory`. Renaming via destructuring
+  // alias keeps the rest of this 800-line file unchanged.
+  const {
+    inventory,
+    loading,
+    updateInventoryItem: updateInventory,
+    deleteInventoryItem,
+    addToInventory: addInventory,
+  } = useInventory();
   const { addToShoppingList } = useShoppingList();
   const { recordWaste } = useFoodWaste();
   const [discardingItem, setDiscardingItem] = useState<InventoryItem | null>(null);
@@ -408,52 +419,61 @@ const Inventory = () => {
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Header Intelligent */}
       <div className="space-y-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Mon Inventaire</h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-1">
-              Gérez vos produits intelligemment
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
-            <MaterialButton
-              variant={viewMode === 'zones' ? 'filled' : 'outlined'}
-              size="sm"
-              onClick={() => setViewMode('zones')}
-              icon={<MapPin className="w-4 h-4" />}
-            >
-              Zones
-            </MaterialButton>
-            <MaterialButton
-              variant={viewMode === '3d' ? 'filled' : 'outlined'}
-              size="sm"
-              onClick={() => setViewMode('3d')}
-              icon={<Box className="w-4 h-4" />}
-            >
-              3D
-            </MaterialButton>
-            <MaterialButton
-              variant={viewMode === 'progress' ? 'filled' : 'outlined'}
-              size="sm"
-              onClick={() => setViewMode('progress')}
-              icon={<Target className="w-4 h-4" />}
-            >
-              Nutrition
-            </MaterialButton>
-            <MaterialButton
-              variant={viewMode === 'grid' ? 'filled' : 'outlined'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              icon={<Grid3X3 className="w-4 h-4" />}
-            />
-            <MaterialButton
-              variant={viewMode === 'list' ? 'filled' : 'outlined'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              icon={<List className="w-4 h-4" />}
-            />
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Mon Inventaire</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
+            Gérez vos produits intelligemment
+          </p>
+        </div>
+
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap sm:gap-2"
+          role="tablist"
+          aria-label="Mode d'affichage de l'inventaire"
+        >
+          <MaterialButton
+            variant={viewMode === 'zones' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('zones')}
+            icon={<MapPin className="w-4 h-4" />}
+            className="min-h-11 shrink-0"
+          >
+            Zones
+          </MaterialButton>
+          <MaterialButton
+            variant={viewMode === '3d' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('3d')}
+            icon={<Box className="w-4 h-4" />}
+            className="min-h-11 shrink-0"
+          >
+            3D
+          </MaterialButton>
+          <MaterialButton
+            variant={viewMode === 'progress' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('progress')}
+            icon={<Target className="w-4 h-4" />}
+            className="min-h-11 shrink-0"
+          >
+            Nutrition
+          </MaterialButton>
+          <MaterialButton
+            variant={viewMode === 'grid' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+            icon={<Grid3X3 className="w-4 h-4" />}
+            aria-label="Vue grille"
+            className="min-h-11 min-w-11 shrink-0"
+          />
+          <MaterialButton
+            variant={viewMode === 'list' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            icon={<List className="w-4 h-4" />}
+            aria-label="Vue liste"
+            className="min-h-11 min-w-11 shrink-0"
+          />
         </div>
 
         {/* Search Bar avec Voice Button */}
@@ -806,12 +826,18 @@ const Inventory = () => {
         onCameraScan={() => setScannerOpen(true)}
         onVoiceInput={() => toast({ title: "Utilisez le bouton vocal en haut", description: "Le bouton vocal amélioré est maintenant dans la barre de recherche" })}
         onManualAdd={() => setAddDialogOpen(true)}
+        onTextBulkAdd={() => setTextBulkDialogOpen(true)}
       />
 
       {/* Dialogs */}
       <AddProductDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
+      />
+
+      <TextBulkAddDialog
+        open={textBulkDialogOpen}
+        onOpenChange={setTextBulkDialogOpen}
       />
       
       
@@ -823,6 +849,7 @@ const Inventory = () => {
             if (!open) setEditingItem(null);
           }}
           item={editingItem}
+          onSubmit={updateInventory}
         />
       )}
 

@@ -112,9 +112,9 @@ const Auth = () => {
             <button
               type="button"
               onClick={() => setIsSignUp(false)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                !isSignUp 
-                  ? 'bg-primary text-primary-foreground shadow-sm' 
+              className={`flex-1 min-h-11 py-3 text-sm font-medium rounded-md transition-colors ${
+                !isSignUp
+                  ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -123,9 +123,9 @@ const Auth = () => {
             <button
               type="button"
               onClick={() => setIsSignUp(true)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                isSignUp 
-                  ? 'bg-primary text-primary-foreground shadow-sm' 
+              className={`flex-1 min-h-11 py-3 text-sm font-medium rounded-md transition-colors ${
+                isSignUp
+                  ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -167,7 +167,7 @@ const Auth = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                className="w-full min-h-11 px-3 py-2.5 border border-input bg-background rounded-md text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
             </div>
             
@@ -183,7 +183,7 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                className="w-full min-h-11 px-3 py-2.5 border border-input bg-background rounded-md text-base sm:text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               />
               {isSignUp && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -195,7 +195,7 @@ const Auth = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none py-2 px-4 rounded-md text-sm font-medium transition-colors"
+              className="w-full min-h-11 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none py-3 px-4 rounded-md text-sm font-medium transition-colors"
             >
               {loading 
                 ? (isSignUp ? "Inscription..." : "Connexion...") 

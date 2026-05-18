@@ -447,12 +447,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           isChildMode && "bg-card/95 border-t-2 border-primary/20"
         )}
         style={{ height: zones.navigation.height }}
-      >        
-        <div className={cn(
-          "h-full grid gap-1 px-2 py-1",
-          `grid-cols-${bottomNavItems.length}`,
-          isChildMode && "gap-2 px-3 py-2"
-        )}>
+      >
+        <div
+          className={cn(
+            "h-full grid gap-1 px-2 py-1",
+            isChildMode && "gap-2 px-3 py-2"
+          )}
+          style={{ gridTemplateColumns: `repeat(${bottomNavItems.length}, minmax(0, 1fr))` }}
+        >
           {bottomNavItems.map((item) => {
             const isActive = item.id === 'more' ? false : location.pathname.startsWith(item.path);
             
