@@ -6,15 +6,14 @@ import { MaterialButton } from '@/components/ui/material/Button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Download, 
-  Share2, 
+import {
+  BarChart3,
+  TrendingUp,
+  Download,
+  Share2,
   RefreshCw,
   Calendar,
   Filter,
-  Award,
   Target,
   Lightbulb,
   Bell
@@ -27,10 +26,8 @@ import {
   NutritionRadarChart, 
   CombinedTrendsChart 
 } from './InteractiveCharts';
-import { AchievementsList } from './AchievementsList';
 
 import { useInsightsData } from '@/hooks/useInsightsData';
-import { useAchievements } from '@/hooks/useAchievements';
 import { useChartData } from '@/hooks/useChartData';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -90,22 +87,15 @@ const InsightCard: React.FC<InsightCardProps> = ({
 
 export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className }) => {
   const { insightsData, loading: insightsLoading, refetch: refetchInsights } = useInsightsData();
-  const { 
-    achievements, 
-    userProgress, 
-    recentAchievements, 
-    nextMilestone, 
-    leaderboard 
-  } = useAchievements();
-  const { 
-    spendingTrendsData, 
-    categoryBreakdownData, 
-    nutritionBalanceData, 
+  const {
+    spendingTrendsData,
+    categoryBreakdownData,
+    nutritionBalanceData,
     combinedTrendsData,
-    formatCurrency 
+    formatCurrency
   } = useChartData();
-  
-  const [activeTab, setActiveTab] = useState<'overview' | 'charts' | 'achievements'>('overview');
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'charts'>('overview');
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
@@ -272,7 +262,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
         <div className="flex items-center justify-between">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Vue d'ensemble
@@ -280,10 +270,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
             <TabsTrigger value="charts" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Analyses
-            </TabsTrigger>
-            <TabsTrigger value="achievements" className="flex items-center gap-2">
-              <Award className="h-4 w-4" />
-              Succès
             </TabsTrigger>
           </TabsList>
           
@@ -390,23 +376,6 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
             </TabsContent>
           )}
 
-          {activeTab === 'achievements' && (
-            <TabsContent key="achievements-content" value="achievements">
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <AchievementsList
-                  achievements={achievements}
-                  userProgress={userProgress}
-                  recentAchievements={recentAchievements}
-                  nextMilestone={nextMilestone}
-                  leaderboard={leaderboard}
-                />
-              </motion.div>
-            </TabsContent>
-          )}
         </AnimatePresence>
       </Tabs>
     </div>
