@@ -399,21 +399,26 @@ const findInventoryMatch = async (
 }> => {
   // 0. Server-side authoritative match (Phase 3 — direct FK + semantic
   //    fallback via pgvector embeddings). If the RPC already resolved
-  //    this ingredient, trust it and skip the local heuristics.
+  //    this ingredient, trust it.
+  //
+  //    Quantity sufficiency used to gate this match, but that was
+  //    wrong: recipe units (ml, c. à soupe) rarely line up with
+  //    inventory units (unit, bottles, packs) so the conversion
+  //    returns ~0 and the match was discarded — users were told they
+  //    didn't have ingredients they clearly had. We now ALWAYS return
+  //    the server match; insufficient-quantity is a soft UX hint that
+  //    the consumer can surface separately if needed, not a yes/no
+  //    gate on availability.
   const serverHit = serverMatches.get(ingredient.id);
   if (serverHit) {
-    if (hasEnoughQuantity(serverHit.inventoryItem, ingredient)) {
-      console.log(
-        `🎯 Server ${serverHit.kind} match for ${ingredient.ingredient_name} → ${serverHit.inventoryItem.product?.name} (${Math.round(serverHit.score * 100)}%)`,
-      );
-      return {
-        type: serverHit.kind === 'direct' ? 'exact' : 'fuzzy',
-        item: serverHit.inventoryItem,
-        confidence: serverHit.score,
-      };
-    }
-    // Quantity insufficient — fall through to the legacy paths so
-    // substitution / pricing can run.
+    console.log(
+      `🎯 Server ${serverHit.kind} match for ${ingredient.ingredient_name} → ${serverHit.inventoryItem.product?.name} (${Math.round(serverHit.score * 100)}%)`,
+    );
+    return {
+      type: serverHit.kind === 'direct' ? 'exact' : 'fuzzy',
+      item: serverHit.inventoryItem,
+      confidence: serverHit.score,
+    };
   }
 
   // 1. Exact match
