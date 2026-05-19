@@ -988,6 +988,7 @@ interface RecipeProposalsBuckets {
 const LEGACY_RECIPE_TOOLS = new Set<string>([
   'find_cookable_recipes',
   'search_recipes',
+  'find_recipes_using_ingredient',
   'read_recent_recipes',
 ]);
 
