@@ -303,7 +303,7 @@ const RecipeEdit = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-6">
+      <div className="page-container">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/4"></div>
           <div className="h-64 bg-muted rounded"></div>
@@ -314,7 +314,7 @@ const RecipeEdit = () => {
 
   if (!existingRecipe) {
     return (
-      <div className="container mx-auto px-4 py-6">
+      <div className="page-container">
         <div className="text-center py-12">
           <h2 className="text-xl font-semibold mb-4">Recette non trouvée</h2>
           <Button onClick={() => navigate('/')}>
@@ -327,7 +327,7 @@ const RecipeEdit = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="page-container max-w-4xl">
       <div className="mb-6">
         <Button 
           variant="ghost" 

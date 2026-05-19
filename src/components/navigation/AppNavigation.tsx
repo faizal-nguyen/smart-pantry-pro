@@ -462,9 +462,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
       {/* Contenu Principal */}
       <main className={cn(
         "flex-1",
-        // pb-28 (112px) au lieu de pb-20 (80px) : la MobileNavigation occupe
-        // ~98px sur iPhone notched (56px contenu + 8px padding + ~34px safe-area).
-        isMobile && "pb-28 pt-0",
+        // Bottom nav: ~64px content + dynamic safe-area-inset-bottom.
+        // Use calc to auto-track home indicator height per device.
+        isMobile && "pb-[calc(64px+env(safe-area-inset-bottom))] pt-0",
         isTablet && "ml-16 pb-16",
         isDesktopOrWide && "ml-64 pb-0",
         isChildMode && adaptiveInterface.buttonSpacing === 'spacious' && "p-6",

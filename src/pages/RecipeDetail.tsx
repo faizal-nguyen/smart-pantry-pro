@@ -433,7 +433,7 @@ const RecipeDetail = () => {
 
   if (!recipe && !loading) {
     return (
-      <div className="container mx-auto px-4 py-6">
+      <div className="page-container">
         <div className="text-center py-12">
           <div className="mb-4">
             {recipeDeleted ? (
@@ -466,7 +466,7 @@ const RecipeDetail = () => {
   // Afficher un skeleton pendant le chargement
   if (loading || !recipe) {
     return (
-      <div className="container mx-auto px-4 py-6">
+      <div className="page-container">
         <div className="max-w-4xl mx-auto">
           <div className="animate-pulse">
             <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
@@ -487,7 +487,7 @@ const RecipeDetail = () => {
   // PRP-232 PR4 — hiérarchie §9 : media → titre/source/temps → actions
   // primaires → ingrédients → instructions → notes → source.
   return (
-    <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="page-container max-w-4xl">
       <div className="mb-4 flex items-center justify-between">
         <Button variant="ghost" onClick={() => navigate('/kitchen/recipes')}>
           <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />

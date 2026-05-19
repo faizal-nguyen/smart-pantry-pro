@@ -149,7 +149,7 @@ export default function Recipes() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 max-w-7xl">
+      <div className="page-container">
         {/* PRP-237 PR4 — premium utility header, no hero gradient. */}
         <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
