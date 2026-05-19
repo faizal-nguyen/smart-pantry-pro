@@ -38,6 +38,7 @@
 --  21. Sri Lankan Mutton Rolls                 ✓
 --  22. Hyderabadi Wedding Red Chicken Curry    ✓
 --  23. Riz au Lait Vanille Crémeux             ✓
+--  24. Butter Chicken (Michelin Star)          ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -73,7 +74,8 @@ DECLARE
     'Malai Chutney Chicken Tikka',
     'Sri Lankan Mutton Rolls',
     'Hyderabadi Wedding Red Chicken Curry',
-    'Riz au Lait Vanille Crémeux'
+    'Riz au Lait Vanille Crémeux',
+    'Butter Chicken (Michelin Star)'
   ];
 BEGIN
 
@@ -1298,5 +1300,84 @@ $instr$,
     (v_recipe_id, 'caramel maison',           30,  'ml',         false, 6,  'topping, optionnel'),
     (v_recipe_id, 'croquant aux noix',        20,  'g',          false, 7,  'noix/noisettes/amandes concassées');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (23 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 24. Butter Chicken (Michelin Star)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Butter Chicken (Michelin Star)',
+    'Butter chicken niveau étoilé : garam masala torréfié maison (laurier, cannelle, cardamome, coriandre, cumin, poivre, clous), marinade yaourt-ail-gingembre-moutarde, sauce tomate prune + cajou rôti grillé (très haute concentration), finition crème-beurre-fenugrec. Servi avec riz basmati sella pilaf.',
+    $instr$["GARAM MASALA — Torréfier à sec dans une poêle : laurier, cannelle, cardamome verte, graines de coriandre, graines de cumin, poivre noir et clous de girofle jusqu'au parfum. Laisser refroidir, puis moudre en poudre fine.",
+"Ajouter turmeric, piment rouge moulu et fenugrec séché à la poudre. Réserver une portion pour la finition.",
+"MARINADE — Couper les cuisses de poulet en morceaux. Mélanger avec yaourt, ail écrasé, gingembre râpé, jus de demi-citron, huile de moutarde, piment vert entier (pour l'arôme), sel et la moitié du garam masala. Mariner 2 heures minimum, idéalement une nuit.",
+"Cuisson poulet : rôtir au four à 220°C ou sur barbecue 15-20 min jusqu'à cœur cuit et marques de char. Réserver.",
+"SAUCE TOMATE-CAJOU — Griller les noix de cajou crues à sec dans une poêle jusqu'à dorées (~5 min, remuer en continu). Mixer avec les tomates prunes pelées, sel, sucre et fenugrec en sauce très lisse.",
+"RIZ — Dans une casserole, chauffer le ghee. Ajouter cardamome, laurier et cumin, infuser 30 sec. Ajouter le riz basmati sella rincé, mélanger 1 min. Verser l'eau, saler. Couvrir et cuire 18-20 min à feu doux jusqu'à absorption.",
+"COMPILATION — Dans une grande poêle, fondre le beurre à feu moyen. Ajouter piment rouge moulu et piment vert entier. Verser la sauce tomate-cajou, mijoter 10 min.",
+"Ajouter le poulet rôti, mélanger pour bien enrober.",
+"Verser la crème entière en plusieurs fois jusqu'à consistance souhaitée. Ajouter encore 1-2 c. à soupe de beurre, 1 c. à café de piment rouge, 1-2 c. à café de garam masala et une pincée de fenugrec écrasé entre les doigts.",
+"Servir bien chaud sur le riz basmati, dans un bol creux. Optionnel : un filet de crème en finition + coriandre fraîche."]
+$instr$,
+    40, 60, 4, 4,
+    'Indienne', 'dinner',
+    ARRAY['indien','butter chicken','murgh makhani','michelin','garam masala maison','crémeux','tomate-cajou','restaurant'],
+    'manual',
+    'https://www.instagram.com/p/DWGylmgjuMx/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Garam masala maison
+    (v_recipe_id, 'feuille de laurier',         1,    'unité',      true,  1,  'garam masala'),
+    (v_recipe_id, 'bâton de cannelle',          1,    'unité',      true,  2,  '~5 cm, garam masala'),
+    (v_recipe_id, 'cardamome verte',            10,   'unité',      true,  3,  'gousses, garam masala'),
+    (v_recipe_id, 'graines de coriandre',       12,   'g',          true,  4,  '2 c. à soupe'),
+    (v_recipe_id, 'graines de cumin',           12,   'g',          true,  5,  '2 c. à soupe'),
+    (v_recipe_id, 'poivre noir en grains',      8,    'g',          true,  6,  '1 c. à soupe'),
+    (v_recipe_id, 'clous de girofle',           7,    'g',          true,  7,  '1 c. à soupe'),
+    -- Épices après mélange
+    (v_recipe_id, 'curcuma moulu',              10,   'g',          true,  8,  '2 c. à café'),
+    (v_recipe_id, 'piment rouge moulu',         8,    'g',          true,  9,  '1 c. à soupe'),
+    (v_recipe_id, 'fenugrec séché',             3,    'g',          true,  10, '1 c. à soupe, kasuri methi'),
+    -- Marinade
+    (v_recipe_id, 'cuisses de poulet',          908,  'g',          true,  11, '2 lb, désossées'),
+    (v_recipe_id, 'yaourt',                     120,  'g',          true,  12, '0.5 cup'),
+    (v_recipe_id, 'ail',                        6,    'gousse',     true,  13, '5-7, écrasées'),
+    (v_recipe_id, 'gingembre',                  2.5,  'cm',         true,  14, '~1 inch, râpé'),
+    (v_recipe_id, 'jus de citron',              15,   'ml',         true,  15, 'demi-citron'),
+    (v_recipe_id, 'huile de moutarde',          15,   'ml',         true,  16, '1 c. à soupe'),
+    (v_recipe_id, 'piment vert',                1,    'unité',      true,  17, 'entier pour l''arôme, marinade'),
+    (v_recipe_id, 'sel',                        1,    'c. à café',  true,  18, 'au goût, marinade'),
+    -- Sauce tomate-cajou
+    (v_recipe_id, 'tomates prunes',             567,  'g',          true,  19, '20 oz, pelées en boîte'),
+    (v_recipe_id, 'noix de cajou crues',        454,  'g',          true,  20, '16 oz, à torréfier'),
+    (v_recipe_id, 'sel',                        5,    'g',          true,  21, '1 c. à café, sauce'),
+    (v_recipe_id, 'sucre',                      5,    'g',          true,  22, '1 c. à café'),
+    (v_recipe_id, 'fenugrec séché',             4,    'g',          true,  23, '2 c. à café, sauce'),
+    -- Riz
+    (v_recipe_id, 'ghee',                       30,   'ml',         true,  24, '2 c. à soupe, riz'),
+    (v_recipe_id, 'cardamome verte',            3,    'unité',      true,  25, 'pour le riz'),
+    (v_recipe_id, 'feuille de laurier',         1,    'unité',      true,  26, 'pour le riz'),
+    (v_recipe_id, 'graines de cumin',           8,    'g',          true,  27, '1 c. à soupe, riz'),
+    (v_recipe_id, 'riz basmati sella',          400,  'g',          true,  28, '2 cups, étuvé'),
+    (v_recipe_id, 'eau',                        720,  'ml',         true,  29, '3 cups, pour le riz'),
+    (v_recipe_id, 'sel',                        7.5,  'g',          true,  30, '1.5 c. à café, pour le riz'),
+    -- Compilation
+    (v_recipe_id, 'beurre',                     30,   'g',          true,  31, '2 c. à soupe, début compilation'),
+    (v_recipe_id, 'piment rouge moulu',         3,    'g',          true,  32, '1 c. à café, compilation'),
+    (v_recipe_id, 'piment vert',                1,    'unité',      true,  33, 'entier, compilation'),
+    (v_recipe_id, 'crème entière',              180,  'ml',         true,  34, '0.5-0.75 cup, ajuster'),
+    (v_recipe_id, 'beurre',                     30,   'g',          true,  35, '2 c. à soupe, finition'),
+    (v_recipe_id, 'piment rouge moulu',         3,    'g',          true,  36, '1 c. à café, finition'),
+    (v_recipe_id, 'garam masala',               7.5,  'g',          true,  37, '1-2 c. à café, finition (du masala maison)'),
+    (v_recipe_id, 'fenugrec séché',             1,    'pincée',     true,  38, 'finition, écrasé entre les doigts');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (24 recipes so far)', v_user_id;
 END $$;
