@@ -120,6 +120,24 @@ const suggestRecipesForContextArgs = z.object({
   limit_per_bucket: z.number().int().min(1).max(20).optional(),
   /** Cap for almost_cookable bucket (default 3). */
   almost_threshold: z.number().int().min(0).max(10).optional(),
+  /**
+   * PRP-226 PR1 — additional context hints. Accepted on the wire so
+   * the LLM/tool fingerprint is stable when the engine extraction PR2
+   * starts using them. PR1's handler ignores the new fields.
+   */
+  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+  goal: z
+    .enum([
+      'tonight',
+      'quick',
+      'anti_waste',
+      'light',
+      'high_protein',
+      'comfort',
+      'batch_cooking',
+    ])
+    .optional(),
+  servings: z.number().int().min(1).max(20).optional(),
 });
 export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForContextArgs>;
 
@@ -355,7 +373,7 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
   {
     name: 'find_cookable_recipes',
     description:
-      'Return recipes the user can cook with their current inventory. Only considers recipes whose essential ingredients are linked to a product (legacy recipes without product link are excluded).',
+      'Return recipes the user can cook with their current inventory. Linked ingredients are checked precisely against inventory ; unlinked essential ingredients are returned with unlinked_count so the UI can show them as "à vérifier" instead of dropping the recipe. Default max_missing_ingredients=3.',
     schema: findCookableArgs,
     jsonSchema: {
       type: 'object',
@@ -396,6 +414,17 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
         max_prep_time: { type: 'integer', minimum: 0, maximum: 600, description: 'minutes' },
         limit_per_bucket: { type: 'integer', minimum: 1, maximum: 20, description: 'default 6' },
         almost_threshold: { type: 'integer', minimum: 0, maximum: 10, description: 'max missing+unknown for almost bucket, default 3' },
+        meal_type: {
+          type: 'string',
+          enum: ['breakfast', 'lunch', 'dinner', 'snack'],
+          description: 'mealtime hint to bias ranking (PRP-226)',
+        },
+        goal: {
+          type: 'string',
+          enum: ['tonight', 'quick', 'anti_waste', 'light', 'high_protein', 'comfort', 'batch_cooking'],
+          description: 'high-level intent — anti_waste boosts near-expiry, quick caps prep time, etc. (PRP-226)',
+        },
+        servings: { type: 'integer', minimum: 1, maximum: 20, description: 'expected servings, narrows recipes (PRP-226)' },
       },
       additionalProperties: false,
     },

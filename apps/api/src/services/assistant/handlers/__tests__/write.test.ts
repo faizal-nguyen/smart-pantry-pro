@@ -700,3 +700,91 @@ describe('WriteHandlerError', () => {
     expect(err.code).toBe('PRODUCT_AMBIGUOUS');
   });
 });
+
+// ---- PRP-226 PR4 : reco cache invalidation hooks --------------------
+
+describe('PRP-226 PR4 — recommendation cache invalidation', () => {
+  function makeCtxWithWriter(client: any, resolverPlan: ResolverPlan = {}) {
+    const invalidations: string[] = [];
+    const ctx = {
+      ...makeCtx(client, resolverPlan),
+      eventWriter: {
+        async invalidateUserCache(userId: string) {
+          invalidations.push(userId);
+          return 1;
+        },
+      } as unknown as ToolExecutionContext['eventWriter'],
+    } as ToolExecutionContext;
+    return { ctx, invalidations };
+  }
+
+  it('add_inventory_items drops the cache after a successful insert', async () => {
+    const tomate = fakeProduct('p-tomate', 'Tomate');
+    const { client } = makeClient({
+      routes: {
+        inventory: {
+          insertReturning: [{ id: 'inv-1', product_id: 'p-tomate', quantity: 2 }],
+        },
+      },
+    });
+    const { ctx, invalidations } = makeCtxWithWriter(client, { matched: [tomate] });
+    await new AddInventoryItemsHandler().execute(ctx, {
+      items: [{ name: 'Tomate', quantity: 2 }],
+    });
+    expect(invalidations).toEqual([USER]);
+  });
+
+  it('add_inventory_items skips the cache invalidation when nothing was inserted', async () => {
+    const { client } = makeClient({ routes: { inventory: { insertReturning: [] } } });
+    const { ctx, invalidations } = makeCtxWithWriter(client, {
+      ambiguous: [
+        { name: 'yaourt', candidates: [fakeProduct('a', 'yaourt grec')] },
+      ],
+    });
+    await new AddInventoryItemsHandler().execute(ctx, {
+      items: [{ name: 'yaourt', quantity: 1 }],
+    });
+    expect(invalidations).toEqual([]);
+  });
+
+  it('consume_inventory_items drops the cache after a successful decrement', async () => {
+    const { client } = makeClient({
+      routes: {
+        inventory: { selectRows: [{ id: 'inv-1', quantity: 5 }] },
+      },
+    });
+    const { ctx, invalidations } = makeCtxWithWriter(client);
+    await new ConsumeInventoryItemsHandler().execute(ctx, {
+      items: [{ inventory_id: 'inv-1', quantity: 2 }],
+    });
+    expect(invalidations).toEqual([USER]);
+  });
+
+  it('consume_inventory_items skips the cache when every line is insufficient', async () => {
+    const { client } = makeClient({
+      routes: { inventory: { selectRows: [{ id: 'inv-1', quantity: 1 }] } },
+    });
+    const { ctx, invalidations } = makeCtxWithWriter(client);
+    await new ConsumeInventoryItemsHandler().execute(ctx, {
+      items: [{ inventory_id: 'inv-1', quantity: 99 }],
+    });
+    expect(invalidations).toEqual([]);
+  });
+
+  it('no eventWriter on ctx → no crash, no invalidation (PR2 behaviour)', async () => {
+    const tomate = fakeProduct('p-tomate', 'Tomate');
+    const { client } = makeClient({
+      routes: {
+        inventory: {
+          insertReturning: [{ id: 'inv-1', product_id: 'p-tomate', quantity: 1 }],
+        },
+      },
+    });
+    // makeCtx returns a ctx without eventWriter — handler must stay green.
+    const result = await new AddInventoryItemsHandler().execute(
+      makeCtx(client, { matched: [tomate] }),
+      { items: [{ name: 'Tomate', quantity: 1 }] },
+    );
+    expect(result.result.added).toHaveLength(1);
+  });
+});

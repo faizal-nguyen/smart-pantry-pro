@@ -192,15 +192,66 @@ export function createApp(options: CreateAppOptions = {}): Express {
   });
 
   // === Repository-pattern v1 routes (lazy to avoid boot-time blocking) ===
+  //
+  // FIX: lazy `.then(app.use(...))` was racing with the 404 handler below.
+  // Express middleware order = registration order; the 404 handler was
+  // registered SYNC before the lazy import resolved, so the late
+  // `app.use('/api/v1', v1Router)` landed AFTER the 404 catch-all and
+  // never matched. We now register deferred-handler proxies up-front
+  // (before the 404 handler) and swap in the real router when the
+  // dynamic import resolves.
+  type DeferredHandler = express.RequestHandler;
+  let v1Handler: DeferredHandler | null = null;
+  let adminHandler: DeferredHandler | null = null;
+
   if (!options.skipLazyV1) {
+    app.use('/api/v1', (req, res, next) => {
+      if (v1Handler) return v1Handler(req, res, next);
+      return res.status(503).json({
+        success: false,
+        error: 'API initializing, retry shortly',
+        code: 'V1_NOT_READY',
+      });
+    });
+
+    app.use('/api/admin', (req, res, next) => {
+      if (adminHandler) return adminHandler(req, res, next);
+      return res.status(503).json({
+        success: false,
+        error: 'API initializing, retry shortly',
+        code: 'ADMIN_NOT_READY',
+      });
+    });
+
     import('./routes/v1.js')
       .then(({ v1Router }) => {
-        app.use('/api/v1', v1Router);
+        v1Handler = v1Router as unknown as DeferredHandler;
         console.log('✓ v1Router (repository-pattern) loaded');
       })
       .catch((error) => {
         console.error('✗ Failed to load v1Router:', error);
         console.warn('⚠️  Repository-pattern routes are not available');
+      });
+
+    // === Admin routes (token-protected, service-role ops) ===
+    Promise.all([
+      import('express'),
+      import('./routes/admin.deletions.routes.js'),
+      import('./middleware/adminAuth.middleware.js'),
+      import('./config/supabase.js'),
+    ])
+      .then(([expressMod, deletionsMod, authMod, supabaseMod]) => {
+        const adminRouter = expressMod.Router();
+        adminRouter.use(authMod.createAdminAuthMiddleware());
+        adminRouter.use(
+          '/deletions',
+          deletionsMod.createAdminDeletionsRouter(supabaseMod.supabaseAdmin),
+        );
+        adminHandler = adminRouter as unknown as DeferredHandler;
+        console.log('✓ adminRouter loaded');
+      })
+      .catch((error) => {
+        console.error('✗ Failed to load adminRouter:', error);
       });
   }
 

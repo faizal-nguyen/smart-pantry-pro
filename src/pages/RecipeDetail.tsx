@@ -36,6 +36,8 @@ import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchUnifiedRecipe } from "@/lib/recipeSource";
+import { useImageManagement } from "@/hooks/useImageManagement";
 
 interface RecipeIngredient {
   id: string;
@@ -49,20 +51,69 @@ interface RecipeIngredient {
 const RecipeDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { recipes, deleteRecipe } = useRecipes();
+  const { recipes, deleteRecipe, fetchRecipes } = useRecipes();
   const { addToShoppingList } = useShoppingList();
+  const { uploadImage } = useImageManagement();
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
   const [instructions, setInstructions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cooking, setCooking] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  
+  // 2026-05-18 — let RecipeMediaFrame display the new photo instantly
+  // after upload, without waiting for the next `fetchRecipes` round
+  // (which can take 1-2s on cold cache).
+  const [overrideImageUrl, setOverrideImageUrl] = useState<string | null>(null);
+
   const recipe = recipes.find(r => r.id === id);
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
 
   // Détecter si la recette a été supprimée
   const recipeDeleted = !recipe && !loading && id;
+
+  // PRP-234 PR3 — writer `recipe_interactions.viewed` au mount.
+  // Alimente le bloc « Continuer » du dashboard Today (PR3
+  // useTodayContinue). Dedup via sessionStorage pour éviter de
+  // spammer la table sur hot reload / navigation back-and-forth.
+  // Best-effort : un échec ne casse pas la page.
+  //
+  // `recipe_interactions.recipe_id` references the legacy `recipes`
+  // table (FK pending via 20260517161734 migration). Wrapper ids from
+  // `user_recipes` would trigger a 409 either now (cross-table check)
+  // or once the FK lands. We resolve via the unified lookup and skip
+  // the insert when the recipe lives in another storage layer.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    void (async () => {
+      const sessionKey = `viewed:${id}`;
+      if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const unified = await fetchUnifiedRecipe(id);
+      if (!unified || unified.source !== 'recipes') {
+        // Catalog-backed or absent — don't write a 'viewed' interaction
+        // pointing at a row the FK won't accept.
+        return;
+      }
+      const { error } = await supabase
+        .from('recipe_interactions')
+        .insert({
+          user_id: user.id,
+          recipe_id: unified.canonicalId,
+          interaction_type: 'viewed',
+        });
+      if (!error && typeof window !== 'undefined') {
+        sessionStorage.setItem(sessionKey, '1');
+      }
+      // Swallow l'erreur : ne casse pas l'ouverture de la recette.
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (id) {
@@ -73,25 +124,42 @@ const RecipeDetail = () => {
   const fetchRecipeDetails = async () => {
     try {
       setLoading(true);
-      
-      // Fetch recipe data first
-      const { data: recipeData, error: recipeError } = await supabase
-        .from('recipes')
-        .select('*')
-        .eq('id', id)
-        .single();
-        
-      if (recipeError) throw recipeError;
-      
-      // Fetch ingredients
-      const { data: ingredientsData, error: ingredientsError } = await supabase
-        .from('recipe_ingredients')
-        .select('*')
-        .eq('recipe_id', id)
-        .order('created_at');
 
-      if (ingredientsError) throw ingredientsError;
-      setIngredients(ingredientsData || []);
+      // Resolve the recipe across the three storage layers (legacy
+      // `recipes`, `user_recipes` wrapper, or direct `recipes_catalog`).
+      // See lib/recipeSource.ts for the rationale.
+      const recipeData = await fetchUnifiedRecipe(id!);
+      if (!recipeData) {
+        throw new Error('Recipe not found in any source');
+      }
+
+      // Ingredients: catalog-backed rows carry them inline as JSONB.
+      // Legacy `recipes` rows still use the dedicated `recipe_ingredients`
+      // table.
+      if (recipeData.inlineIngredients && recipeData.inlineIngredients.length > 0) {
+        // Synthesise the RecipeIngredient[] shape expected by the rest
+        // of the component. Catalog rows don't have stable per-ingredient
+        // ids; we generate deterministic ones so React keys stay stable.
+        setIngredients(
+          recipeData.inlineIngredients.map((it, idx) => ({
+            id: `${recipeData.id}-${idx}`,
+            ingredient_name: it.ingredient_name,
+            quantity: it.quantity ?? 0,
+            unit: it.unit ?? '',
+            is_essential: it.is_essential,
+            notes: it.notes,
+          }))
+        );
+      } else {
+        const { data: ingredientsData, error: ingredientsError } = await supabase
+          .from('recipe_ingredients')
+          .select('*')
+          .eq('recipe_id', recipeData.canonicalId)
+          .order('created_at');
+
+        if (ingredientsError) throw ingredientsError;
+        setIngredients(ingredientsData || []);
+      }
 
       // Parse instructions from fetched recipe
       console.log('Recipe instructions:', recipeData?.instructions);
@@ -137,6 +205,49 @@ const RecipeDetail = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 2026-05-18 — RecipeMediaFrame upload handler. Compresses + uploads
+  // to Supabase Storage (bucket `product-images`, shared with the
+  // inventory pipeline), then persists the public URL on `recipes.image_url`.
+  // Rolls back the optimistic display if either the upload or the DB
+  // update fails. RLS on `recipes` enforces that only the owner can
+  // update — catalog rows (is_public=true) get a friendly error
+  // instead of a crash.
+  const handlePhotoUpload = async (file: File) => {
+    if (!id || !recipe) return;
+    try {
+      const publicUrl = await uploadImage(file, { maxWidth: 1600, quality: 0.85 });
+      setOverrideImageUrl(publicUrl);
+
+      const { error } = await supabase
+        .from('recipes')
+        .update({ image_url: publicUrl })
+        .eq('id', id);
+
+      if (error) {
+        setOverrideImageUrl(null);
+        toast({
+          title: 'Photo non enregistrée',
+          description: error.message ?? 'Vérifie que cette recette t\'appartient.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Refresh the merged `useRecipes` cache so other surfaces (cards,
+      // library grid) pick up the new image too. Best-effort.
+      try { await fetchRecipes?.(); } catch { /* swallow */ }
+
+      toast({
+        title: 'Photo mise à jour',
+        description: 'La nouvelle image est enregistrée.',
+      });
+    } catch (err) {
+      setOverrideImageUrl(null);
+      const message = err instanceof Error ? err.message : 'Upload impossible.';
+      toast({ title: 'Échec de l\'upload', description: message, variant: 'destructive' });
     }
   };
 
@@ -401,7 +512,12 @@ const RecipeDetail = () => {
       </div>
 
       {/* 1. Media frame */}
-      <RecipeMediaFrame imageUrl={recipe.image_url} alt={recipe.name} />
+      <RecipeMediaFrame
+        imageUrl={overrideImageUrl ?? recipe.image_url}
+        alt={recipe.name}
+        editable={!recipe.is_public}
+        onUpload={handlePhotoUpload}
+      />
 
       {/* 2. Titre + source + temps */}
       <header className="mb-6">

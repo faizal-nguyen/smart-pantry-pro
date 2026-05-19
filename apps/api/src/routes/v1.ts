@@ -18,7 +18,9 @@ import {
   createRecipesRouter,
   createShoppingRouter,
   createUsersRouter,
-  createReceiptsRouter
+  createReceiptsRouter,
+  createRecommendationsRouter,
+  createSettingsPrivacyRouter
 } from './index.js';
 
 const v1Router = Router();
@@ -35,5 +37,9 @@ v1Router.use('/recipes', authMiddleware, createRecipesRouter(supabaseAdmin));
 v1Router.use('/shopping', authMiddleware, createShoppingRouter(supabaseAdmin));
 v1Router.use('/users', authMiddleware, createUsersRouter(supabaseAdmin));
 v1Router.use('/receipts', authMiddleware, createReceiptsRouter(supabaseAdmin));
+// PRP-234 PR3 — moteur PRP-226 exposé en HTTP pour le dashboard Today.
+v1Router.use('/recommendations', authMiddleware, createRecommendationsRouter(supabaseAdmin));
+// PRP-235 PR5 — privacy settings + export + delete-request, user-scoped.
+v1Router.use('/settings', authMiddleware, createSettingsPrivacyRouter(supabaseAdmin));
 
 export { v1Router };

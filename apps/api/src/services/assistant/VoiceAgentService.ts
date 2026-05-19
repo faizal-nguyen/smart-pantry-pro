@@ -81,7 +81,16 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - almost_cookable : 1–3 ingredients missing or unknown → mention the gap briefly ("il te manque 2 ingrédients")
     - recent_suggestions : the user's own recipes regardless of stock → fallback when the first two are empty
 - Only if all three buckets are empty (total_user_recipes=0 too) should you ask the user to import a new recipe or add items to the shopping list.
-- For narrower asks (e.g. "une recette italienne", "rapide ce soir"), pass { "query": "italien" } or { "max_prep_time": 20 } to the same tool.
+- For narrower asks pass context args to the same tool — never invent a new tool name:
+    - "rapide", "j'ai 20 minutes" → { "max_prep_time": 20, "goal": "quick" }
+    - "ce soir" → { "meal_type": "dinner", "goal": "tonight" }
+    - "anti-gaspi", "à finir bientôt" → { "goal": "anti_waste" }
+    - "léger", "healthy" → { "goal": "light" } (no health claim in your reply)
+    - "protéiné" → { "goal": "high_protein" }
+    - "réconfortant" → { "goal": "comfort" }
+    - "batch cooking" → { "goal": "batch_cooking" }
+    - "une recette italienne" → { "query": "italien" }
+    - 4 personnes → { "servings": 4 }
 - DO NOT invent recipes out of thin air. Only propose recipes returned by the tool.
 - When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
 
@@ -482,7 +491,10 @@ export class VoiceAgentService {
           const handler = this.handlerRegistry.get(tc.name);
           // eslint-disable-next-line no-console
           console.log(`[assistant.handler] executing ${tc.name} args=${JSON.stringify(parsedArgs).slice(0, 300)}`);
-          const exec = await handler.execute({ ...ctx, sessionId }, parsedArgs);
+          const exec = await handler.execute(
+            { ...ctx, sessionId, conversationId, requestText: transcript },
+            parsedArgs,
+          );
           await this.writer.markExecuted(planned.id, {
             result: exec.result as Record<string, unknown>,
             reversibleAction: spec.reversible
@@ -960,6 +972,14 @@ interface RecipeProposalsBuckets {
   cookable_now: unknown[];
   almost_cookable: unknown[];
   recent_suggestions: unknown[];
+  /**
+   * PRP-226 PR4 — id of the `recommendation_events` row this proposal
+   * was emitted from. The frontend echoes it on every interaction
+   * (« cuisinée », « planifier », « ajouter les manquants ») so the
+   * audit log links each action back to its originating recommendation.
+   * Absent when the LLM only called legacy single-bucket tools.
+   */
+  event_id?: string;
 }
 
 const LEGACY_RECIPE_TOOLS = new Set<string>([
@@ -1003,11 +1023,18 @@ export function extractRecipeProposalsFromExecuted(
   for (const a of executed) {
     if (a.tool !== 'suggest_recipes_for_context') continue;
     hadAnyRecipeTool = true;
-    const result = a.result as Partial<RecipeProposalsBuckets> | undefined;
+    const result = a.result as
+      | (Partial<RecipeProposalsBuckets> & { event_id?: unknown })
+      | undefined;
     if (!result || typeof result !== 'object') continue;
     if (Array.isArray(result.cookable_now)) pushUnique(buckets.cookable_now, result.cookable_now);
     if (Array.isArray(result.almost_cookable)) pushUnique(buckets.almost_cookable, result.almost_cookable);
     if (Array.isArray(result.recent_suggestions)) pushUnique(buckets.recent_suggestions, result.recent_suggestions);
+    // PRP-226 PR4 — capture the originating event id (first non-empty
+    // wins, since a single turn rarely calls the tool twice).
+    if (!buckets.event_id && typeof result.event_id === 'string' && result.event_id.length > 0) {
+      buckets.event_id = result.event_id;
+    }
   }
 
   // Fallback: legacy single-bucket tools (find_cookable_recipes etc.).

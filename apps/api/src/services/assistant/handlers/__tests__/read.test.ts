@@ -709,4 +709,202 @@ describe('SuggestRecipesForContextHandler', () => {
     });
     expect(result.result.cookable_now).toHaveLength(3);
   });
+
+  // ---- PRP-226 PR1 regression — open question / fallback / args -------
+
+  it('PRP-226 — answers with recent_suggestions when nothing cookable', async () => {
+    // No inventory at all → cookable_now empty, almost_cookable also empty.
+    // The user still has recipes, so recent_suggestions must surface them.
+    const { client } = makeClient({
+      routes: {
+        recipes: {
+          data: [
+            {
+              id: 'r-orphan',
+              name: 'Orpheline',
+              description: null,
+              prep_time: 5,
+              cook_time: 5,
+              servings: 1,
+              image_url: null,
+              cuisine_category: null,
+              meal_type: null,
+              tags: null,
+              created_at: '2026-05-10T00:00:00Z',
+              recipe_ingredients: [],
+            },
+          ],
+        },
+        inventory: { data: [] },
+      },
+    });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
+    expect(result.result.cookable_now).toHaveLength(0);
+    expect(result.result.almost_cookable).toHaveLength(0);
+    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-orphan']);
+    expect(result.result.total_user_recipes).toBe(1);
+  });
+
+  it('PRP-226 — total_user_recipes is exposed so the LLM can phrase fallbacks', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
+    expect(result.result.total_user_recipes).toBe(4);
+  });
+
+  it('PRP-226 — handler accepts new meal_type/goal/servings args without crashing', async () => {
+    // PR1 handler ignores these fields. We just guard against a Zod
+    // schema rejection or runtime crash when the LLM passes them.
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
+      meal_type: 'dinner',
+      goal: 'tonight',
+      servings: 2,
+    } as unknown as Parameters<SuggestRecipesForContextHandler['execute']>[1]);
+    // Output shape unchanged.
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
+  });
+
+  it('PRP-226 — unlinked essentials stay in almost_cookable (not dropped silently)', async () => {
+    // r-legacy has 1 unlinked essential ; with no inventory it must
+    // surface in almost (unknown_count=1) rather than disappear.
+    const { client } = makeClient({
+      routes: {
+        recipes: {
+          data: [
+            {
+              id: 'r-legacy',
+              name: 'Vieille recette',
+              description: null,
+              prep_time: 10,
+              cook_time: 0,
+              servings: 1,
+              image_url: null,
+              cuisine_category: null,
+              meal_type: null,
+              tags: null,
+              created_at: '2026-05-13T00:00:00Z',
+              recipe_ingredients: [
+                { id: 'i1', ingredient_name: 'Truc', quantity: 1, inventory_product_id: null, is_essential: true },
+              ],
+            },
+          ],
+        },
+        inventory: { data: [] },
+      },
+    });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
+    expect(result.result.almost_cookable.map((r) => r.id)).toEqual(['r-legacy']);
+    expect(result.result.almost_cookable[0].unlinked).toBe(true);
+    expect(result.result.almost_cookable[0].unlinked_count).toBe(1);
+  });
+
+  it('PRP-226 — max_prep_time filter is honoured (engine extraction precondition)', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
+      max_prep_time: 12,
+    });
+    // r-now (10 min) keeps ; r-almost (30 min) and r-legacy (15 min) drop.
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
+    expect(result.result.almost_cookable.map((r) => r.id)).not.toContain('r-almost');
+    expect(result.result.almost_cookable.map((r) => r.id)).not.toContain('r-legacy');
+  });
+
+  // ---- PRP-226 PR4 — event writer wiring ------------------------------
+
+  it('PRP-226 PR4 — surfaces event_id from the writer in the handler result', async () => {
+    const { client } = makeClient({ routes: recipesPlan });
+    const calls = { recordEvent: 0, writeCache: 0, readCache: 0 };
+    const eventWriter = {
+      async readCache() {
+        calls.readCache++;
+        return { hit: null, expired: false };
+      },
+      async recordEvent() {
+        calls.recordEvent++;
+        return 'event-abc';
+      },
+      async writeCache() {
+        calls.writeCache++;
+      },
+      async recordInteraction() {},
+      async invalidateUserCache() {
+        return 0;
+      },
+      async purgeExpired() {
+        return 0;
+      },
+    };
+    const ctx: ToolExecutionContext = {
+      ...makeCtx(client),
+      eventWriter: eventWriter as unknown as ToolExecutionContext['eventWriter'],
+      conversationId: 'conv-1',
+      requestText: 'Que cuisiner ce soir ?',
+    };
+    const result = await new SuggestRecipesForContextHandler().execute(ctx, {});
+    expect(result.result.event_id).toBe('event-abc');
+    expect(calls.readCache).toBe(1);
+    expect(calls.recordEvent).toBe(1);
+    expect(calls.writeCache).toBe(1);
+  });
+
+  it('PRP-226 PR4 — cache hit short-circuits scoring and returns the cached buckets', async () => {
+    const cached = {
+      cookable_now: [
+        {
+          id: 'r-cached',
+          name: 'From cache',
+          prep_time: 5,
+          cook_time: 0,
+          total_essential: 1,
+          linked_essential: 1,
+          missing_count: 0,
+          missing_ingredients: [],
+          unlinked: false,
+          unlinked_count: 0,
+          score_total: 88,
+          score_parts: {} as Record<string, number>,
+          reasons: ['Tu as tout en stock'],
+          suggested_actions: ['open_recipe'] as const,
+        },
+      ],
+      almost_cookable: [],
+      recent_suggestions: [],
+      total_user_recipes: 1,
+      event_id: 'event-old',
+    };
+    let recorded = 0;
+    const eventWriter = {
+      async readCache() {
+        return { hit: { result: cached }, expired: false };
+      },
+      async recordEvent() {
+        recorded++;
+        return 'event-new';
+      },
+      async writeCache() {},
+      async recordInteraction() {},
+      async invalidateUserCache() {
+        return 0;
+      },
+      async purgeExpired() {
+        return 0;
+      },
+    };
+    // Empty SQL routes — would surface as empty buckets if the engine
+    // queried instead of short-circuiting on the cache.
+    const { client } = makeClient({
+      routes: { recipes: { data: [] }, inventory: { data: [] } },
+    });
+    const ctx: ToolExecutionContext = {
+      ...makeCtx(client),
+      eventWriter: eventWriter as unknown as ToolExecutionContext['eventWriter'],
+    };
+    const result = await new SuggestRecipesForContextHandler().execute(ctx, {});
+    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-cached']);
+    expect(result.result.event_id).toBe('event-old');
+    // Cache hit MUST NOT emit a new event — the original one is still
+    // authoritative ; double-logging would break the «event_id ↔
+    // originating recommendation» linkage.
+    expect(recorded).toBe(0);
+  });
 });

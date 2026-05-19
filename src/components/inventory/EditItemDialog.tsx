@@ -14,15 +14,26 @@ interface EditItemDialogProps {
   item: InventoryItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * 2026-05-18 — accept the parent's `updateInventoryItem` so the
+   * optimistic UI update lands on the same `useInventory` instance
+   * that renders the list. Without this prop the dialog instantiates
+   * its own isolated hook, mutates Supabase, and the visible list
+   * never refreshes (user sees no change after "Modifier").
+   */
+  onSubmit?: (id: string, updates: Partial<InventoryItem>) => Promise<void>;
 }
 
-const EditItemDialog = ({ item, open, onOpenChange }: EditItemDialogProps) => {
+const EditItemDialog = ({ item, open, onOpenChange, onSubmit }: EditItemDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [location, setLocation] = useState("");
-  
-  const { updateInventoryItem } = useInventory();
+
+  // Fallback: keep the legacy behaviour when no `onSubmit` is supplied
+  // (some test/storybook contexts may instantiate the dialog stand-alone).
+  const localHook = useInventory();
+  const updateInventoryItem = onSubmit ?? localHook.updateInventoryItem;
 
   useEffect(() => {
     if (item) {

@@ -51,6 +51,8 @@ import {
   saveImportedDraftAsRecipe,
 } from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
+import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
+import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
 import {
   createOpenAICompletionClient,
   type AICompletionClient,
@@ -238,6 +240,21 @@ export function createAssistantAgentRouter(
     { memoryService, contextBuilder, memoryExtractor }
   );
 
+  // PRP-226 PR4 — one shared engine (stateless ; safe to reuse across
+  // requests). The EventWriter on the other hand is per-request because
+  // it binds the user-scoped Supabase client for RLS.
+  // PRP-226 PR6 — also thread the existing MemoryService so the
+  // PreferenceScorer can pull active memories.
+  const recommendationEngine = new RecommendationEngine();
+  const buildRecommendationCtx = (uc: SupabaseClient<any, any, any>) => ({
+    recommendationEngine,
+    eventWriter: new RecommendationEventWriter(
+      uc as SupabaseClient<Database>,
+      adminClient as SupabaseClient<Database>,
+    ),
+    memoryService,
+  });
+
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.
   const HOUR = 3_600_000;
   const requestLimiter = userRateLimit({
@@ -298,6 +315,7 @@ export function createAssistantAgentRouter(
         userClient: req.supabaseClient as SupabaseClient<any, any, any>,
         adminClient,
         productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+        ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
       };
 
       const result = await service.handleRequest(input, ctx);
@@ -322,6 +340,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {
@@ -356,6 +375,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {
@@ -385,6 +405,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {

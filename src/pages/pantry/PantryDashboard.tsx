@@ -356,14 +356,14 @@ const PantryDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {/* PRP-234 PR1 — « Planifier » retiré : sa cible
+                        `/kitchen/meal-planning` est encore Cipher
+                        legacy. PR2 ré-ajoute « Ajouter au menu » →
+                        Menus V1 quand la page propre existe. */}
                     <button
                       className="text-xs border rounded px-2 py-1"
                       onClick={() => navigate('/kitchen/recipes')}
                     >Proposer recette</button>
-                    <button
-                      className="text-xs border rounded px-2 py-1"
-                      onClick={() => navigate('/kitchen/meal-planning')}
-                    >Planifier</button>
                   </div>
                 </li>
               ))}

@@ -11,10 +11,10 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { BookOpen, ChefHat, Inbox, Plus, Sparkles } from 'lucide-react';
+import { BookOpen, Plus, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 
@@ -26,21 +26,28 @@ import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
 import AddRecipeDialog from '@/components/recipes/AddRecipeDialog';
 import { ExtractedRecipeModal } from '@/components/recipes/ExtractedRecipeModal';
 import RecipeOnboarding from '@/components/onboarding/RecipeOnboarding';
-import RecipeFeedTab from '@/components/recipes/tabs/RecipeFeedTab';
 import RecipeLibraryTab from '@/components/recipes/tabs/RecipeLibraryTab';
-import RecipeInboxTab from '@/components/recipes/tabs/RecipeInboxTab';
 import RecipeImportTab from '@/components/recipes/tabs/RecipeImportTab';
 import { draftToLegacyPayload } from '@/services/recipe-import/draftAdapter';
 
-// PRP-232 PR1 — URL state contract (PRP §5). Legacy `explore` coerce vers
-// `feed`; valeur inconnue retombe sur `feed` (default).
-const TAB_VALUES = ['feed', 'library', 'inbox', 'import'] as const;
+// PRP-232 PR1 — URL state contract.
+// PRP-237 PR4 §10 (2026-05-17) — reduced to 2 active tabs after audit
+// showed `feed` and `inbox` were quasi-empty in practice. Legacy values
+// (`feed`, `explore`, `inbox`) redirect to `library`, which now hosts
+// the Tendances and Découvrir-catalogue sections inline.
+const TAB_VALUES = ['library', 'import'] as const;
 type RecipeTab = (typeof TAB_VALUES)[number];
 
+const LEGACY_TAB_REDIRECTS: Record<string, RecipeTab> = {
+  feed: 'library',
+  explore: 'library',
+  inbox: 'library',
+};
+
 const normalizeTab = (raw: string | null): RecipeTab => {
-  if (!raw) return 'feed';
-  if (raw === 'explore') return 'feed';
-  return (TAB_VALUES as readonly string[]).includes(raw) ? (raw as RecipeTab) : 'feed';
+  if (!raw) return 'library';
+  if (raw in LEGACY_TAB_REDIRECTS) return LEGACY_TAB_REDIRECTS[raw];
+  return (TAB_VALUES as readonly string[]).includes(raw) ? (raw as RecipeTab) : 'library';
 };
 
 export default function Recipes() {
@@ -109,90 +116,112 @@ export default function Recipes() {
     }
   };
 
+  // PRP-237 PR4 — dynamic header subtitle reflects the active tab.
+  // Surfaces real counts up-front so the user gets a "where am I" cue
+  // without scanning the tabs.
+  const headerMeta = useMemo<{ subtitle: string; chips: Array<{ label: string; value: string }> }>(() => {
+    const fmt = (n: number) => n.toLocaleString('fr-FR');
+    switch (activeTab) {
+      case 'library':
+        return {
+          subtitle: 'Ta sélection personnelle, prête à cuisiner.',
+          chips: [
+            { label: 'recettes', value: fmt(userRecipes.length) },
+            { label: 'dans le catalogue', value: fmt(catalogCount) },
+            ...(inboxPendingCount > 0
+              ? [{ label: 'à vérifier', value: fmt(inboxPendingCount) }]
+              : []),
+          ],
+        };
+      case 'import':
+      default:
+        return {
+          subtitle: 'Capture une URL, importe une vidéo, ou crée une recette à la main.',
+          chips: [
+            ...(inboxPendingCount > 0
+              ? [{ label: 'à vérifier', value: fmt(inboxPendingCount) }]
+              : []),
+            { label: 'bibliothèque', value: fmt(userRecipes.length) },
+          ],
+        };
+    }
+  }, [activeTab, catalogCount, userRecipes.length, inboxPendingCount]);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
-      <div className="container mx-auto px-4 py-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <ChefHat className="h-8 w-8 text-orange-500" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* PRP-237 PR4 — premium utility header, no hero gradient. */}
+        <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
               Recettes
             </h1>
+            <p className="mt-1 text-sm text-muted-foreground">{headerMeta.subtitle}</p>
+            <div
+              className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+              aria-label="Compteurs de recettes"
+            >
+              {headerMeta.chips.map((chip, idx) => (
+                <React.Fragment key={chip.label}>
+                  {idx > 0 && <span aria-hidden="true" className="text-border">·</span>}
+                  <span>
+                    <span className="font-medium text-foreground tabular-nums">{chip.value}</span>{' '}
+                    <span>{chip.label.toLowerCase()}</span>
+                  </span>
+                </React.Fragment>
+              ))}
+            </div>
           </div>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Votre univers culinaire : explorez le catalogue ou gérez votre bibliothèque personnelle
-          </p>
-        </motion.div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('import')}
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Importer
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowAddDialog(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nouvelle recette
+            </Button>
+          </div>
+        </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8 h-14">
-            <TabsTrigger value="feed" className="flex items-center gap-2 text-base">
-              <Sparkles className="h-5 w-5" />
-              Feed
-              <Badge variant="secondary" className="ml-1">
-                {catalogCount.toLocaleString()}
-              </Badge>
-            </TabsTrigger>
-
-            <TabsTrigger value="library" className="flex items-center gap-2 text-base">
-              <BookOpen className="h-5 w-5" />
+          <TabsList className="mb-6 h-11 w-full justify-start overflow-x-auto">
+            <TabsTrigger value="library" className="gap-2">
+              <BookOpen className="h-4 w-4" />
               Bibliothèque
-              <Badge variant="secondary" className="ml-1">
+              <Badge variant="secondary" className="ml-1 font-normal">
                 {userRecipes.length}
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="inbox" className="flex items-center gap-2 text-base">
-              <Inbox className="h-5 w-5" />
-              À vérifier
+            <TabsTrigger value="import" className="gap-2">
+              <Plus className="h-4 w-4" />
+              Ajouter
               {inboxPendingCount > 0 && (
-                <Badge variant="secondary" className="ml-1">
+                <Badge variant="secondary" className="ml-1 font-normal">
                   {inboxPendingCount}
                 </Badge>
               )}
             </TabsTrigger>
-
-            <TabsTrigger value="import" className="flex items-center gap-2 text-base">
-              <Plus className="h-5 w-5" />
-              Ajouter
-            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="feed" className="space-y-6">
-            <RecipeFeedTab
-              recipes={catalogRecipes}
-              totalCount={catalogCount}
-              isLoading={catalogLoading}
-              trendingRecipes={trendingRecipes}
-              filters={catalogFilters}
-              setFilters={setCatalogFilters}
-              hasNextPage={catalogHasNext}
-              fetchNextPage={catalogFetchNext}
-              onAddToLibrary={handleAddToLibrary}
-              isAdding={isAddingFromCatalog}
-              onSwitchToInbox={() => setActiveTab('inbox')}
-            />
-          </TabsContent>
 
           <TabsContent value="library" className="space-y-6">
             <RecipeLibraryTab
               recipes={userRecipes}
               isLoading={libraryLoading}
               onShowOnboarding={() => setShowOnboarding(true)}
-            />
-          </TabsContent>
-
-          <TabsContent value="inbox" className="space-y-6">
-            <RecipeInboxTab
-              onVerifyDraft={({ import: socialImport, draft }) => {
-                if (!draft) return;
-                setExtractedRecipe(draftToLegacyPayload(socialImport, draft));
-                setShowExtractedModal(true);
-              }}
+              trendingRecipes={trendingRecipes}
+              catalogRecipes={catalogRecipes}
+              onAddToLibrary={handleAddToLibrary}
+              isAdding={isAddingFromCatalog}
             />
           </TabsContent>
 
@@ -203,6 +232,12 @@ export default function Recipes() {
                 setShowExtractedModal(true);
               }}
               onOpenAddDialog={() => setShowAddDialog(true)}
+              pendingCount={inboxPendingCount}
+              onVerifyDraft={({ import: socialImport, draft }) => {
+                if (!draft) return;
+                setExtractedRecipe(draftToLegacyPayload(socialImport, draft));
+                setShowExtractedModal(true);
+              }}
             />
           </TabsContent>
         </Tabs>

@@ -62,24 +62,86 @@ export const useRecipes = () => {
   const [collections, setCollections] = useState<RecipeCollection[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch recipes avec pattern useInventory
+  // Fetch recipes avec pattern useInventory.
+  //
+  // The library has two storage layers (PRP-031 "Spotify" architecture):
+  //   - `recipes`      : legacy user-owned imports + public catalog rows.
+  //   - `user_recipes` : pointer table linking the user to a `recipes_catalog`
+  //                      entry (or carrying a fully custom payload).
+  // We merge BOTH so that `recipes.find(r => r.id === id)` (used by
+  // `RecipeDetail` and `useRecipeInventoryAnalysis`) resolves library cards
+  // backed by the catalog. Without this merge those cards trigger spurious
+  // "RECIPE_NOT_FOUND" cleanup loops.
   const fetchRecipes = async () => {
     try {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
-      const { data, error } = await supabase
-        .from('recipes')
-        .select('*')
-        .or(`user_id.eq.${user.user.id},is_public.eq.true`)
-        .order('created_at', { ascending: false });
+      const [legacy, userLib] = await Promise.all([
+        supabase
+          .from('recipes')
+          .select('*')
+          .or(`user_id.eq.${user.user.id},is_public.eq.true`)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('user_recipes')
+          .select('*, catalog_recipe:recipes_catalog(*)')
+          .eq('user_id', user.user.id)
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) throw error;
-      setRecipes(data || []);
+      if (legacy.error) throw legacy.error;
+      if (userLib.error) {
+        // Non-fatal: degrade to legacy-only on envs without the Spotify schema.
+        console.warn('Recipes: user_recipes merge failed, falling back to legacy only:', userLib.error.message);
+      }
+
+      const merged: Recipe[] = [
+        ...((legacy.data as Recipe[] | null) ?? []),
+        ...((userLib.data as any[] | null) ?? [])
+          .map(mapUserRecipeRowToRecipe)
+          .filter((r): r is Recipe => r !== null),
+      ];
+
+      setRecipes(merged);
     } catch (error) {
       console.error('Error fetching recipes:', error);
     }
   };
+
+  // Maps a `user_recipes` row (with `recipes_catalog` joined as `catalog_recipe`)
+  // to the Recipe shape consumed by the rest of the app. Returns null when
+  // the wrapper has neither a catalog backing nor a custom title (the row
+  // would not display usefully).
+  function mapUserRecipeRowToRecipe(row: any): Recipe | null {
+    const cat = row.catalog_recipe;
+    const name = (cat?.title ?? row.custom_title ?? '').trim();
+    if (!name) return null;
+    return {
+      id: row.id,
+      name,
+      description: cat?.description ?? row.personal_notes ?? undefined,
+      image_url: cat?.photo_url ?? row.custom_photo_url ?? undefined,
+      cuisine_category: undefined,
+      meal_type: undefined,
+      prep_time: cat?.prep_time ?? 0,
+      cook_time: cat?.cook_time ?? 0,
+      rest_time: cat?.rest_time ?? 0,
+      servings: cat?.servings ?? 4,
+      difficulty: cat?.difficulty ?? 3,
+      instructions: cat?.instructions ?? row.custom_instructions ?? '',
+      tags: cat?.tags ?? row.personal_tags ?? [],
+      source_type: cat?.source ?? undefined,
+      source_url: cat?.source_url ?? undefined,
+      nutrition_info: cat?.nutrition_json ?? undefined,
+      is_public: row.is_from_catalog === true,
+      rating: cat?.rating_avg ?? undefined,
+      rating_count: cat?.rating_count ?? undefined,
+      user_id: row.user_id,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
 
   // Fetch une recette avec ses ingrédients
   const fetchRecipeWithIngredients = async (recipeId: string): Promise<RecipeWithIngredients | null> => {

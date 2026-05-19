@@ -97,17 +97,47 @@ export function getUnitDisplay(unit: string | null | undefined, quantity: number
  */
 export function formatQuantityWithUnit(quantity: number, unit: string | null | undefined): string {
   const unitDisplay = getUnitDisplay(unit, quantity);
-  
+
   // For abbreviations, add a space
   const standardized = standardizeUnit(unit);
   const config = UNIT_CONFIGS[standardized];
-  
+
   if (config?.abbreviation === unitDisplay) {
     return `${quantity} ${unitDisplay}`;
   }
-  
+
   // For full words, add space
   return `${quantity} ${unitDisplay}`;
+}
+
+/**
+ * Compact display form: hides the unit when it carries no information
+ * (count units like "unité", "pièce" — the product name itself
+ * conveys what is being counted). Weights and volumes are kept.
+ *
+ * 2026-05-18 — introduced after the user pointed out that defaulting
+ * to "unité" everywhere produced noisy labels ("1 unité tomate"). See
+ * also the parser system prompt which now only emits weight/volume
+ * units when the source text explicitly specifies them.
+ */
+export function getUnitDisplayCompact(
+  unit: string | null | undefined,
+  quantity: number,
+): string {
+  if (isCountUnit(unit) || !unit) return '';
+  return getUnitDisplay(unit, quantity);
+}
+
+/**
+ * Same intent as `formatQuantityWithUnit` but with the count-unit
+ * suppression applied. Use for product/inventory cards.
+ */
+export function formatQuantityCompact(
+  quantity: number,
+  unit: string | null | undefined,
+): string {
+  const display = getUnitDisplayCompact(unit, quantity);
+  return display ? `${quantity} ${display}` : `${quantity}`;
 }
 
 /**

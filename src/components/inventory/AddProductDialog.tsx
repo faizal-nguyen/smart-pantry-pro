@@ -55,10 +55,26 @@ const UNIT_TYPES = [
 
 interface AddProductDialogProps {
   trigger?: React.ReactNode;
+  /**
+   * 2026-05-18 — optional controlled-open API. When `open` is
+   * provided, this dialog mirrors it (no internal toggle) and skips
+   * rendering its `defaultTrigger` FAB. Inventory.tsx drives the
+   * dialog through its FAB menu and used to pass these props that
+   * were silently ignored, causing the default trigger to render a
+   * stray "+" button under the global AssistantFAB.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
-  const [open, setOpen] = useState(false);
+const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddProductDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'product' | 'inventory'>('product');
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -66,7 +82,10 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   // Product form
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("");
-  const [unitType, setUnitType] = useState("");
+  // 2026-05-18 — default to count units so the dialog matches the
+  // app-wide "compter en quantité par défaut" decision. The user can
+  // still pick g/kg/L if they really want to weigh.
+  const [unitType, setUnitType] = useState("unité");
   const [barcode, setBarcode] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   
@@ -86,7 +105,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     console.log('🔄 Resetting form...');
     setProductName("");
     setCategory("");
-    setUnitType("");
+    setUnitType("unité");
     setBarcode("");
     setImageUrl(undefined);
     setQuantity("");
@@ -284,14 +303,18 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     </Button>
   );
 
+  // Only render a trigger when the consumer provided one OR when the
+  // dialog is uncontrolled (legacy mounts that rely on the default FAB).
+  const renderedTrigger = trigger ?? (isControlled ? null : defaultTrigger);
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (!newOpen) resetForm();
     }}>
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      {renderedTrigger !== null && (
+        <DialogTrigger asChild>{renderedTrigger}</DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
