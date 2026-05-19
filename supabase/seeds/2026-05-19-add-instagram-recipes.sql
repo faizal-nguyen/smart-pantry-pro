@@ -14,6 +14,8 @@
 --
 -- Recettes incluses :
 --   1. Pad Krapow Lumpia                       ✓
+--   2. Spicy Tuna Crispy Rice                  ✓
+--   3. Don't Worry Rice Bowl                   ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -27,7 +29,9 @@ DECLARE
   v_user_id     UUID := 'c1e994cc-4af9-47ef-9fd1-a8a8f803c5c6';
   v_recipe_id   UUID;
   v_recipe_names TEXT[] := ARRAY[
-    'Pad Krapow Lumpia'
+    'Pad Krapow Lumpia',
+    'Spicy Tuna Crispy Rice',
+    'Don''t Worry Rice Bowl'
   ];
 BEGIN
 
@@ -87,5 +91,107 @@ $instr$,
     (v_recipe_id, 'œufs',                    4,   'unité',      false, 12, 'frits, jaune coulant'),
     (v_recipe_id, 'tomates',                 2,   'unité',      false, 13, 'fraîches, en tranches');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (1 recipe so far)', v_user_id;
+  -- =====================================================================
+  -- 2. Spicy Tuna Crispy Rice (style Nobu / izakaya)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Spicy Tuna Crispy Rice',
+    'Classique des sushi bars (inspiration Nobu) : galettes de riz à sushi pressé puis frit jusqu''à croustillant ambré, surmontées d''un tartare de thon sushi-grade au mayo Kewpie, sriracha, yuzu et sésame. Prévoir 2 h de repos au frigo pour le riz pressé.',
+    $instr$["Rincer le riz à sushi à l'eau froide jusqu'à ce que l'eau ressorte claire.",
+"Cuire le riz au rice cooker avec le kombu et l'eau (ratio standard 1 : 1,1).",
+"Mélanger vinaigre de riz + sucre + sel dans un bol. Passer 30 secondes au micro-ondes pour dissoudre le sucre et le sel.",
+"Quand le riz est cuit, verser le mélange vinaigré sur le riz chaud et mélanger délicatement à la spatule jusqu'à incorporation complète.",
+"Tapisser une plaque de cuisson de film alimentaire. Étaler le riz uniformément (~2 cm d'épaisseur). Recouvrir d'un autre film, presser avec une seconde plaque par-dessus. Réfrigérer 2 heures minimum jusqu'à solidification.",
+"Pendant ce temps, hacher finement le thon sushi-grade au couteau. Mélanger avec oignon vert tranché fin, gingembre râpé, sauce soja, huile de sésame, jus de yuzu, mayo Kewpie, sriracha et sel. Couvrir et réfrigérer.",
+"Démouler le riz pressé et le couper en rectangles ou losanges (taille bouchée).",
+"Friture profonde : chauffer l'huile à 190°C. Plonger les galettes en lots, en les espaçant de 30 secondes pour qu'elles ne collent pas. Frire jusqu'à doré profond.",
+"Égoutter sur grille, saler légèrement chaque galette à la sortie de l'huile.",
+"Surmonter chaque galette d'une quenelle de tartare de thon épicé. Parsemer de ciboulette ciselée. Servir immédiatement."]
+$instr$,
+    30, 30, 4, 3,
+    'Japonaise', 'appetizer',
+    ARRAY['japonais','sushi','thon cru','nobu','fusion','frit','crispy rice','izakaya'],
+    'manual',
+    'https://www.instagram.com/p/DHbc_FsPtSF/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Riz à sushi
+    (v_recipe_id, 'riz à sushi',             400, 'g',          true,  1,  '2 cups'),
+    (v_recipe_id, 'eau',                     540, 'ml',         true,  2,  '2.25 cups'),
+    (v_recipe_id, 'kombu',                   1,   'unité',      true,  3,  'carré ~8x8 cm'),
+    (v_recipe_id, 'vinaigre de riz',         60,  'ml',         true,  4,  '0.25 cup'),
+    (v_recipe_id, 'sucre',                   30,  'g',          true,  5,  '2 c. à soupe'),
+    (v_recipe_id, 'sel',                     5,   'g',          true,  6,  '1 c. à café'),
+    (v_recipe_id, 'huile végétale',          1000, 'ml',        true,  7,  'neutre, pour friture profonde'),
+    -- Tartare de thon
+    (v_recipe_id, 'thon sushi-grade',        340, 'g',          true,  8,  '0.75 lb, haché fin au couteau'),
+    (v_recipe_id, 'oignon vert',             1,   'unité',      true,  9,  'tranché fin'),
+    (v_recipe_id, 'gingembre',               5,   'g',          true,  10, 'râpé'),
+    (v_recipe_id, 'sauce soja',              10,  'ml',         true,  11, '2 c. à café'),
+    (v_recipe_id, 'huile de sésame',         5,   'ml',         true,  12, '1 c. à café'),
+    (v_recipe_id, 'jus de yuzu',             10,  'ml',         true,  13, '2 c. à café'),
+    (v_recipe_id, 'mayonnaise Kewpie',       45,  'ml',         true,  14, '3 c. à soupe, mayo japonaise'),
+    (v_recipe_id, 'sriracha',                45,  'ml',         true,  15, '3 c. à soupe, ajuster au goût'),
+    (v_recipe_id, 'sel',                     1,   'pincée',     true,  16, 'pour le tartare, au goût'),
+    -- Garniture
+    (v_recipe_id, 'ciboulette',              1,   'c. à soupe', false, 17, 'ciselée, garniture');
+
+  -- =====================================================================
+  -- 3. Don't Worry Rice Bowl (viral chinois 10 min)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Don''t Worry Rice Bowl',
+    'Bol de riz chinois viral surnommé "I''m Good, Don''t Worry" (我没事) : porc haché sauté, œufs ajoutés sur place, sauce soja-huître-vinaigre-sucre liée à la fécule. Prêt en 10 min, réconfortant et complet — la recette doudou des soirs où on n''a plus d''énergie.',
+    $instr$["Sauce : mélanger dans un bol sauce soja, sauce soja foncée, sauce huître, vinaigre de riz, sucre et eau. Réserver. Préparer aussi la fécule diluée dans son eau à part.",
+"Chauffer l'huile dans une poêle ou un wok à feu vif. Ajouter le porc haché (ou poulet) et sauter en cassant les amas jusqu'à coloration. Verser un trait de vin de riz si utilisé.",
+"Faire de la place au centre de la poêle. Casser les 3 œufs directement dedans et cuire au gré : brouillés moelleux ou au plat à jaune coulant — au choix.",
+"Verser la sauce sur l'ensemble, puis ajouter la fécule diluée pour épaissir. Bien mélanger pour enrober porc et œufs.",
+"Servir immédiatement sur un bol de riz cuit chaud."]
+$instr$,
+    5, 10, 1, 1,
+    'Chinoise', 'lunch',
+    ARRAY['chinois','viral','rice bowl','porc','œuf','rapide','comfort food'],
+    'manual',
+    'https://www.instagram.com/p/DHCLnKzvazd/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    (v_recipe_id, 'porc haché',              200, 'g',          true,  1,  'ou poulet haché'),
+    (v_recipe_id, 'œufs',                    3,   'unité',      true,  2,  NULL),
+    (v_recipe_id, 'vin de riz',              15,  'ml',         false, 3,  'Shaoxing, optionnel'),
+    (v_recipe_id, 'huile végétale',          15,  'ml',         true,  4,  '1 c. à soupe'),
+    (v_recipe_id, 'riz cuit',                200, 'g',          true,  5,  '1 bol, chaud'),
+    -- Sauce
+    (v_recipe_id, 'sauce soja',              15,  'ml',         true,  6,  '1 c. à soupe'),
+    (v_recipe_id, 'sauce soja foncée',       5,   'ml',         true,  7,  '1 c. à café'),
+    (v_recipe_id, 'sauce huître',            5,   'ml',         true,  8,  '1 c. à café'),
+    (v_recipe_id, 'vinaigre de riz',         2.5, 'ml',         true,  9,  '0.5 c. à café'),
+    (v_recipe_id, 'sucre',                   2.5, 'g',          true,  10, '0.5 c. à café'),
+    (v_recipe_id, 'eau',                     60,  'ml',         true,  11, '0.25 cup, pour la sauce'),
+    (v_recipe_id, 'sel',                     1,   'pincée',     true,  12, 'au goût'),
+    (v_recipe_id, 'poivre noir',             1,   'pincée',     true,  13, 'au goût'),
+    -- Liaison
+    (v_recipe_id, 'fécule de maïs',          7.5, 'g',          true,  14, '0.5 c. à soupe'),
+    (v_recipe_id, 'eau',                     15,  'ml',         true,  15, '1 c. à soupe, pour diluer la fécule');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (3 recipes so far)', v_user_id;
 END $$;
