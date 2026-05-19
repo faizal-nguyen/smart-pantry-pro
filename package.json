@@ -71,6 +71,7 @@
     "e2e:update-snapshots": "playwright test --update-snapshots",
     "api:build:ts": "tsc -p apps/api/tsconfig.json",
     "api:start:ts": "node apps/api/dist/index.js",
+    "backfill:product-embeddings": "tsx scripts/backfill-product-embeddings.ts",
     "postinstall": "npm run shared:build || true"
   },
   "dependencies": {
