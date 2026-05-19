@@ -80,11 +80,20 @@ export function AssistantFAB({
       disabled={isBusy}
       className={cn(
         'fixed z-40 h-14 w-14 rounded-full shadow-xl transition-all',
-        'bottom-6 right-6 sm:bottom-8 sm:right-8',
+        // Sur mobile (≤ sm), la MobileNavigation occupe la bande basse
+        // (~90px en incluant safe-area iPhone). On remonte donc le FAB
+        // au-dessus de la nav. Sur tablette+/desktop la MobileNavigation
+        // n'est pas rendue → retour à la position bas-droite classique.
+        'bottom-24 right-4 sm:bottom-8 sm:right-8',
         isRecording
           ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse'
           : 'bg-accent-ai text-accent-ai-foreground hover:bg-accent-ai/90'
       )}
+      style={{
+        // sur mobile uniquement, on ajoute la safe-area pour éviter de chevaucher
+        // la home indicator sur iPhone (le sm:bottom-8 desktop n'en a pas besoin).
+        marginBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
       data-testid="assistant-fab"
     >
       {isBusy ? (

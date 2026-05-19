@@ -462,7 +462,9 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
       {/* Contenu Principal */}
       <main className={cn(
         "flex-1",
-        isMobile && "pb-20 pt-0",
+        // pb-28 (112px) au lieu de pb-20 (80px) : la MobileNavigation occupe
+        // ~98px sur iPhone notched (56px contenu + 8px padding + ~34px safe-area).
+        isMobile && "pb-28 pt-0",
         isTablet && "ml-16 pb-16",
         isDesktopOrWide && "ml-64 pb-0",
         isChildMode && adaptiveInterface.buttonSpacing === 'spacious' && "p-6",

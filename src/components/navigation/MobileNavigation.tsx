@@ -19,7 +19,6 @@ import { cn } from '@/lib/utils';
 
 // Hooks et utilitaires
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
-import { useResponsiveZones } from '@/hooks/useResponsiveZones';
 import { supabase } from '@/integrations/supabase/client';
 
 // Types et configuration
@@ -370,7 +369,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { zones } = useResponsiveZones();
   const { adaptiveInterface, getIconSize, isChildMode } = useAgeAdaptiveUI();
 
   // Sélectionner les éléments principaux pour la bottom nav
@@ -438,7 +436,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         </header>
       )}
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation
+          NB: pas de `height` figée — `zones.navigation.height` valait ~44px (iOS
+          tap target) et combiné au padding `safe-area-inset-bottom` (~34px sur
+          iPhone notched) écrasait les boutons à ~10px de hauteur cliquable.
+          On laisse le contenu (MobileNavItem min-h-[56px]) piloter la hauteur,
+          et la padding safe-area s'ajoute par-dessous au lieu d'être absorbée. */}
       <nav
         aria-label="Navigation principale"
         role="navigation"
@@ -446,11 +449,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           "fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t shadow-lg safe-area-inset-bottom z-40",
           isChildMode && "bg-card/95 border-t-2 border-primary/20"
         )}
-        style={{ height: zones.navigation.height }}
       >
         <div
           className={cn(
-            "h-full grid gap-1 px-2 py-1",
+            "grid gap-1 px-2 py-1",
             isChildMode && "gap-2 px-3 py-2"
           )}
           style={{ gridTemplateColumns: `repeat(${bottomNavItems.length}, minmax(0, 1fr))` }}
