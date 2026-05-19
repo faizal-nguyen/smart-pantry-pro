@@ -63,6 +63,7 @@ interface RecipeBuckets {
 const LEGACY_RECIPE_TOOLS = new Set([
   'find_cookable_recipes',
   'search_recipes',
+  'find_recipes_using_ingredient',
   'read_recent_recipes',
 ]);
 
