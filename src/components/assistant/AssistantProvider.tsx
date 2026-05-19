@@ -16,6 +16,7 @@
  * via the result dialog to read the full thread.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { useToast } from '@/hooks/use-toast';
 import { useAssistantVoice } from '@/hooks/useAssistantVoice';
@@ -72,11 +73,18 @@ export function AssistantProvider({
   allowedTools,
 }: AssistantProviderProps) {
   const { toast } = useToast();
+  const location = useLocation();
   // PRP-233 PR3 — read the sticky conversation_id once at mount and
   // again before each recording so the FAB inherits it across pages.
   const getConversationId = useCallback(() => getStickyConversationId(), []);
   const voice = useAssistantVoice({ language, allowedTools, getConversationId });
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Mobile audit P0#2 — la page /assistant a déjà son propre composer
+  // (micro + texte). Le FAB global créerait un doublon visuel et un
+  // overlap bottom-right avec le composer docké. On masque donc le FAB
+  // sur cette route uniquement, partout ailleurs il reste visible.
+  const hideFab = location.pathname.startsWith('/assistant');
 
   // Auto-open the dialog when a result lands + invalidate downstream
   // hook caches for any table the executed actions touched.
@@ -125,15 +133,17 @@ export function AssistantProvider({
   return (
     <>
       {children}
-      <AssistantFAB
-        status={fabStatus}
-        recordingMs={voice.recordingMs}
-        onClick={() => {
-          if (fabStatus === 'idle' || fabStatus === 'recording') {
-            void voice.toggleRecording();
-          }
-        }}
-      />
+      {!hideFab && (
+        <AssistantFAB
+          status={fabStatus}
+          recordingMs={voice.recordingMs}
+          onClick={() => {
+            if (fabStatus === 'idle' || fabStatus === 'recording') {
+              void voice.toggleRecording();
+            }
+          }}
+        />
+      )}
       <AssistantResultDialog
         open={dialogOpen}
         onOpenChange={handleClose}

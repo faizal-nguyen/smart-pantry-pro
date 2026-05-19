@@ -63,15 +63,17 @@ const KitchenDashboard: React.FC = () => {
               Qu&apos;est-ce qu&apos;on cuisine ?
             </p>
           </div>
+          {/* Mobile audit P2#7 — boutons sont des cibles tactiles cuisine.
+              On les passe à h-11 (44px iOS minimum) au lieu de size="sm" (h-9). */}
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/kitchen/recipes?tab=library">
+            <Button variant="outline" className="h-11" asChild>
+              <Link to="/kitchen/recipes?tab=library" data-testid="primary-action">
                 <BookOpen className="h-4 w-4 mr-2" />
                 Mes recettes
               </Link>
             </Button>
-            <Button variant="default" size="sm" asChild>
-              <Link to="/kitchen/recipes?tab=import">
+            <Button variant="default" className="h-11" asChild>
+              <Link to="/kitchen/recipes?tab=import" data-testid="primary-action">
                 <Plus className="h-4 w-4 mr-2" />
                 Ajouter
               </Link>
