@@ -33,6 +33,8 @@
 --      (Air Fryer)
 --  17. Creamy Tuscan Chicken Pasta             ✓
 --  18. Fettuccine Alfredo                      ✓
+--  19. Loco Moco au Poivre                     ✓
+--  20. Malai Chutney Chicken Tikka             ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -63,7 +65,9 @@ DECLARE
     'Ayam Goreng (Malay Fried Chicken)',
     'Crispy Smashed Cajun Potatoes (Air Fryer)',
     'Creamy Tuscan Chicken Pasta',
-    'Fettuccine Alfredo'
+    'Fettuccine Alfredo',
+    'Loco Moco au Poivre',
+    'Malai Chutney Chicken Tikka'
   ];
 BEGIN
 
@@ -1011,5 +1015,116 @@ $instr$,
     (v_recipe_id, 'mélange italien',            5,   'g',          true,  10, '1 c. à café, herbes séchées'),
     (v_recipe_id, 'persil frais',               10,  'g',          true,  11, '2 c. à soupe, haché');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (18 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 19. Loco Moco au Poivre (fusion Hawaii × France)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Loco Moco au Poivre',
+    'Fusion hawaïenne × française : steak haché maison sur riz blanc, nappé d''une sauce au poivre revisitée (gravy aux champignons et grains de poivre vert, fond de bœuf, moutarde à l''ancienne, soja, Worcestershire), surmonté d''un œuf au plat à jaune coulant. Comfort food.',
+    $instr$["Steaks hachés : dans un grand bol, mélanger le bœuf haché, la chapelure, les œufs, la Worcestershire, la poudre d'oignon, la poudre d'ail, l'oignon en dés et le lait. Saler-poivrer. Mélanger jusqu'à texture homogène et collante.",
+"Former 4 à 6 galettes (patties) de l'épaisseur souhaitée, légèrement plus larges que prévu (elles rétrécissent à la cuisson).",
+"Chauffer l'huile dans une grande poêle à feu vif. Cuire les patties ~2-3 min par face jusqu'à belle croûte et cuisson à cœur. Réserver.",
+"Sauce au poivre : dans la même poêle (sans nettoyer — les sucs font tout le goût), ajouter oignons blancs émincés, ail tranché et champignons de Paris. Sauter à feu moyen-vif jusqu'à légèrement dorés.",
+"Saupoudrer la farine et cuire 1 minute en remuant (roux qui adhère aux sucs).",
+"Verser le fond de bœuf chaud en plusieurs fois en fouettant pour éviter les grumeaux.",
+"Ajouter ketchup, Worcestershire, sauce soja, moutarde à l'ancienne et grains de poivre vert. Mélanger et laisser frémir jusqu'à consistance nappante (gravy onctueuse).",
+"Rectifier sel et poivre.",
+"Dressage : déposer une portion de riz blanc chaud dans une assiette creuse. Poser un patty dessus. Napper généreusement de gravy au poivre. Couronner d'un œuf au plat à jaune coulant. Parsemer d'oignons verts ciselés. Servir immédiatement."]
+$instr$,
+    20, 25, 4, 2,
+    'Américaine', 'dinner',
+    ARRAY['américain','hawaïen','français','fusion','loco moco','sauce au poivre','steak haché','riz','œuf au plat','comfort food'],
+    'manual',
+    'https://www.instagram.com/p/DJ_sWjWTni4/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Patty
+    (v_recipe_id, 'bœuf haché',               1000, 'g',          true,  1,  'pour 4-6 patties'),
+    (v_recipe_id, 'chapelure',                90,  'g',           true,  2,  '~1 cup'),
+    (v_recipe_id, 'œufs',                     2,   'unité',       true,  3,  'pour les patties'),
+    (v_recipe_id, 'sauce Worcestershire',     15,  'ml',          true,  4,  '1 c. à soupe, patty'),
+    (v_recipe_id, 'poudre d''oignon',         15,  'g',           true,  5,  '1 c. à soupe'),
+    (v_recipe_id, 'poudre d''ail',            15,  'g',           true,  6,  '1 c. à soupe'),
+    (v_recipe_id, 'oignon',                   1,   'unité',       true,  7,  'blanc, en dés (patty)'),
+    (v_recipe_id, 'lait',                     240, 'ml',          true,  8,  '1 cup, pour le panade chapelure'),
+    (v_recipe_id, 'sel',                      1,   'c. à café',   true,  9,  'pour les patties, au goût'),
+    (v_recipe_id, 'poivre noir',              1,   'c. à café',   true,  10, 'au goût'),
+    (v_recipe_id, 'huile végétale',           30,  'ml',          true,  11, 'pour cuire les patties'),
+    -- Gravy
+    (v_recipe_id, 'oignon',                   1,   'unité',       true,  12, 'blanc, tranché, pour le gravy'),
+    (v_recipe_id, 'ail',                      6,   'gousse',      true,  13, 'tranchées'),
+    (v_recipe_id, 'champignons de Paris',     200, 'g',           true,  14, '2 cups tranchés'),
+    (v_recipe_id, 'grains de poivre vert',    80,  'ml',          true,  15, '1/3 cup, en saumure, égouttés'),
+    (v_recipe_id, 'fond de bœuf',             960, 'ml',          true,  16, '4 cups'),
+    (v_recipe_id, 'farine',                   120, 'g',           true,  17, '1 cup, pour le roux'),
+    (v_recipe_id, 'sauce Worcestershire',     15,  'ml',          true,  18, '1 c. à soupe, gravy'),
+    (v_recipe_id, 'moutarde à l''ancienne',   15,  'g',           true,  19, '1 c. à soupe'),
+    (v_recipe_id, 'ketchup',                  30,  'ml',          true,  20, '2 c. à soupe'),
+    (v_recipe_id, 'sauce soja',               30,  'ml',          true,  21, '2 c. à soupe'),
+    -- Toppings
+    (v_recipe_id, 'œufs',                     4,   'unité',       true,  22, 'frits, jaune coulant (1 par portion)'),
+    (v_recipe_id, 'riz blanc cuit',           800, 'g',           true,  23, 'pour servir'),
+    (v_recipe_id, 'oignons verts',            1,   'unité',       false, 24, 'ciselés, garniture');
+
+  -- =====================================================================
+  -- 20. Malai Chutney Chicken Tikka
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Malai Chutney Chicken Tikka',
+    'Poulet tikka indien crémeux : marinade yaourt-crème-gingembre-ail-poivre-cumin-garam masala, char à la flamme, sauce finale "malai chutney" (crème + chutney vert + chaat masala) montée dans le même poêle pour récupérer tous les sucs. Servi avec oignons et coriandre.',
+    $instr$["Marinade : dans un bol, mélanger le poulet désossé avec yaourt, pâte gingembre-ail, poivre noir moulu, cumin moulu, garam masala et crème fraîche. Bien enrober.",
+"Couvrir et laisser mariner 2 heures minimum au frais (idéal : une nuit).",
+"Cuisson en poêle : chauffer une poêle avec un filet d'huile à feu moyen. Ajouter le poulet (réserver la marinade restante au bol). Cuire jusqu'à évaporation de l'eau et coloration ; le poulet doit être à 80-90 % cuit.",
+"Pour le char (étape clé) : passer les morceaux de poulet directement sur la flamme du gaz (avec une pince) ou sous le gril du four mode broil 1-2 min, jusqu'à marques noires. Réserver.",
+"Sauce malai chutney : dans la même poêle (sans nettoyer), ajouter la marinade restante, la crème fraîche supplémentaire, le chutney vert et le chaat masala. Mélanger et laisser frémir à feu doux jusqu'à épaississement onctueux.",
+"Goûter et rectifier sel + chaat masala.",
+"Dressage : déposer les morceaux de poulet charré dans une assiette creuse, napper de sauce malai chutney chaude. Garnir d'oignons rouges en lamelles et de coriandre fraîche hachée. Servir avec naan ou riz."]
+$instr$,
+    15, 30, 4, 3,
+    'Indienne', 'dinner',
+    ARRAY['indien','poulet tikka','malai','chutney vert','crémeux','grillé','char','restaurant'],
+    'manual',
+    'https://www.instagram.com/p/DNyDOVzYqdH/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Marinade
+    (v_recipe_id, 'cuisses de poulet désossées', 500, 'g',          true,  1,  'en morceaux taille bouchée'),
+    (v_recipe_id, 'yaourt',                      30,  'ml',         true,  2,  '2 c. à soupe'),
+    (v_recipe_id, 'pâte gingembre-ail',          30,  'ml',         true,  3,  '2 c. à soupe'),
+    (v_recipe_id, 'poivre noir moulu',           15,  'g',          true,  4,  '1 c. à soupe'),
+    (v_recipe_id, 'cumin moulu',                 5,   'g',          true,  5,  '1 c. à café'),
+    (v_recipe_id, 'garam masala',                5,   'g',          true,  6,  '1 c. à café'),
+    (v_recipe_id, 'crème fraîche',               15,  'ml',         true,  7,  '1 c. à soupe, marinade'),
+    -- Cuisson
+    (v_recipe_id, 'huile',                       15,  'ml',         true,  8,  '1 c. à soupe, pour la poêle'),
+    -- Sauce malai chutney
+    (v_recipe_id, 'crème fraîche',               15,  'ml',         true,  9,  '1 c. à soupe, pour la sauce'),
+    (v_recipe_id, 'chutney vert',                30,  'g',          true,  10, '2 c. à soupe, menthe-coriandre'),
+    (v_recipe_id, 'chaat masala',                2.5, 'g',          true,  11, '0.5 c. à café'),
+    (v_recipe_id, 'sel',                         1,   'pincée',     true,  12, 'au goût en finition'),
+    -- Garniture
+    (v_recipe_id, 'oignon rouge',                0.5, 'unité',      false, 13, 'en lamelles, garniture'),
+    (v_recipe_id, 'coriandre fraîche',           10,  'g',          false, 14, 'hachée, garniture');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (20 recipes so far)', v_user_id;
 END $$;
