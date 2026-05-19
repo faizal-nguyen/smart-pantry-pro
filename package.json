@@ -72,6 +72,7 @@
     "api:build:ts": "tsc -p apps/api/tsconfig.json",
     "api:start:ts": "node apps/api/dist/index.js",
     "backfill:product-embeddings": "tsx scripts/backfill-product-embeddings.ts",
+    "dedup:product-catalog": "tsx scripts/dedup-product-catalog.ts",
     "postinstall": "npm run shared:build || true"
   },
   "dependencies": {
