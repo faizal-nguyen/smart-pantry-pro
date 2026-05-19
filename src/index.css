@@ -219,6 +219,13 @@
   body {
     @apply bg-background text-foreground transition-colors duration-300;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    /* Hard cap against accidental horizontal scroll on mobile. Any
+       overflowing child (long token, oversized image, fixed-width
+       widget) gets clipped instead of unlocking a left/right swipe
+       on the whole page. `clip` is preferred over `hidden` so we
+       don't create a containing block for fixed children (which
+       would break the bottom nav). */
+    overflow-x: clip;
   }
 
   /* Focus styles for accessibility */
@@ -229,6 +236,7 @@
   /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   /* Custom scrollbar */
