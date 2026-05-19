@@ -56,7 +56,7 @@ Dans le dashboard du service `smart-pantry-api` → **Environment**.
 |---|---|---|
 | `OPENAI_API_KEY` | `sk-…` | Compte OpenAI avec credits |
 | `SUPABASE_URL` | `https://jwoxacnflphclslpqfzs.supabase.co` | Même que celui du front |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ…` | Dashboard Supabase → Project Settings → API → `service_role` |
+| `SUPABASE_SERVICE_KEY` | `eyJ…` | Dashboard Supabase → Project Settings → API → `service_role`. **NB**: la var s'appelle `SUPABASE_SERVICE_KEY` (sans `_ROLE_`), c'est ce que le code lit dans `apps/api/src/config/supabase.ts`. |
 | `SUPABASE_ANON_KEY` | `eyJ…` | Idem, `anon public` |
 | `ADMIN_TOKEN` | (≥ 32 chars random) | Génère avec `openssl rand -hex 32`. Requis pour `/api/admin/*` (worker deletion). |
 

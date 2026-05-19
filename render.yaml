@@ -37,7 +37,10 @@ services:
         sync: false
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      # NOTE: the code reads `SUPABASE_SERVICE_KEY`, NOT
+      # `SUPABASE_SERVICE_ROLE_KEY`. The value is still the
+      # Supabase `service_role` JWT — only the env-var name differs.
+      - key: SUPABASE_SERVICE_KEY
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
