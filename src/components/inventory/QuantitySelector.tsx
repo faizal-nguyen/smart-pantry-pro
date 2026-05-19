@@ -3,7 +3,7 @@ import { MaterialButton } from '@/components/ui/material/Button';
 import { Input } from '@/components/ui/input';
 import { Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getUnitDisplay } from '@/utils/units';
+import { getUnitDisplayCompact } from '@/utils/units';
 
 interface QuantitySelectorProps {
   value: number;
@@ -56,9 +56,13 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         
         <div className="flex items-baseline gap-1 min-w-[60px] text-center">
           <span className="font-medium text-lg text-foreground">{value}</span>
-          <span className="text-sm text-muted-foreground">{getUnitDisplay(unit, value)}</span>
+          {getUnitDisplayCompact(unit, value) && (
+            <span className="text-sm text-muted-foreground">
+              {getUnitDisplayCompact(unit, value)}
+            </span>
+          )}
         </div>
-        
+
         <MaterialButton
           variant="outlined"
           className="h-8 w-8 rounded-full p-0"
@@ -90,7 +94,11 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
           step={step}
           className="w-20 text-center"
         />
-        <span className="text-sm text-muted-foreground">{getUnitDisplay(unit, value)}</span>
+        {getUnitDisplayCompact(unit, value) && (
+          <span className="text-sm text-muted-foreground">
+            {getUnitDisplayCompact(unit, value)}
+          </span>
+        )}
       </div>
       
       <MaterialButton

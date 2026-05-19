@@ -717,6 +717,130 @@ export type Database = {
         }
         Relationships: []
       }
+      // PRP-226 PR3 — Kitchen Recommendation Engine event log + cache + interactions.
+      recommendation_events: {
+        Row: {
+          id: string
+          user_id: string
+          conversation_id: string | null
+          assistant_message_id: string | null
+          request_text: string | null
+          context: Json
+          candidate_count: number
+          results: Json
+          selected_recipe_id: string | null
+          accepted: boolean | null
+          feedback: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          conversation_id?: string | null
+          assistant_message_id?: string | null
+          request_text?: string | null
+          context?: Json
+          candidate_count?: number
+          results?: Json
+          selected_recipe_id?: string | null
+          accepted?: boolean | null
+          feedback?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          conversation_id?: string | null
+          assistant_message_id?: string | null
+          request_text?: string | null
+          context?: Json
+          candidate_count?: number
+          results?: Json
+          selected_recipe_id?: string | null
+          accepted?: boolean | null
+          feedback?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      recipe_recommendation_cache: {
+        Row: {
+          id: string
+          user_id: string
+          cache_key: string
+          result_json: Json
+          expires_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          cache_key: string
+          result_json: Json
+          expires_at: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          cache_key?: string
+          result_json?: Json
+          expires_at?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      recipe_interactions: {
+        Row: {
+          id: string
+          user_id: string
+          recipe_id: string | null
+          recommendation_event_id: string | null
+          interaction_type:
+            | 'viewed'
+            | 'recommended'
+            | 'accepted'
+            | 'dismissed'
+            | 'cooked'
+            | 'added_missing_to_shopping'
+            | 'planned'
+          metadata: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          recipe_id?: string | null
+          recommendation_event_id?: string | null
+          interaction_type:
+            | 'viewed'
+            | 'recommended'
+            | 'accepted'
+            | 'dismissed'
+            | 'cooked'
+            | 'added_missing_to_shopping'
+            | 'planned'
+          metadata?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          recipe_id?: string | null
+          recommendation_event_id?: string | null
+          interaction_type?:
+            | 'viewed'
+            | 'recommended'
+            | 'accepted'
+            | 'dismissed'
+            | 'cooked'
+            | 'added_missing_to_shopping'
+            | 'planned'
+          metadata?: Json
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {

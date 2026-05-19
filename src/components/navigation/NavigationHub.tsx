@@ -106,10 +106,10 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     subItems: [
       {
         id: 'kitchen-overview',
-        label: 'Dashboard cuisine',
+        label: 'Aujourd\'hui',
         path: '/kitchen',
         icon: Home,
-        description: 'Vue d\'ensemble de la cuisine'
+        description: 'Aujourd\'hui en cuisine'
       },
       {
         id: 'kitchen-recipes',
@@ -119,12 +119,13 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
         description: 'Catalogue de recettes'
       },
       {
+        // PRP-234 PR2 — Menus V1 a remplacé `CipherMealPlanningPage`
+        // sur cette route. Label aligné sur la promesse produit.
         id: 'kitchen-meal-planning',
-        label: 'Planification',
+        label: 'Menus',
         path: '/kitchen/meal-planning',
         icon: CalendarDays,
-        description: 'Planification des repas',
-        isNew: true
+        description: 'Menus de la semaine'
       },
       {
         // PRP-232 PR3 — URL favoris canonique (filter=favorites sur library).
@@ -226,9 +227,11 @@ export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
     isMainSection: false,
     subItems: [
       {
+        // PRP-235 PR1 — pointe directement vers la section deep-link
+        // pour éviter la redirection inutile.
         id: 'settings-appearance',
         label: 'Apparence',
-        path: '/settings/appearance',
+        path: '/settings?section=appearance',
         icon: Palette,
         description: 'Personnalisation de l\'interface'
       }

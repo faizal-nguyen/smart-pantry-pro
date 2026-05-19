@@ -41,8 +41,6 @@ import type { Database } from '../types/supabase.js';
 import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
 import { registerWriteHandlers } from '../services/assistant/handlers/write.js';
-import { registerProductHandlers } from '../services/assistant/handlers/products.js';
-import { ProductIntelligenceService } from '../services/products/ProductIntelligenceService.js';
 import { registerInternalHandlers } from '../services/assistant/handlers/internal.js';
 import { registerHighHandlers } from '../services/assistant/handlers/high.js';
 import { registerMetaHandlers } from '../services/assistant/handlers/meta.js';
@@ -53,6 +51,8 @@ import {
   saveImportedDraftAsRecipe,
 } from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
+import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
+import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
 import {
   createOpenAICompletionClient,
   type AICompletionClient,
@@ -207,8 +207,6 @@ export function createAssistantAgentRouter(
   registerReadHandlers(handlerRegistry);
   registerWriteHandlers(handlerRegistry);
   registerInternalHandlers(handlerRegistry);
-  // PRP-225 PR5 — Product Intelligence read + low write tools.
-  registerProductHandlers(handlerRegistry);
   // PRP-223 PR4/PR5/PR7 — read + write tools that talk to MemoryService
   // and CookingJournalService.
   const cookingJournalService = new CookingJournalService(
@@ -241,6 +239,21 @@ export function createAssistantAgentRouter(
     signer,
     { memoryService, contextBuilder, memoryExtractor }
   );
+
+  // PRP-226 PR4 — one shared engine (stateless ; safe to reuse across
+  // requests). The EventWriter on the other hand is per-request because
+  // it binds the user-scoped Supabase client for RLS.
+  // PRP-226 PR6 — also thread the existing MemoryService so the
+  // PreferenceScorer can pull active memories.
+  const recommendationEngine = new RecommendationEngine();
+  const buildRecommendationCtx = (uc: SupabaseClient<any, any, any>) => ({
+    recommendationEngine,
+    eventWriter: new RecommendationEventWriter(
+      uc as SupabaseClient<Database>,
+      adminClient as SupabaseClient<Database>,
+    ),
+    memoryService,
+  });
 
   // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.
   const HOUR = 3_600_000;
@@ -302,10 +315,7 @@ export function createAssistantAgentRouter(
         userClient: req.supabaseClient as SupabaseClient<any, any, any>,
         adminClient,
         productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
-        // PRP-225 PR5 — Product Intelligence service for the new
-        // search_product_candidates / resolve_product_by_barcode /
-        // enrich_product / confirm_product_candidate tools.
-        productIntelligence: new ProductIntelligenceService(adminClient),
+        ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
       };
 
       const result = await service.handleRequest(input, ctx);
@@ -330,7 +340,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
-      productIntelligence: new ProductIntelligenceService(adminClient),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {
@@ -365,7 +375,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
-      productIntelligence: new ProductIntelligenceService(adminClient),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {
@@ -395,7 +405,7 @@ export function createAssistantAgentRouter(
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
       productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
-      productIntelligence: new ProductIntelligenceService(adminClient),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
     try {

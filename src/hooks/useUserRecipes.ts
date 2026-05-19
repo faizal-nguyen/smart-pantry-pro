@@ -392,54 +392,97 @@ async function fetchUserRecipes(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Utilisateur non connecté');
 
-  // Fallback: utiliser les recettes existantes temporairement
-  let query = supabase
-    .from('recipes')
-    .select('*')
-    .eq('user_id', user.id);
+  // The library has two storage layers (PRP-031 "Spotify" architecture):
+  //   1. `recipes`       — legacy/standalone recipes owned by the user
+  //                        (imports Instagram/YouTube, manual SQL inserts).
+  //   2. `user_recipes`  — pointers into the global `recipes_catalog`
+  //                        with optional per-user customisation.
+  // We must read BOTH and merge, otherwise catalog-added recipes are
+  // silently invisible (cf. 2026-05-17 audit: 19 legacy + 11 catalog).
+  const [legacyRes, userLibRes] = await Promise.all([
+    supabase.from('recipes').select('*').eq('user_id', user.id),
+    supabase
+      .from('user_recipes')
+      .select('*, catalog_recipe:recipes_catalog(*)')
+      .eq('user_id', user.id),
+  ]);
 
-  // Apply filters
-  if (filters.collections && filters.collections.length > 0) {
-    query = query.overlaps('collections', filters.collections);
+  if (legacyRes.error) throw legacyRes.error;
+  // user_recipes/catalog can be missing on environments not yet migrated;
+  // we degrade to legacy-only instead of failing the whole query.
+  if (userLibRes.error) {
+    console.warn('[useUserRecipes] user_recipes read failed, falling back to legacy only:', userLibRes.error.message);
   }
 
-  if (filters.tags && filters.tags.length > 0) {
-    query = query.overlaps('personal_tags', filters.tags);
-  }
+  const merged: UserRecipe[] = [
+    ...(legacyRes.data || []).map(mapRecipeToUserRecipe),
+    ...((userLibRes.data || []) as any[]).map(mapUserRecipesRowToUserRecipe),
+  ];
 
-  if (filters.isCustom !== undefined) {
-    query = query.eq('is_from_catalog', !filters.isCustom);
-  }
+  // Filters and sort run in-memory across the merged set. Two reasons:
+  // - the legacy `recipes` table doesn't carry `collections` / `personal_*`
+  //   columns, so duplicating the filter SQL is brittle.
+  // - the merged set is small (tens of rows per user in practice).
+  const filtered = applyUserRecipeFilters(merged, filters);
+  return sortUserRecipes(filtered, sortBy, sortDirection);
+}
 
-  if (filters.hasBeenCooked !== undefined) {
-    if (filters.hasBeenCooked) {
-      query = query.not('last_cooked_date', 'is', null);
-    } else {
-      query = query.is('last_cooked_date', null);
+function applyUserRecipeFilters(
+  rows: UserRecipe[],
+  filters: UserRecipeFilters
+): UserRecipe[] {
+  return rows.filter(r => {
+    if (filters.collections?.length) {
+      const hit = filters.collections.some(c => r.collections.includes(c));
+      if (!hit) return false;
     }
-  }
+    if (filters.tags?.length) {
+      const hit = filters.tags.some(t => r.personal_tags.includes(t));
+      if (!hit) return false;
+    }
+    if (filters.isCustom !== undefined) {
+      if (filters.isCustom === r.is_from_catalog) return false;
+    }
+    if (filters.hasBeenCooked !== undefined) {
+      const cooked = !!r.last_cooked_date;
+      if (filters.hasBeenCooked !== cooked) return false;
+    }
+    if (filters.rating && (r.personal_rating ?? 0) < filters.rating) {
+      return false;
+    }
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const haystack = [
+        r.custom_title,
+        r.personal_notes,
+        r.catalog_recipe?.title,
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
 
-  if (filters.rating) {
-    query = query.gte('personal_rating', filters.rating);
-  }
-
-  // Apply search
-  if (filters.search) {
-    query = query.or(`
-      custom_title.ilike.%${filters.search}%,
-      personal_notes.ilike.%${filters.search}%,
-      catalog_recipe.title.ilike.%${filters.search}%
-    `);
-  }
-
-  // Apply sorting (map field names)
-  const sortField = sortBy === 'added_date' ? 'created_at' : sortBy === 'last_cooked_date' ? 'updated_at' : 'created_at';
-  query = query.order(sortField, { ascending: sortDirection === 'asc' });
-
-  const { data, error } = await query;
-
-  if (error) throw error;
-  return (data || []).map(mapRecipeToUserRecipe);
+function sortUserRecipes(
+  rows: UserRecipe[],
+  sortBy: string,
+  sortDirection: 'asc' | 'desc'
+): UserRecipe[] {
+  const dir = sortDirection === 'asc' ? 1 : -1;
+  const key = (r: UserRecipe): number => {
+    switch (sortBy) {
+      case 'last_cooked_date':
+        return r.last_cooked_date ? new Date(r.last_cooked_date).getTime() : 0;
+      case 'times_cooked':
+        return r.times_cooked || 0;
+      case 'personal_rating':
+        return r.personal_rating || 0;
+      case 'added_date':
+      default:
+        return r.added_date ? new Date(r.added_date).getTime() : 0;
+    }
+  };
+  return [...rows].sort((a, b) => (key(a) - key(b)) * dir);
 }
 
 async function fetchUserRecipe(recipeId: string) {
@@ -491,12 +534,16 @@ export function getRecipeIngredients(recipe: UserRecipe) {
   return recipe.custom_ingredients_json || [];
 }
 
-// Fonction utilitaire pour mapper une recette existante vers UserRecipe
+// Maps a row from the legacy `recipes` table (user-owned, standalone)
+// to the unified `UserRecipe` shape. Personal metadata (rating, tags,
+// collections, cook history) doesn't exist on that table, so we leave
+// it empty rather than fabricating a `personal_rating: 4` that would
+// turn every legacy recipe into a fake favorite.
 function mapRecipeToUserRecipe(recipe: any): UserRecipe {
   return {
     id: recipe.id,
     user_id: recipe.user_id,
-    recipe_id: null,
+    recipe_id: undefined,
     is_from_catalog: false,
     custom_title: recipe.name,
     custom_ingredients_json: recipe.ingredients || [],
@@ -504,15 +551,44 @@ function mapRecipeToUserRecipe(recipe: any): UserRecipe {
     custom_photo_url: recipe.image_url,
     custom_modifications: {},
     personal_notes: recipe.description,
-    personal_rating: 4,
+    personal_rating: undefined,
     personal_tags: recipe.tags || [],
     collections: [],
     added_date: recipe.created_at,
+    last_cooked_date: undefined,
     times_cooked: 0,
     is_shared: false,
     shared_with: [],
     created_at: recipe.created_at,
     updated_at: recipe.updated_at,
+  };
+}
+
+// Maps a `user_recipes` row (with embedded `recipes_catalog` via the
+// `catalog_recipe` alias) to the unified `UserRecipe` shape.
+function mapUserRecipesRowToUserRecipe(row: any): UserRecipe {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    recipe_id: row.recipe_id ?? undefined,
+    is_from_catalog: !!row.is_from_catalog,
+    custom_title: row.custom_title ?? undefined,
+    custom_ingredients_json: row.custom_ingredients_json ?? undefined,
+    custom_instructions: row.custom_instructions ?? undefined,
+    custom_photo_url: row.custom_photo_url ?? undefined,
+    custom_modifications: row.custom_modifications || {},
+    personal_notes: row.personal_notes ?? undefined,
+    personal_rating: row.personal_rating ?? undefined,
+    personal_tags: row.personal_tags || [],
+    collections: row.collections || [],
+    added_date: row.added_date || row.created_at,
+    last_cooked_date: row.last_cooked_date ?? undefined,
+    times_cooked: row.times_cooked || 0,
+    is_shared: !!row.is_shared,
+    shared_with: row.shared_with || [],
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    catalog_recipe: row.catalog_recipe ?? undefined,
   };
 }
 

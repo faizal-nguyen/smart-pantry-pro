@@ -36,15 +36,19 @@ export default function CatalogRecipeCard({
     }
   };
 
+  // PRP-237 PR4: card éditoriale, ratio media stable, pas de hover zoom
+  // agressif, fallback tokenisé. The whole card is the navigation target;
+  // the add-to-library button is the only interactive nested control.
+  const mediaHeightClass = compact ? 'aspect-[16/10]' : 'aspect-[16/10]';
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.18 }}
     >
       <Card
-        className="h-full group hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
+        className="h-full group overflow-hidden cursor-pointer border-border hover:border-foreground/20 hover:shadow-md transition-shadow"
         onClick={handleCardClick}
       >
         <div className="relative">
@@ -52,65 +56,69 @@ export default function CatalogRecipeCard({
             <img
               src={recipe.photo_url}
               alt={recipe.title}
-              className={`w-full object-cover group-hover:scale-105 transition-transform duration-300 ${
-                compact ? 'h-32' : 'h-44 md:h-52 lg:h-56'
-              }`}
+              loading="lazy"
+              className={`w-full object-cover ${mediaHeightClass}`}
             />
           ) : (
             <div
-              className={`w-full bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center ${
-                compact ? 'h-32' : 'h-44 md:h-52 lg:h-56'
-              }`}
+              className={`w-full bg-muted flex items-center justify-center ${mediaHeightClass}`}
+              role="img"
+              aria-label={`Aperçu indisponible pour ${recipe.title}`}
             >
-              <ChefHat className={`${compact ? 'h-8 w-8' : 'h-12 w-12'} text-orange-400`} />
+              <ChefHat className={`${compact ? 'h-7 w-7' : 'h-10 w-10'} text-muted-foreground`} />
             </div>
           )}
 
-          <div className="absolute top-3 right-3">
+          <div className="absolute top-2 right-2">
             <Button
               size="sm"
               variant={isInLibrary ? 'secondary' : 'default'}
-              className={`h-10 w-10 p-0 rounded-full ${
-                isInLibrary
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-white text-gray-900 hover:bg-gray-100'
-              }`}
+              className="h-9 w-9 p-0"
               onClick={() => !isInLibrary && onAddToLibrary(recipe.id, recipe.title)}
               disabled={!!isInLibrary || isAdding}
               aria-label={isInLibrary ? 'Déjà dans la bibliothèque' : 'Ajouter à ma bibliothèque'}
             >
-              {isInLibrary ? <Heart className="h-5 w-5 fill-current" /> : <Plus className="h-5 w-5" />}
+              {isInLibrary ? (
+                <Heart className="h-4 w-4 fill-current" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>
 
-        <CardContent className={compact ? 'p-3' : 'p-4'}>
+        <CardContent className={compact ? 'p-3 space-y-2' : 'p-4 space-y-3'}>
           <h3
-            className={`font-bold mb-2 line-clamp-2 group-hover:text-orange-600 transition-colors ${
-              compact ? 'text-sm' : 'text-lg'
+            className={`font-semibold line-clamp-2 text-foreground group-hover:text-primary transition-colors ${
+              compact ? 'text-sm' : 'text-base'
             }`}
           >
             {recipe.title}
           </h3>
 
-          <div className="flex items-center gap-4 mb-3 text-sm text-gray-500">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              {formatCookingTime(recipe.prep_time, recipe.cook_time)}
+              <Clock className="h-3.5 w-3.5" />
+              <span className="tabular-nums">
+                {formatCookingTime(recipe.prep_time, recipe.cook_time)}
+              </span>
             </div>
             <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-              {recipe.rating_avg.toFixed(1)}
+              {/* allow: semantic saffron for rating star, not brand */}
+              <Star className="h-3.5 w-3.5 fill-saffron text-saffron" />
+              <span className="tabular-nums">{recipe.rating_avg.toFixed(1)}</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-1">
-            {recipe.tags.slice(0, 2).map(tag => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          {recipe.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {recipe.tags.slice(0, 2).map(tag => (
+                <Badge key={tag} variant="secondary" className="text-[10px] font-normal">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>

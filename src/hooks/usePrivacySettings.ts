@@ -1,18 +1,33 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSupabaseClient, useUser } from '@supabase/auth-helpers-react';
+/**
+ * PRP-235 PR5 — usePrivacySettings refactor.
+ *
+ * Avant : appels direct Supabase + RPC `delete_user_data` /
+ * `export_user_data` (durcis en hotfix #26 mais toujours exposés au
+ * client).
+ *
+ * Après : tout passe par `/api/v1/settings/*` (PR5). Le backend
+ * force `auth.uid()` via RLS + middleware + RPC durci. Aucun
+ * destructive call direct n'est possible depuis la console
+ * DevTools.
+ *
+ * Sémantique « suppression » change : c'est maintenant une **demande**
+ * tracée dans `data_deletion_requests` (status `pending`). Un worker
+ * backend (futur) finalise — l'app n'efface plus les données
+ * inline. Trade-off : pas d'effet immédiat côté UI, mais
+ * conformité RGPD propre + auditabilité.
+ */
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-export interface PrivacySettings {
-  hasConsent: boolean;
-  consentDate?: string;
-  allowAnalytics: boolean;
-  saveHistory: boolean;
-  allowImageProcessing: boolean;
-  shareAnonymizedData: boolean;
-  batterySaver: boolean;
-  autoDeleteAfter?: number; // days
-  dataRetention?: 'minimal' | 'standard' | 'full';
-}
+import {
+  getPrivacySettings,
+  patchPrivacySettings,
+  postPrivacyDeleteRequest,
+  postPrivacyExport,
+  type PrivacySettings,
+} from '@/services/privacyApi';
+
+export type { PrivacySettings };
 
 const DEFAULT_SETTINGS: PrivacySettings = {
   hasConsent: false,
@@ -21,136 +36,75 @@ const DEFAULT_SETTINGS: PrivacySettings = {
   allowImageProcessing: true,
   shareAnonymizedData: false,
   batterySaver: false,
-  dataRetention: 'standard'
+  dataRetention: 'standard',
 };
 
 export function usePrivacySettings() {
   const [settings, setSettings] = useState<PrivacySettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
-  
-  const supabase = useSupabaseClient();
-  const user = useUser();
 
-  // Load settings from local storage and database
+  // ----- Load -----
   useEffect(() => {
-    loadSettings();
-  }, [user]);
-
-  const loadSettings = async () => {
-    try {
-      // First check local storage for anonymous users
-      const localSettings = localStorage.getItem('privacy-settings');
-      if (localSettings) {
-        setSettings(JSON.parse(localSettings));
-      }
-
-      // If user is logged in, fetch from database
-      if (user) {
-        const { data, error } = await supabase
-          .from('user_privacy_settings')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (data && !error) {
-          setSettings({
-            ...DEFAULT_SETTINGS,
-            ...data.settings
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading privacy settings:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Update settings
-  const updateSettings = useCallback(async (newSettings: Partial<PrivacySettings>) => {
-    const updated = { ...settings, ...newSettings };
-    setSettings(updated);
-
-    // Save to local storage
-    localStorage.setItem('privacy-settings', JSON.stringify(updated));
-
-    // Save to database if user is logged in
-    if (user) {
+    let active = true;
+    (async () => {
       try {
-        await supabase
-          .from('user_privacy_settings')
-          .upsert({
-            user_id: user.id,
-            settings: updated,
-            updated_at: new Date().toISOString()
-          });
-      } catch (error) {
-        console.error('Error saving privacy settings:', error);
-        toast.error('Erreur lors de la sauvegarde des paramètres');
+        const { settings: loaded } = await getPrivacySettings();
+        if (active) setSettings(loaded);
+      } catch (err) {
+        // 401/non-auth → on garde DEFAULT_SETTINGS, sans toast (peut
+        // arriver pendant la phase de session loading).
+        if (active && import.meta.env.DEV) {
+          console.warn('[usePrivacySettings] load failed:', err);
+        }
+      } finally {
+        if (active) setIsLoading(false);
       }
-    }
-
-    // Apply settings
-    applyPrivacySettings(updated);
-  }, [settings, user, supabase]);
-
-  // Request consent
-  const requestConsent = useCallback(() => {
-    setShowConsentDialog(true);
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Check if specific feature is allowed
-  const isFeatureAllowed = useCallback((feature: keyof PrivacySettings): boolean => {
-    if (!settings.hasConsent) return false;
-    return !!settings[feature];
-  }, [settings]);
+  // ----- Update -----
+  const updateSettings = useCallback(
+    async (next: Partial<PrivacySettings>) => {
+      // Optimistic update — rollback si l'API échoue.
+      const previous = settings;
+      const optimistic = { ...settings, ...next };
+      setSettings(optimistic);
+      applyPrivacySettings(optimistic);
+      try {
+        const { settings: confirmed } = await patchPrivacySettings(next);
+        setSettings(confirmed);
+        applyPrivacySettings(confirmed);
+      } catch (err) {
+        setSettings(previous);
+        applyPrivacySettings(previous);
+        const message = err instanceof Error ? err.message : 'Erreur inconnue';
+        toast.error(`Sauvegarde impossible : ${message}`);
+      }
+    },
+    [settings],
+  );
 
-  // Delete all user data
-  const deleteAllData = useCallback(async () => {
-    if (!user) {
-      // Clear local data
-      localStorage.clear();
-      sessionStorage.clear();
-      toast.success('Données locales supprimées');
-      return;
-    }
+  // ----- Consent -----
+  const requestConsent = useCallback(() => setShowConsentDialog(true), []);
 
-    try {
-      // Delete from database
-      await supabase.rpc('delete_user_data', { user_id: user.id });
-      
-      // Clear local storage
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      // Reset settings
-      setSettings(DEFAULT_SETTINGS);
-      
-      toast.success('Toutes vos données ont été supprimées');
-    } catch (error) {
-      console.error('Error deleting user data:', error);
-      toast.error('Erreur lors de la suppression des données');
-    }
-  }, [user, supabase]);
+  const isFeatureAllowed = useCallback(
+    (feature: keyof PrivacySettings): boolean => {
+      if (!settings.hasConsent) return false;
+      return !!settings[feature];
+    },
+    [settings],
+  );
 
-  // Export user data (GDPR compliance)
+  // ----- Export (download) -----
   const exportUserData = useCallback(async () => {
-    if (!user) {
-      toast.error('Vous devez être connecté pour exporter vos données');
-      return;
-    }
-
     try {
-      const { data, error } = await supabase.rpc('export_user_data', { 
-        user_id: user.id 
-      });
-
-      if (error) throw error;
-
-      // Create download
-      const blob = new Blob([JSON.stringify(data, null, 2)], { 
-        type: 'application/json' 
+      const data = await postPrivacyExport();
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: 'application/json',
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -158,84 +112,63 @@ export function usePrivacySettings() {
       a.download = `smart-pantry-data-${new Date().toISOString()}.json`;
       a.click();
       URL.revokeObjectURL(url);
-
-      toast.success('Données exportées avec succès');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Erreur lors de l\'export des données');
+      toast.success('Données exportées');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      toast.error(`Export impossible : ${message}`);
     }
-  }, [user, supabase]);
+  }, []);
 
-  // Check data retention and clean old data
-  useEffect(() => {
-    if (!settings.autoDeleteAfter || !user) return;
-
-    const checkDataRetention = async () => {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - settings.autoDeleteAfter!);
-
-      try {
-        // Delete old scan history
-        await supabase
-          .from('scan_history')
-          .delete()
-          .eq('user_id', user.id)
-          .lt('created_at', cutoffDate.toISOString());
-
-        // Delete old analytics
-        if (!settings.allowAnalytics) {
-          await supabase
-            .from('analytics_events')
-            .delete()
-            .eq('user_id', user.id);
-        }
-      } catch (error) {
-        console.error('Error cleaning old data:', error);
+  // ----- Delete request -----
+  // PR5 — plus de destruction inline. On crée une demande tracée
+  // dans data_deletion_requests ; un worker backend finalise.
+  const requestDataDeletion = useCallback(async () => {
+    try {
+      const res = await postPrivacyDeleteRequest();
+      if (res.alreadyPending) {
+        toast.info('Une demande de suppression est déjà en attente.');
+      } else {
+        toast.success('Demande enregistrée — tu recevras une confirmation par email.');
       }
-    };
-
-    // Run cleanup daily
-    const interval = setInterval(checkDataRetention, 24 * 60 * 60 * 1000);
-    checkDataRetention(); // Run immediately
-
-    return () => clearInterval(interval);
-  }, [settings.autoDeleteAfter, settings.allowAnalytics, user, supabase]);
+      return res;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      toast.error(`Demande impossible : ${message}`);
+      throw err;
+    }
+  }, []);
 
   return {
     settings,
     isLoading,
     hasConsent: settings.hasConsent,
     showConsentDialog,
+    setShowConsentDialog,
     updateSettings,
     requestConsent,
     isFeatureAllowed,
-    deleteAllData,
     exportUserData,
-    setShowConsentDialog
+    requestDataDeletion,
   };
 }
 
-// Apply privacy settings to the app
-function applyPrivacySettings(settings: PrivacySettings) {
-  // Disable analytics if not allowed
-  if (typeof window !== 'undefined') {
-    // @ts-ignore
-    window.analyticsEnabled = settings.allowAnalytics;
-    
-    // Disable error tracking if not allowed
-    if (window.Sentry && !settings.allowAnalytics) {
-      window.Sentry.close();
-    }
-  }
+// ---- Side effects ---------------------------------------------------
 
-  // Apply battery saver mode
+function applyPrivacySettings(settings: PrivacySettings) {
+  if (typeof window === 'undefined') return;
+
+  // Analytics flag (consommé par les wrappers analytics ailleurs).
+  (window as unknown as { analyticsEnabled?: boolean }).analyticsEnabled =
+    settings.allowAnalytics;
+
+  // Battery saver visuel — class CSS gérée par PRP-237 tokens.
   if (settings.batterySaver) {
     document.documentElement.classList.add('battery-saver');
   } else {
     document.documentElement.classList.remove('battery-saver');
   }
 
-  // Clear history if not allowed
+  // Mode privé pour l'historique de session.
   if (!settings.saveHistory) {
     sessionStorage.setItem('private-mode', 'true');
   } else {
