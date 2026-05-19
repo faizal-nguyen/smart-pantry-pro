@@ -53,8 +53,6 @@ interface InventoryAnalysis {
   confidence: number;
   availableIngredients: number;
   missingIngredients: number;
-  estimatedCost: number;
-  totalRecipeCost?: number;
 }
 
 interface RecipeCardProps {
@@ -253,14 +251,6 @@ const RecipeCard = ({
                   <span className="text-muted-foreground">Manquants:</span>
                   <span className="font-medium text-warning">
                     {inventoryAnalysis.missingIngredients.length}
-                  </span>
-                </div>
-              )}
-              {(inventoryAnalysis.totalRecipeCost ?? inventoryAnalysis.estimatedCost) > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Coût estimé:</span>
-                  <span className="font-medium">
-                    {(inventoryAnalysis.totalRecipeCost ?? inventoryAnalysis.estimatedCost).toFixed(2)}€
                   </span>
                 </div>
               )}

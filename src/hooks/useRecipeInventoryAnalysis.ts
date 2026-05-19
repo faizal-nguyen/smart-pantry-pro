@@ -14,7 +14,6 @@ export interface InventoryMatch {
 
 export interface MissingIngredient {
   ingredient: RecipeIngredient;
-  estimatedPrice: number;
   urgency: 'high' | 'medium' | 'low';
   possibleSubstitutions?: Substitution[];
 }
@@ -34,8 +33,6 @@ export interface InventoryAnalysis {
   availableIngredients: InventoryMatch[];
   missingIngredients: MissingIngredient[];
   possibleSubstitutions: Substitution[];
-  estimatedCost: number; // Coût des ingrédients manquants
-  totalRecipeCost: number; // Coût total de la recette
   shoppingList: ShoppingListItem[];
   lastAnalyzed: Date;
 }
@@ -44,7 +41,6 @@ export interface ShoppingListItem {
   ingredient: RecipeIngredient;
   quantity: number;
   unit: string;
-  estimatedPrice: number;
   priority: number;
   storeSection: string;
 }
@@ -136,8 +132,6 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
       availableIngredients: [],
       missingIngredients: [],
       possibleSubstitutions: [],
-      estimatedCost: 0,
-      totalRecipeCost: 0,
       shoppingList: [],
       lastAnalyzed: new Date()
     };
@@ -165,10 +159,8 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
           
         default:
           // Ingrédient manquant
-          const estimatedPrice = await getEstimatedPrice(ingredient);
           analysis.missingIngredients.push({
             ingredient,
-            estimatedPrice,
             urgency: ingredient.is_essential ? 'high' : 'medium',
             possibleSubstitutions: await findPossibleSubstitutions(ingredient, inventory)
           });
@@ -178,8 +170,6 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     // 5. Calculs finaux (pattern Cipher intelligence)
     analysis.canMake = determineCanMake(analysis);
     analysis.confidence = calculateOverallConfidence(analysis);
-    analysis.estimatedCost = calculateMissingIngredientsCost(analysis);
-    analysis.totalRecipeCost = await calculateTotalRecipeCost(recipe.ingredients);
     analysis.shoppingList = generateShoppingList(analysis);
 
     // 6. Stocker en cache (pattern Cipher performance).
@@ -721,431 +711,17 @@ const calculateOverallConfidence = (analysis: InventoryAnalysis): number => {
   return Math.min(1.0, (availableScore + substitutionScore) / totalIngredients);
 };
 
-const calculateMissingIngredientsCost = (analysis: InventoryAnalysis): number => {
-  return analysis.missingIngredients.reduce((sum, missing) => sum + missing.estimatedPrice, 0);
-};
-
-const calculateTotalRecipeCost = async (ingredients: RecipeIngredient[]): Promise<number> => {
-  let totalCost = 0;
-  
-  for (const ingredient of ingredients) {
-    const price = await getEstimatedPrice(ingredient);
-    totalCost += price;
-  }
-  
-  return Math.round(totalCost * 100) / 100;
-};
 
 const generateShoppingList = (analysis: InventoryAnalysis): ShoppingListItem[] => {
-  return analysis.missingIngredients.map((missing, index) => ({
+  return analysis.missingIngredients.map((missing) => ({
     ingredient: missing.ingredient,
     quantity: missing.ingredient.quantity || 1,
     unit: missing.ingredient.unit || 'unité',
-    estimatedPrice: missing.estimatedPrice,
     priority: missing.urgency === 'high' ? 3 : missing.urgency === 'medium' ? 2 : 1,
     storeSection: getStoreSectionForIngredient(missing.ingredient.ingredient_name)
   }));
 };
 
-// Estimation prix (pattern Cipher avec APIs externes)
-const getEstimatedPrice = async (ingredient: RecipeIngredient): Promise<number> => {
-  // Base de prix étendue et plus réaliste (prix moyens en €/kg ou €/L)
-  const basePrices: Record<string, number> = {
-    // Légumes (€/kg)
-    'tomate': 2.5,
-    'tomates': 2.5,
-    'oignon': 1.8,
-    'oignons': 1.8,
-    'onion': 1.8,
-    'onions': 1.8,
-    'ail': 6.0,
-    'carotte': 1.5,
-    'carottes': 1.5,
-    'pomme de terre': 1.2,
-    'pommes de terre': 1.2,
-    'poivron': 3.5,
-    'poivrons': 3.5,
-    'courgette': 2.0,
-    'courgettes': 2.0,
-    'aubergine': 2.8,
-    'aubergines': 2.8,
-    'salade': 1.5,
-    'épinards': 4.0,
-    'champignon': 5.0,
-    'champignons': 5.0,
-    
-    // Fruits (€/kg)
-    'pomme': 2.0,
-    'pommes': 2.0,
-    'banane': 1.8,
-    'bananes': 1.8,
-    'orange': 2.2,
-    'oranges': 2.2,
-    'citron': 2.5,
-    'citrons': 2.5,
-    
-    // Viandes (€/kg)
-    'poulet': 8.0,
-    'boeuf': 15.0,
-    'porc': 7.0,
-    'agneau': 18.0,
-    'veau': 20.0,
-    'viande hachée': 9.0,
-    
-    // Poissons (€/kg)
-    'saumon': 18.0,
-    'cabillaud': 15.0,
-    'thon': 12.0,
-    'crevettes': 20.0,
-    
-    // Produits laitiers
-    'lait': 1.2, // €/L
-    'milk': 1.2,
-    'beurre': 8.0, // €/kg
-    'crème': 3.0, // €/L
-    'crème fraîche': 3.0,
-    'fromage': 12.0, // €/kg
-    'yaourt': 2.0, // €/kg
-    'oeufs': 3.0, // €/douzaine -> environ 0.25€/unité
-    'oeuf': 0.25, // €/unité
-    
-    // Épicerie (€/kg ou €/L)
-    'farine': 1.0,
-    'sucre': 1.2,
-    'sugar': 1.2,
-    'pâtes': 2.0,
-    'riz': 2.5,
-    'huile': 3.0, // €/L
-    "huile d'olive": 6.0,
-    'olive oil': 6.0,
-    'vinaigre': 2.0,
-    'sel': 0.8,
-    'salt': 0.8,
-    'poivre': 20.0, // Épices chères au kg
-    'pepper': 20.0,
-    'paprika': 15.0,
-    'cumin': 18.0,
-    'curry': 12.0,
-    'herbes de provence': 25.0,
-    'thym': 30.0,
-    'basilic': 40.0,
-    'persil': 15.0,
-    'coriandre': 20.0,
-    'gingembre': 10.0,
-    'ginger': 10.0,
-    
-    // Pain et viennoiseries
-    'pain': 3.0,
-    'baguette': 1.0, // €/unité
-    
-    // Conserves (€/kg)
-    'tomates pelées': 2.0,
-    'concentré de tomates': 4.0,
-    'haricots': 2.5,
-    'maïs': 3.0,
-    
-    // Ingrédients manquants ajoutés
-    'eau': 0.001, // €/L (pratiquement gratuit)
-    'water': 0.001,
-    'feuilles de curry': 40.0, // €/kg (cher mais utilisé en petite quantité)
-    'curry leaves': 40.0,
-    'lentilles': 3.0,
-    'lentilles toor': 4.0,
-    'poireau': 2.5,
-    'leek': 2.5,
-    'asperges': 8.0,
-    'asparagus': 8.0,
-    'maïs doux': 3.0,
-    'sweet corn': 3.0,
-    'poivron rouge': 3.5,
-    'red bell pepper': 3.5,
-    'bell pepper': 3.5,
-    'pâte de tamarin': 10.0,
-    'tamarind paste': 10.0,
-    'poudre de sambar': 15.0,
-    'sambar powder': 15.0,
-    'poudre de rasam': 15.0,
-    'rasam powder': 15.0,
-    'graines de moutarde': 8.0,
-    'mustard seeds': 8.0,
-    'asafoetida': 50.0,
-    'asafoetida (hing)': 50.0,
-    'hing': 50.0,
-    'ghee': 15.0,
-    'flank steak': 25.0,
-    'pistaches': 30.0,
-    'pistachios': 30.0,
-    'noix de cajou': 25.0,
-    'cashews': 25.0,
-    'chopped cashews': 25.0,
-    'amandes': 20.0,
-    'almonds': 20.0,
-    'raisins secs': 8.0,
-    'raisins': 8.0,
-    'lait concentré': 3.5,
-    'condensed milk': 3.5,
-    'poudre de cardamome': 80.0,
-    'cardamom powder': 80.0,
-    'safran': 5000.0, // Très cher au kg !
-    'saffron': 5000.0,
-    
-    // Ingrédients supplémentaires pour recettes indiennes
-    'curcuma': 12.0,
-    'turmeric': 12.0,
-    'turmeric powder': 12.0,
-    'poudre de curcuma': 12.0,
-    'poudre de chili': 15.0,
-    'chili powder': 15.0,
-    'piment rouge': 15.0,
-    'red chili powder': 15.0,
-    'garam masala': 20.0,
-    'fenugrec': 10.0,
-    'fenugreek': 10.0,
-    'fenugreek seeds': 10.0,
-    'graines de fenugrec': 10.0,
-    'fenouil': 8.0,
-    'fennel': 8.0,
-    'fennel seeds': 8.0,
-    'graines de fenouil': 8.0,
-    'clou de girofle': 40.0,
-    'cloves': 40.0,
-    'cannelle': 25.0,
-    'cinnamon': 25.0,
-    'cinnamon stick': 25.0,
-    'bâton de cannelle': 25.0,
-    'noix de coco': 5.0,
-    'coconut': 5.0,
-    'grated coconut': 5.0,
-    'noix de coco râpée': 5.0,
-    'lait de coco': 3.0, // €/L
-    'coconut milk': 3.0,
-    'jaggery': 5.0,
-    'tamarind': 10.0,
-    'tamarin': 10.0,
-    'dal': 3.5,
-    'urad dal': 4.0,
-    'chana dal': 3.5,
-    'moong dal': 4.0,
-    'toor dal': 4.0,
-    'masoor dal': 3.0,
-    'basmati rice': 3.5,
-    'riz basmati': 3.5,
-    'paneer': 15.0,
-    'methi': 12.0,
-    'fenugreek leaves': 12.0,
-    'dried fenugreek leaves': 25.0,
-    'kasuri methi': 25.0,
-    'ajwain': 15.0,
-    'carom seeds': 15.0,
-    'kalonji': 12.0,
-    'nigella seeds': 12.0,
-    'black mustard seeds': 8.0,
-    'graines de moutarde noire': 8.0,
-    'sesame seeds': 10.0,
-    'graines de sésame': 10.0,
-    'poppy seeds': 25.0,
-    'graines de pavot': 25.0,
-    'dry red chili': 20.0,
-    'piment rouge sec': 20.0,
-    'green chili': 8.0,
-    'piment vert': 8.0,
-    'mint leaves': 15.0,
-    'feuilles de menthe': 15.0,
-    'pudina': 15.0,
-    'dhania': 15.0,
-    'coriander leaves': 15.0,
-    'feuilles de coriandre': 15.0,
-    'curry powder': 12.0,
-    'poudre de curry': 12.0,
-    'besan': 2.5,
-    'gram flour': 2.5,
-    'farine de pois chiche': 2.5,
-    'atta': 1.5,
-    'whole wheat flour': 1.5,
-    'farine de blé complet': 1.5,
-    'maida': 1.2,
-    'all purpose flour': 1.2,
-    'farine tout usage': 1.2,
-    'semolina': 2.0,
-    'semoule': 2.0,
-    'sooji': 2.0,
-    'rava': 2.0,
-    
-    // Par défaut
-    'default': 3.0
-  };
-  
-  // Recherche du prix avec gestion des pluriels et variantes
-  const ingredientName = ingredient.ingredient_name.toLowerCase().trim();
-  let basePrice = basePrices[ingredientName];
-  
-  // Si pas trouvé, chercher une correspondance partielle
-  if (!basePrice) {
-    for (const [key, price] of Object.entries(basePrices)) {
-      if (ingredientName.includes(key) || key.includes(ingredientName)) {
-        basePrice = price;
-        break;
-      }
-    }
-  }
-  
-  // Utiliser le prix par défaut si toujours pas trouvé
-  if (!basePrice) {
-    basePrice = basePrices.default;
-    console.log(`⚠️ Prix non trouvé pour "${ingredientName}", utilisation du prix par défaut`);
-  }
-  
-  // Calculer le prix en fonction de la quantité et de l'unité
-  const quantity = ingredient.quantity || 1;
-  const unit = (ingredient.unit || 'g').toLowerCase().trim();
-  
-  // Debug log pour eau et huile
-  if (ingredientName.includes('eau') || ingredientName.includes('huile') || 
-      ingredientName.includes('water') || ingredientName.includes('oil')) {
-    console.log(`💧 Calcul prix ${ingredientName}:`, {
-      ingredient: ingredientName,
-      quantity,
-      unit: unit,
-      unitOriginal: ingredient.unit,
-      basePrice,
-      unitIncludes: {
-        ml: unit.includes('ml'),
-        litre: unit.includes('litre'),
-        l: unit.includes('l')
-      }
-    });
-  }
-  
-  // Conversion en prix final selon l'unité
-  let finalPrice = basePrice;
-  
-  // Ajustement selon l'unité
-  if (unit.includes('kg') || unit.includes('kilogramme')) {
-    finalPrice = basePrice * quantity;
-  } else if (unit === 'g' || unit.includes('gramme') || unit.includes('gram')) {
-    finalPrice = basePrice * (quantity / 1000);
-    console.log(`🥩 Calcul prix viande: ${quantity}g × ${basePrice}€/kg ÷ 1000 = ${finalPrice}€`);
-  } else if (unit.includes('l') || unit.includes('litre')) {
-    finalPrice = basePrice * quantity;
-  } else if (unit.includes('ml') || unit.includes('millilitre')) {
-    finalPrice = basePrice * (quantity / 1000);
-  } else if (unit.includes('cl') || unit.includes('centilitre')) {
-    finalPrice = basePrice * (quantity / 100);
-  } else if (unit.includes('c.à.s') || unit.includes('cuillère à soupe')) {
-    // 1 cuillère à soupe ≈ 15ml
-    finalPrice = basePrice * (quantity * 15 / 1000);
-  } else if (unit.includes('c.à.c') || unit.includes('cuillère à café')) {
-    // 1 cuillère à café ≈ 5ml
-    finalPrice = basePrice * (quantity * 5 / 1000);
-  } else if (unit.includes('tasse') || unit.includes('cup')) {
-    // 1 tasse ≈ 250ml
-    finalPrice = basePrice * (quantity * 250 / 1000);
-    console.log(`☕ Calcul prix tasse: ${quantity} tasses × ${basePrice}€/L × 0.25L = ${finalPrice}€`);
-  } else if (unit.includes('verre')) {
-    // 1 verre ≈ 200ml
-    finalPrice = basePrice * (quantity * 200 / 1000);
-  } else if (unit.includes('feuille') || unit.includes('leaf') || unit.includes('leaves')) {
-    // Pour les feuilles (curry, laurier, etc.), prix très bas
-    // Mais distinguer entre différents types de feuilles
-    if (ingredientName.includes('curry') || ingredientName.includes('laurier') || ingredientName.includes('bay')) {
-      finalPrice = 0.01 * quantity; // Feuilles d'aromates: 1 centime par feuille
-    } else if (ingredientName.includes('menthe') || ingredientName.includes('mint') || 
-               ingredientName.includes('coriandre') || ingredientName.includes('coriander')) {
-      finalPrice = 0.05 * quantity; // Herbes fraîches: 5 centimes par feuille
-    } else {
-      finalPrice = 0.02 * quantity; // Autres feuilles: 2 centimes par feuille
-    }
-  } else if (unit.includes('pincée') || unit.includes('pointe') || unit.includes('pinch')) {
-    // Une pincée ≈ 1g pour les épices
-    finalPrice = basePrice * (quantity / 1000);
-  } else if (unit.includes('gousse') || unit.includes('clove')) {
-    // Pour l'ail: 1 gousse ≈ 5g
-    if (ingredientName.includes('ail') || ingredientName.includes('garlic')) {
-      finalPrice = basePrice * (quantity * 5 / 1000);
-    } else {
-      // Pour autres (ex: clou de girofle), prix unitaire
-      finalPrice = basePrice * (quantity / 100);
-    }
-  } else if (unit.includes('bâton') || unit.includes('stick')) {
-    // Pour la cannelle: 1 bâton ≈ 5g
-    finalPrice = basePrice * (quantity * 5 / 1000);
-  } else if (unit.includes('pod')) {
-    // Pour la cardamome: 1 pod ≈ 0.2g
-    finalPrice = basePrice * (quantity * 0.2 / 1000);
-  } else if (unit.includes('unité') || unit.includes('pièce')) {
-    // Pour les unités, on estime un poids moyen
-    const unitWeights: Record<string, number> = {
-      'tomate': 0.15, // 150g
-      'oignon': 0.1, // 100g
-      'carotte': 0.08, // 80g
-      'pomme de terre': 0.2, // 200g
-      'oeuf': 1, // Prix déjà par unité
-      'citron': 0.1, // 100g
-      'orange': 0.2, // 200g
-      'banane': 0.15, // 150g
-      'default': 0.1 // 100g par défaut
-    };
-    
-    const unitWeight = unitWeights[ingredientName] || unitWeights.default;
-    if (ingredientName === 'oeuf' || ingredientName === 'oeufs') {
-      finalPrice = basePrice * quantity;
-    } else {
-      finalPrice = basePrice * quantity * unitWeight;
-    }
-  } else {
-    // Pour les autres unités non reconnues
-    // Vérifier si c'est un nombre seul (ex: "2" pour "2 oeufs")
-    if (!isNaN(parseFloat(unit)) || unit === '' || unit === 'unité' || unit === 'unités') {
-      // Cas spécial pour les feuilles de curry sans unité spécifiée
-      if (ingredientName.includes('curry') && ingredientName.includes('feuille')) {
-        finalPrice = 0.01 * quantity; // 1 centime par feuille
-        console.log(`🍃 Prix spécial feuilles de curry sans unité: ${quantity} × 0.01€ = ${finalPrice}€`);
-      } 
-      // Cas spécial pour l'eau avec unité "tasse (250ml)" ou similaire
-      else if ((ingredientName === 'eau' || ingredientName === 'water' || ingredientName.includes('eau')) && 
-               (unit.includes('tasse') || unit.includes('250ml') || unit.includes('cup'))) {
-        // 4 tasses = 1L = 0.001€
-        finalPrice = basePrice * (quantity * 250 / 1000);
-        console.log(`💧 Prix spécial eau: ${quantity} tasses × ${basePrice}€/L × 0.25L = ${finalPrice}€`);
-      } else {
-        // C'est probablement une quantité unitaire
-        const unitWeights: Record<string, number> = {
-          'tomate': 0.15, // 150g
-          'oignon': 0.1, // 100g  
-          'carotte': 0.08, // 80g
-          'pomme de terre': 0.2, // 200g
-          'oeuf': 1, // Prix déjà par unité
-          'citron': 0.1, // 100g
-          'orange': 0.2, // 200g
-          'banane': 0.15, // 150g
-          'feuilles de curry': 0.0001, // Les feuilles de curry pèsent très peu (0.1g par feuille)
-          'curry leaves': 0.0001,
-          'default': 0.1 // 100g par défaut
-        };
-        
-        const unitWeight = unitWeights[ingredientName] || unitWeights.default;
-        if (ingredientName === 'oeuf' || ingredientName === 'oeufs' || ingredientName === 'egg' || ingredientName === 'eggs') {
-          finalPrice = basePrice * quantity;
-        } else {
-          finalPrice = basePrice * quantity * unitWeight;
-        }
-      }
-    } else {
-      // Vraiment non reconnu, estimation basée sur petite quantité
-      finalPrice = basePrice * (quantity * 0.01);
-      console.log(`⚠️ Unité non reconnue "${unit}" pour "${ingredientName}", estimation du prix`);
-    }
-  }
-  
-  // Log final pour eau et huile
-  if (ingredientName.includes('eau') || ingredientName.includes('huile') || 
-      ingredientName.includes('water') || ingredientName.includes('oil')) {
-    console.log(`💰 Prix final calculé pour ${ingredientName}: ${finalPrice}€ (avant arrondi)`);
-  }
-  
-  // Arrondir à 2 décimales
-  return Math.round(finalPrice * 100) / 100;
-};
 
 const getStoreSectionForIngredient = (ingredientName: string): string => {
   const name = ingredientName.toLowerCase().trim();

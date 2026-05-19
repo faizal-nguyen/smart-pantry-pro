@@ -295,7 +295,6 @@ const RecipeDetail = () => {
           quantity: missing.ingredient.quantity || 1,
           category: getStoreSectionForIngredient(missing.ingredient.ingredient_name),
           unit: missing.ingredient.unit || 'unité',
-          estimatedPrice: missing.estimatedPrice,
           storeSection: getStoreSectionForIngredient(missing.ingredient.ingredient_name)
         });
       }
