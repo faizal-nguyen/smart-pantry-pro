@@ -112,6 +112,14 @@ const searchRecipesArgs = z.object({
 });
 export type SearchRecipesArgs = z.infer<typeof searchRecipesArgs>;
 
+const findRecipesUsingIngredientArgs = z.object({
+  /** Free-text ingredient name. e.g. "cuisses de poulet", "tomate", "œuf". */
+  ingredient: z.string().min(1).max(200),
+  /** Maximum recipes returned (default 12). */
+  limit: z.number().int().min(1).max(50).optional(),
+});
+export type FindRecipesUsingIngredientArgs = z.infer<typeof findRecipesUsingIngredientArgs>;
+
 const suggestRecipesForContextArgs = z.object({
   /** Optional free-text narrowing applied via ilike on recipe.name. */
   query: z.string().max(200).optional(),
@@ -416,7 +424,7 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
   },
   {
     name: 'search_recipes',
-    description: 'Free-text search across the user recipes.',
+    description: 'Free-text search across the user recipes BY NAME ONLY (recipe.name ILIKE). Does NOT search recipe ingredients — use `find_recipes_using_ingredient` for that.',
     schema: searchRecipesArgs,
     jsonSchema: {
       type: 'object',
@@ -424,6 +432,23 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
       properties: {
         query: { type: 'string', minLength: 1, maxLength: 200 },
         limit: { type: 'integer', minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+    defaultRiskTier: 'read',
+    reversible: false,
+  },
+  {
+    name: 'find_recipes_using_ingredient',
+    description:
+      "Return recipes that USE a given ingredient. Use this when the user asks 'quelles recettes je peux faire avec X', 'recettes au X', 'recettes avec du X', or any phrasing centered on an ingredient. Matches against recipe_ingredients.ingredient_name (case-insensitive substring), so 'cuisses de poulet' matches 'cuisses de poulet désossées' too. Returns the recipe summary plus the actual matched_ingredient string for each row.",
+    schema: findRecipesUsingIngredientArgs,
+    jsonSchema: {
+      type: 'object',
+      required: ['ingredient'],
+      properties: {
+        ingredient: { type: 'string', minLength: 1, maxLength: 200 },
+        limit: { type: 'integer', minimum: 1, maximum: 50 },
       },
       additionalProperties: false,
     },

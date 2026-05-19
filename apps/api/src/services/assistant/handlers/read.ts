@@ -25,6 +25,7 @@ import type {
   ReadMealPlanArgs,
   FindCookableArgs,
   SearchRecipesArgs,
+  FindRecipesUsingIngredientArgs,
   SuggestRecipesForContextArgs,
 } from '../schemas/tools.js';
 
@@ -318,6 +319,74 @@ export class SearchRecipesHandler
   }
 }
 
+export interface RecipeUsingIngredientView extends RecipeSummaryView {
+  /** The literal recipe_ingredients.ingredient_name row that matched. */
+  matched_ingredient: string;
+}
+
+export class FindRecipesUsingIngredientHandler
+  implements ToolHandler<FindRecipesUsingIngredientArgs, { recipes: RecipeUsingIngredientView[] }>
+{
+  async execute(
+    ctx: ToolExecutionContext,
+    args: FindRecipesUsingIngredientArgs
+  ): Promise<ToolExecutionResult<{ recipes: RecipeUsingIngredientView[] }>> {
+    const limit = args.limit ?? 12;
+    const safe = args.ingredient.replace(/[%_]/g, '\\$&');
+
+    // Join recipe_ingredients → recipes (inner) so RLS on recipes
+    // scopes the result to the calling user. We grab a few extra rows
+    // to dedupe later — same recipe can match via multiple ingredients.
+    const fetchTarget = Math.min(limit * 4, 200);
+    const { data, error } = await ctx.userClient
+      .from('recipe_ingredients')
+      .select(
+        'ingredient_name, recipes!inner(id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, user_id)',
+      )
+      .ilike('ingredient_name', `%${safe}%`)
+      .limit(fetchTarget);
+    if (error) throw error;
+
+    const seen = new Map<string, RecipeUsingIngredientView>();
+    for (const row of (data ?? []) as unknown as Array<{
+      ingredient_name: string;
+      recipes: {
+        id: string;
+        name: string;
+        description: string | null;
+        prep_time: number | null;
+        cook_time: number | null;
+        servings: number | null;
+        image_url: string | null;
+        cuisine_category: string | null;
+        meal_type: string | null;
+        tags: string[] | null;
+        user_id: string;
+      };
+    }>) {
+      const r = row.recipes;
+      if (!r || r.user_id !== ctx.userId) continue;
+      if (seen.has(r.id)) continue;
+      seen.set(r.id, {
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        prep_time: r.prep_time,
+        cook_time: r.cook_time,
+        servings: r.servings,
+        image_url: r.image_url,
+        cuisine_category: r.cuisine_category,
+        meal_type: r.meal_type,
+        tags: r.tags,
+        matched_ingredient: row.ingredient_name,
+      });
+      if (seen.size >= limit) break;
+    }
+
+    return { result: { recipes: Array.from(seen.values()) } };
+  }
+}
+
 interface RawMealPlanEntry {
   id: string;
   day_of_week: number;
@@ -600,6 +669,7 @@ export function registerReadHandlers(registry: ToolHandlerRegistry): void {
   registry.register('read_recent_recipes', new ReadRecentRecipesHandler());
   registry.register('read_meal_plan', new ReadMealPlanHandler());
   registry.register('search_recipes', new SearchRecipesHandler());
+  registry.register('find_recipes_using_ingredient', new FindRecipesUsingIngredientHandler());
   registry.register('find_cookable_recipes', new FindCookableRecipesHandler());
   registry.register('suggest_recipes_for_context', new SuggestRecipesForContextHandler());
 }

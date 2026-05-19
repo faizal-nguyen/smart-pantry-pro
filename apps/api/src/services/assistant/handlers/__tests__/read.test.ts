@@ -9,6 +9,7 @@ import {
   ReadRecentRecipesHandler,
   ReadMealPlanHandler,
   SearchRecipesHandler,
+  FindRecipesUsingIngredientHandler,
   FindCookableRecipesHandler,
   SuggestRecipesForContextHandler,
 } from '../read.js';
@@ -284,6 +285,69 @@ describe('SearchRecipesHandler', () => {
       col: 'name',
       val: '%50\\%\\_off%',
     });
+  });
+});
+
+describe('FindRecipesUsingIngredientHandler', () => {
+  it('targets recipe_ingredients with an ILIKE on the ingredient name', async () => {
+    const { client, calls } = makeClient({ routes: { recipe_ingredients: { data: [] } } });
+    await new FindRecipesUsingIngredientHandler().execute(makeCtx(client), {
+      ingredient: 'cuisses de poulet',
+    });
+    expect(calls[0].table).toBe('recipe_ingredients');
+    expect(calls[0].filters).toContainEqual({
+      kind: 'ilike',
+      col: 'ingredient_name',
+      val: '%cuisses de poulet%',
+    });
+  });
+
+  it('escapes ILIKE wildcards in the ingredient string', async () => {
+    const { client, calls } = makeClient({ routes: { recipe_ingredients: { data: [] } } });
+    await new FindRecipesUsingIngredientHandler().execute(makeCtx(client), {
+      ingredient: '50%_garlic',
+    });
+    expect(calls[0].filters).toContainEqual({
+      kind: 'ilike',
+      col: 'ingredient_name',
+      val: '%50\\%\\_garlic%',
+    });
+  });
+
+  it('dedupes recipes that match via multiple ingredients and only keeps the calling user', async () => {
+    const { client } = makeClient({
+      routes: {
+        recipe_ingredients: {
+          data: [
+            { ingredient_name: 'cuisses de poulet', recipes: { id: 'r1', name: 'Karaage', description: null, prep_time: 10, cook_time: 20, servings: 4, image_url: null, cuisine_category: 'Japonaise', meal_type: 'dinner', tags: [], user_id: USER } },
+            // same recipe, second matching ingredient — should dedupe
+            { ingredient_name: 'cuisses de poulet désossées', recipes: { id: 'r1', name: 'Karaage', description: null, prep_time: 10, cook_time: 20, servings: 4, image_url: null, cuisine_category: 'Japonaise', meal_type: 'dinner', tags: [], user_id: USER } },
+            // different user — must be filtered out
+            { ingredient_name: 'cuisses de poulet', recipes: { id: 'r2', name: 'Other user recipe', description: null, prep_time: 10, cook_time: 20, servings: 4, image_url: null, cuisine_category: null, meal_type: null, tags: [], user_id: 'other-user' } },
+            { ingredient_name: 'cuisses de poulet', recipes: { id: 'r3', name: 'Coq au vin', description: null, prep_time: 30, cook_time: 60, servings: 4, image_url: null, cuisine_category: 'Française', meal_type: 'dinner', tags: [], user_id: USER } },
+          ],
+        },
+      },
+    });
+    const result = await new FindRecipesUsingIngredientHandler().execute(makeCtx(client), {
+      ingredient: 'cuisses de poulet',
+    });
+    expect(result.result.recipes).toHaveLength(2);
+    expect(result.result.recipes.map((r) => r.id)).toEqual(['r1', 'r3']);
+    expect(result.result.recipes[0].matched_ingredient).toBe('cuisses de poulet');
+  });
+
+  it('caps the output at the requested limit', async () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      ingredient_name: 'tomate',
+      recipes: { id: `r${i}`, name: `Recipe ${i}`, description: null, prep_time: 0, cook_time: 0, servings: 0, image_url: null, cuisine_category: null, meal_type: null, tags: [], user_id: USER },
+    }));
+    const { client } = makeClient({ routes: { recipe_ingredients: { data: rows } } });
+    const result = await new FindRecipesUsingIngredientHandler().execute(makeCtx(client), {
+      ingredient: 'tomate',
+      limit: 5,
+    });
+    expect(result.result.recipes).toHaveLength(5);
   });
 });
 
