@@ -39,7 +39,11 @@ export default function CatalogRecipeCard({
   // PRP-237 PR4: card éditoriale, ratio media stable, pas de hover zoom
   // agressif, fallback tokenisé. The whole card is the navigation target;
   // the add-to-library button is the only interactive nested control.
-  const mediaHeightClass = compact ? 'aspect-[16/10]' : 'aspect-[16/10]';
+  // On mobile (<sm = 430px), use a squarer aspect ratio so the image
+  // doesn't dominate the card height on tall phones (Pro Max).
+  const mediaHeightClass = compact
+    ? 'aspect-[4/3] sm:aspect-[16/10]'
+    : 'aspect-[4/3] sm:aspect-[16/10]';
 
   return (
     <motion.div
@@ -73,15 +77,18 @@ export default function CatalogRecipeCard({
             <Button
               size="sm"
               variant={isInLibrary ? 'secondary' : 'default'}
-              className="h-9 w-9 p-0"
-              onClick={() => !isInLibrary && onAddToLibrary(recipe.id, recipe.title)}
+              className="h-11 w-11 p-0 shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isInLibrary) onAddToLibrary(recipe.id, recipe.title);
+              }}
               disabled={!!isInLibrary || isAdding}
               aria-label={isInLibrary ? 'Déjà dans la bibliothèque' : 'Ajouter à ma bibliothèque'}
             >
               {isInLibrary ? (
-                <Heart className="h-4 w-4 fill-current" />
+                <Heart className="h-5 w-5 fill-current" />
               ) : (
-                <Plus className="h-4 w-4" />
+                <Plus className="h-5 w-5" />
               )}
             </Button>
           </div>

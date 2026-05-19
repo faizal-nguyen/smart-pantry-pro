@@ -193,8 +193,8 @@ export default function Recipes() {
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-6 h-11 w-full justify-start overflow-x-auto">
-            <TabsTrigger value="library" className="gap-2">
+          <TabsList className="mb-6 h-12 w-full justify-start overflow-x-auto">
+            <TabsTrigger value="library" className="gap-2 min-h-11 text-sm">
               <BookOpen className="h-4 w-4" />
               Bibliothèque
               <Badge variant="secondary" className="ml-1 font-normal">
@@ -202,7 +202,7 @@ export default function Recipes() {
               </Badge>
             </TabsTrigger>
 
-            <TabsTrigger value="import" className="gap-2">
+            <TabsTrigger value="import" className="gap-2 min-h-11 text-sm">
               <Plus className="h-4 w-4" />
               Ajouter
               {inboxPendingCount > 0 && (
