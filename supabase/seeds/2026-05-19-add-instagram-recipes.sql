@@ -26,6 +26,13 @@
 --  11. Garlic Steak Fried Rice                 ✓
 --  12. Spicy Salmon Musubi                     ✓
 --  13. Honey Butter Katsu Musubi               ✓
+--  14. Crispy Smashed Potato Salad             ✓
+--      (Chilli Crisp Tahini)
+--  15. Ayam Goreng (Malay Fried Chicken)       ✓
+--  16. Crispy Smashed Cajun Potatoes           ✓
+--      (Air Fryer)
+--  17. Creamy Tuscan Chicken Pasta             ✓
+--  18. Fettuccine Alfredo                      ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -51,7 +58,12 @@ DECLARE
     'Beef Hor Fun (Black Bean Sauce)',
     'Garlic Steak Fried Rice',
     'Spicy Salmon Musubi',
-    'Honey Butter Katsu Musubi'
+    'Honey Butter Katsu Musubi',
+    'Crispy Smashed Potato Salad (Chilli Crisp Tahini)',
+    'Ayam Goreng (Malay Fried Chicken)',
+    'Crispy Smashed Cajun Potatoes (Air Fryer)',
+    'Creamy Tuscan Chicken Pasta',
+    'Fettuccine Alfredo'
   ];
 BEGIN
 
@@ -732,5 +744,272 @@ $instr$,
     (v_recipe_id, 'feuilles de nori',         4,   'unité',      true,  14, 'pour wrapper'),
     (v_recipe_id, 'moule à musubi',           1,   'unité',      true,  15, 'équipement');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (13 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 14. Crispy Smashed Potato Salad (Chilli Crisp Tahini)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Crispy Smashed Potato Salad (Chilli Crisp Tahini)',
+    'Salade de smashed potatoes version asiatique fusion : Jersey Royals (ou grenailles) bouillies puis écrasées puis rôties, sauce crémeuse mayo-yaourt-tahini-chilli crisp-soja-citron vert-gingembre-coriandre. Final : graines de sésame noir + blanc torréfiées.',
+    $instr$["Bouillir les Jersey Royals (ou autres petites pommes de terre nouvelles) dans une grande casserole d'eau salée jusqu'à très tendres au couteau (~15-20 min).",
+"Égoutter et étaler sur une plaque. Écraser chaque pomme de terre au fond d'un verre pour exposer un maximum de surface.",
+"Badigeonner d'huile d'olive, saler-poivrer. Enfourner à 200°C pendant 30-35 min jusqu'à doré profond et croustillant aux bords.",
+"Pendant la cuisson, préparer la sauce : fouetter ensemble mayo, yaourt grec, tahini, chilli crisp, zeste + jus de lime, sauce soja, vinaigre de riz, ail et gingembre minced. Goûter — ajuster chilli crisp selon préférence piquante.",
+"Sortir les pommes de terre du four, laisser tiédir 5 min.",
+"Dans un grand bol, mélanger les pommes de terre tièdes avec la moitié de la sauce. Garnir d'oignons verts ciselés et de coriandre fraîche hachée.",
+"Saupoudrer du mélange de graines de sésame noir + blanc torréfiées en finition. Servir le reste de sauce à part pour saucer."]
+$instr$,
+    15, 45, 4, 2,
+    'Asiatique', 'lunch',
+    ARRAY['asiatique','fusion','salade','smashed potatoes','jersey royal','chilli crisp','tahini','sésame','side'],
+    'manual',
+    'https://www.instagram.com/p/DKSJa1GKIML/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Pommes de terre rôties
+    (v_recipe_id, 'pommes de terre Jersey Royal', 750, 'g',          true,  1,  'ou grenailles / nouvelles'),
+    (v_recipe_id, 'huile d''olive',               30,  'ml',         true,  2,  'pour badigeonner'),
+    (v_recipe_id, 'sel',                          1,   'c. à café',  true,  3,  NULL),
+    (v_recipe_id, 'poivre noir',                  1,   'pincée',     true,  4,  NULL),
+    -- Sauce chilli crisp tahini
+    (v_recipe_id, 'mayonnaise',                   60,  'ml',         true,  5,  '4 c. à soupe'),
+    (v_recipe_id, 'yaourt grec',                  60,  'g',          true,  6,  '4 c. à soupe'),
+    (v_recipe_id, 'tahini',                       30,  'ml',         true,  7,  '2 c. à soupe'),
+    (v_recipe_id, 'chilli crisp',                 10,  'g',          true,  8,  '2 c. à café, ajuster au goût'),
+    (v_recipe_id, 'citron vert',                  1,   'unité',      true,  9,  'zeste + jus'),
+    (v_recipe_id, 'sauce soja',                   15,  'ml',         true,  10, '1 c. à soupe'),
+    (v_recipe_id, 'vinaigre de riz',              15,  'ml',         true,  11, '1 c. à soupe'),
+    (v_recipe_id, 'ail',                          1,   'gousse',     true,  12, 'haché fin'),
+    (v_recipe_id, 'gingembre',                    15,  'g',          true,  13, '~1 phalange, haché fin'),
+    -- Garniture
+    (v_recipe_id, 'oignons verts',                1,   'unité',      true,  14, '2 c. à soupe ciselés'),
+    (v_recipe_id, 'coriandre fraîche',            10,  'g',          true,  15, '2 c. à soupe hachée'),
+    (v_recipe_id, 'graines de sésame',            30,  'g',          true,  16, '1 c. à soupe noir + 1 blanc, torréfiées');
+
+  -- =====================================================================
+  -- 15. Ayam Goreng (Malay Fried Chicken)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Ayam Goreng (Malay Fried Chicken)',
+    'Poulet frit malaisien : marinade longue (4 h à overnight) au lait de coco infusé d''une pâte d''aromates (gingembre, échalotes, ail, citronnelle, piments) et d''épices (curcuma, coriandre, piment, curry). Dragage double-farine puis friture profonde. Plus parfumé que KFC.',
+    $instr$["Si le lait de coco est solidifié, plonger la boîte dans un bol d'eau chaude 5 minutes pour la liquéfier.",
+"Mixer ensemble gingembre, piments rouges, échalotes, ail et citronnelle en pâte fine.",
+"Verser le lait de coco dans un grand bol. Ajouter la pâte d'aromates, le jus de citron vert, le sel et LA MOITIÉ des épices (curry, coriandre, curcuma, piment). Bien mélanger.",
+"Aplatir légèrement les morceaux de poulet (notamment les blancs) au maillet pour une forme plus uniforme, puis les ajouter à la marinade coco-épicée.",
+"Couvrir et laisser mariner au frais minimum 4 heures (idéal une nuit).",
+"Dragage : dans un grand bol, mélanger farine, fécule de maïs et le reste des épices. Dredger les morceaux de poulet directement de la marinade dans le mélange de farines, secouer l'excédent. Reposer sur grille 5 minutes (la pâte s'hydrate et adhère).",
+"Friture : dans un grand wok profond, chauffer l'huile à feu moyen (~170°C). Tester avec une pincée de farine — elle doit bulleuser. Plonger délicatement les morceaux loin de vous.",
+"Frire les cuisses 10-12 minutes, les blancs 12-14 minutes en retournant à mi-cuisson. Vérifier au thermomètre — cœur à 75°C.",
+"Égoutter sur grille et laisser reposer 5 minutes. Hacher coriandre et piment frais pour la garniture. Servir avec sambal et riz."]
+$instr$,
+    30, 30, 4, 3,
+    'Malaisienne', 'dinner',
+    ARRAY['malaysien','singapourien','poulet frit','ayam goreng','lait de coco','marinade overnight','double enrobage','street food'],
+    'manual',
+    'https://www.instagram.com/p/DIXHtUbo-ZJ/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Poulet + marinade liquide
+    (v_recipe_id, 'poulet entier',              4,   'unité',      true,  1,  'en quartiers, ~1.5 kg'),
+    (v_recipe_id, 'lait de coco',               400, 'ml',         true,  2,  '1 boîte'),
+    -- Pâte d'aromates (à mixer)
+    (v_recipe_id, 'gingembre',                  150, 'g',          true,  3,  'pour la pâte'),
+    (v_recipe_id, 'piments rouges frais',       2,   'unité',      true,  4,  NULL),
+    (v_recipe_id, 'échalotes',                  4,   'unité',      true,  5,  NULL),
+    (v_recipe_id, 'ail',                        6,   'gousse',     true,  6,  NULL),
+    (v_recipe_id, 'citronnelle',                2,   'unité',      true,  7,  'tiges, parties blanches'),
+    (v_recipe_id, 'citron vert',                2,   'unité',      true,  8,  'jus'),
+    -- Épices (moitié dans marinade, moitié dans dragage)
+    (v_recipe_id, 'curry en poudre',            30,  'g',          true,  9,  '2 c. à soupe'),
+    (v_recipe_id, 'coriandre moulue',           30,  'g',          true,  10, '2 c. à soupe'),
+    (v_recipe_id, 'curcuma moulu',              30,  'g',          true,  11, '2 c. à soupe'),
+    (v_recipe_id, 'piment rouge moulu',         30,  'g',          true,  12, '2 c. à soupe'),
+    (v_recipe_id, 'sel',                        7.5, 'g',          true,  13, '0.5 c. à soupe'),
+    -- Dragage
+    (v_recipe_id, 'farine',                     150, 'g',          true,  14, 'pour le dragage'),
+    (v_recipe_id, 'fécule de maïs',             150, 'g',          true,  15, 'pour le dragage'),
+    -- Friture + garniture
+    (v_recipe_id, 'huile végétale',             1500, 'ml',        true,  16, 'pour friture profonde'),
+    (v_recipe_id, 'coriandre fraîche',          10,  'g',          false, 17, 'garniture'),
+    (v_recipe_id, 'piment rouge frais',         1,   'unité',      false, 18, 'haché, garniture');
+
+  -- =====================================================================
+  -- 16. Crispy Smashed Cajun Potatoes (Air Fryer)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Crispy Smashed Cajun Potatoes (Air Fryer)',
+    'Pommes de terre grenaille bouillies à 80 %, écrasées en croix, assaisonnées d''un mélange cajun maison (paprika, ail/oignon en poudre, origan, poivre blanc) puis cuites à l''air fryer 30 min jusqu''à ultra-croustillantes. Sauce dip mayo-ketchup-cajun-hot sauce-citron.',
+    $instr$["Bouillir les baby potatoes dans de l'eau salée jusqu'à 80 % de cuisson (un couteau pénètre avec un peu de résistance). Égoutter.",
+"Préparer le mélange cajun : mélanger paprika, poudre d'ail, sel, poudre d'oignon, origan séché et poivre blanc dans un petit bol.",
+"Sur une planche, faire deux entailles en croix sur le dessus de chaque pomme de terre, puis les écraser avec le fond d'un verre (pas trop fort sinon elles éclatent).",
+"Disposer dans un bol, arroser d'huile d'olive et saupoudrer généreusement de mélange cajun. Mélanger délicatement pour enrober.",
+"Air fryer : disposer en une seule couche dans le panier. Cuire à 200°C (400°F) pendant 20 min sur une face.",
+"Retourner les pommes de terre. Poursuivre la cuisson 10 minutes (ou plus) jusqu'à dorage croustillant aux deux faces.",
+"Sauce : mélanger mayonnaise, ketchup, 1 c. à soupe du mélange cajun préparé, jus de citron et hot sauce dans un bol.",
+"Servir les smashed potatoes chaudes, arroser de sauce ou servir la sauce en dip à côté."]
+$instr$,
+    10, 35, 4, 1,
+    'Américaine', 'snack',
+    ARRAY['américain','cajun','louisiana','pommes de terre','smashed','air fryer','épicé','sauce','side'],
+    'manual',
+    'https://www.instagram.com/p/DLPzN1QRQqg/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Pommes de terre
+    (v_recipe_id, 'pommes de terre grenaille',  500, 'g',          true,  1,  '10-12 baby potatoes'),
+    (v_recipe_id, 'huile d''olive',             45,  'ml',         true,  2,  '3 c. à soupe'),
+    -- Mélange cajun maison
+    (v_recipe_id, 'paprika',                    22.5, 'g',         true,  3,  '1.5 c. à soupe'),
+    (v_recipe_id, 'poudre d''ail',              15,  'g',          true,  4,  '1 c. à soupe'),
+    (v_recipe_id, 'sel',                        7.5, 'g',          true,  5,  '0.5 c. à soupe'),
+    (v_recipe_id, 'poudre d''oignon',           15,  'g',          true,  6,  '1 c. à soupe'),
+    (v_recipe_id, 'origan séché',               7.5, 'g',          true,  7,  '0.5 c. à soupe'),
+    (v_recipe_id, 'poivre blanc moulu',         7.5, 'g',          true,  8,  '0.5 c. à soupe'),
+    -- Sauce dip
+    (v_recipe_id, 'mayonnaise',                 30,  'ml',         true,  9,  '2 c. à soupe, sauce'),
+    (v_recipe_id, 'ketchup',                    15,  'ml',         true,  10, '1 c. à soupe, sauce'),
+    (v_recipe_id, 'mélange cajun',              15,  'g',          true,  11, '1 c. à soupe (prélevée ci-dessus)'),
+    (v_recipe_id, 'jus de citron',              7.5, 'ml',         true,  12, '0.5 c. à soupe, sauce'),
+    (v_recipe_id, 'hot sauce',                  15,  'ml',         true,  13, '1 c. à soupe, sauce');
+
+  -- =====================================================================
+  -- 17. Creamy Tuscan Chicken Pasta
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Creamy Tuscan Chicken Pasta',
+    'Pasta crémeuse façon trattoria toscane (style américain) : poulet poêlé aux épices italiennes, sauce crème + parmesan + tomate concentrée + tomates cerises + tomates séchées, finition épinards. Rigatoni qui retient la sauce.',
+    $instr$["Cuire les rigatoni selon le paquet (al dente). Réserver 1 tasse (240 ml) d'eau de cuisson avant d'égoutter.",
+"Saler le poulet et l'assaisonner avec poivre, poudre d'ail, paprika fumé, mélange italien et huile. Bien mélanger.",
+"Dans une poêle à feu moyen, chauffer un peu d'huile. Cuire le poulet 12-15 minutes en retournant à mi-cuisson, jusqu'à cœur cuit. Réserver.",
+"Dans une autre grande poêle, faire fondre le beurre avec l'huile à feu moyen. Ajouter l'échalote et l'ail hachés, sauter 1 minute jusqu'au parfum.",
+"Ajouter les tomates cerises coupées en deux et le poivron rouge en dés, cuire 1-2 min jusqu'à fondants.",
+"Ajouter le concentré de tomate et toutes les épices (sel, poivre, ail en poudre, paprika fumé, italien, flocons de piment). Bien mélanger. Ajouter les tomates séchées hachées.",
+"Réduire à feu doux et verser la crème entière. Bien incorporer.",
+"Incorporer le parmesan râpé. Mélanger jusqu'à la consistance souhaitée. Ajouter de l'eau de cuisson par cuillerées si la sauce est trop épaisse.",
+"Ajouter les épinards et cuire 1 minute jusqu'à tombé. Ajouter les pâtes égouttées.",
+"Couper le poulet en tranches et l'ajouter aux pâtes. Bien enrober.",
+"Garnir de parmesan supplémentaire et de persil haché. Servir chaud."]
+$instr$,
+    20, 35, 4, 2,
+    'Italienne', 'dinner',
+    ARRAY['italien','américain','pasta','toscan','poulet','crème','parmesan','épinards','tomates séchées'],
+    'manual',
+    'https://www.instagram.com/p/DLk9miqP8Sd/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Poulet
+    (v_recipe_id, 'blanc de poulet',            454, 'g',          true,  1,  '1 lb, en filets'),
+    (v_recipe_id, 'paprika fumé',               5,   'g',          true,  2,  '1 c. à café, poulet'),
+    (v_recipe_id, 'poudre d''ail',              15,  'g',          true,  3,  '1 c. à soupe, poulet'),
+    (v_recipe_id, 'mélange italien',            5,   'g',          true,  4,  '1 c. à café, herbes séchées'),
+    (v_recipe_id, 'poivre noir',                5,   'g',          true,  5,  '1 c. à café, poulet'),
+    (v_recipe_id, 'huile végétale',             30,  'ml',         true,  6,  '2 c. à soupe + plus pour cuisson'),
+    (v_recipe_id, 'sel',                        1,   'c. à café',  true,  7,  'pour le poulet, au goût'),
+    -- Sauce
+    (v_recipe_id, 'crème entière',              480, 'ml',         true,  8,  '2 cups, non sucrée'),
+    (v_recipe_id, 'beurre',                     15,  'g',          true,  9,  '1 c. à soupe'),
+    (v_recipe_id, 'huile végétale',             30,  'ml',         true,  10, '2 c. à soupe, sauce'),
+    (v_recipe_id, 'échalote',                   1,   'unité',      true,  11, 'ou petit oignon, en dés fins'),
+    (v_recipe_id, 'ail',                        8,   'gousse',     true,  12, 'hachées'),
+    (v_recipe_id, 'poivron rouge',              0.5, 'unité',      true,  13, 'en dés'),
+    (v_recipe_id, 'paprika fumé',               5,   'g',          true,  14, '1 c. à café, sauce'),
+    (v_recipe_id, 'poudre d''ail',              5,   'g',          true,  15, '1 c. à café, sauce'),
+    (v_recipe_id, 'poivre noir',                5,   'g',          true,  16, '1 c. à café, sauce'),
+    (v_recipe_id, 'mélange italien',            2.5, 'g',          true,  17, '0.5 c. à café, sauce'),
+    (v_recipe_id, 'flocons de piment rouge',    5,   'g',          true,  18, '1 c. à café'),
+    (v_recipe_id, 'parmesan râpé',              50,  'g',          true,  19, '0.5 cup fraîchement râpé'),
+    (v_recipe_id, 'eau de cuisson des pâtes',   240, 'ml',         true,  20, '1 cup réservée'),
+    (v_recipe_id, 'épinards',                   30,  'g',          true,  21, '1 cup, frais'),
+    (v_recipe_id, 'tomates cerises',            150, 'g',          true,  22, '12, coupées en deux'),
+    (v_recipe_id, 'concentré de tomate',        30,  'g',          true,  23, '2 c. à soupe'),
+    (v_recipe_id, 'tomates séchées',            30,  'g',          true,  24, '2 c. à soupe, hachées'),
+    (v_recipe_id, 'sel',                        1,   'c. à café',  true,  25, 'pour la sauce, au goût'),
+    -- Assemblage
+    (v_recipe_id, 'rigatoni',                   227, 'g',          true,  26, '8 oz, demi-paquet'),
+    (v_recipe_id, 'parmesan',                   20,  'g',          false, 27, 'pour garnir'),
+    (v_recipe_id, 'persil frais',               5,   'g',          false, 28, '1 c. à soupe haché');
+
+  -- =====================================================================
+  -- 18. Fettuccine Alfredo
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Fettuccine Alfredo',
+    'Fettuccine Alfredo style américain (riche, crémeux) : roux beurre-farine, crème épaisse, parmesan fraîchement râpé en finition. Pâtes nappées et soyeuses. La version originale Alfredo (Rome) n''utilise QUE beurre + parmesan + eau de cuisson — c''est une variante plus crémeuse popularisée aux USA.',
+    $instr$["Porter une grande casserole d'eau salée à ébullition. Cuire les fettuccine selon le paquet jusqu'à al dente. Réserver 1 cup (240 ml) d'eau de cuisson avant d'égoutter.",
+"Dans une grande sauteuse, faire fondre le beurre à feu moyen.",
+"Saupoudrer la farine sur le beurre fondu et fouetter pour combiner. Cuire 1-2 minutes en remuant constamment (roux blond, pas coloré).",
+"Verser progressivement la crème entière en fouettant continuellement pour éviter les grumeaux. Porter à frémissement et cuire 2-3 minutes jusqu'à légèrement épaissi.",
+"Retirer du feu et incorporer le parmesan en plusieurs fois en fouettant à chaque ajout jusqu'à fondu et lisse. Assaisonner sel, poivre noir, poudre d'ail et mélange italien.",
+"Ajouter les fettuccine égouttées à la sauteuse et bien enrober. Si la sauce est trop épaisse, détendre avec de l'eau de cuisson réservée par cuillerées jusqu'à consistance crémeuse nappante.",
+"Incorporer le persil frais haché et servir immédiatement (la sauce épaissit en refroidissant)."]
+$instr$,
+    10, 15, 4, 1,
+    'Italienne', 'dinner',
+    ARRAY['italien','américain','pasta','fettuccine','alfredo','crème','parmesan','rapide','réconfortant'],
+    'manual',
+    'https://www.instagram.com/p/DKP0l1qPRIO/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    (v_recipe_id, 'fettuccine',                 225, 'g',          true,  1,  NULL),
+    (v_recipe_id, 'sel',                        1,   'c. à café',  true,  2,  'pour l''eau de cuisson + finition'),
+    (v_recipe_id, 'beurre',                     115, 'g',          true,  3,  '0.5 cup'),
+    (v_recipe_id, 'crème entière',              480, 'ml',         true,  4,  '2 cups, non sucrée'),
+    (v_recipe_id, 'farine',                     12,  'g',          true,  5,  '1.5 c. à soupe, pour le roux'),
+    (v_recipe_id, 'parmesan râpé',              100, 'g',          true,  6,  '1 cup, fraîchement râpé'),
+    (v_recipe_id, 'eau de cuisson des pâtes',   240, 'ml',         true,  7,  '1 cup réservée'),
+    (v_recipe_id, 'poivre noir',                5,   'g',          true,  8,  '1 c. à café'),
+    (v_recipe_id, 'poudre d''ail',              15,  'g',          true,  9,  '1 c. à soupe'),
+    (v_recipe_id, 'mélange italien',            5,   'g',          true,  10, '1 c. à café, herbes séchées'),
+    (v_recipe_id, 'persil frais',               10,  'g',          true,  11, '2 c. à soupe, haché');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (18 recipes so far)', v_user_id;
 END $$;
