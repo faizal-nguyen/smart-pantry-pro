@@ -218,7 +218,38 @@ const RecipeEdit = () => {
 
       if (recipeError) throw recipeError;
 
-      // Update ingredients - delete all and re-insert
+      // Update ingredients — DELETE then INSERT, but preserve the
+      // inventory_product_id FK when the ingredient name hasn't
+      // changed. The previous implementation always wiped the FK,
+      // which broke recipe→inventory matching after every save (each
+      // save sent every ingredient back to "missing" until the
+      // backfill script was re-run).
+      //
+      // Strategy: re-fetch the current FK + name per ingredient id
+      // BEFORE deleting, then on INSERT carry the FK forward when the
+      // name is identical (case-insensitive trim). A name change
+      // means the FK is stale — clear it so it can be re-resolved.
+      const existingIds = ingredients
+        .map((ing) => (ing as { id?: string }).id)
+        .filter((x): x is string => Boolean(x));
+      const fkByIngredientId = new Map<string, { product_id: string | null; name: string }>();
+      if (existingIds.length > 0) {
+        const { data: existing } = await supabase
+          .from('recipe_ingredients')
+          .select('id, ingredient_name, inventory_product_id')
+          .in('id', existingIds);
+        for (const r of (existing ?? []) as Array<{
+          id: string;
+          ingredient_name: string;
+          inventory_product_id: string | null;
+        }>) {
+          fkByIngredientId.set(r.id, {
+            product_id: r.inventory_product_id,
+            name: r.ingredient_name,
+          });
+        }
+      }
+
       const { error: deleteError } = await supabase
         .from('recipe_ingredients')
         .delete()
@@ -226,19 +257,26 @@ const RecipeEdit = () => {
 
       if (deleteError) throw deleteError;
 
-      // Insert new ingredients
       if (ingredients.length > 0) {
+        const normalize = (s: string) => s.trim().toLowerCase();
         const { error: ingredientsError } = await supabase
           .from('recipe_ingredients')
           .insert(
-            ingredients.map(ing => ({
-              recipe_id: id,
-              ingredient_name: ing.ingredient_name,
-              quantity: ing.quantity,
-              unit: ing.unit,
-              is_essential: ing.is_essential,
-              notes: ing.notes
-            }))
+            ingredients.map((ing) => {
+              const ingId = (ing as { id?: string }).id;
+              const prior = ingId ? fkByIngredientId.get(ingId) : undefined;
+              const sameName =
+                prior && normalize(prior.name) === normalize(ing.ingredient_name);
+              return {
+                recipe_id: id,
+                ingredient_name: ing.ingredient_name,
+                quantity: ing.quantity,
+                unit: ing.unit,
+                is_essential: ing.is_essential,
+                notes: ing.notes,
+                inventory_product_id: sameName ? prior!.product_id : null,
+              };
+            })
           );
 
         if (ingredientsError) throw ingredientsError;
