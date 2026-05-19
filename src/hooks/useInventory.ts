@@ -17,6 +17,26 @@ import {
   invalidateInventoryCache,
 } from "@/hooks/useRecipeInventoryAnalysis";
 
+/**
+ * Envelope `products.nutrition_json` (PRP-225, miroir
+ * `apps/api/src/services/products/productTypes.ts#ProductNutritionEnvelope`).
+ * Le client n'utilise que `per100g` pour le moment — c'est la base de
+ * tous les calculs recette.
+ */
+export interface ProductNutritionEnvelope {
+  source?: 'openfoodfacts' | 'manual' | 'estimated';
+  per100g?: {
+    energyKcal?: number;
+    proteinG?: number;
+    carbsG?: number;
+    sugarG?: number;
+    fatG?: number;
+    saturatedFatG?: number;
+    fiberG?: number;
+    saltG?: number;
+  };
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -24,6 +44,7 @@ export interface Product {
   unit_type: string;
   barcode?: string;
   image_url?: string;
+  nutrition_json?: ProductNutritionEnvelope | null;
 }
 
 export interface InventoryItem {

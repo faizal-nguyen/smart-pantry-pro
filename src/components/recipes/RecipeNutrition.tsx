@@ -57,6 +57,26 @@ interface RecipeNutritionProps {
    */
   recipeId?: string;
   cachedNutrition?: unknown;
+  /**
+   * Perf audit 2026-05-19 — produits déjà enrichis (products.nutrition_json)
+   * disponibles côté client. Le service openFoodFacts les utilise en
+   * priorité, ce qui élimine les fetch OFF pour les ingrédients déjà connus.
+   */
+  inventoryProducts?: Array<{
+    name: string;
+    nutrition_json?: {
+      per100g?: {
+        energyKcal?: number;
+        proteinG?: number;
+        carbsG?: number;
+        sugarG?: number;
+        fatG?: number;
+        saturatedFatG?: number;
+        fiberG?: number;
+        saltG?: number;
+      };
+    } | null;
+  }>;
 }
 
 interface NutritionData {
@@ -75,6 +95,7 @@ export function RecipeNutrition({
   servings,
   recipeId,
   cachedNutrition,
+  inventoryProducts,
 }: RecipeNutritionProps) {
   const [loading, setLoading] = useState(false);
   const [nutritionData, setNutritionData] = useState<NutritionData | null>(null);
@@ -139,7 +160,10 @@ export function RecipeNutrition({
         openFoodFactsService.clearCache();
       }
 
-      const result = await openFoodFactsService.calculateRecipeNutrition(ingredients);
+      const result = await openFoodFactsService.calculateRecipeNutrition(
+        ingredients,
+        inventoryProducts,
+      );
       setNutritionData(result.totalNutrition);
       setMissingIngredients(result.missingIngredients);
       setFoundIngredients(result.foundIngredients);

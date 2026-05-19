@@ -963,14 +963,61 @@ export class OpenFoodFactsService {
   }
 
   /**
-   * Calcule les valeurs nutritionnelles totales pour une liste d'ingrédients
+   * Construit un OpenFoodFactsProduct minimal depuis la nutrition_json
+   * d'un product de l'inventaire (PRP-225 envelope). Permet de bypasser
+   * un fetch OFF quand le produit est déjà enrichi dans la DB.
+   *
+   * Perf audit 2026-05-19 — la matrice de cuisson typique (10 ingrédients,
+   * dont 6-8 présents dans l'inventaire enrichi) passe de 10 fetches OFF
+   * (paralleled mais quand même 600ms+) à 2-4 fetches.
+   */
+  private productFromInventoryEnvelope(
+    name: string,
+    envelope: { per100g?: { energyKcal?: number; proteinG?: number; carbsG?: number; sugarG?: number; fatG?: number; saturatedFatG?: number; fiberG?: number; saltG?: number; } | undefined },
+  ): OpenFoodFactsProduct | null {
+    const p = envelope.per100g;
+    if (!p) return null;
+    // L'envelope est déjà per 100g, on convertit dans le shape OFF attendu
+    // par calculateNutritionForQuantity. Champs absents = undefined laissé.
+    return {
+      code: `inventory:${name}`,
+      product_name: name,
+      brands: null,
+      categories: null,
+      image_url: null,
+      ingredients_text: null,
+      serving_quantity: null,
+      serving_size: null,
+      nutriments: {
+        'energy-kcal_100g': p.energyKcal,
+        proteins_100g: p.proteinG,
+        carbohydrates_100g: p.carbsG,
+        sugars_100g: p.sugarG,
+        fat_100g: p.fatG,
+        'saturated-fat_100g': p.saturatedFatG,
+        fiber_100g: p.fiberG,
+        salt_100g: p.saltG,
+      } as OpenFoodFactsProduct['nutriments'],
+    } as OpenFoodFactsProduct;
+  }
+
+  /**
+   * Calcule les valeurs nutritionnelles totales pour une liste d'ingrédients.
+   *
+   * Si `inventoryProducts` est fourni, on tente d'abord de matcher chaque
+   * ingrédient contre un produit déjà enrichi en DB (products.nutrition_json).
+   * Les ingrédients sans correspondance retombent sur OpenFoodFacts.
    */
   async calculateRecipeNutrition(
     ingredients: Array<{
       ingredient_name: string;
       quantity: number;
       unit: string;
-    }>
+    }>,
+    inventoryProducts?: Array<{
+      name: string;
+      nutrition_json?: { per100g?: { energyKcal?: number; proteinG?: number; carbsG?: number; sugarG?: number; fatG?: number; saturatedFatG?: number; fiberG?: number; saltG?: number; } | undefined } | null;
+    }>,
   ): Promise<{
     totalNutrition: NutritionalInfo;
     missingIngredients: string[];
@@ -1004,8 +1051,30 @@ export class OpenFoodFactsService {
     // on agrège dans une 2e passe synchrone pour préserver l'ordre.
     console.log(`\n🍳 DÉBUT DU CALCUL NUTRITIONNEL POUR ${ingredients.length} INGRÉDIENTS\n${'='.repeat(60)}`);
 
+    // Build an inventory lookup keyed by lowercased name for fast hits.
+    const inventoryByName = new Map<string, ReturnType<typeof this.productFromInventoryEnvelope>>();
+    if (inventoryProducts) {
+      for (const p of inventoryProducts) {
+        if (!p.nutrition_json) continue;
+        const built = this.productFromInventoryEnvelope(p.name, p.nutrition_json);
+        if (built) inventoryByName.set(p.name.toLowerCase(), built);
+      }
+    }
+
     const matched = await Promise.all(
       ingredients.map(async (ingredient) => {
+        // 1. Prefer the inventory's enriched products: zero network.
+        const fromInventory = inventoryByName.get(ingredient.ingredient_name.toLowerCase());
+        if (fromInventory) {
+          const nutrition = this.calculateNutritionForQuantity(
+            fromInventory,
+            ingredient.quantity,
+            ingredient.unit,
+            ingredient.ingredient_name,
+          );
+          if (nutrition) return { ingredient, product: fromInventory, nutrition } as const;
+        }
+        // 2. Fallback: OFF lookup (cached in-memory inside findBestMatch).
         const product = await this.findBestMatch(ingredient.ingredient_name);
         if (!product || !product.nutriments) {
           return { ingredient, product: null, nutrition: null } as const;

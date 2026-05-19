@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +32,7 @@ import RecipeSourcePreview from "@/components/recipes/RecipeSourcePreview";
 import type { RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
+import { useInventory } from "@/hooks/useInventory";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
@@ -67,6 +68,18 @@ const RecipeDetail = () => {
 
   const recipe = recipes.find(r => r.id === id);
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
+  // Perf audit 2026-05-19 — l'inventaire fournit products.nutrition_json
+  // déjà enrichis. Passés à RecipeNutrition, ils court-circuitent les
+  // fetch OpenFoodFacts pour les ingrédients qu'on a en stock.
+  const { inventory } = useInventory();
+  const inventoryProducts = useMemo(
+    () =>
+      inventory
+        .map((it) => it.product)
+        .filter((p): p is NonNullable<typeof p> => Boolean(p?.name))
+        .map((p) => ({ name: p.name, nutrition_json: p.nutrition_json })),
+    [inventory],
+  );
 
   // Détecter si la recette a été supprimée
   const recipeDeleted = !recipe && !loading && id;
@@ -646,6 +659,7 @@ const RecipeDetail = () => {
             servings={recipe.servings || 4}
             recipeId={recipe.id}
             cachedNutrition={recipe.nutrition_info}
+            inventoryProducts={inventoryProducts}
           />
         )}
 
