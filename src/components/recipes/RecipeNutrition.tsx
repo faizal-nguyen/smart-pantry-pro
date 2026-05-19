@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +103,16 @@ export function RecipeNutrition({
   const [showDetails, setShowDetails] = useState(false);
   const [foundIngredients, setFoundIngredients] = useState<any[]>([]);
 
+  // Bug fix 2026-05-19 — l'utilisateur signalait "chargement continu"
+  // sur les valeurs nutritionnelles. Cause : le useEffect ci-dessous
+  // dépend de `[ingredients, cachedNutrition]` ; après persistNutrition
+  // ou tout simple changement de référence côté parent (inventory hook
+  // refetch, navigation hot), il re-firait fetchNutritionData alors
+  // qu'un calcul était déjà en cours. Ce ref garde la signature de la
+  // dernière fetch lancée pour éviter les doublons.
+  const inflightSignatureRef = useRef<string | null>(null);
+  const completedSignatureRef = useRef<string | null>(null);
+
   useEffect(() => {
     // PRP-220 follow-up: prefer the persisted nutrition_info blob if
     // it's a usable cache. Saves ~10 OpenFoodFacts HTTP round-trips
@@ -116,17 +126,34 @@ export function RecipeNutrition({
           ? cachedNutrition.foundIngredients
           : []
       );
+      completedSignatureRef.current = recipeId ?? null;
       return;
     }
-    if (ingredients.length > 0) {
-      fetchNutritionData();
+    if (ingredients.length === 0) return;
+
+    // Signature qui identifie « ce calcul » — change si la recette
+    // change OU si la liste d'ingrédients change. Empêche le re-fire
+    // tant qu'un fetch équivalent est en cours ou déjà résolu.
+    const signature = `${recipeId ?? 'no-recipe'}::${ingredients
+      .map((i) => `${i.ingredient_name}@${i.quantity}${i.unit}`)
+      .join('|')}`;
+
+    if (
+      inflightSignatureRef.current === signature ||
+      completedSignatureRef.current === signature
+    ) {
+      return;
     }
-    // We deliberately depend on the cached blob's identity, not its
-    // content — Supabase returns a fresh object on each row read, but
-    // the cache is row-level so identity tracks "the recipe changed"
-    // closely enough for this lazy-backfill case.
+
+    inflightSignatureRef.current = signature;
+    void fetchNutritionData().finally(() => {
+      if (inflightSignatureRef.current === signature) {
+        inflightSignatureRef.current = null;
+        completedSignatureRef.current = signature;
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ingredients, cachedNutrition]);
+  }, [ingredients, cachedNutrition, recipeId]);
 
   const persistNutrition = (result: {
     totalNutrition: NutritionData;

@@ -32,7 +32,7 @@ import RecipeSourcePreview from "@/components/recipes/RecipeSourcePreview";
 import type { RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
 import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
-import { useInventory } from "@/hooks/useInventory";
+import { useInventory, type ProductNutritionEnvelope } from "@/hooks/useInventory";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
@@ -52,7 +52,7 @@ interface RecipeIngredient {
 const RecipeDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { recipes, deleteRecipe, fetchRecipes } = useRecipes();
+  const { recipes, loading: recipesLoading, deleteRecipe, fetchRecipes } = useRecipes();
   const { addToShoppingList } = useShoppingList();
   const { uploadImage } = useImageManagement();
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
@@ -71,18 +71,36 @@ const RecipeDetail = () => {
   // Perf audit 2026-05-19 — l'inventaire fournit products.nutrition_json
   // déjà enrichis. Passés à RecipeNutrition, ils court-circuitent les
   // fetch OpenFoodFacts pour les ingrédients qu'on a en stock.
-  const { inventory } = useInventory();
-  const inventoryProducts = useMemo(
-    () =>
-      inventory
-        .map((it) => it.product)
-        .filter((p): p is NonNullable<typeof p> => Boolean(p?.name))
-        .map((p) => ({ name: p.name, nutrition_json: p.nutrition_json })),
-    [inventory],
-  );
+  // Le hook useInventory est appelé pour son effet : primer le cache
+  // module via primeInventoryCache (Phase 3.1) si on arrive directement
+  // sur la recette sans passer par /pantry.
+  useInventory();
+  // Bug fix 2026-05-19 — auparavant on passait l'inventaire brut à
+  // RecipeNutrition (clé par product.name lowercased). Les noms recette
+  // ("huile d'olive") matchaient rarement l'inventaire ("Huile d'olive
+  // vierge"), donc l'accélération tombait à l'eau et RecipeNutrition
+  // restait en loading sur les fetches OFF. On utilise le résultat
+  // déjà résolu par useRecipeInventoryAnalysis (fuzzy + RPC semantic).
+  const inventoryProducts = useMemo(() => {
+    const out: Array<{ name: string; nutrition_json?: ProductNutritionEnvelope | null }> = [];
+    if (!inventoryAnalysis) return out;
+    for (const match of inventoryAnalysis.availableIngredients) {
+      const product = match.inventoryItem.product;
+      if (!product?.nutrition_json) continue;
+      out.push({
+        name: match.ingredient.ingredient_name,
+        nutrition_json: product.nutrition_json,
+      });
+    }
+    return out;
+  }, [inventoryAnalysis]);
 
   // Détecter si la recette a été supprimée
-  const recipeDeleted = !recipe && !loading && id;
+  // Bug fix 2026-05-19 — race condition exposée par le push perf : le
+  // `loading` local (driven by fetchRecipeDetails) résolvait avant que
+  // `recipes` de useRecipes() ne se peuple, ce qui flashait "Recette
+  // supprimée" pendant ~200ms. On attend que les deux loadings finissent.
+  const recipeDeleted = !recipe && !loading && !recipesLoading && id;
 
   // PRP-234 PR3 — writer `recipe_interactions.viewed` au mount.
   // Alimente le bloc « Continuer » du dashboard Today (PR3
