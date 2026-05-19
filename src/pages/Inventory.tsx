@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Suspense } from "react";
+import React, { useState, useMemo, useCallback, Suspense, lazy } from "react";
 import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card";
 import { Badge } from "@/components/ui/badge";
 import { MaterialButton } from "@/components/ui/material/Button";
@@ -20,14 +20,23 @@ import {
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
 import { useFoodWaste, RecordWasteInput } from "@/hooks/useFoodWaste";
 import { SmartProductCard } from "@/components/inventory/SmartProductCard";
-import DiscardItemDialog from "@/components/inventory/DiscardItemDialog";
 import { IntelligentSearch } from "@/components/inventory/IntelligentSearch";
 import { FloatingActionButton } from "@/components/inventory/FloatingActionButton";
-import AddProductDialog from "@/components/inventory/AddProductDialog";
-import TextBulkAddDialog from "@/components/inventory/TextBulkAddDialog";
-import EditItemDialog from "@/components/inventory/EditItemDialog";
-import { EnhancedVoiceButton } from "@/components/voice/EnhancedVoiceButton";
-import { MobileBarcodeScanner } from "@/components/scanner/MobileBarcodeScanner";
+
+// Perf audit 2026-05-19 — ces composants ne sont visibles que sur action
+// utilisateur (dialog open ou voice toggle). Lazy-load les sort du chunk
+// principal InventoryPage (569 KB non gzippé). Chunks séparés = TTI plus
+// rapide au premier render, surtout sur mobile en cuisine.
+const AddProductDialog = lazy(() => import("@/components/inventory/AddProductDialog"));
+const TextBulkAddDialog = lazy(() => import("@/components/inventory/TextBulkAddDialog"));
+const EditItemDialog = lazy(() => import("@/components/inventory/EditItemDialog"));
+const DiscardItemDialog = lazy(() => import("@/components/inventory/DiscardItemDialog"));
+const EnhancedVoiceButton = lazy(() =>
+  import("@/components/voice/EnhancedVoiceButton").then((m) => ({ default: m.EnhancedVoiceButton }))
+);
+const MobileBarcodeScanner = lazy(() =>
+  import("@/components/scanner/MobileBarcodeScanner").then((m) => ({ default: m.MobileBarcodeScanner }))
+);
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useShoppingList } from "@/hooks/useShoppingList";
@@ -457,49 +466,51 @@ const Inventory = () => {
     };
   }, [inventory]);
 
-  const handleQuantityChange = async (id: string, quantity: number) => {
+  // Perf audit 2026-05-19 — useCallback pour que les SmartProductCard
+  // (React.memo) ne soient pas re-renders à chaque keypress de recherche.
+  const handleQuantityChange = useCallback(async (id: string, quantity: number) => {
     await updateInventory(id, { quantity });
-  };
+  }, [updateInventory]);
 
-  const handleMoveToShoppingList = async (item: InventoryItem) => {
+  const handleMoveToShoppingList = useCallback(async (item: InventoryItem) => {
     await addToShoppingList({
       productName: item.product?.name || '',
       quantity: 1,
       unit: item.unit || 'unité',
       category: item.product?.category || 'Autres'
     });
-    
+
     toast({
       title: "Ajouté aux courses",
       description: `${item.product?.name} a été ajouté à votre liste de courses`
     });
-  };
+  }, [addToShoppingList]);
 
-  const handleConsume = async (item: InventoryItem) => {
+  const handleConsume = useCallback(async (item: InventoryItem) => {
     if (item.quantity > 1) {
       await updateInventory(item.id, { quantity: item.quantity - 1 });
     } else {
       await deleteInventoryItem(item.id);
     }
-    
+
     toast({
       title: "Produit consommé",
       description: `${item.product?.name} a été marqué comme consommé`
     });
-  };
+  }, [updateInventory, deleteInventoryItem]);
 
-  const handleEdit = (item: InventoryItem) => {
+  const handleEdit = useCallback((item: InventoryItem) => {
     setEditingItem(item);
     setEditDialogOpen(true);
-  };
+  }, []);
 
-  const handleFindRecipes = (item: InventoryItem) => {
+  const handleFindRecipes = useCallback((item: InventoryItem) => {
     navigate(`/recipes?ingredient=${item.product?.name}`);
-  };
+  }, [navigate]);
 
-  const handleDiscard = (item: InventoryItem) => {
+  const handleDiscard = useCallback((item: InventoryItem) => {
     setDiscardingItem(item);
-  };
+  }, []);
 
   const confirmDiscard = async (input: RecordWasteInput) => {
     if (!discardingItem) return;
@@ -711,10 +722,12 @@ const Inventory = () => {
               onRecipeSelect={handleRecipeSelect}
             />
           </div>
-          <EnhancedVoiceButton
-            onVoiceInput={handleVoiceCommand}
-            size="default"
-          />
+          <Suspense fallback={null}>
+            <EnhancedVoiceButton
+              onVoiceInput={handleVoiceCommand}
+              size="default"
+            />
+          </Suspense>
         </div>
 
         {/* Filtres par catégorie (remplace les chips par zone)
@@ -1041,46 +1054,56 @@ const Inventory = () => {
         onTextBulkAdd={() => setTextBulkDialogOpen(true)}
       />
 
-      {/* Dialogs */}
-      <AddProductDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
-      />
+      {/* Dialogs lazy-loaded — chunk fetch déclenché à la première
+          ouverture, ensuite cache navigateur. Pas de fallback visible
+          (les dialogs ouvrent leur propre overlay). */}
+      <Suspense fallback={null}>
+        {addDialogOpen && (
+          <AddProductDialog
+            open={addDialogOpen}
+            onOpenChange={setAddDialogOpen}
+          />
+        )}
 
-      <TextBulkAddDialog
-        open={textBulkDialogOpen}
-        onOpenChange={setTextBulkDialogOpen}
-      />
-      
-      
-      {editingItem && (
-        <EditItemDialog
-          open={editDialogOpen}
-          onOpenChange={(open) => {
-            setEditDialogOpen(open);
-            if (!open) setEditingItem(null);
-          }}
-          item={editingItem}
-          onSubmit={updateInventory}
-        />
-      )}
+        {textBulkDialogOpen && (
+          <TextBulkAddDialog
+            open={textBulkDialogOpen}
+            onOpenChange={setTextBulkDialogOpen}
+          />
+        )}
 
-      <DiscardItemDialog
-        item={discardingItem}
-        open={Boolean(discardingItem)}
-        onOpenChange={(open) => {
-          if (!open) setDiscardingItem(null);
-        }}
-        onConfirm={confirmDiscard}
-      />
-      
-      {/* Mobile Scanner */}
-      <MobileBarcodeScanner
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScanSuccess={handleScanSuccess}
-        mode="inventory"
-      />
+        {editingItem && (
+          <EditItemDialog
+            open={editDialogOpen}
+            onOpenChange={(open) => {
+              setEditDialogOpen(open);
+              if (!open) setEditingItem(null);
+            }}
+            item={editingItem}
+            onSubmit={updateInventory}
+          />
+        )}
+
+        {discardingItem && (
+          <DiscardItemDialog
+            item={discardingItem}
+            open={Boolean(discardingItem)}
+            onOpenChange={(open) => {
+              if (!open) setDiscardingItem(null);
+            }}
+            onConfirm={confirmDiscard}
+          />
+        )}
+
+        {scannerOpen && (
+          <MobileBarcodeScanner
+            open={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onScanSuccess={handleScanSuccess}
+            mode="inventory"
+          />
+        )}
+      </Suspense>
     </div>
   );
 };

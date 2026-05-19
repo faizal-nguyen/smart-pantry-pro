@@ -57,7 +57,10 @@ const getDaysUntilExpiry = (expiryDate?: string): number | null => {
   return diffDays;
 };
 
-export const SmartProductCard: React.FC<SmartProductCardProps> = ({
+// Perf audit 2026-05-19 — sur des inventaires de 30+ items chaque keypress
+// dans la recherche reconstruisait toutes les cartes. React.memo + handlers
+// useCallback côté parent (Inventory.tsx) éliminent ces re-renders inutiles.
+const SmartProductCardImpl: React.FC<SmartProductCardProps> = ({
   product,
   onQuantityChange,
   onMoveToShoppingList,
@@ -192,3 +195,6 @@ export const SmartProductCard: React.FC<SmartProductCardProps> = ({
     </MaterialCard>
   );
 };
+
+export const SmartProductCard = React.memo(SmartProductCardImpl);
+SmartProductCard.displayName = 'SmartProductCard';

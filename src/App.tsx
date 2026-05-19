@@ -47,7 +47,21 @@ const withSuspense = (Component: React.ComponentType) => (
   </Suspense>
 );
 
-const queryClient = new QueryClient();
+// Perf audit 2026-05-19 — sans defaults, staleTime: 0 partout → chaque
+// remontage ou focus de fenêtre déclenche un refetch. Les hooks individuels
+// peuvent override localement (useRecipeInventoryAnalysis garde son
+// refetchOnWindowFocus: true pour les analyses qui peuvent dériver).
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: 'always',
+      retry: 1,
+    },
+  },
+});
 
 // PRP-222 PR1 — Navigation diet : seulement les routes coeur produit V1.
 const baseRoutes: RouteObject[] = [
