@@ -9,12 +9,6 @@
       "destination": "/index.html"
     }
   ],
-  "crons": [
-    {
-      "path": "/api/cron-warm",
-      "schedule": "*/14 * * * *"
-    }
-  ],
   "buildCommand": "npm run build:optimized",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps --force",
