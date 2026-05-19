@@ -60,8 +60,18 @@ export default function AssistantConversationSurface({
     }
   };
 
+  // Mobile audit P2#8 — sur mobile le `h-[70vh]` dans une Card laissait
+  // ~30vh aux bords + header AppNavigation + nav bottom, le composer
+  // sticky se retrouvait à mi-écran. On bascule en chat plein écran :
+  //   • mobile : `h-[calc(100dvh-13rem)]` (≈208px = header page + nav 96)
+  //              + bords droits pour gagner les marges.
+  //   • desktop : on garde la Card 70vh.
+  // Le composer est en flex-col donc dock naturellement en bas.
   return (
-    <Card className="flex flex-col h-[70vh] overflow-hidden">
+    <Card
+      className="flex flex-col overflow-hidden h-[calc(100dvh-13rem)] rounded-none border-x-0 sm:h-[70vh] sm:rounded-xl sm:border-x"
+      data-testid="assistant-surface"
+    >
       <CardContent className="flex-1 overflow-y-auto p-4">
         {!conversationId ? (
           <EmptyState
