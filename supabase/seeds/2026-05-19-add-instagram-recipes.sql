@@ -37,6 +37,7 @@
 --  20. Malai Chutney Chicken Tikka             ✓
 --  21. Sri Lankan Mutton Rolls                 ✓
 --  22. Hyderabadi Wedding Red Chicken Curry    ✓
+--  23. Riz au Lait Vanille Crémeux             ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -71,7 +72,8 @@ DECLARE
     'Loco Moco au Poivre',
     'Malai Chutney Chicken Tikka',
     'Sri Lankan Mutton Rolls',
-    'Hyderabadi Wedding Red Chicken Curry'
+    'Hyderabadi Wedding Red Chicken Curry',
+    'Riz au Lait Vanille Crémeux'
   ];
 BEGIN
 
@@ -1255,5 +1257,46 @@ $instr$,
     (v_recipe_id, 'crème fraîche',             10,   'ml',         true,  25, '2 c. à café, finition'),
     (v_recipe_id, 'coriandre fraîche',         10,   'g',          false, 26, 'hachée, garniture finale');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (22 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 23. Riz au Lait Vanille Crémeux
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Riz au Lait Vanille Crémeux',
+    'Riz au lait français version compète : ratio lait-crème généreux pour l''onctuosité, riz rond blanchi en pré-cuisson pour retirer l''amidon en excès, vergeoise (sucre brun) ajoutée à mi-cuisson, gousse de vanille givrée infusée. Le secret : NE PAS laisser le riz absorber tout le liquide — on cherche un nappant fondant, pas un riz sec.',
+    $instr$["Blanchir le riz : porter une casserole d'eau à petite ébullition, ajouter le riz rond et laisser cuire 5 minutes. Filtrer et réserver (cette étape retire l'amidon en excès pour un fini moins collant).",
+"Dans une casserole épaisse, chauffer le lait demi-écrémé, la crème liquide et la gousse de vanille fendue grattée (graines + gousse).",
+"À l'ébullition, verser le riz blanchi et baisser IMMÉDIATEMENT à feu très doux pour une cuisson gentle (sinon ça déborde et le lait brûle au fond).",
+"À mi-cuisson (~15 min), ajouter la vergeoise. NE PAS l'ajouter dès le début : le sucre perturbe la cuisson du riz et empêche l'amidon de se libérer correctement.",
+"Cuire encore 15-20 minutes en remuant régulièrement pour que ça n'accroche pas au fond. Surveillez à l'œil.",
+"Quand la préparation devient nappante (nappe la cuillère) et le riz fondant mais ENCORE en suspension dans le liquide — c'est-à-dire qu'il reste un peu de liquide libre — retirer du feu. Ne pas laisser absorber tout le liquide.",
+"Débarrasser dans un récipient plat (large surface = refroidit plus vite + le riz arrête de cuire dans la chaleur résiduelle). Laisser tiédir à température ambiante puis filmer au contact et réfrigérer.",
+"Servir dans des coupes individuelles, agrémenter à l'envie : caramel maison, croquant aux noix/noisettes/amandes, fruits frais, ou pur nature."]
+$instr$,
+    5, 40, 4, 2,
+    'Française', 'dessert',
+    ARRAY['français','dessert','riz au lait','vanille','crémeux','vergeoise','réconfortant','sucré'],
+    'manual',
+    'https://www.instagram.com/p/DU_IAlAAlRS/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    (v_recipe_id, 'lait demi-écrémé',         450, 'g',          true,  1,  NULL),
+    (v_recipe_id, 'crème liquide',            200, 'g',          true,  2,  '~200 ml'),
+    (v_recipe_id, 'riz rond',                 85,  'g',          true,  3,  'riz dessert / arborio'),
+    (v_recipe_id, 'vergeoise',                45,  'g',          true,  4,  'sucre brun belge, ou cassonade'),
+    (v_recipe_id, 'gousse de vanille',        1,   'unité',      true,  5,  'idéalement givrée, fendue et grattée'),
+    -- Optionnel garniture
+    (v_recipe_id, 'caramel maison',           30,  'ml',         false, 6,  'topping, optionnel'),
+    (v_recipe_id, 'croquant aux noix',        20,  'g',          false, 7,  'noix/noisettes/amandes concassées');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (23 recipes so far)', v_user_id;
 END $$;
