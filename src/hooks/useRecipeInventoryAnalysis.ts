@@ -108,6 +108,14 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     const cacheableId: string | null =
       recipe.source === 'recipes' ? recipe.canonicalId : null;
 
+    // Phase 3 — pre-fetch authoritative matches from the server-side
+    // RPC (direct FK + semantic fallback via embeddings). The map keys
+    // are recipe_ingredients.id; misses fall back to the legacy
+    // Levenshtein path inside findInventoryMatch.
+    const serverMatches = cacheableId
+      ? await loadServerMatches(recipe.canonicalId, user.user.id, inventory)
+      : new Map<string, ServerMatch>();
+
     if (cacheableId) {
       const cachedAnalysis = await getCachedAnalysis(cacheableId, user.user.id);
       if (cachedAnalysis && !isExpired(cachedAnalysis)) {
@@ -136,7 +144,7 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
 
     // 4. Matcher chaque ingrédient avec inventaire (pattern Cipher matching)
     for (const ingredient of recipe.ingredients) {
-      const match = await findInventoryMatch(ingredient, inventory);
+      const match = await findInventoryMatch(ingredient, inventory, serverMatches);
       
       switch (match.type) {
         case 'exact':
@@ -322,15 +330,94 @@ const getUserInventory = async (userId: string): Promise<InventoryItem[]> => {
   return data || [];
 };
 
-// Matching intelligent (pattern Cipher)
-const findInventoryMatch = async (ingredient: RecipeIngredient, inventory: InventoryItem[]): Promise<{
+// Phase 3 — server-side match cached for a single analysis call.
+export interface ServerMatch {
+  inventoryItem: InventoryItem;
+  kind: 'direct' | 'semantic';
+  score: number;
+}
+
+interface ServerMatchRow {
+  recipe_ingredient_id: string;
+  inventory_id: string | null;
+  inventory_product_id: string | null;
+  inventory_product_name: string | null;
+  inventory_quantity: number | null;
+  match_kind: 'direct' | 'semantic' | 'missing';
+  match_score: number;
+}
+
+const loadServerMatches = async (
+  recipeId: string,
+  userId: string,
+  inventory: InventoryItem[],
+): Promise<Map<string, ServerMatch>> => {
+  const out = new Map<string, ServerMatch>();
+  try {
+    const { data, error } = await supabase.rpc(
+      'assistant_match_recipe_ingredients_to_inventory',
+      {
+        p_recipe_id: recipeId,
+        p_user_id: userId,
+        p_min_score: 0.85,
+      },
+    );
+    if (error) {
+      console.warn('[recipe-match] RPC failed, falling back to Levenshtein:', error.message);
+      return out;
+    }
+    const rows = (data ?? []) as ServerMatchRow[];
+    const inventoryById = new Map(inventory.map((it) => [it.id, it]));
+    for (const row of rows) {
+      if (row.match_kind === 'missing' || !row.inventory_id) continue;
+      const item = inventoryById.get(row.inventory_id);
+      if (!item) continue;
+      out.set(row.recipe_ingredient_id, {
+        inventoryItem: item,
+        kind: row.match_kind,
+        score: row.match_score ?? 1,
+      });
+    }
+  } catch (err) {
+    console.warn('[recipe-match] RPC threw, falling back to Levenshtein:', err);
+  }
+  return out;
+};
+
+// Matching intelligent (pattern Cipher) — server RPC first, Levenshtein
+// fallback for legacy/catalog ingredients that aren't backed by a real
+// recipe_ingredients row.
+const findInventoryMatch = async (
+  ingredient: RecipeIngredient,
+  inventory: InventoryItem[],
+  serverMatches: Map<string, ServerMatch> = new Map(),
+): Promise<{
   type: 'exact' | 'fuzzy' | 'substitution' | 'missing';
   item?: InventoryItem;
   confidence?: number;
   substitution?: Substitution;
 }> => {
+  // 0. Server-side authoritative match (Phase 3 — direct FK + semantic
+  //    fallback via pgvector embeddings). If the RPC already resolved
+  //    this ingredient, trust it and skip the local heuristics.
+  const serverHit = serverMatches.get(ingredient.id);
+  if (serverHit) {
+    if (hasEnoughQuantity(serverHit.inventoryItem, ingredient)) {
+      console.log(
+        `🎯 Server ${serverHit.kind} match for ${ingredient.ingredient_name} → ${serverHit.inventoryItem.product?.name} (${Math.round(serverHit.score * 100)}%)`,
+      );
+      return {
+        type: serverHit.kind === 'direct' ? 'exact' : 'fuzzy',
+        item: serverHit.inventoryItem,
+        confidence: serverHit.score,
+      };
+    }
+    // Quantity insufficient — fall through to the legacy paths so
+    // substitution / pricing can run.
+  }
+
   // 1. Exact match
-  const exactMatch = inventory.find(item => 
+  const exactMatch = inventory.find(item =>
     item.product?.name.toLowerCase() === ingredient.ingredient_name.toLowerCase()
   );
   
