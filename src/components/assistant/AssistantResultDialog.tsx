@@ -66,12 +66,18 @@ function shortToolName(tool: string): string {
 }
 
 function previewArgs(args: Record<string, unknown>): string {
-  // Best-effort one-line summary that reads decently in French/English.
+  // Best-effort summary. For item lists we emit one bulleted line per
+  // entry so the user can scan a 16-item add without horizontal scroll.
   if (Array.isArray((args as any).items)) {
     const items = (args as any).items as Array<{ name?: string; quantity?: number; unit?: string }>;
     return items
-      .map((it) => `${it.quantity ?? ''} ${it.unit ?? ''} ${it.name ?? ''}`.trim())
-      .join(', ');
+      .map((it) => {
+        const qty = it.quantity ?? '';
+        const unit = it.unit ?? '';
+        const name = it.name ?? '';
+        return `• ${`${qty} ${unit} ${name}`.replace(/\s+/g, ' ').trim()}`;
+      })
+      .join('\n');
   }
   if ('shopping_item_ids' in args) {
     return `${(args.shopping_item_ids as string[]).length} article(s)`;
@@ -302,14 +308,16 @@ function ExecutedRow({
   return (
     <li className="flex items-start justify-between gap-2 rounded-md border bg-emerald-50/40 p-3">
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 mb-0.5">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span className="text-sm font-medium truncate">{shortToolName(action.tool)}</span>
+          <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>
             {RISK_LABEL[action.risk_tier]}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{previewArgs(action.args)}</p>
+        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">
+          {previewArgs(action.args)}
+        </p>
       </div>
       {canUndo && (
         <Button
@@ -333,15 +341,17 @@ function PendingRow({ action }: { action: PendingAction }) {
     <li className="flex items-start gap-2 rounded-md border bg-amber-50/60 p-3">
       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-medium truncate">{shortToolName(action.tool)}</span>
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>
             {RISK_LABEL[action.risk_tier]}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground truncate">{previewArgs(action.args)}</p>
+        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">
+          {previewArgs(action.args)}
+        </p>
         {action.reason && (
-          <p className="text-xs italic text-muted-foreground mt-1">{action.reason}</p>
+          <p className="text-xs italic text-amber-800 mt-1.5 break-words">{action.reason}</p>
         )}
       </div>
     </li>
