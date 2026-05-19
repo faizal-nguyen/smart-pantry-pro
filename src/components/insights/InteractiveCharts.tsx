@@ -26,13 +26,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Download, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Download,
   Share,
   Calendar,
-  Filter
+  Filter,
+  BarChart3
 } from 'lucide-react';
 import { 
   LineChartData, 
@@ -83,6 +84,18 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+// Empty state shown when chart data is empty/invalid. Avoids feeding
+// recharts an empty dataset, which generates `<path d="Z">` and triggers
+// SVG console warnings in browsers.
+const EmptyChartState: React.FC<{ message?: string }> = ({
+  message = 'Pas encore de données à afficher',
+}) => (
+  <div className="h-full w-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
+    <BarChart3 className="h-10 w-10 mb-2 opacity-50" aria-hidden="true" />
+    <p className="text-sm">{message}</p>
+  </div>
+);
+
 const CustomPieTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
@@ -131,6 +144,9 @@ export const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
       </CardHeader>
       <CardContent>
         <div className="h-80">
+          {!data || data.length === 0 ? (
+            <EmptyChartState message="Aucune dépense enregistrée pour cette période" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data}>
               <defs>
@@ -175,6 +191,7 @@ export const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({
               />
             </AreaChart>
           </ResponsiveContainer>
+          )}
         </div>
         <div className="flex items-center justify-between mt-4 text-sm text-gray-600 dark:text-gray-400">
           <div className="flex items-center gap-2">
@@ -220,6 +237,9 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
       </CardHeader>
       <CardContent>
         <div className="h-80">
+          {!data || data.length === 0 ? (
+            <EmptyChartState message="Aucune catégorie à afficher pour le moment" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -251,6 +271,7 @@ export const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
               <Tooltip content={<CustomPieTooltip />} />
             </PieChart>
           </ResponsiveContainer>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2 mt-4">
           {data.map((item, index) => (
@@ -291,6 +312,9 @@ export const NutritionRadarChart: React.FC<NutritionRadarChartProps> = ({
       </CardHeader>
       <CardContent>
         <div className="h-80">
+          {!data || data.length === 0 ? (
+            <EmptyChartState message="Aucune donnée nutritionnelle disponible" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={data}>
               <PolarGrid className="opacity-30" />
@@ -323,6 +347,7 @@ export const NutritionRadarChart: React.FC<NutritionRadarChartProps> = ({
               <Legend />
             </RadarChart>
           </ResponsiveContainer>
+          )}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
           <div className="text-center">
@@ -368,6 +393,9 @@ export const CombinedTrendsChart: React.FC<CombinedTrendsChartProps> = ({
       </CardHeader>
       <CardContent>
         <div className="h-80">
+          {!data || data.length === 0 ? (
+            <EmptyChartState message="Pas encore assez de données pour cette analyse" />
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             {viewType === 'bar' ? (
               <BarChart data={data}>
@@ -431,10 +459,10 @@ export const CombinedTrendsChart: React.FC<CombinedTrendsChartProps> = ({
                   name="Budget"
                   dot={{ fill: "#10B981", strokeWidth: 2, r: 4 }}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="savings" 
-                  stroke="#F59E0B" 
+                <Line
+                  type="monotone"
+                  dataKey="savings"
+                  stroke="#F59E0B"
                   strokeWidth={3}
                   name="Économies"
                   dot={{ fill: "#F59E0B", strokeWidth: 2, r: 4 }}
@@ -442,6 +470,7 @@ export const CombinedTrendsChart: React.FC<CombinedTrendsChartProps> = ({
               </LineChart>
             )}
           </ResponsiveContainer>
+          )}
         </div>
         
         <div className="flex items-center justify-between mt-4 text-sm">
