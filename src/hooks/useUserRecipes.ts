@@ -34,7 +34,13 @@ export interface UserRecipe {
     servings_multiplier?: number;
     personal_notes_inline?: string;
   };
-  
+
+  // Champ legacy / import — type de cuisine au format libre.
+  // Sert de source autoritaire dans inferCuisineKey() avant de
+  // fallback sur les tags. Vide pour les rows `user_recipes`
+  // (catalog) car la cuisine vit alors dans catalog_recipe.tags.
+  cuisine_category?: string;
+
   // Métadonnées personnelles
   personal_notes?: string;
   personal_rating?: number; // 1-5
@@ -524,6 +530,29 @@ export function getRecipeImage(recipe: UserRecipe): string | undefined {
   return recipe.custom_photo_url;
 }
 
+/**
+ * Tags affichables sur la carte recette. Concatène personal_tags +
+ * catalog tags + ingrédients-cuisine inférés depuis le titre. Dédupe
+ * lowercase, garde l'ordre d'apparition (personal_tags d'abord car
+ * c'est l'intention du user).
+ */
+export function getRecipeTags(recipe: UserRecipe): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (raw: string | null | undefined) => {
+    if (!raw) return;
+    const t = raw.trim();
+    if (!t) return;
+    const k = t.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(t);
+  };
+  for (const t of recipe.personal_tags ?? []) push(t);
+  for (const t of recipe.catalog_recipe?.tags ?? []) push(t);
+  return out;
+}
+
 export function getRecipeIngredients(recipe: UserRecipe) {
   if (recipe.custom_modifications?.ingredients_override) {
     return recipe.custom_modifications.ingredients_override;
@@ -550,6 +579,7 @@ function mapRecipeToUserRecipe(recipe: any): UserRecipe {
     custom_instructions: recipe.instructions || '',
     custom_photo_url: recipe.image_url,
     custom_modifications: {},
+    cuisine_category: recipe.cuisine_category ?? undefined,
     personal_notes: recipe.description,
     personal_rating: undefined,
     personal_tags: recipe.tags || [],

@@ -22,6 +22,7 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -33,6 +34,7 @@ import LibraryRecipeCard from '@/components/recipes/LibraryRecipeCard';
 import CatalogRecipeCard from '@/components/recipes/CatalogRecipeCard';
 import type { UserRecipe } from '@/hooks/useUserRecipes';
 import type { CatalogRecipe } from '@/hooks/useRecipeCatalog';
+import { ALL_CUISINES_KEY, CUISINE_DEFS, inferCuisineKey } from '@/lib/cuisineTypes';
 
 interface RecipeLibraryTabProps {
   recipes: UserRecipe[];
@@ -115,14 +117,50 @@ export default function RecipeLibraryTab({
 }: RecipeLibraryTabProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showDiscover, setShowDiscover] = useState(false);
+  const [selectedCuisine, setSelectedCuisine] = useState<string>(ALL_CUISINES_KEY);
   const [searchParams] = useSearchParams();
   const filterParam = searchParams.get('filter');
   const showFavoritesOnly = filterParam === 'favorites';
 
-  const visibleRecipes = useMemo(
-    () => (showFavoritesOnly ? recipes.filter(isFavorite) : recipes),
-    [recipes, showFavoritesOnly]
+  // Pré-calcule la cuisine inférée par recette une seule fois. Évite
+  // de re-courir l'inférence dans le filtre + dans les chips counts.
+  const recipesWithCuisine = useMemo(
+    () =>
+      recipes.map((recipe) => ({
+        recipe,
+        cuisineKey: inferCuisineKey({
+          cuisine_category: recipe.cuisine_category,
+          personal_tags: recipe.personal_tags,
+          catalog_recipe: recipe.catalog_recipe,
+          title: recipe.custom_title,
+        }),
+      })),
+    [recipes]
   );
+
+  // Chips dynamiques : seules les cuisines réellement présentes dans
+  // la library s'affichent (évite "Marocain (0)" si le user n'en a
+  // pas). On lit le count en gardant l'ordre canonique de CUISINE_DEFS
+  // pour que le ruban soit prévisible.
+  const cuisineChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const { cuisineKey } of recipesWithCuisine) {
+      if (!cuisineKey) continue;
+      counts.set(cuisineKey, (counts.get(cuisineKey) ?? 0) + 1);
+    }
+    return CUISINE_DEFS
+      .filter((def) => (counts.get(def.key) ?? 0) > 0)
+      .map((def) => ({ ...def, count: counts.get(def.key) ?? 0 }));
+  }, [recipesWithCuisine]);
+
+  const visibleRecipes = useMemo(() => {
+    let out = recipesWithCuisine;
+    if (showFavoritesOnly) out = out.filter(({ recipe }) => isFavorite(recipe));
+    if (selectedCuisine !== ALL_CUISINES_KEY) {
+      out = out.filter(({ cuisineKey }) => cuisineKey === selectedCuisine);
+    }
+    return out.map(({ recipe }) => recipe);
+  }, [recipesWithCuisine, showFavoritesOnly, selectedCuisine]);
 
   // Catalog recipes the user hasn't added yet. Drives the bottom
   // "Découvrir" section: skips the no-op of showing recipes already
@@ -190,6 +228,38 @@ export default function RecipeLibraryTab({
         <StatCard icon={Plus} label="Personnelles" value={stats.custom} tone="neutral" />
       </div>
 
+      {/* Filtre cuisine — affiché seulement si au moins une cuisine est
+          détectée dans la library. Évite un ruban vide qui agrandit
+          la page sans valeur. */}
+      {cuisineChips.length > 0 && (
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+          role="tablist"
+          aria-label="Filtre par type de cuisine"
+        >
+          <Badge
+            variant={selectedCuisine === ALL_CUISINES_KEY ? 'default' : 'outline'}
+            className="cursor-pointer whitespace-nowrap"
+            onClick={() => setSelectedCuisine(ALL_CUISINES_KEY)}
+          >
+            Toutes ({recipes.length})
+          </Badge>
+          {cuisineChips.map((c) => (
+            <Badge
+              key={c.key}
+              variant={selectedCuisine === c.key ? 'default' : 'outline'}
+              className="cursor-pointer whitespace-nowrap"
+              onClick={() =>
+                setSelectedCuisine(selectedCuisine === c.key ? ALL_CUISINES_KEY : c.key)
+              }
+            >
+              <span aria-hidden className="mr-1">{c.icon}</span>
+              {c.label} ({c.count})
+            </Badge>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-y border-border py-3">
         <div className="flex gap-2">
           <Button onClick={onShowOnboarding} variant="outline" size="sm">
@@ -228,7 +298,17 @@ export default function RecipeLibraryTab({
         {isLoading ? (
           <LibrarySkeleton />
         ) : visibleRecipes.length === 0 ? (
-          showFavoritesOnly ? (
+          selectedCuisine !== ALL_CUISINES_KEY ? (
+            <EmptyState
+              icon={ChefHat}
+              title="Aucune recette dans cette cuisine"
+              description="Essaye une autre cuisine, ou retire le filtre pour voir toute ta bibliothèque."
+              action={{
+                label: 'Voir toutes les recettes',
+                onClick: () => setSelectedCuisine(ALL_CUISINES_KEY),
+              }}
+            />
+          ) : showFavoritesOnly ? (
             <EmptyState
               icon={Heart}
               title="Aucune recette favorite pour le moment"

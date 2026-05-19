@@ -10,7 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ChefHat } from 'lucide-react';
-import { getRecipeImage, getRecipeTitle, type UserRecipe } from '@/hooks/useUserRecipes';
+import { getRecipeImage, getRecipeTags, getRecipeTitle, type UserRecipe } from '@/hooks/useUserRecipes';
+import { getCuisineDef, inferCuisineKey } from '@/lib/cuisineTypes';
 
 interface LibraryRecipeCardProps {
   recipe: UserRecipe;
@@ -95,17 +96,35 @@ export default function LibraryRecipeCard({ recipe, viewMode }: LibraryRecipeCar
 }
 
 function LibraryBadges({ recipe }: { recipe: UserRecipe }) {
+  const cuisineKey = inferCuisineKey({
+    cuisine_category: recipe.cuisine_category,
+    personal_tags: recipe.personal_tags,
+    catalog_recipe: recipe.catalog_recipe,
+    title: recipe.custom_title,
+  });
+  const cuisineDef = getCuisineDef(cuisineKey);
+  // Tags affichés sur la carte : on filtre ceux qui ne sont que la
+  // cuisine déjà rendue (sinon on a "Indien" badge + "indian" tag
+  // doublonné) et on limite à 2 pour rester compact.
+  const cuisineTokens = new Set(
+    cuisineDef ? [cuisineDef.label.toLowerCase(), cuisineKey ?? ''] : []
+  );
+  const tags = getRecipeTags(recipe)
+    .filter((t) => !cuisineTokens.has(t.toLowerCase()))
+    .slice(0, 2);
+
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      {/* Source tag (catalog vs personal) — keeps the merged-source UX
-          transparent (cf. PRP-237 PR4 session merge). */}
-      <Badge variant="outline" className="text-[10px] font-normal">
-        {recipe.is_from_catalog ? 'Catalogue' : 'Personnel'}
-      </Badge>
+      {cuisineDef && (
+        <Badge variant="secondary" className="text-[10px] font-normal">
+          <span aria-hidden className="mr-1">{cuisineDef.icon}</span>
+          {cuisineDef.label}
+        </Badge>
+      )}
 
-      {recipe.collections.slice(0, 2).map(collection => (
-        <Badge key={collection} variant="secondary" className="text-[10px] font-normal">
-          {collection}
+      {tags.map((tag) => (
+        <Badge key={tag} variant="outline" className="text-[10px] font-normal">
+          {tag}
         </Badge>
       ))}
 
