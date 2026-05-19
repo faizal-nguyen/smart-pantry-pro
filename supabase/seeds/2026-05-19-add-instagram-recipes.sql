@@ -36,6 +36,7 @@
 --  19. Loco Moco au Poivre                     ✓
 --  20. Malai Chutney Chicken Tikka             ✓
 --  21. Sri Lankan Mutton Rolls                 ✓
+--  22. Hyderabadi Wedding Red Chicken Curry    ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -69,7 +70,8 @@ DECLARE
     'Fettuccine Alfredo',
     'Loco Moco au Poivre',
     'Malai Chutney Chicken Tikka',
-    'Sri Lankan Mutton Rolls'
+    'Sri Lankan Mutton Rolls',
+    'Hyderabadi Wedding Red Chicken Curry'
   ];
 BEGIN
 
@@ -1190,5 +1192,68 @@ $instr$,
     (v_recipe_id, 'chapelure',                200, 'g',          true,  21, 'pour l''enrobage'),
     (v_recipe_id, 'huile végétale',           1000, 'ml',        true,  22, 'pour la friture profonde');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (21 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 22. Hyderabadi Wedding Red Chicken Curry
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Hyderabadi Wedding Red Chicken Curry',
+    'Poulet mijoté lentement dans un masala rouge profond style mariage hyderabadi : pâte noix-cajou-amande-coco pour la rondeur, oignons frits, double sauce piment (verte + rouge) et piment Cachemire pour la couleur signature. 347 kcal / 20 g protéines par portion. Encore meilleur réchauffé le lendemain.',
+    $instr$["Pâte noix-coco : mixer les cajous, amandes et coco râpée déshydratée avec un peu d'eau jusqu'à pâte lisse et crémeuse.",
+"Oignons frits maison : trancher fin 2 grands oignons, mélanger à quelques gouttes d'huile. Micro-ondes 10-12 min en remuant toutes les 2 min jusqu'à doré (alternative : air fryer 180°C / 10-12 min).",
+"Dans un grand bol, combiner la pâte noix-coco avec yaourt épais, pâte gingembre-ail, piments verts fendus, oignons frits, menthe et coriandre fraîches, sauce piment vert, sauce piment rouge, sauce soja foncée, curcuma, piment Cachemire moulu (clé de la couleur rouge profond), coriandre moulue, garam masala, sel, poivre, jus de citron et ghee. Bien mélanger.",
+"Ajouter les morceaux de poulet et bien enrober. Couvrir et mariner 2 heures minimum au frais — idéalement une nuit pour un goût maximal.",
+"Chauffer l'huile neutre dans une cocotte épaisse. Ajouter les feuilles de curry et laisser crépiter.",
+"Verser tout le poulet mariné dans la cocotte (avec sa marinade). Couvrir et cuire à feu doux-moyen 40-45 minutes en remuant régulièrement pour que le masala n'attache pas.",
+"Quand l'huile remonte en surface, que la sauce vire à un rouge profond et que le poulet est très tendre (presque tombe de l'os), ajouter la crème fraîche et la coriandre hachée. Couper le feu.",
+"Laisser reposer 10 minutes avant de servir. Servir avec naan moelleux ou riz blanc.",
+"Astuce : ce curry est encore meilleur après 1-2 h de repos ou réchauffé plus tard — le masala se pose et s'approfondit."]
+$instr$,
+    30, 50, 4, 3,
+    'Indienne', 'dinner',
+    ARRAY['indien','hyderabadi','poulet','curry rouge','mariage','noix de cajou','marinade overnight','wedding food'],
+    'manual',
+    'https://www.instagram.com/p/DUzvAWviZlS/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Pâte noix-coco
+    (v_recipe_id, 'noix de cajou',             15,   'unité',      true,  1,  '10-15, pour la pâte'),
+    (v_recipe_id, 'amandes',                   10,   'unité',      true,  2,  'pour la pâte'),
+    (v_recipe_id, 'coco râpée déshydratée',    30,   'g',          true,  3,  '3 c. à soupe'),
+    (v_recipe_id, 'eau',                       60,   'ml',         true,  4,  'pour la pâte, au besoin'),
+    -- Poulet + marinade
+    (v_recipe_id, 'poulet avec os',            500,  'g',          true,  5,  'en morceaux'),
+    (v_recipe_id, 'yaourt épais',              120,  'ml',         true,  6,  '0.5 cup, marinade'),
+    (v_recipe_id, 'pâte gingembre-ail',        22.5, 'ml',         true,  7,  '1.5 c. à soupe'),
+    (v_recipe_id, 'piments verts',             3,    'unité',      true,  8,  '2-3, fendus'),
+    (v_recipe_id, 'oignons frits',             100,  'g',          true,  9,  '1 cup, voir step 2'),
+    (v_recipe_id, 'feuilles de menthe',        10,   'g',          true,  10, 'une poignée'),
+    (v_recipe_id, 'coriandre fraîche',         10,   'g',          true,  11, 'une poignée'),
+    (v_recipe_id, 'sauce piment vert',         15,   'ml',         true,  12, '1 c. à soupe'),
+    (v_recipe_id, 'sauce piment rouge',        15,   'ml',         true,  13, '1 c. à soupe'),
+    (v_recipe_id, 'sauce soja foncée',         10,   'ml',         true,  14, '2 c. à café'),
+    (v_recipe_id, 'curcuma moulu',             0.25, 'c. à café',  true,  15, NULL),
+    (v_recipe_id, 'piment Cachemire moulu',    30,   'g',          true,  16, '2-3 c. à soupe, pour la couleur'),
+    (v_recipe_id, 'coriandre moulue',          15,   'g',          true,  17, '1 c. à soupe'),
+    (v_recipe_id, 'garam masala',              5,    'g',          true,  18, '1 c. à café'),
+    (v_recipe_id, 'sel',                       1,    'c. à café',  true,  19, 'au goût'),
+    (v_recipe_id, 'poivre noir',               1,    'pincée',     true,  20, 'au goût'),
+    (v_recipe_id, 'jus de citron',             15,   'ml',         true,  21, '1 c. à soupe'),
+    (v_recipe_id, 'ghee',                      10,   'ml',         true,  22, '2 c. à café, marinade'),
+    -- Cuisson
+    (v_recipe_id, 'huile neutre',              15,   'ml',         true,  23, '1 c. à soupe, pour la cocotte'),
+    (v_recipe_id, 'feuilles de curry',         1,    'unité',      true,  24, 'quelques feuilles, brin'),
+    (v_recipe_id, 'crème fraîche',             10,   'ml',         true,  25, '2 c. à café, finition'),
+    (v_recipe_id, 'coriandre fraîche',         10,   'g',          false, 26, 'hachée, garniture finale');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (22 recipes so far)', v_user_id;
 END $$;
