@@ -68,18 +68,18 @@ const MobileNavItem: React.FC<MobileNavItemProps> = ({
       size="sm"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center gap-1 h-full min-h-[56px] rounded-lg transition-all touch-zone-minimum relative",
-        isChildMode && "min-h-[64px] gap-2",
+        "flex flex-col items-center justify-center gap-1.5 h-full min-h-[60px] min-w-[44px] rounded-lg transition-all touch-zone-minimum relative px-1",
+        isChildMode && "min-h-[68px] gap-2",
         isActive && "shadow-sm"
       )}
     >
       <div className="relative">
-        <IconComponent 
+        <IconComponent
           className={cn(
-            "transition-colors",
+            "transition-colors w-6 h-6",
+            isChildMode && "w-7 h-7",
             isActive ? "text-primary" : "text-muted-foreground"
-          )} 
-          style={{ width: iconSize, height: iconSize }}
+          )}
         />
         
         {/* Badge pour notifications */}

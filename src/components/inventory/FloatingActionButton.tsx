@@ -105,11 +105,11 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({
 
   return (
     <div
-      // 2026-05-18 — offset to `bottom-24` so this page-level FAB
-      // doesn't sit underneath the global `AssistantFAB` (also at
-      // bottom-6 right-6). Keeps both reachable for a one-thumb tap
-      // and avoids the "stacked buttons" visual reported on /pantry.
-      className="fixed bottom-24 right-6 z-50"
+      // Offset above the mobile bottom nav. Uses calc(env(safe-area-inset-bottom))
+      // so the FAB tracks the home indicator height per device — previously
+      // bottom-24 was a fixed 96px and could overlap the nav on iPhones
+      // with a large safe-area-inset-bottom (Pro Max / Dynamic Island).
+      className="fixed right-6 z-50 bottom-[calc(88px+env(safe-area-inset-bottom))]"
       role="group"
       aria-label="Actions rapides d'ajout de produit"
     >
