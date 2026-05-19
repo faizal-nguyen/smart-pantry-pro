@@ -1,6 +1,8 @@
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat, Result } from '@zxing/library';
 import { toast } from 'sonner';
 
+import { apiGet, ApiError } from '@/lib/api';
+
 interface ScanConfig {
   tryHarder: boolean;
   formats: BarcodeFormat[];
@@ -21,8 +23,32 @@ interface ProductData {
   category: string;
   unit: string;
   imageUrl?: string;
-  source: 'openfoodfacts' | 'barcode-spider' | 'upc-database' | 'manual';
+  /**
+   * PRP-225 PR4 — the front-end no longer cascades through multiple
+   * upstream APIs. The shared `/api/products/resolve` route already
+   * tries OFF behind a durable cache ; everything else falls back to
+   * a local-only `manual` product.
+   */
+  source: 'openfoodfacts' | 'manual';
   confidence: number;
+}
+
+interface ResolveProductResponse {
+  kind: 'matched' | 'created' | 'ambiguous' | 'not_found';
+  product?: {
+    name: string;
+    brand?: string | null;
+    category?: string | null;
+    barcode?: string | null;
+    image_url?: string | null;
+  };
+  candidates?: Array<{
+    name: string;
+    brand?: string | null;
+    category?: string | null;
+    image_url?: string | null;
+  }>;
+  confidence?: number;
 }
 
 export class EnhancedScannerService {
@@ -44,13 +70,6 @@ export class EnhancedScannerService {
     ],
     timeout: 15000,
     maxTries: 5
-  };
-
-  // APIs de fallback pour données produits
-  private apiEndpoints = {
-    primary: 'https://world.openfoodfacts.org/api/v0/product',
-    fallback1: 'https://api.barcode-spider.com/v1/lookup',
-    fallback2: 'https://api.upcitemdb.com/prod/trial/lookup'
   };
 
   constructor() {
@@ -273,99 +292,39 @@ export class EnhancedScannerService {
     return new Promise(resolve => setTimeout(resolve, delay));
   }
 
-  // Fetch product data avec fallbacks multiples
+  /**
+   * Fetch product data for a scanned barcode.
+   *
+   * PRP-225 PR4 — single round-trip to the server-side proxy
+   * `/api/products/resolve`. The proxy handles the OpenFoodFacts
+   * cascade (cache → OFF API), so the front-end keeps zero secrets
+   * and no third-party API keys. Local fallback is returned when the
+   * backend has nothing.
+   */
   async fetchProductData(barcode: string): Promise<ProductData> {
-    const attempts = [
-      () => this.fetchFromOpenFoodFacts(barcode),
-      () => this.fetchFromBarcodeSpider(barcode),
-      () => this.fetchFromUPCDatabase(barcode)
-    ];
-
-    for (let i = 0; i < attempts.length; i++) {
-      try {
-        const result = await attempts[i]();
-        if (result) {
-          console.log(`✅ Product data found from source ${i + 1}`);
-          return result;
-        }
-      } catch (error) {
-        console.log(`⚠️ API ${i + 1} failed:`, error);
-      }
-    }
-
-    // Fallback manuel
-    return this.createManualProduct(barcode);
-  }
-
-  private async fetchFromOpenFoodFacts(barcode: string): Promise<ProductData | null> {
-    const url = `${this.apiEndpoints.primary}/${barcode}.json`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.status !== 1 || !data.product) return null;
-
-    const product = data.product;
-    return {
-      name: product.product_name || `Produit ${barcode}`,
-      brand: product.brands,
-      category: this.mapCategory(product.categories),
-      unit: this.suggestUnit(product.categories),
-      imageUrl: product.image_url,
-      source: 'openfoodfacts',
-      confidence: 0.9
-    };
-  }
-
-  private async fetchFromBarcodeSpider(barcode: string): Promise<ProductData | null> {
-    // Implementation API Barcode Spider (si clé disponible)
     try {
-      const url = `${this.apiEndpoints.fallback1}?upc=${barcode}`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.item_response?.status === 'success') {
-        const item = data.item_response.item;
-        return {
-          name: item.title || `Produit ${barcode}`,
-          brand: item.brand,
-          category: this.mapCategory(item.category),
-          unit: 'unité(s)',
-          imageUrl: item.images?.[0],
-          source: 'barcode-spider',
-          confidence: 0.8
-        };
+      const data = await apiGet<ResolveProductResponse>('/products/resolve', { barcode });
+      if (data.kind === 'not_found') {
+        return this.createManualProduct(barcode);
       }
-    } catch (error) {
-      console.log('Barcode Spider API not available');
-    }
-    
-    return null;
-  }
-
-  private async fetchFromUPCDatabase(barcode: string): Promise<ProductData | null> {
-    // Implementation UPC Database (gratuit avec limite)
-    try {
-      const url = `${this.apiEndpoints.fallback2}?upc=${barcode}`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      if (data.code === 'OK' && data.items?.length > 0) {
-        const item = data.items[0];
-        return {
-          name: item.title || `Produit ${barcode}`,
-          brand: item.brand,
-          category: this.mapCategory(item.category),
-          unit: 'unité(s)',
-          imageUrl: item.images?.[0],
-          source: 'upc-database',
-          confidence: 0.7
-        };
+      const source = data.product ?? data.candidates?.[0];
+      if (!source) return this.createManualProduct(barcode);
+      const category = this.mapCategory(source.category ?? undefined);
+      return {
+        name: source.name || `Produit ${barcode}`,
+        brand: source.brand ?? undefined,
+        category,
+        unit: this.suggestUnit(category),
+        imageUrl: source.image_url ?? undefined,
+        source: 'openfoodfacts',
+        confidence: data.confidence ?? 0.85,
+      };
+    } catch (err) {
+      if (!(err instanceof ApiError)) {
+        console.log('⚠️ /api/products/resolve failed:', err);
       }
-    } catch (error) {
-      console.log('UPC Database API not available');
+      return this.createManualProduct(barcode);
     }
-
-    return null;
   }
 
   private createManualProduct(barcode: string): ProductData {
