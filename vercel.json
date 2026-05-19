@@ -1,6 +1,11 @@
 {
   "rewrites": [
     {
+      "//": "2026-05-19 — forward /api/* to the Render-hosted Express API. Replace SMART_PANTRY_API_URL with the public URL Render gives you after the first deploy of render.yaml. Keep the order: API rewrite MUST come before the SPA fallback below.",
+      "source": "/api/(.*)",
+      "destination": "https://SMART_PANTRY_API_URL.onrender.com/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

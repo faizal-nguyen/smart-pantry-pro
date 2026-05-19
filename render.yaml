@@ -1,0 +1,57 @@
+# Render.com deployment config for the Smart Pantry API.
+#
+# Why: the frontend ships on Vercel (smart-pantry-pro.vercel.app) but
+# the Express API at apps/api/ has never been deployed. All
+# `/api/*` calls 405 in prod because vercel.json rewrites everything
+# to index.html (SPA fallback). This file fixes that.
+#
+# How to apply (one-time setup):
+#   1. Sign in to https://dashboard.render.com
+#   2. New + → Blueprint → connect this repo (faizal-nguyen/smart-pantry-pro)
+#   3. Render auto-detects this file and provisions the service
+#   4. Set the env vars listed below in the Render dashboard
+#   5. Wait for first deploy (~3-5 min)
+#   6. Copy the public URL (e.g. https://smart-pantry-pro-api.onrender.com)
+#   7. Edit vercel.json — replace SMART_PANTRY_API_URL with that URL
+#   8. Redeploy Vercel
+#   9. Set ALLOWED_ORIGINS in Render to the Vercel URL so CORS passes
+#
+# After steps 1-9 the prod app works end-to-end. See DEPLOY_API.md
+# for the verbose walkthrough.
+services:
+  - type: web
+    name: smart-pantry-api
+    env: node
+    region: frankfurt           # closer to EU users; change if you prefer
+    plan: free                  # ~512MB / sleeps after 15min idle
+    branch: main
+    rootDir: .
+    buildCommand: npm install --legacy-peer-deps --force && npm run shared:build && npm run api:build:ts
+    startCommand: node apps/api/dist/index.js
+    healthCheckPath: /api/health
+    envVars:
+      # ---- Required (set in dashboard, not here) ----
+      # NEVER commit secrets here. Render will refuse to start until
+      # these are provided via the dashboard.
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false               # ≥32 chars; required by /api/admin/*
+      # ---- Optional ----
+      - key: ALLOWED_ORIGINS
+        value: https://smart-pantry-pro.vercel.app
+      - key: OPENAI_PARSE_TEXT_MODEL
+        value: gpt-4o-mini
+      - key: OPENFOODFACTS_USER_AGENT
+        value: SmartPantryPro/1.0 (+https://smart-pantry-pro.vercel.app)
+      - key: NODE_ENV
+        value: production
+      # ---- Auto-injected by Render ----
+      # PORT — Render assigns dynamically; apps/api/src/index.ts reads
+      # `process.env.PORT` with fallback 4000, so nothing to set here.
