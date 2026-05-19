@@ -35,6 +35,7 @@
 --  18. Fettuccine Alfredo                      ✓
 --  19. Loco Moco au Poivre                     ✓
 --  20. Malai Chutney Chicken Tikka             ✓
+--  21. Sri Lankan Mutton Rolls                 ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -67,7 +68,8 @@ DECLARE
     'Creamy Tuscan Chicken Pasta',
     'Fettuccine Alfredo',
     'Loco Moco au Poivre',
-    'Malai Chutney Chicken Tikka'
+    'Malai Chutney Chicken Tikka',
+    'Sri Lankan Mutton Rolls'
   ];
 BEGIN
 
@@ -1126,5 +1128,67 @@ $instr$,
     (v_recipe_id, 'oignon rouge',                0.5, 'unité',      false, 13, 'en lamelles, garniture'),
     (v_recipe_id, 'coriandre fraîche',           10,  'g',          false, 14, 'hachée, garniture');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (20 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 21. Sri Lankan Mutton Rolls
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Sri Lankan Mutton Rolls',
+    'Short eat sri-lankais signature : crêpes fines maison roulées autour d''une farce mouton-pomme de terre épicée (curcuma, curry, piment, lait de coco), trempées dans l''œuf battu puis panées et frites jusqu''à doré croustillant. À manger debout, brûlant, avec un sambol.',
+    $instr$["FARCE — Chauffer l'huile dans une poêle à feu moyen. Ajouter oignon haché fin, ail, gingembre, piments verts et feuilles de curry. Faire suer jusqu'au parfum.",
+"Ajouter le curcuma, la poudre de curry non torréfié, le piment rouge moulu et le poivre. Frire 30 secondes pour libérer les arômes.",
+"Ajouter le mouton en mini-cubes (presque hachés). Bien enrober du masala. Verser le lait de coco épais, couvrir et cuire à feu doux jusqu'à ce que le mouton soit cuit à 75 %.",
+"Ajouter les pommes de terre en mini-cubes, mélanger. Couvrir et continuer la cuisson jusqu'à ce que les pommes de terre soient fondantes et que le mélange devienne épais et presque sec.",
+"Goûter, saler. Ajouter un trait de jus de citron vert pour la fraîcheur. Laisser refroidir complètement (essentiel pour le roulage).",
+"PÂTE À CRÊPES — Fouetter farine, sel, œuf et eau jusqu'à pâte fluide style crêpe fine.",
+"Chauffer une poêle anti-adhésive légèrement graissée à feu moyen. Verser une fine louche, tourner la poêle pour étaler.",
+"Cuire jusqu'à ce que la surface paraisse sèche — NE PAS retourner. Empiler les crêpes sur une assiette couverte d'un torchon pour les garder souples.",
+"ROULAGE — Déposer 1-2 c. à soupe de farce sur un bord de la crêpe. Plier les côtés vers l'intérieur, rouler serré comme un rouleau de printemps. Sceller la dernière pointe avec un peu de pâte si besoin.",
+"PANURE — Tremper chaque rouleau dans l'œuf battu, puis enrober généreusement de chapelure.",
+"FRITURE — Chauffer l'huile à 170-180°C. Frire les rouleaux par fournées jusqu'à doré profond et croustillant.",
+"Égoutter sur papier absorbant. Servir bien chauds, idéalement avec un sambol (chili-coco) ou ketchup."]
+$instr$,
+    30, 60, 8, 3,
+    'Sri-lankaise', 'snack',
+    ARRAY['sri-lankais','short eat','mouton','street food','pané','frit','crêpe','feuilles de curry'],
+    'manual',
+    'https://www.instagram.com/p/DNkh1WDoU7A/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Farce
+    (v_recipe_id, 'mouton désossé',           500, 'g',          true,  1,  'en mini-cubes, presque haché'),
+    (v_recipe_id, 'huile',                    30,  'ml',         true,  2,  '2 c. à soupe, pour la farce'),
+    (v_recipe_id, 'oignon',                   1,   'unité',      true,  3,  'moyen, haché fin'),
+    (v_recipe_id, 'ail',                      3,   'gousse',     true,  4,  'haché'),
+    (v_recipe_id, 'gingembre',                2.5, 'cm',         true,  5,  'haché, ~1 inch'),
+    (v_recipe_id, 'piments verts',            3,   'unité',      true,  6,  '2-3, hachés fin'),
+    (v_recipe_id, 'feuilles de curry',        1,   'unité',      true,  7,  'brin'),
+    (v_recipe_id, 'curcuma moulu',            0.5, 'c. à café',  true,  8,  NULL),
+    (v_recipe_id, 'poudre de curry',          1,   'c. à café',  true,  9,  'non torréfié, sri-lankais'),
+    (v_recipe_id, 'piment rouge moulu',       1,   'c. à café',  true,  10, 'ajuster au goût'),
+    (v_recipe_id, 'poivre noir moulu',        0.5, 'c. à café',  true,  11, NULL),
+    (v_recipe_id, 'lait de coco épais',       60,  'ml',         true,  12, '0.25 cup'),
+    (v_recipe_id, 'pommes de terre',          1,   'unité',      true,  13, 'moyenne, en mini-cubes'),
+    (v_recipe_id, 'sel',                      1,   'c. à café',  true,  14, 'au goût'),
+    (v_recipe_id, 'jus de citron vert',       15,  'ml',         false, 15, 'un trait pour la fraîcheur'),
+    -- Pâte à crêpes
+    (v_recipe_id, 'farine',                   120, 'g',          true,  16, '1 cup, pour la pâte'),
+    (v_recipe_id, 'œuf',                      1,   'unité',      true,  17, 'pour la pâte'),
+    (v_recipe_id, 'eau',                      300, 'ml',         true,  18, '~1.25 cup, pâte fluide'),
+    (v_recipe_id, 'sel',                      1,   'pincée',     true,  19, 'pour la pâte'),
+    -- Panure + friture
+    (v_recipe_id, 'œuf',                      1,   'unité',      true,  20, 'battu, pour la panure'),
+    (v_recipe_id, 'chapelure',                200, 'g',          true,  21, 'pour l''enrobage'),
+    (v_recipe_id, 'huile végétale',           1000, 'ml',        true,  22, 'pour la friture profonde');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (21 recipes so far)', v_user_id;
 END $$;
