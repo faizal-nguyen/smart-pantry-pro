@@ -74,6 +74,12 @@ const SmartShoppingList = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(STORE_SECTIONS));
+  // Mobile audit P0#1 — l'ancien sticky header montait à ~280px (titre +
+  // SmartGroceryInput + 3 contrôles de filtres). Sur iPhone SE (667px), la
+  // liste réelle était écrasée. On garde le sticky minimal (titre + search)
+  // et on rend SmartGroceryInput + filtres déroulables ci-dessous.
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
 
   useEffect(() => {
@@ -246,44 +252,87 @@ const SmartShoppingList = () => {
   return (
     <AppNavigation user={user}>
       <div className="min-h-screen flex flex-col">
-        {/* Header fixe et compact */}
+        {/* Sticky compact — titre + search uniquement (≈80px sur mobile) */}
         <div className="sticky top-0 bg-background z-10 border-b">
           <div className="px-4 pt-4 pb-2">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h1 className="text-xl font-semibold">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="min-w-0">
+                <h1 className="text-xl font-semibold truncate">
                   Ma liste ({getRemainingItems()})
                 </h1>
-                <p className="text-sm text-muted-foreground">
-                  {getTotalEstimatedCost() > 0 && `Budget: ${getTotalEstimatedCost().toFixed(2)}€`}
-                </p>
+                {getTotalEstimatedCost() > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Budget : {getTotalEstimatedCost().toFixed(2)}€
+                  </p>
+                )}
               </div>
-              
+              <Button
+                variant={isFiltersOpen ? "default" : "outline"}
+                size="sm"
+                className="h-11 shrink-0"
+                aria-expanded={isFiltersOpen}
+                aria-label="Filtres"
+                onClick={() => setIsFiltersOpen((v) => !v)}
+              >
+                <Menu className="h-4 w-4 mr-2" aria-hidden="true" />
+                Filtres
+              </Button>
             </div>
-            
-            {/* Input principal */}
-            <SmartGroceryInput 
-              onItemsAdded={handleSmartItemsAdded}
+
+            {/* Search reste dans le sticky — c'est le canal de navigation
+                principal dans la liste. */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-11"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Hors-sticky — bouton « + ajouter » déclenche SmartGroceryInput.
+            Le composant reste monté (animation hauteur) pour ne pas perdre
+            l'état interne (mode voice/text + drafts). */}
+        <div className="px-4 pt-3 space-y-3">
+          <Button
+            variant={isAddOpen ? "secondary" : "default"}
+            className="w-full h-11 justify-center"
+            onClick={() => setIsAddOpen((v) => !v)}
+            data-testid="primary-action"
+            aria-expanded={isAddOpen}
+          >
+            {isAddOpen ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-2" aria-hidden="true" />
+                Fermer l'ajout
+              </>
+            ) : (
+              <>
+                <PackagePlus className="h-4 w-4 mr-2" aria-hidden="true" />
+                Ajouter des articles
+              </>
+            )}
+          </Button>
+
+          {isAddOpen && (
+            <SmartGroceryInput
+              onItemsAdded={(items) => {
+                handleSmartItemsAdded(items);
+                setIsAddOpen(false);
+              }}
               addMultipleToShoppingList={addMultipleToShoppingList}
               defaultMode="text"
-              className="mb-3"
               placeholder="Ajouter des articles..."
             />
-            
-            {/* Filtres compacts */}
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  placeholder="Rechercher..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9"
-                />
-              </div>
-              
+          )}
+
+          {isFiltersOpen && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-2">
               <Select value={selectedSection} onValueChange={setSelectedSection}>
-                <SelectTrigger className="w-[140px] h-9">
+                <SelectTrigger className="w-full sm:w-[180px] h-11">
                   <SelectValue placeholder="Rayon" />
                 </SelectTrigger>
                 <SelectContent>
@@ -295,17 +344,16 @@ const SmartShoppingList = () => {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Button
                 variant={showPurchased ? "default" : "outline"}
-                size="sm"
+                className="h-11 sm:w-auto w-full"
                 onClick={() => setShowPurchased(!showPurchased)}
-                className="h-9"
               >
-                Achetés
+                {showPurchased ? "Masquer achetés" : "Voir achetés"}
               </Button>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Contenu principal scrollable */}
