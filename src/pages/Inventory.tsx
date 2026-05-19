@@ -101,8 +101,14 @@ interface CategoryDef {
 }
 
 const CATEGORY_DEFS: readonly CategoryDef[] = [
-  { key: 'fruits',      label: 'Fruits',      icon: '🍎', matchers: ['fruit'] },
+  // Order matters — categorizeProduct returns the first match. The
+  // catalogue ships a combined "Fruits/Légumes" / "Fruits et Légumes"
+  // category, so we MUST test 'legumes' before 'fruits' otherwise
+  // every vegetable in that bucket gets misrouted to 🍎 Fruits.
+  // (Pure-fruit products are then resolved by the productNameHints
+  // override below when the raw category is the combined one.)
   { key: 'legumes',     label: 'Légumes',     icon: '🥬', matchers: ['légume', 'legume', 'vegetable'] },
+  { key: 'fruits',      label: 'Fruits',      icon: '🍎', matchers: ['fruit'] },
   { key: 'viandes',     label: 'Viandes',     icon: '🥩', matchers: ['viande', 'meat'] },
   { key: 'poissons',    label: 'Poissons',    icon: '🐟', matchers: ['poisson', 'fish'] },
   { key: 'laitiers',    label: 'Laitiers',    icon: '🥛', matchers: ['laitier', 'dairy', 'fromage', 'yaourt'] },
@@ -118,12 +124,143 @@ const CATEGORY_DEFS: readonly CategoryDef[] = [
 
 const ALL_CATEGORY_KEY = 'all';
 
-function categorizeProduct(rawCategory?: string | null): string {
-  if (!rawCategory) return 'autres';
-  const lower = rawCategory.toLowerCase();
-  for (const def of CATEGORY_DEFS) {
-    if (def.matchers.some((m) => lower.includes(m))) return def.key;
+// Name-based heuristics. The catalogue.category column is unreliable
+// (~50% of voice-created products default to 'autres', a handful have
+// outright wrong values like "Pain de mie ... → Boissons"), so we
+// match the PRODUCT NAME first and only fall back to the raw
+// category. Each hint is matched on word boundaries so "pomme" does
+// NOT match "pomme de terre" (handled by the explicit potato guard
+// below + the legumes hints).
+//
+// Ordering inside this dict doesn't matter; we iterate the keys in
+// the priority order defined by CATEGORY_PRIORITY below.
+const NAME_HINTS: Readonly<Record<string, readonly string[]>> = {
+  legumes: [
+    'pomme de terre', 'patate', 'oignon', 'échalote', 'echalote',
+    'ail', 'tomate', 'concombre', 'poivron', 'courgette', 'aubergine',
+    'carotte', 'salade', 'laitue', 'épinard', 'epinard', 'chou',
+    'brocoli', 'haricot', 'pois', 'lentille', 'champignon', 'radis',
+    'betterave', 'navet', 'poireau', 'fenouil', 'asperge', 'artichaut',
+    'cornichon', 'olive', 'mais', 'maïs', 'frite', 'avocat', 'patate douce',
+  ],
+  fruits: [
+    'pomme', 'banane', 'orange', 'fraise', 'framboise', 'mangue', 'kiwi',
+    'pêche', 'peche', 'abricot', 'poire', 'cerise', 'myrtille', 'raisin',
+    'pastèque', 'pasteque', 'melon', 'ananas', 'citron', 'pamplemousse',
+    'mandarine', 'clémentine', 'clementine', 'datte', 'figue', 'grenade',
+    'litchi', 'noix de coco',
+  ],
+  viandes: [
+    'poulet', 'aile de poulet', 'cuisse de poulet', 'pilon', 'escalope',
+    'bœuf', 'boeuf', 'steak', 'agneau', 'gigot', 'veau', 'porc', 'jambon',
+    'saucisse', 'lard', 'bacon', 'dinde', 'canard', 'viande', 'mince',
+    'haché', 'hache', 'bavette', 'entrecôte', 'entrecote', 'faux-filet',
+    'côte', 'merguez', 'chorizo',
+  ],
+  poissons: [
+    'poisson', 'saumon', 'thon', 'cabillaud', 'maquereau', 'sardine',
+    'hareng', 'truite', 'sole', 'bar', 'lieu', 'colin', 'crevette',
+    'gambas', 'moule', 'huître', 'huitre', 'crabe', 'surimi', 'anchois',
+  ],
+  laitiers: [
+    'lait', 'fromage', 'yaourt', 'yoghourt', 'crème', 'creme', 'beurre',
+    'mozzarella', 'parmesan', 'cheddar', 'feta', 'mascarpone', 'ricotta',
+    'brie', 'camembert', 'comté', 'comte', 'gruyère', 'gruyere', 'skyr',
+    'fromage blanc', 'œuf', 'oeuf', 'egg',
+  ],
+  boulangerie: [
+    'pain', 'baguette', 'ciabatta', 'naan', 'pita', 'focaccia',
+    'croissant', 'brioche', 'viennoiserie', 'tortilla', 'wrap',
+    'biscotte', 'toast',
+  ],
+  feculents: [
+    'riz', 'pâte', 'pate', 'pasta', 'nouille', 'noodle', 'spaghetti',
+    'penne', 'fusilli', 'lasagne', 'tagliatelle', 'macaroni', 'udon',
+    'ramen', 'soba', 'quinoa', 'boulgour', 'bulgur', 'polenta',
+    'couscous', 'semoule', 'orzo',
+  ],
+  epices: [
+    'curcuma', 'cumin', 'paprika', 'poivre', 'sel', 'cannelle', 'muscade',
+    'cardamome', 'coriandre', 'basilic', 'persil', 'ciboulette', 'thym',
+    'romarin', 'laurier', 'menthe', 'origan', 'gochujang', 'gochugaru',
+    'sumac', 'allspice', 'piment', 'épice', 'epice', 'masala',
+    'pâte de curry', 'pate de curry',
+  ],
+  epicerie: [
+    'huile', 'vinaigre', 'sauce', 'ketchup', 'mayonnaise', 'mayo',
+    'moutarde', 'miel', 'sucre', 'confiture', 'bouillon', 'sauce soja',
+    'soja', 'sirop', 'tahini', 'nduja', 'pesto', 'pâte de tomates',
+    'concentré de tomates',
+  ],
+  boissons: [
+    'thé', 'tea', 'café', 'cafe', 'jus', 'soda', 'cola', 'limonade',
+    'vin', 'bière', 'biere', 'eau', 'kombucha', 'smoothie', 'cocktail',
+    'detox', 'kahwa', 'matcha', 'infusion', 'tisane',
+  ],
+  snacks: [
+    'chip', 'biscuit', 'gâteau', 'gateau', 'chocolat', 'bonbon',
+    'confiserie', 'praline', 'macaron', 'madeleine', 'cookie', 'brownie',
+    'crêpe', 'crepe', 'pancake', 'tarte',
+  ],
+  surgeles: ['surgelé', 'surgele', 'congelé', 'congele'],
+};
+
+// Hierarchy used for name-based detection. Earlier entries win if a
+// product name happens to match more than one category (e.g.
+// "saucisse de poulet" → viandes wins over potential fish hint).
+const CATEGORY_PRIORITY: readonly string[] = [
+  'viandes',
+  'poissons',
+  'legumes',
+  'fruits',
+  'laitiers',
+  'boulangerie',
+  'feculents',
+  'epices',
+  'epicerie',
+  'boissons',
+  'snacks',
+  'surgeles',
+];
+
+function matchesHint(lowerName: string, hint: string): boolean {
+  const idx = lowerName.indexOf(hint);
+  if (idx === -1) return false;
+  const before = lowerName[idx - 1] ?? ' ';
+  const after = lowerName[idx + hint.length] ?? ' ';
+  // Word-boundary on either side (or punctuation/space).
+  const boundaryBefore = /[\s,.\-_()/'"\d]/.test(before) || idx === 0;
+  const boundaryAfter = /[\s,.\-_()/'"\d]/.test(after) || idx + hint.length === lowerName.length;
+  return boundaryBefore && boundaryAfter;
+}
+
+function categorizeByName(productName: string): string | null {
+  const lower = productName.toLowerCase();
+  for (const key of CATEGORY_PRIORITY) {
+    const hints = NAME_HINTS[key];
+    if (!hints) continue;
+    if (hints.some((hint) => matchesHint(lower, hint))) return key;
   }
+  return null;
+}
+
+function categorizeProduct(rawCategory?: string | null, productName?: string | null): string {
+  // 1. Name-based — most reliable. Handles 'autres' and outright wrong
+  // raw categories (e.g. "Pain de mie ... → Boissons").
+  if (productName) {
+    const byName = categorizeByName(productName);
+    if (byName) return byName;
+  }
+
+  // 2. Raw catalogue category fallback. Useful for branded/specific
+  // products whose name doesn't contain a generic hint.
+  if (rawCategory) {
+    const lower = rawCategory.toLowerCase();
+    for (const def of CATEGORY_DEFS) {
+      if (def.matchers.some((m) => lower.includes(m))) return def.key;
+    }
+  }
+
   return 'autres';
 }
 
@@ -179,7 +316,7 @@ const Inventory = () => {
   const categoryChips = useMemo(() => {
     const counts = new Map<string, number>();
     for (const item of inventory) {
-      const key = categorizeProduct(item.product?.category);
+      const key = categorizeProduct(item.product?.category, item.product?.name);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return CATEGORY_DEFS
@@ -193,7 +330,7 @@ const Inventory = () => {
   // Filtre actif appliqué à la liste affichée (grid / list)
   const filteredItems = useMemo(() => {
     if (selectedCategoryKey === ALL_CATEGORY_KEY) return inventory;
-    return inventory.filter((item) => categorizeProduct(item.product?.category) === selectedCategoryKey);
+    return inventory.filter((item) => categorizeProduct(item.product?.category, item.product?.name) === selectedCategoryKey);
   }, [inventory, selectedCategoryKey]);
 
   // Fraîcheur dérivée directement de expiry_date — utilisée pour la vue
@@ -717,7 +854,7 @@ const Inventory = () => {
               ) : (
                 filteredItems.map((item) => {
                   const catDef = CATEGORY_DEFS.find(
-                    (d) => d.key === categorizeProduct(item.product?.category),
+                    (d) => d.key === categorizeProduct(item.product?.category, item.product?.name),
                   );
                   const daysToExpiry = item.expiry_date
                     ? Math.ceil(
