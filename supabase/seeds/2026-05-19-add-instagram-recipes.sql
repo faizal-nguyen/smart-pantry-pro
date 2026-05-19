@@ -16,6 +16,8 @@
 --   1. Pad Krapow Lumpia                       ✓
 --   2. Spicy Tuna Crispy Rice                  ✓
 --   3. Don't Worry Rice Bowl                   ✓
+--   4. Sushi Bake                              ✓
+--   5. Cheung Fun aux Crevettes (Express)      ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -31,7 +33,9 @@ DECLARE
   v_recipe_names TEXT[] := ARRAY[
     'Pad Krapow Lumpia',
     'Spicy Tuna Crispy Rice',
-    'Don''t Worry Rice Bowl'
+    'Don''t Worry Rice Bowl',
+    'Sushi Bake',
+    'Cheung Fun aux Crevettes (Express)'
   ];
 BEGIN
 
@@ -193,5 +197,107 @@ $instr$,
     (v_recipe_id, 'fécule de maïs',          7.5, 'g',          true,  14, '0.5 c. à soupe'),
     (v_recipe_id, 'eau',                     15,  'ml',         true,  15, '1 c. à soupe, pour diluer la fécule');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (3 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 4. Sushi Bake (fusion japonais × philippin)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Sushi Bake',
+    'Sushi déconstruit cuit au four (populaire aux Philippines, fusion sushi-américain) : lit de riz à sushi vinaigré, tartare crémeux crabe-thon-mayo-sriracha, gratiné au broil. Finition eel sauce, furikake et avocat. À partager à la cuillère.',
+    $instr$["Mélanger le vinaigre de riz, le sucre et le sel dans un bol jusqu'à dissolution complète.",
+"Verser le mélange vinaigré en éventail sur le riz cuit et mélanger délicatement à la spatule. Réserver.",
+"Émincer la partie blanche des oignons verts. Effilocher les bâtonnets de surimi à la fourchette (ou émietter la chair de crabe).",
+"Dans un bol, combiner crabe émietté, thon égoutté, mayo, sriracha, huile de sésame, sel et oignons verts émincés. Mélanger jusqu'à texture homogène et crémeuse.",
+"Étaler le riz dans un plat allant au four (lasagne ou cocotte basse). Tasser légèrement. Couronner d'une couche uniforme du mélange crabe-thon.",
+"Passer sous le gril (broil) du four position haute jusqu'à dorage profond du dessus (~5-8 min selon four).",
+"Servir chaud, arroser de eel sauce et parsemer de furikake. Garniture optionnelle : avocat en dés, oignon vert ciselé, graines de sésame.",
+"Se mange à la cuillère ou avec des feuilles de nori croustillantes pour scooper en tacos."]
+$instr$,
+    15, 30, 6, 2,
+    'Japonaise', 'dinner',
+    ARRAY['japonais','philippin','fusion','sushi bake','crabe','thon','gratiné','partage'],
+    'manual',
+    'https://www.instagram.com/p/DHRAqMOu1Ww/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Riz à sushi
+    (v_recipe_id, 'riz à sushi',             400, 'g',          true,  1,  '2 cups, cuit'),
+    (v_recipe_id, 'vinaigre de riz',         30,  'ml',         true,  2,  '2 c. à soupe'),
+    (v_recipe_id, 'sucre',                   15,  'g',          true,  3,  '1 c. à soupe'),
+    (v_recipe_id, 'sel',                     1,   'pincée',     true,  4,  'pour le riz'),
+    -- Tartare crabe-thon
+    (v_recipe_id, 'bâtonnets de surimi',     8,   'unité',      true,  5,  'ou 140 g de chair de crabe'),
+    (v_recipe_id, 'thon en boîte',           150, 'g',          true,  6,  '1 boîte, égoutté'),
+    (v_recipe_id, 'oignons verts',           2,   'unité',      true,  7,  'parties blanches émincées'),
+    (v_recipe_id, 'mayonnaise',              60,  'ml',         true,  8,  '0.25 cup, Kewpie idéale'),
+    (v_recipe_id, 'sriracha',                30,  'ml',         true,  9,  '2 c. à soupe'),
+    (v_recipe_id, 'huile de sésame',         5,   'ml',         true,  10, '~1 c. à café (non listé mais dans steps)'),
+    (v_recipe_id, 'sel',                     1,   'pincée',     true,  11, 'pour le tartare, au goût'),
+    -- Garniture
+    (v_recipe_id, 'eel sauce',               30,  'ml',         false, 12, '2 c. à soupe, finition'),
+    (v_recipe_id, 'furikake',                10,  'g',          false, 13, '2 c. à soupe, finition'),
+    (v_recipe_id, 'avocat',                  0.25, 'unité',     false, 14, 'en dés, optionnel'),
+    (v_recipe_id, 'oignon vert',             1,   'c. à soupe', false, 15, 'ciselé, garniture'),
+    (v_recipe_id, 'graines de sésame',       1,   'c. à soupe', false, 16, 'garniture');
+
+  -- =====================================================================
+  -- 5. Cheung Fun aux Crevettes (Express)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Cheung Fun aux Crevettes (Express)',
+    'Version express du cheung fun cantonais : on remplace la pâte de riz traditionnelle par des galettes de riz vietnamiennes trempées, garnies de crevettes marinées et cébette, roulées puis cuites à la vapeur. Sauce soja-huître-sésame-bouillon. Prêt en 25 min vs 1 h pour la version classique.',
+    $instr$["Décortiquer les crevettes. Les mariner avec sel, poivre, vin de Shaoxing et huile de sésame. Réserver 10 minutes.",
+"Préparer la sauce : mélanger sucre, sauce soja, huile de sésame, sauce huître, sauce soja foncée et bouillon (ou eau) dans un bol jusqu'à dissolution complète. Réserver.",
+"Tremper rapidement une galette de riz dans l'eau tiède (juste assez pour la ramollir, pas trop sinon elle se déchire).",
+"Poser la galette à plat sur un plan humide. Disposer 4 crevettes au centre alignées en ligne, parsemer d'un peu de cébette ciselée.",
+"Replier les côtés de la galette puis rouler délicatement comme un rouleau de printemps serré.",
+"Badigeonner le rouleau d'huile neutre (évite qu'il colle au panier vapeur).",
+"Déposer dans un panier vapeur (chemisé de papier sulfurisé ou de feuilles de laitue). Cuire à la vapeur 5 minutes.",
+"Disposer les cheung fun sur une assiette creuse, napper généreusement de sauce. Servir immédiatement."]
+$instr$,
+    15, 10, 6, 2,
+    'Chinoise', 'appetizer',
+    ARRAY['chinois','cantonais','cheung fun','dim sum','crevettes','vapeur','rapide'],
+    'manual',
+    'https://www.instagram.com/p/DHGQH4ZIASP/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Marinade crevettes
+    (v_recipe_id, 'crevettes crues',         24,  'unité',      true,  1,  'décortiquées, 4 par rouleau'),
+    (v_recipe_id, 'sel',                     1,   'pincée',     true,  2,  'marinade'),
+    (v_recipe_id, 'poivre noir',             1,   'pincée',     true,  3,  'marinade'),
+    (v_recipe_id, 'vin de Shaoxing',         5,   'ml',         true,  4,  '1 c. à café, marinade'),
+    (v_recipe_id, 'huile de sésame',         5,   'ml',         true,  5,  '1 c. à café, marinade'),
+    -- Roulage
+    (v_recipe_id, 'cébette',                 1,   'unité',      true,  6,  'ciselée'),
+    (v_recipe_id, 'galettes de riz',         6,   'unité',      true,  7,  'grandes, vietnamiennes'),
+    (v_recipe_id, 'huile neutre',            15,  'ml',         true,  8,  'pour badigeonner'),
+    -- Sauce
+    (v_recipe_id, 'sucre',                   5,   'g',          true,  9,  '1 c. à café'),
+    (v_recipe_id, 'sauce soja',              30,  'ml',         true,  10, '2 c. à soupe'),
+    (v_recipe_id, 'huile de sésame',         15,  'ml',         true,  11, '1 c. à soupe, pour la sauce'),
+    (v_recipe_id, 'sauce huître',            15,  'ml',         true,  12, '1 c. à soupe'),
+    (v_recipe_id, 'sauce soja foncée',       5,   'ml',         true,  13, '1 c. à café'),
+    (v_recipe_id, 'bouillon',                50,  'ml',         true,  14, 'ou eau');
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (5 recipes so far)', v_user_id;
 END $$;
