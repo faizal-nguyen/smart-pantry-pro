@@ -12,6 +12,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { voiceOutputService } from "@/services/voice/voiceOutputService";
 import { useAgentDbInvalidation } from "@/lib/agentEvents";
+import {
+  primeInventoryCache,
+  invalidateInventoryCache,
+} from "@/hooks/useRecipeInventoryAnalysis";
 
 export interface Product {
   id: string;
@@ -87,7 +91,16 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setInventory(data || []);
+      const rows = data || [];
+      setInventory(rows);
+
+      // Perf audit 2026-05-19 — prime le cache module partagé avec
+      // useRecipeInventoryAnalysis pour qu'une ouverture de recette ne
+      // refetch pas l'inventaire que ce hook vient de charger.
+      const firstUserId = rows.find((it) => it.user_id)?.user_id;
+      if (firstUserId) {
+        primeInventoryCache(firstUserId, rows as InventoryItem[]);
+      }
     } catch (err) {
       console.error('Error fetching inventory:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch inventory'));
@@ -204,6 +217,9 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
         );
       }
 
+      // Cache invalidé : la prochaine ouverture de recette refetchera.
+      if (data.user_id) invalidateInventoryCache(data.user_id);
+
       return data;
     } catch (err) {
       console.error('Error adding to inventory:', err);
@@ -237,6 +253,8 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
       // Clear from pending
       optimisticRef.current.pendingUpdates.delete(id);
+      // Cache invalidé : la prochaine ouverture de recette refetchera.
+      invalidateInventoryCache();
     } catch (err) {
       console.error('Error updating inventory item:', err);
       throw err;
@@ -275,6 +293,9 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       if (enableVoiceFeedback && item?.product?.name) {
         voiceOutputService.announceItemRemoved(item.product.name);
       }
+
+      // Cache invalidé : la prochaine ouverture de recette refetchera.
+      invalidateInventoryCache();
     } catch (err) {
       console.error('Error deleting inventory item:', err);
       throw err;

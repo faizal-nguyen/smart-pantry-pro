@@ -326,17 +326,58 @@ const getRecipeWithIngredients = async (recipeId: string) => {
   }
 };
 
-const getUserInventory = async (userId: string): Promise<InventoryItem[]> => {
-  const { data, error } = await supabase
-    .from('inventory')
-    .select(`
-      *,
-      product:products(*)
-    `)
-    .eq('user_id', userId);
+// Perf audit 2026-05-19 — useInventory (hook React) et analyzeRecipeInventory
+// fetchaient TOUS DEUX `inventory join products` au mount d'une recette.
+// Cache module 30s in-flight + résolu pour mutualiser. Le hook useInventory
+// peut peupler le cache via primeInventoryCache() après ses propres fetch
+// pour rendre l'analyse instantanée quand l'utilisateur arrive depuis
+// /pantry/inventory.
+const USER_INVENTORY_TTL_MS = 30_000;
+const userInventoryCache = new Map<
+  string,
+  { value: InventoryItem[]; ts: number } | { inflight: Promise<InventoryItem[]> }
+>();
 
-  if (error) throw error;
-  return data || [];
+export function primeInventoryCache(userId: string, inventory: InventoryItem[]): void {
+  userInventoryCache.set(userId, { value: inventory, ts: Date.now() });
+}
+
+export function invalidateInventoryCache(userId?: string): void {
+  if (userId) {
+    userInventoryCache.delete(userId);
+    return;
+  }
+  userInventoryCache.clear();
+}
+
+const getUserInventory = async (userId: string): Promise<InventoryItem[]> => {
+  const cached = userInventoryCache.get(userId);
+  if (cached) {
+    if ('inflight' in cached) return cached.inflight;
+    if (Date.now() - cached.ts < USER_INVENTORY_TTL_MS) return cached.value;
+  }
+
+  const inflight = (async () => {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select(`
+        *,
+        product:products(*)
+      `)
+      .eq('user_id', userId);
+    if (error) throw error;
+    return (data || []) as InventoryItem[];
+  })();
+
+  userInventoryCache.set(userId, { inflight });
+  try {
+    const value = await inflight;
+    userInventoryCache.set(userId, { value, ts: Date.now() });
+    return value;
+  } catch (error) {
+    userInventoryCache.delete(userId);
+    throw error;
+  }
 };
 
 // Phase 3 — server-side match cached for a single analysis call.
