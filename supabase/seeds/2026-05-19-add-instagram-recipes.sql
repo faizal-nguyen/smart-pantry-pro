@@ -18,6 +18,7 @@
 --   3. Don't Worry Rice Bowl                   ✓
 --   4. Sushi Bake                              ✓
 --   5. Cheung Fun aux Crevettes (Express)      ✓
+--   6. Crispy Rice Salad                       ✓
 --
 -- Fichier évolutif : je rajoute des recettes au fur et à mesure que
 -- l'utilisateur me paste des nouvelles URL Insta + détails.
@@ -35,7 +36,8 @@ DECLARE
     'Spicy Tuna Crispy Rice',
     'Don''t Worry Rice Bowl',
     'Sushi Bake',
-    'Cheung Fun aux Crevettes (Express)'
+    'Cheung Fun aux Crevettes (Express)',
+    'Crispy Rice Salad (Creamy Satay)'
   ];
 BEGIN
 
@@ -299,5 +301,54 @@ $instr$,
     (v_recipe_id, 'sauce soja foncée',       5,   'ml',         true,  13, '1 c. à café'),
     (v_recipe_id, 'bouillon',                50,  'ml',         true,  14, 'ou eau');
 
-  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (5 recipes so far)', v_user_id;
+  -- =====================================================================
+  -- 6. Crispy Rice Salad (Creamy Satay)
+  -- =====================================================================
+  INSERT INTO public.recipes (
+    user_id, name, description, instructions,
+    prep_time, cook_time, servings, difficulty,
+    cuisine_category, meal_type, tags,
+    source_type, source_url, image_url
+  ) VALUES (
+    v_user_id,
+    'Crispy Rice Salad (Creamy Satay)',
+    'Salade salée gourmande : épinards frais, œuf dur, protéines maigres (ou kebab végétal) et crispy rice à l''air fryer comme alternative healthy aux croûtons. Sauce creamy satay au fromage blanc, PB2 et miel. ~600 kcal pour une portion complète.',
+    $instr$["Crispy rice (batch pour 4 portions) : mettre 200 g de riz cuit dans l'air fryer. Ajouter 1 c. à soupe d'huile de sésame et bien mélanger.",
+"Cuire à 200°C pendant 10-12 min, en secouant le panier toutes les 3-4 min jusqu'à doré croustillant. (Variantes : four 200°C / 15-18 min en remuant à mi-cuisson, ou poêle huile de sésame / feu moyen / 10 min en remuant.)",
+"Sauce creamy satay (batch pour 6 portions, ~250 g) : fouetter ensemble fromage blanc, PB2 Fit, mayonnaise allégée, vinaigre de riz, sauce soja light, miel, gingembre en poudre, paprika fumé et jus de lime jusqu'à crème lisse. Réserver au frais (se garde 5 jours).",
+"Assemblage par portion : base d'épinards frais dans un bol (80 g).",
+"Ajouter l'œuf dur coupé en deux et les protéines (kebab végétal Planted, blanc de poulet grillé, ou tofu fumé).",
+"Saupoudrer généreusement de crispy rice (50 g pour une portion).",
+"Arroser de 40 g de sauce creamy satay. Servir immédiatement (le crispy rice perd son croustillant s'il marine dans la sauce)."]
+$instr$,
+    10, 15, 1, 1,
+    'Asiatique', 'lunch',
+    ARRAY['asiatique','fusion','salade','crispy rice','satay','healthy','protéines','air fryer'],
+    'manual',
+    'https://www.instagram.com/p/DF5gH11oeu4/',
+    NULL
+  ) RETURNING id INTO v_recipe_id;
+
+  INSERT INTO public.recipe_ingredients (
+    recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
+  ) VALUES
+    -- Salade (1 portion)
+    (v_recipe_id, 'épinards frais',          80,  'g',          true,  1,  'base'),
+    (v_recipe_id, 'œuf dur',                 1,   'unité',      true,  2,  'coupé en deux'),
+    (v_recipe_id, 'protéines maigres',       100, 'g',          true,  3,  'kebab végétal Planted, poulet grillé ou tofu fumé'),
+    -- Crispy rice (batch 4 portions, 50g/portion)
+    (v_recipe_id, 'riz cuit',                200, 'g',          true,  4,  'batch crispy rice, 4 portions'),
+    (v_recipe_id, 'huile de sésame',         15,  'ml',         true,  5,  '1 c. à soupe pour le crispy rice'),
+    -- Sauce creamy satay (batch 6 portions, ~40g/portion)
+    (v_recipe_id, 'fromage blanc 0%',        125, 'g',          true,  6,  'pour la sauce satay'),
+    (v_recipe_id, 'PB2 Fit',                 25,  'g',          true,  7,  'poudre de cacahuète déshuilée'),
+    (v_recipe_id, 'mayonnaise allégée',      30,  'g',          true,  8,  NULL),
+    (v_recipe_id, 'vinaigre de riz',         45,  'ml',         true,  9,  NULL),
+    (v_recipe_id, 'sauce soja light',        30,  'ml',         true,  10, NULL),
+    (v_recipe_id, 'miel',                    40,  'g',          true,  11, NULL),
+    (v_recipe_id, 'gingembre en poudre',     2,   'g',          true,  12, NULL),
+    (v_recipe_id, 'paprika fumé',            1,   'g',          true,  13, NULL),
+    (v_recipe_id, 'jus de lime',             10,  'ml',         true,  14, NULL);
+
+  RAISE NOTICE 'Seed: Instagram recipes batch inserted for user % (6 recipes so far)', v_user_id;
 END $$;
