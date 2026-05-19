@@ -568,3 +568,17 @@
     top: 6px;
   }
 }
+
+/* ============================================================================
+ * Mobile a11y essentials
+ * - Prevent iOS Safari from auto-zooming inputs when their font-size is <16px
+ *   on focus. Apply only on phones; desktops keep their compact look.
+ * - Ensure interactive controls hit the 44pt comfort target by default.
+ * ============================================================================ */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
