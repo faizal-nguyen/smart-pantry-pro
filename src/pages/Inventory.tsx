@@ -136,12 +136,14 @@ const ALL_CATEGORY_KEY = 'all';
 // the priority order defined by CATEGORY_PRIORITY below.
 const NAME_HINTS: Readonly<Record<string, readonly string[]>> = {
   legumes: [
-    'pomme de terre', 'patate', 'oignon', 'échalote', 'echalote',
-    'ail', 'tomate', 'concombre', 'poivron', 'courgette', 'aubergine',
-    'carotte', 'salade', 'laitue', 'épinard', 'epinard', 'chou',
-    'brocoli', 'haricot', 'pois', 'lentille', 'champignon', 'radis',
-    'betterave', 'navet', 'poireau', 'fenouil', 'asperge', 'artichaut',
-    'cornichon', 'olive', 'mais', 'maïs', 'frite', 'avocat', 'patate douce',
+    'pommes de terre', 'pomme de terre', 'patate douce', 'patate',
+    'oignon', 'échalote',
+    'echalote', 'ail', 'tomate', 'concombre', 'poivron', 'courgette',
+    'aubergine', 'carotte', 'salade', 'laitue', 'épinard', 'epinard',
+    'chou', 'brocoli', 'haricot vert', 'pois chiche', 'lentille',
+    'champignon', 'radis', 'betterave', 'navet', 'poireau', 'fenouil',
+    'asperge', 'artichaut', 'cornichon', 'olive', 'avocat', 'céleri',
+    'celeri',
   ],
   fruits: [
     'pomme', 'banane', 'orange', 'fraise', 'framboise', 'mangue', 'kiwi',
@@ -151,22 +153,23 @@ const NAME_HINTS: Readonly<Record<string, readonly string[]>> = {
     'litchi', 'noix de coco',
   ],
   viandes: [
-    'poulet', 'aile de poulet', 'cuisse de poulet', 'pilon', 'escalope',
-    'bœuf', 'boeuf', 'steak', 'agneau', 'gigot', 'veau', 'porc', 'jambon',
-    'saucisse', 'lard', 'bacon', 'dinde', 'canard', 'viande', 'mince',
-    'haché', 'hache', 'bavette', 'entrecôte', 'entrecote', 'faux-filet',
-    'côte', 'merguez', 'chorizo',
+    'aile de poulet', 'cuisse de poulet', 'escalope de poulet',
+    'pilon de poulet', 'pilon', 'escalope', 'poulet', 'bœuf', 'boeuf',
+    'steak', 'agneau', 'gigot', 'veau', 'porc', 'jambon', 'saucisse',
+    'lard', 'bacon', 'dinde', 'canard', 'viande', 'mince', 'haché',
+    'hache', 'bavette', 'entrecôte', 'entrecote', 'faux-filet', 'côte',
+    'merguez', 'chorizo',
   ],
   poissons: [
     'poisson', 'saumon', 'thon', 'cabillaud', 'maquereau', 'sardine',
-    'hareng', 'truite', 'sole', 'bar', 'lieu', 'colin', 'crevette',
-    'gambas', 'moule', 'huître', 'huitre', 'crabe', 'surimi', 'anchois',
+    'hareng', 'truite', 'sole', 'lieu', 'colin', 'crevette', 'gambas',
+    'moule', 'huître', 'huitre', 'crabe', 'surimi', 'anchois',
   ],
   laitiers: [
-    'lait', 'fromage', 'yaourt', 'yoghourt', 'crème', 'creme', 'beurre',
-    'mozzarella', 'parmesan', 'cheddar', 'feta', 'mascarpone', 'ricotta',
-    'brie', 'camembert', 'comté', 'comte', 'gruyère', 'gruyere', 'skyr',
-    'fromage blanc', 'œuf', 'oeuf', 'egg',
+    'lait', 'fromage', 'fromage blanc', 'yaourt', 'yoghourt', 'crème',
+    'creme', 'beurre', 'mozzarella', 'parmesan', 'cheddar', 'feta',
+    'mascarpone', 'ricotta', 'brie', 'camembert', 'comté', 'comte',
+    'gruyère', 'gruyere', 'skyr', 'œuf', 'oeuf', 'egg',
   ],
   boulangerie: [
     'pain', 'baguette', 'ciabatta', 'naan', 'pita', 'focaccia',
@@ -174,23 +177,28 @@ const NAME_HINTS: Readonly<Record<string, readonly string[]>> = {
     'biscotte', 'toast',
   ],
   feculents: [
+    'fleurs de mais', 'fleurs de maïs', 'cornflake', 'corn flake',
+    'céréale', 'cereale', 'cereal', "flocon d'avoine", 'flocon davoine',
     'riz', 'pâte', 'pate', 'pasta', 'nouille', 'noodle', 'spaghetti',
     'penne', 'fusilli', 'lasagne', 'tagliatelle', 'macaroni', 'udon',
     'ramen', 'soba', 'quinoa', 'boulgour', 'bulgur', 'polenta',
-    'couscous', 'semoule', 'orzo',
+    'couscous', 'semoule', 'orzo', 'maïs', 'mais',
   ],
   epices: [
+    'ail semoule', 'ail en poudre', 'ail granulé', 'ail granule',
+    'oignon en poudre', 'gingembre en poudre', 'gingembre moulu',
     'curcuma', 'cumin', 'paprika', 'poivre', 'sel', 'cannelle', 'muscade',
     'cardamome', 'coriandre', 'basilic', 'persil', 'ciboulette', 'thym',
     'romarin', 'laurier', 'menthe', 'origan', 'gochujang', 'gochugaru',
     'sumac', 'allspice', 'piment', 'épice', 'epice', 'masala',
-    'pâte de curry', 'pate de curry',
+    'pâte de curry', 'pate de curry', 'en poudre', 'moulu', 'moulue',
   ],
   epicerie: [
-    'huile', 'vinaigre', 'sauce', 'ketchup', 'mayonnaise', 'mayo',
-    'moutarde', 'miel', 'sucre', 'confiture', 'bouillon', 'sauce soja',
-    'soja', 'sirop', 'tahini', 'nduja', 'pesto', 'pâte de tomates',
-    'concentré de tomates',
+    'concentré de tomate', 'concentre de tomate', 'pâte de tomate',
+    'pate de tomate', 'huile', 'vinaigre', 'sauce', 'ketchup',
+    'mayonnaise', 'mayo', 'moutarde', 'miel', 'sucre', 'confiture',
+    'bouillon', 'sauce soja', 'soja', 'sirop', 'tahini', 'nduja',
+    'pesto', 'cassonade',
   ],
   boissons: [
     'thé', 'tea', 'café', 'cafe', 'jus', 'soda', 'cola', 'limonade',
@@ -202,44 +210,75 @@ const NAME_HINTS: Readonly<Record<string, readonly string[]>> = {
     'confiserie', 'praline', 'macaron', 'madeleine', 'cookie', 'brownie',
     'crêpe', 'crepe', 'pancake', 'tarte',
   ],
-  surgeles: ['surgelé', 'surgele', 'congelé', 'congele'],
+  surgeles: [
+    'surgelé', 'surgele', 'congelé', 'congele', 'frite',
+  ],
 };
 
-// Hierarchy used for name-based detection. Earlier entries win if a
-// product name happens to match more than one category (e.g.
-// "saucisse de poulet" → viandes wins over potential fish hint).
+// Used for tie-breaks when two hints of identical length match (e.g.
+// 'olive' in legumes vs 'pâte' in feculents). Lower index wins.
 const CATEGORY_PRIORITY: readonly string[] = [
   'viandes',
   'poissons',
-  'legumes',
-  'fruits',
-  'laitiers',
-  'boulangerie',
-  'feculents',
   'epices',
   'epicerie',
+  'surgeles',
+  'boulangerie',
+  'feculents',
+  'laitiers',
+  'legumes',
+  'fruits',
   'boissons',
   'snacks',
-  'surgeles',
 ];
+
+/**
+ * Hints flattened across categories and sorted by length DESC so a
+ * longer/more specific hint wins over a shorter generic one — e.g.
+ *   "ail semoule"     → epices    (NOT legumes via "ail")
+ *   "fleurs de mais"  → feculents (NOT legumes via "mais")
+ *   "pomme de terre"  → legumes   (NOT fruits via "pomme")
+ *
+ * Computed once at module load.
+ */
+const FLAT_HINTS: ReadonlyArray<{ hint: string; key: string; priority: number }> = (() => {
+  const out: Array<{ hint: string; key: string; priority: number }> = [];
+  for (const [key, hints] of Object.entries(NAME_HINTS)) {
+    const priority = CATEGORY_PRIORITY.indexOf(key);
+    for (const hint of hints) {
+      out.push({ hint, key, priority: priority === -1 ? Number.MAX_SAFE_INTEGER : priority });
+    }
+  }
+  out.sort((a, b) => {
+    if (a.hint.length !== b.hint.length) return b.hint.length - a.hint.length;
+    return a.priority - b.priority;
+  });
+  return out;
+})();
 
 function matchesHint(lowerName: string, hint: string): boolean {
   const idx = lowerName.indexOf(hint);
   if (idx === -1) return false;
   const before = lowerName[idx - 1] ?? ' ';
   const after = lowerName[idx + hint.length] ?? ' ';
-  // Word-boundary on either side (or punctuation/space).
-  const boundaryBefore = /[\s,.\-_()/'"\d]/.test(before) || idx === 0;
-  const boundaryAfter = /[\s,.\-_()/'"\d]/.test(after) || idx + hint.length === lowerName.length;
+  const isBoundary = (c: string) => /[\s,.\-_()/'"\d]/.test(c);
+  const boundaryBefore = isBoundary(before) || idx === 0;
+  // Accept French plural 's' / 'x' as a valid word-end boundary so
+  // "tomates", "poivrons", "frites" etc. match their singular hints.
+  let boundaryAfter =
+    isBoundary(after) || idx + hint.length === lowerName.length;
+  if (!boundaryAfter && (after === 's' || after === 'x')) {
+    const afterAfter = lowerName[idx + hint.length + 1] ?? ' ';
+    boundaryAfter =
+      isBoundary(afterAfter) || idx + hint.length + 1 === lowerName.length;
+  }
   return boundaryBefore && boundaryAfter;
 }
 
 function categorizeByName(productName: string): string | null {
   const lower = productName.toLowerCase();
-  for (const key of CATEGORY_PRIORITY) {
-    const hints = NAME_HINTS[key];
-    if (!hints) continue;
-    if (hints.some((hint) => matchesHint(lower, hint))) return key;
+  for (const entry of FLAT_HINTS) {
+    if (matchesHint(lower, entry.hint)) return entry.key;
   }
   return null;
 }
