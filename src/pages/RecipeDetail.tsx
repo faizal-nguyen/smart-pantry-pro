@@ -569,7 +569,7 @@ const RecipeDetail = () => {
         <Card className="mb-6">
           <CardContent className="p-4">
             <h3 className="font-semibold mb-3">Analyse de l'inventaire</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Statut</p>
                 <p className="font-medium">
@@ -586,25 +586,7 @@ const RecipeDetail = () => {
                   {inventoryAnalysis.missingIngredients.length}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Coût total recette</p>
-                <p className="font-medium">
-                  {inventoryAnalysis.totalRecipeCost?.toFixed(2) || '0.00'}€
-                </p>
-              </div>
             </div>
-            {inventoryAnalysis.missingIngredients.length > 0 && (
-              <div className="mt-3 pt-3 border-t">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">
-                    Coût des ingrédients manquants :
-                  </span>
-                  <span className="font-medium text-orange-600">
-                    {inventoryAnalysis.estimatedCost?.toFixed(2) || '0.00'}€
-                  </span>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
