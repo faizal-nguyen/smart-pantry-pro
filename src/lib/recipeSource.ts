@@ -137,13 +137,60 @@ function normalizeInlineIngredients(json: unknown): UnifiedRecipeIngredient[] | 
   }));
 }
 
+// Perf audit 2026-05-19 — RecipeDetail + useRecipeInventoryAnalysis + le
+// tracker "viewed" appellent tous fetchUnifiedRecipe au mount. Sans cache,
+// chaque ouverture déclenche 3 résolutions identiques (3-9 round-trips
+// Supabase au lieu de 1-3). Cache module 30s in-flight + résolu : la
+// première résolution est partagée par les autres callers tant qu'on est
+// dans la même fenêtre de temps.
+const UNIFIED_RECIPE_TTL_MS = 30_000;
+const unifiedRecipeCache = new Map<
+  string,
+  { value: UnifiedRecipe | null; ts: number } | { inflight: Promise<UnifiedRecipe | null> }
+>();
+
+/** Invalide le cache module pour un id (à appeler après mutation). */
+export function invalidateUnifiedRecipeCache(id?: string): void {
+  if (id) {
+    unifiedRecipeCache.delete(id);
+    return;
+  }
+  unifiedRecipeCache.clear();
+}
+
 /**
  * Resolve a recipe id against `recipes`, then `user_recipes` (joining
  * the catalog), then `recipes_catalog`. Returns `null` if absent
  * everywhere — that is the *only* state that should be treated as
  * "recipe truly deleted" by downstream cleanup logic.
+ *
+ * Cache module 30s : les callers concurrents (RecipeDetail + analyse
+ * inventaire + tracker "viewed") partagent la même résolution.
  */
 export async function fetchUnifiedRecipe(id: string): Promise<UnifiedRecipe | null> {
+  const cached = unifiedRecipeCache.get(id);
+  if (cached) {
+    if ('inflight' in cached) {
+      return cached.inflight;
+    }
+    if (Date.now() - cached.ts < UNIFIED_RECIPE_TTL_MS) {
+      return cached.value;
+    }
+  }
+
+  const inflight = fetchUnifiedRecipeUncached(id);
+  unifiedRecipeCache.set(id, { inflight });
+  try {
+    const value = await inflight;
+    unifiedRecipeCache.set(id, { value, ts: Date.now() });
+    return value;
+  } catch (error) {
+    unifiedRecipeCache.delete(id);
+    throw error;
+  }
+}
+
+async function fetchUnifiedRecipeUncached(id: string): Promise<UnifiedRecipe | null> {
   // 1. Legacy `recipes` (covers all 19 existing Instagram imports for
   //    the audit user; this is the hot path).
   {

@@ -998,51 +998,42 @@ export class OpenFoodFactsService {
       nutrition: NutritionalInfo;
     }> = [];
 
-    // Traiter chaque ingrédient
+    // Perf audit 2026-05-19 — auparavant boucle for séquentielle :
+    // chaque findBestMatch peut prendre 300-800ms (fetch OFF). 10
+    // ingrédients = 3-8s bloquants. On parallélise via Promise.all puis
+    // on agrège dans une 2e passe synchrone pour préserver l'ordre.
     console.log(`\n🍳 DÉBUT DU CALCUL NUTRITIONNEL POUR ${ingredients.length} INGRÉDIENTS\n${'='.repeat(60)}`);
-    
-    for (const ingredient of ingredients) {
-      console.log(`\n📦 TRAITEMENT INGRÉDIENT: "${ingredient.ingredient_name}" (${ingredient.quantity} ${ingredient.unit})`);
-      console.log(`${'─'.repeat(50)}`);
-      
-      const product = await this.findBestMatch(ingredient.ingredient_name);
-      
-      if (!product || !product.nutriments) {
-        console.log(`⚠️ INGRÉDIENT MANQUANT: Aucune donnée nutritionnelle pour "${ingredient.ingredient_name}"`);
+
+    const matched = await Promise.all(
+      ingredients.map(async (ingredient) => {
+        const product = await this.findBestMatch(ingredient.ingredient_name);
+        if (!product || !product.nutriments) {
+          return { ingredient, product: null, nutrition: null } as const;
+        }
+        const nutrition = this.calculateNutritionForQuantity(
+          product,
+          ingredient.quantity,
+          ingredient.unit,
+          ingredient.ingredient_name,
+        );
+        return { ingredient, product, nutrition } as const;
+      }),
+    );
+
+    for (const { ingredient, product, nutrition } of matched) {
+      if (!product || !nutrition) {
+        console.log(`⚠️ INGRÉDIENT MANQUANT: "${ingredient.ingredient_name}"`);
         missingIngredients.push(ingredient.ingredient_name);
         continue;
       }
-
-      const nutrition = this.calculateNutritionForQuantity(
-        product,
-        ingredient.quantity,
-        ingredient.unit,
-        ingredient.ingredient_name
-      );
-
-      if (nutrition) {
-        console.log(`\n📊 CALCUL NUTRITIONNEL:`);
-        console.log(`   Quantité: ${ingredient.quantity} ${ingredient.unit}`);
-        console.log(`   → Calories: ${nutrition.energy_kcal?.toFixed(0) || 0} kcal`);
-        console.log(`   → Protéines: ${nutrition.proteins?.toFixed(1) || 0} g`);
-        console.log(`   → Glucides: ${nutrition.carbohydrates?.toFixed(1) || 0} g`);
-        console.log(`   → Lipides: ${nutrition.fat?.toFixed(1) || 0} g`);
-        
-        foundIngredients.push({
-          name: ingredient.ingredient_name,
-          product,
-          nutrition
-        });
-
-        // Additionner les valeurs nutritionnelles
-        Object.keys(nutrition).forEach(key => {
-          const value = nutrition[key as keyof NutritionalInfo];
-          if (value !== undefined && !isNaN(value)) {
-            totalNutrition[key as keyof NutritionalInfo] = 
-              (totalNutrition[key as keyof NutritionalInfo] || 0) + value;
-          }
-        });
-      }
+      foundIngredients.push({ name: ingredient.ingredient_name, product, nutrition });
+      Object.keys(nutrition).forEach((key) => {
+        const value = nutrition[key as keyof NutritionalInfo];
+        if (value !== undefined && !isNaN(value)) {
+          totalNutrition[key as keyof NutritionalInfo] =
+            (totalNutrition[key as keyof NutritionalInfo] || 0) + value;
+        }
+      });
     }
     
     console.log(`\n${'='.repeat(60)}`);

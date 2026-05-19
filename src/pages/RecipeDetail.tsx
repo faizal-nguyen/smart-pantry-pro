@@ -90,7 +90,10 @@ const RecipeDetail = () => {
       if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
         return;
       }
-      const { data: { user } } = await supabase.auth.getUser();
+      // Perf : getSession() est synchrone depuis le store local quand la
+      // session est déjà initialisée — évite 1 round-trip réseau.
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!user || !active) return;
       const unified = await fetchUnifiedRecipe(id);
       if (!unified || unified.source !== 'recipes') {

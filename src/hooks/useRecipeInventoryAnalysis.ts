@@ -53,8 +53,12 @@ export const useRecipeInventoryAnalysis = (recipeId: string) => {
     staleTime: 300000, // 5 minutes (plus court pour éviter les faux positifs)
     cacheTime: 600000, // 10 minutes
     enabled: !!recipeId,
-    // Invalider le cache quand l'inventaire change
-    refetchOnWindowFocus: true,
+    // Perf audit 2026-05-19 — auparavant `true` mais sur mobile chaque
+    // retour app retriggerait l'analyse complète (7-9 round-trips). Le
+    // staleTime de 5min couplé au cache DB recipe_inventory_cache suffit
+    // pour la fraîcheur ; les invalidations explicites (édition inventaire,
+    // édition recette) devront passer par queryClient.invalidateQueries.
+    refetchOnWindowFocus: false,
     // Éviter de refaire des requêtes si la recette n'existe plus
     retry: (failureCount, error: any) => {
       // Ne pas retenter si c'est une erreur 406 (recette supprimée) ou 404 (non trouvée)
@@ -87,7 +91,11 @@ export const useRecipeInventoryAnalysis = (recipeId: string) => {
 // Service d'analyse principal (pattern Cipher intelligence)
 export const analyzeRecipeInventory = async (recipeId: string): Promise<InventoryAnalysis> => {
   try {
-    const { data: user } = await supabase.auth.getUser();
+    // Perf audit 2026-05-19 — getSession() lit le storage local sync
+    // quand la session est initialisée. getUser() ferait un round-trip
+    // réseau systématique.
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ? { user: session.user } : { user: null };
     if (!user.user) throw new Error('User not authenticated');
 
     // 1. Récupérer la recette via le résolveur unifié AVANT de toucher
@@ -136,33 +144,44 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
       lastAnalyzed: new Date()
     };
 
-    // 4. Matcher chaque ingrédient avec inventaire (pattern Cipher matching)
+    // Perf audit 2026-05-19 — batch fetch des substitutions pour TOUS
+    // les ingrédients en 1 requête `IN (...)` au lieu de N requêtes
+    // séquentielles. Sur une recette 10 ingrédients dont 5 manquants on
+    // passe de 5 round-trips Supabase à 1.
+    const substitutionsMap = await batchFetchSubstitutions(
+      recipe.ingredients.map((ing) => ing.ingredient_name),
+    );
+
+    // 4. Matcher chaque ingrédient — `findInventoryMatch` est désormais
+    //    synchrone (pas d'I/O réseau dans la boucle).
     for (const ingredient of recipe.ingredients) {
-      const match = await findInventoryMatch(ingredient, inventory, serverMatches);
-      
+      const match = findInventoryMatch(ingredient, inventory, serverMatches, substitutionsMap);
+
       switch (match.type) {
         case 'exact':
         case 'fuzzy':
-          analysis.availableIngredients.push({
-            ingredient,
-            inventoryItem: match.item,
-            matchType: match.type,
-            confidence: match.confidence || 1.0
-          });
+          if (match.item) {
+            analysis.availableIngredients.push({
+              ingredient,
+              inventoryItem: match.item,
+              matchType: match.type,
+              confidence: match.confidence || 1.0,
+            });
+          }
           break;
-          
+
         case 'substitution':
           if (match.substitution) {
             analysis.possibleSubstitutions.push(match.substitution);
           }
           break;
-          
+
         default:
           // Ingrédient manquant
           analysis.missingIngredients.push({
             ingredient,
             urgency: ingredient.is_essential ? 'high' : 'medium',
-            possibleSubstitutions: await findPossibleSubstitutions(ingredient, inventory)
+            possibleSubstitutions: findPossibleSubstitutions(ingredient, inventory, substitutionsMap),
           });
       }
     }
@@ -189,9 +208,9 @@ export const analyzeRecipeInventory = async (recipeId: string): Promise<Inventor
     if (error.message?.includes('RECIPE_NOT_FOUND')) {
       console.warn(`🗑️ Recipe ${recipeId} has been deleted - cannot analyze inventory`);
       // Nettoyer le cache pour cette recette
-      const { data: user } = await supabase.auth.getUser();
-      if (user.user) {
-        await cleanupOrphanedCacheEntries(recipeId, user.user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await cleanupOrphanedCacheEntries(recipeId, session.user.id);
       }
       throw new Error(`Recipe ${recipeId} no longer exists`);
     }
@@ -376,17 +395,19 @@ const loadServerMatches = async (
 
 // Matching intelligent (pattern Cipher) — server RPC first, Levenshtein
 // fallback for legacy/catalog ingredients that aren't backed by a real
-// recipe_ingredients row.
-const findInventoryMatch = async (
+// recipe_ingredients row. Fonction synchrone depuis Phase 2.2 — toutes
+// les requêtes substitutions sont batchées en amont.
+const findInventoryMatch = (
   ingredient: RecipeIngredient,
   inventory: InventoryItem[],
   serverMatches: Map<string, ServerMatch> = new Map(),
-): Promise<{
+  substitutionsMap: Map<string, SubstitutionRow[]> = new Map(),
+): {
   type: 'exact' | 'fuzzy' | 'substitution' | 'missing';
   item?: InventoryItem;
   confidence?: number;
   substitution?: Substitution;
-}> => {
+} => {
   // 0. Server-side authoritative match (Phase 3 — direct FK + semantic
   //    fallback via pgvector embeddings). If the RPC already resolved
   //    this ingredient, trust it.
@@ -458,8 +479,8 @@ const findInventoryMatch = async (
     }
   }
 
-  // 3. Chercher substitution possible
-  const substitution = await findBestSubstitution(ingredient, inventory);
+  // 3. Chercher substitution possible — lookup en mémoire depuis le batch.
+  const substitution = findBestSubstitutionSync(ingredient, inventory, substitutionsMap);
   if (substitution) {
     return { type: 'substitution', substitution };
   }
@@ -468,32 +489,66 @@ const findInventoryMatch = async (
   return { type: 'missing' };
 };
 
-// Substitutions intelligentes (pattern Cipher base de données)
-const findBestSubstitution = async (ingredient: RecipeIngredient, inventory: InventoryItem[]): Promise<Substitution | null> => {
-  const { data: substitutions } = await supabase
-    .from('ingredient_substitutions')
-    .select('*')
-    .eq('original_ingredient', ingredient.ingredient_name.toLowerCase());
+// Perf audit 2026-05-19 — auparavant chaque ingrédient manquant déclenchait
+// 1 requête Supabase pour ses substitutions (boucle séquentielle, 10
+// ingrédients = 10 round-trips). On batch-fetch tout en une seule requête
+// IN, puis on cherche le substitut en mémoire dans la même boucle.
+interface SubstitutionRow {
+  original_ingredient: string;
+  substitute_ingredient: string;
+  ratio: number;
+  notes: string | null;
+}
 
+const batchFetchSubstitutions = async (
+  ingredientNames: string[],
+): Promise<Map<string, SubstitutionRow[]>> => {
+  const byOriginal = new Map<string, SubstitutionRow[]>();
+  if (ingredientNames.length === 0) return byOriginal;
+
+  const uniqueLowercased = Array.from(
+    new Set(ingredientNames.map((n) => n.toLowerCase())),
+  );
+
+  const { data, error } = await supabase
+    .from('ingredient_substitutions')
+    .select('original_ingredient, substitute_ingredient, ratio, notes')
+    .in('original_ingredient', uniqueLowercased);
+
+  if (error || !data) return byOriginal;
+
+  for (const row of data) {
+    const key = row.original_ingredient.toLowerCase();
+    const list = byOriginal.get(key) ?? [];
+    list.push(row);
+    byOriginal.set(key, list);
+  }
+  return byOriginal;
+};
+
+// Substitutions : recherche purement en mémoire à partir du batch pré-fetché.
+const findBestSubstitutionSync = (
+  ingredient: RecipeIngredient,
+  inventory: InventoryItem[],
+  substitutionsMap: Map<string, SubstitutionRow[]>,
+): Substitution | null => {
+  const substitutions = substitutionsMap.get(ingredient.ingredient_name.toLowerCase());
   if (!substitutions || substitutions.length === 0) return null;
 
-  // Chercher dans l'inventaire si on a le substitut
   for (const sub of substitutions) {
-    const substituteMatch = inventory.find(item =>
-      item.product?.name.toLowerCase().includes(sub.substitute_ingredient.toLowerCase())
+    const substituteMatch = inventory.find((item) =>
+      item.product?.name.toLowerCase().includes(sub.substitute_ingredient.toLowerCase()),
     );
-
     if (substituteMatch) {
       return {
         original: ingredient.ingredient_name,
         substitute: sub.substitute_ingredient,
         ratio: sub.ratio,
-        notes: sub.notes || '',
-        confidence: 0.8
+        notes: sub.notes ?? '',
+        confidence: 0.8,
       };
     }
   }
-
   return null;
 };
 
@@ -576,8 +631,12 @@ export const cleanupAllOrphanedCacheEntries = async (userId: string) => {
   }
 };
 
-const findPossibleSubstitutions = async (ingredient: RecipeIngredient, inventory: InventoryItem[]): Promise<Substitution[]> => {
-  const substitution = await findBestSubstitution(ingredient, inventory);
+const findPossibleSubstitutions = (
+  ingredient: RecipeIngredient,
+  inventory: InventoryItem[],
+  substitutionsMap: Map<string, SubstitutionRow[]>,
+): Substitution[] => {
+  const substitution = findBestSubstitutionSync(ingredient, inventory, substitutionsMap);
   return substitution ? [substitution] : [];
 };
 
