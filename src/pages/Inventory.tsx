@@ -7,6 +7,7 @@ import {
   Package,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   Grid3X3,
   List,
@@ -321,9 +322,11 @@ const Inventory = () => {
   const {
     inventory,
     loading,
+    error: inventoryError,
     updateInventoryItem: updateInventory,
     deleteInventoryItem,
     addToInventory: addInventory,
+    refetch: refetchInventory,
   } = useInventory();
   const { addToShoppingList } = useShoppingList();
   const { recordWaste } = useFoodWaste();
@@ -612,6 +615,29 @@ const Inventory = () => {
       });
     }
   };
+
+  // Mobile audit P1#6 — en cuisine, un écran spinner sans issue est fatal.
+  // On surface l'erreur explicitement avec un bouton retry.
+  if (inventoryError) {
+    return (
+      <div className="page-container py-8" data-testid="inventory-error">
+        <EmptyState
+          icon={AlertTriangle}
+          title="Impossible de charger l'inventaire"
+          description={
+            inventoryError.message ||
+            "La connexion au serveur a échoué. Vérifie ta connexion puis réessaie."
+          }
+          action={{
+            label: "Réessayer",
+            onClick: () => {
+              void refetchInventory();
+            },
+          }}
+        />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
