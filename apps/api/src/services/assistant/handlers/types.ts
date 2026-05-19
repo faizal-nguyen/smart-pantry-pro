@@ -16,6 +16,7 @@ import type { ProductResolver } from '../ProductResolver.js';
 import type { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
 import type { RecommendationEventWriter } from '../../recommendations/RecommendationEventWriter.js';
 import type { MemoryService } from '../MemoryService.js';
+import type { ProductIntelligenceService } from '../../products/ProductIntelligenceService.js';
 
 /**
  * Per-request context passed to every handler. Contains both clients
@@ -68,6 +69,16 @@ export interface ToolExecutionContext {
    * active memories. Same instance the assistant uses for messaging.
    */
   memoryService?: MemoryService;
+  /**
+   * PRP-225 PR5 — shared ProductIntelligenceService for the product
+   * intelligence tools (lookup_barcode, etc.). Handlers fall back to
+   * constructing one from `adminClient` when this is undefined, so
+   * existing wiring keeps working without explicit threading.
+   *
+   * 2026-05-19 — re-added during the merge cascade `theirs` resolution
+   * since the field was dropped by the ours/theirs strategy.
+   */
+  productIntelligence?: ProductIntelligenceService;
 }
 
 /**
