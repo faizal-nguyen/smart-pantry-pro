@@ -1,0 +1,46 @@
+# Keep the Render-hosted Smart Pantry API warm.
+#
+# Render free tier sleeps after 15 min of inactivity → next request
+# eats a ~30 s cold start. We can't use a Vercel cron because Hobby
+# plan is limited to once-per-day schedules. GitHub Actions cron is
+# free + unlimited on public repos and within quota on private ones
+# (every 10 min × 30 d ≈ 4 320 runs × ~10 s = ~720 min/month, well
+# below the 2 000 min Free quota).
+#
+# Notes :
+#   - Le cron GitHub a une précision ±5–15 min sous charge, mais le
+#     Render sleep est de 15 min donc on a un coussin de sécurité avec
+#     un interval de 10 min.
+#   - schedule.cron est en UTC.
+#   - workflow_dispatch laissé actif pour pouvoir trigger à la main
+#     depuis l'onglet Actions sans modifier ce fichier.
+name: render-keepalive
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+# Annule un ping en cours si un nouveau démarre — évite l'empilement
+# si le précédent prend longtemps (Render cold start).
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Render /api/health
+        run: |
+          set -euo pipefail
+          URL='https://smart-pantry-api-ifn4.onrender.com/api/health'
+          # -f : exit non-zero on HTTP 4xx/5xx
+          # -sS : silent + show errors
+          # --max-time 60 : Render cold start peut prendre ~30 s
+          # --retry + --retry-delay : on retente 2 fois (au cas où le
+          #   1er hit timeout en cold start, le 2e devrait passer warm)
+          curl -fsS --max-time 60 --retry 2 --retry-delay 15 \
+            -H 'user-agent: gha-keepalive/1.0 (smart-pantry-pro)' \
+            "$URL"
