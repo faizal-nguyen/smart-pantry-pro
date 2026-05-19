@@ -42,6 +42,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { EmbeddingService } from '../products/EmbeddingService.js';
+import { classifyByName } from '../products/CategoryClassifier.js';
 
 const FUZZY_MATCH_THRESHOLD = 0.7;
 const SEMANTIC_MATCH_THRESHOLD = 0.85;
@@ -357,9 +358,17 @@ export class ProductResolver {
       throw new ProductResolverError('EMPTY_NAME', 'Cannot create product with empty name.');
     }
 
+    // Priority for the category column:
+    //   1. Caller hint (LLM-supplied) — explicit user intent wins.
+    //   2. Name-based heuristic — keeps "pomme de terre"/"ail semoule"/
+    //      "Fleurs de Mais"/etc. out of the 'autres' bucket from day 1.
+    //   3. Default 'autres' fallback.
+    const hintedCategory = input.category?.trim();
+    const inferredCategory = hintedCategory || classifyByName(cleanName) || this.defaultCategory;
+
     const insertPayload = {
       name: cleanName,
-      category: input.category?.trim() || this.defaultCategory,
+      category: inferredCategory,
       unit_type: input.unitType?.trim() || this.defaultUnitType,
       source: 'assistant_auto',
       created_by: userId,
