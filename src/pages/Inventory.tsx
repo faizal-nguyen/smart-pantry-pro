@@ -3,23 +3,18 @@ import { MaterialCard, MaterialCardContent } from "@/components/ui/material/Card
 import { Badge } from "@/components/ui/badge";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Package, 
-  Filter,
+import {
+  Package,
   Loader2,
   AlertCircle,
   Sparkles,
   Grid3X3,
   List,
   MapPin,
-  Eye,
   Target,
-  Gamepad2,
-  Palette,
-  Monitor,
-  Box,
-  BarChart3
+  BarChart3,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { useInventory, InventoryItem } from "@/hooks/useInventory";
 import { useFoodWaste, RecordWasteInput } from "@/hooks/useFoodWaste";
@@ -38,12 +33,11 @@ import { useShoppingList } from "@/hooks/useShoppingList";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-// Dynamic imports for 3D visualization components
-const SimpleInventory3D = React.lazy(() => 
-  import('@/visualization/SimpleInventory3D').then(module => ({
-    default: module.SimpleInventory3D
-  }))
-);
+// 2026-05-19 — vue 3D supprimée (SimpleInventory3D, three.js, drei).
+// Le chunk lazy + scène WebGL n'apportait pas de valeur produit et
+// alourdissait le bundle pour rien. Le composant fichier existe encore
+// dans src/visualization/ mais n'est plus monté ; on le supprimera dans
+// un cleanup ultérieur.
 
 const NutritionProgressRings = React.lazy(() =>
   import('@/components/progress/NutritionProgressRings').then(module => ({
@@ -85,10 +79,57 @@ const ZONES: Zone[] = [
   }
 ];
 
+/**
+ * 2026-05-19 — filtre catégorie (remplace le filtre par zone).
+ *
+ * Les sources de `product.category` sont hétérogènes ("Fruits/Légumes",
+ * "Légumes", "Épicerie", "Surgelés", "fruits", "vegetables", etc.) parce
+ * que les produits viennent de plusieurs flux (OpenFoodFacts, scanner,
+ * saisie manuelle, parser vocal). On définit ici une liste canonique de
+ * catégories user-friendly + un mapper qui ramène n'importe quel libellé
+ * brut vers une clé de cette liste.
+ *
+ * Ordre important : le premier matcher qui matche gagne. "fruit" passe
+ * avant "légume" pour qu'un libellé "Fruits et légumes" ne soit pas
+ * silencieusement reclassé en légume.
+ */
+interface CategoryDef {
+  key: string;
+  label: string;
+  icon: string;
+  matchers: string[]; // substrings (lowercase, accentless tolerated)
+}
+
+const CATEGORY_DEFS: readonly CategoryDef[] = [
+  { key: 'fruits',      label: 'Fruits',      icon: '🍎', matchers: ['fruit'] },
+  { key: 'legumes',     label: 'Légumes',     icon: '🥬', matchers: ['légume', 'legume', 'vegetable'] },
+  { key: 'viandes',     label: 'Viandes',     icon: '🥩', matchers: ['viande', 'meat'] },
+  { key: 'poissons',    label: 'Poissons',    icon: '🐟', matchers: ['poisson', 'fish'] },
+  { key: 'laitiers',    label: 'Laitiers',    icon: '🥛', matchers: ['laitier', 'dairy', 'fromage', 'yaourt'] },
+  { key: 'boulangerie', label: 'Boulangerie', icon: '🥖', matchers: ['boulang', 'pain', 'viennoiserie', 'bakery'] },
+  { key: 'feculents',   label: 'Féculents',   icon: '🍝', matchers: ['féculent', 'feculent', 'pâte', 'pate', 'riz', 'céréale', 'cereale', 'cereal', 'pasta'] },
+  { key: 'epices',      label: 'Épices',      icon: '🧂', matchers: ['épice', 'epice', 'spice', 'condiment', 'herbe', 'aromate'] },
+  { key: 'epicerie',    label: 'Épicerie',    icon: '🥫', matchers: ['épicerie', 'epicerie', 'conserve', 'canned', 'sauce', 'huile'] },
+  { key: 'surgeles',    label: 'Surgelés',    icon: '🧊', matchers: ['surgelé', 'surgele', 'frozen', 'congelé', 'congele'] },
+  { key: 'boissons',    label: 'Boissons',    icon: '🥤', matchers: ['boisson', 'beverage', 'drink', 'jus', 'soda'] },
+  { key: 'snacks',      label: 'Snacks',      icon: '🍪', matchers: ['snack', 'gâteau', 'gateau', 'biscuit', 'chocolat', 'confiserie'] },
+  { key: 'autres',      label: 'Autres',      icon: '📦', matchers: [] },
+] as const;
+
+const ALL_CATEGORY_KEY = 'all';
+
+function categorizeProduct(rawCategory?: string | null): string {
+  if (!rawCategory) return 'autres';
+  const lower = rawCategory.toLowerCase();
+  for (const def of CATEGORY_DEFS) {
+    if (def.matchers.some((m) => lower.includes(m))) return def.key;
+  }
+  return 'autres';
+}
+
 const Inventory = () => {
-  const [selectedCategory, setSelectedCategory] = useState("Tous");
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'zones' | '3d' | 'progress'>('zones');
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>(ALL_CATEGORY_KEY);
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'zones' | 'progress'>('grid');
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -113,78 +154,67 @@ const Inventory = () => {
   const [discardingItem, setDiscardingItem] = useState<InventoryItem | null>(null);
   const navigate = useNavigate();
 
-  // Filter inventory by zone
-  const filteredByZone = useMemo(() => {
-    if (!selectedZone) return inventory;
-    
-    const zone = ZONES.find(z => z.name === selectedZone);
-    if (!zone) return inventory;
-    
-    return inventory.filter(item => {
-      if (!item.location) return zone.name === 'Autres';
-      return zone.locations.some(loc => 
-        item.location.toLowerCase().includes(loc.toLowerCase())
-      );
-    });
-  }, [inventory, selectedZone]);
-
-  // Group inventory by zones
+  // Group inventory by zones (vue "Zones" — affichage groupé par lieu
+  // de stockage, indépendant du nouveau filtre catégorie)
   const inventoryByZones = useMemo(() => {
     const grouped: Record<string, InventoryItem[]> = {};
-    
+
     ZONES.forEach(zone => {
       grouped[zone.name] = inventory.filter(item => {
         if (!item.location && zone.name === 'Autres') return true;
         if (!item.location) return false;
-        return zone.locations.some(loc => 
+        return zone.locations.some(loc =>
           item.location.toLowerCase().includes(loc.toLowerCase())
         );
       });
     });
-    
+
     return grouped;
   }, [inventory]);
 
-  // Transform inventory data for 3D visualization
-  const inventoryFor3D = useMemo(() => {
-    return inventory.map((item, index) => ({
-      id: item.id,
-      name: item.product?.name || 'Produit inconnu',
-      category: item.product?.category || 'other',
-      quantity: item.quantity,
-      unit: item.unit || 'unité',
-      expirationDate: item.expiry_date ? new Date(item.expiry_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      freshness: item.expiry_date ? Math.max(0, Math.min(1, 
-        (new Date(item.expiry_date).getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)
-      )) : 0.8,
-      nutritionalValue: {
-        vitamins: Math.floor(Math.random() * 100) + 50,
-        minerals: Math.floor(Math.random() * 80) + 30,
-        fiber: Math.floor(Math.random() * 60) + 20
-      },
-      location: {
-        zone: item.location || 'placard',
-        x: (index % 3) * 2,
-        y: Math.floor(index / 3) % 3,
-        z: Math.floor(index / 9) % 2
-      },
-      discoveryDate: new Date(Date.now() - Math.floor(Math.random() * 7) * 24 * 60 * 60 * 1000),
-      rarity: item.quantity > 5 ? 'common' : item.quantity > 2 ? 'uncommon' : item.quantity > 1 ? 'rare' : 'legendary'
-    }));
+  // 2026-05-19 — chips de filtre par catégorie : on dérive dynamiquement
+  // les catégories réellement présentes dans l'inventaire (avec count)
+  // pour éviter de montrer "Surgelés (0)" à un utilisateur qui n'a que
+  // des fruits / légumes.
+  const categoryChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of inventory) {
+      const key = categorizeProduct(item.product?.category);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return CATEGORY_DEFS
+      .filter((def) => (counts.get(def.key) ?? 0) > 0)
+      .map((def) => ({
+        ...def,
+        count: counts.get(def.key) ?? 0,
+      }));
   }, [inventory]);
 
-  // Calculate average freshness
-  const avgOverallFreshness = useMemo(() => {
-    if (inventoryFor3D.length === 0) return 0;
-    const totalFreshness = inventoryFor3D.reduce((sum, item) => sum + item.freshness, 0);
-    return Math.round((totalFreshness / inventoryFor3D.length) * 100);
-  }, [inventoryFor3D]);
+  // Filtre actif appliqué à la liste affichée (grid / list)
+  const filteredItems = useMemo(() => {
+    if (selectedCategoryKey === ALL_CATEGORY_KEY) return inventory;
+    return inventory.filter((item) => categorizeProduct(item.product?.category) === selectedCategoryKey);
+  }, [inventory, selectedCategoryKey]);
+
+  // Fraîcheur dérivée directement de expiry_date — utilisée pour la vue
+  // Nutrition (anneaux de progression). Anciennement passait par
+  // `inventoryFor3D.freshness` ; vue 3D supprimée, on calcule en place.
+  const avgFreshnessScore = useMemo(() => {
+    if (inventory.length === 0) return 85;
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    const total = inventory.reduce((sum, item) => {
+      if (!item.expiry_date) return sum + 0.8;
+      const ratio = (new Date(item.expiry_date).getTime() - Date.now()) / monthMs;
+      return sum + Math.max(0, Math.min(1, ratio));
+    }, 0);
+    return Math.round((total / inventory.length) * 100);
+  }, [inventory]);
 
   // Mock nutrition data for progress rings
   const nutritionData = useMemo(() => {
     const vitaminsScore = Math.min(100, inventory.length * 8 + Math.floor(Math.random() * 20));
     const varietyScore = Math.min(15, new Set(inventory.map(item => item.product?.category)).size);
-    const freshnessScore = Math.floor(inventoryFor3D.reduce((sum, item) => sum + item.freshness, 0) / inventoryFor3D.length * 100) || 85;
+    const freshnessScore = avgFreshnessScore;
     const balanceScore = Math.min(100, Math.floor(Math.random() * 20) + 75);
 
     return {
@@ -216,7 +246,7 @@ const Inventory = () => {
         trend: 'improving'
       }
     };
-  }, [inventory, inventoryFor3D]);
+  }, [inventory, avgFreshnessScore]);
 
   const nutritionGoals = {
     vitamins: 100,
@@ -317,9 +347,11 @@ const Inventory = () => {
   // prop is now optional — wire it back when the feature actually
   // ships.
 
+  // IntelligentSearch émet la valeur brute `product?.category`. On la
+  // normalise pour qu'elle coïncide avec une chip catégorie ; ainsi le
+  // filtre reste cohérent quelle que soit la voie d'entrée.
   const handleCategorySelect = (category: string) => {
-    setSelectedCategory(category);
-    setSelectedZone(null);
+    setSelectedCategoryKey(categorizeProduct(category));
   };
 
   const handleRecipeSelect = (recipeId: string) => {
@@ -432,6 +464,24 @@ const Inventory = () => {
           aria-label="Mode d'affichage de l'inventaire"
         >
           <MaterialButton
+            variant={viewMode === 'grid' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+            icon={<Grid3X3 className="w-4 h-4" />}
+            className="min-h-11 shrink-0"
+          >
+            Grille
+          </MaterialButton>
+          <MaterialButton
+            variant={viewMode === 'list' ? 'filled' : 'outlined'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            icon={<List className="w-4 h-4" />}
+            className="min-h-11 shrink-0"
+          >
+            Liste
+          </MaterialButton>
+          <MaterialButton
             variant={viewMode === 'zones' ? 'filled' : 'outlined'}
             size="sm"
             onClick={() => setViewMode('zones')}
@@ -439,15 +489,6 @@ const Inventory = () => {
             className="min-h-11 shrink-0"
           >
             Zones
-          </MaterialButton>
-          <MaterialButton
-            variant={viewMode === '3d' ? 'filled' : 'outlined'}
-            size="sm"
-            onClick={() => setViewMode('3d')}
-            icon={<Box className="w-4 h-4" />}
-            className="min-h-11 shrink-0"
-          >
-            3D
           </MaterialButton>
           <MaterialButton
             variant={viewMode === 'progress' ? 'filled' : 'outlined'}
@@ -458,22 +499,6 @@ const Inventory = () => {
           >
             Nutrition
           </MaterialButton>
-          <MaterialButton
-            variant={viewMode === 'grid' ? 'filled' : 'outlined'}
-            size="sm"
-            onClick={() => setViewMode('grid')}
-            icon={<Grid3X3 className="w-4 h-4" />}
-            aria-label="Vue grille"
-            className="min-h-11 min-w-11 shrink-0"
-          />
-          <MaterialButton
-            variant={viewMode === 'list' ? 'filled' : 'outlined'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-            icon={<List className="w-4 h-4" />}
-            aria-label="Vue liste"
-            className="min-h-11 min-w-11 shrink-0"
-          />
         </div>
 
         {/* Search Bar avec Voice Button */}
@@ -490,26 +515,43 @@ const Inventory = () => {
           />
         </div>
 
-        {/* Quick Filters */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <Badge 
-            variant="outline" 
-            className={cn(
-              "cursor-pointer whitespace-nowrap transition-colors",
-              stats.expiringThisWeek > 0 && "border-red-500 text-red-500"
-            )}
+        {/* Filtres par catégorie (remplace les chips par zone)
+            Chip "Tous" toujours présent + chips dynamiques pour les
+            catégories réellement présentes dans l'inventaire. */}
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-2 sm:mx-0 sm:px-0 sm:flex-wrap"
+          role="tablist"
+          aria-label="Filtre par catégorie"
+        >
+          <Badge
+            variant={selectedCategoryKey === ALL_CATEGORY_KEY ? 'default' : 'outline'}
+            className="cursor-pointer whitespace-nowrap"
+            onClick={() => setSelectedCategoryKey(ALL_CATEGORY_KEY)}
           >
-            🔴 Expire bientôt ({stats.expiringThisWeek})
+            Tous ({inventory.length})
           </Badge>
-          
-          {ZONES.map(zone => (
+
+          {stats.expiringThisWeek > 0 && (
             <Badge
-              key={zone.name}
-              variant={selectedZone === zone.name ? "default" : "outline"}
-              className="cursor-pointer whitespace-nowrap"
-              onClick={() => setSelectedZone(selectedZone === zone.name ? null : zone.name)}
+              variant="outline"
+              className="cursor-default whitespace-nowrap border-red-500 text-red-500"
             >
-              {zone.icon} {zone.name}
+              🔴 Expirent bientôt ({stats.expiringThisWeek})
+            </Badge>
+          )}
+
+          {categoryChips.map((cat) => (
+            <Badge
+              key={cat.key}
+              variant={selectedCategoryKey === cat.key ? 'default' : 'outline'}
+              className="cursor-pointer whitespace-nowrap"
+              onClick={() =>
+                setSelectedCategoryKey(
+                  selectedCategoryKey === cat.key ? ALL_CATEGORY_KEY : cat.key,
+                )
+              }
+            >
+              {cat.icon} {cat.label} ({cat.count})
             </Badge>
           ))}
         </div>
@@ -536,132 +578,7 @@ const Inventory = () => {
       </div>
 
       {/* Main Content */}
-      {viewMode === '3d' ? (
-        <div className="space-y-6">
-          <MaterialCard variant="elevated">
-            <MaterialCardContent className="p-0">
-              <div className="aspect-video bg-gradient-to-br from-blue-100 to-green-100 relative rounded-lg overflow-hidden">
-                <Suspense fallback={
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center space-y-4">
-                      <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
-                      <p className="text-sm text-gray-600">Chargement de l'environnement 3D...</p>
-                    </div>
-                  </div>
-                }>
-                  {inventoryFor3D.length > 0 && (
-                    <SimpleInventory3D
-                      inventoryData={inventoryFor3D}
-                      userId="current_user"
-                      className="w-full h-full"
-                    />
-                  )}
-                </Suspense>
-                
-                {/* Overlay Info */}
-                <div className="absolute top-4 right-4">
-                  <MaterialCard variant="outlined" className="bg-white/90 backdrop-blur-sm">
-                    <MaterialCardContent className="p-3">
-                      <div className="text-xs text-gray-600 space-y-1">
-                        <div>Produits: <span className="font-medium">{inventory.length}</span></div>
-                        <div>Vue: <span className="font-medium capitalize">3D Interactive</span></div>
-                        <div>Status: <span className="font-medium text-green-600">Actif</span></div>
-                      </div>
-                    </MaterialCardContent>
-                  </MaterialCard>
-                </div>
-
-                {/* Instructions */}
-                <div className="absolute bottom-4 left-4">
-                  <MaterialCard variant="outlined" className="bg-white/90 backdrop-blur-sm">
-                    <MaterialCardContent className="p-3">
-                      <div className="text-xs text-gray-600">
-                        <p className="font-medium mb-1">Navigation 3D:</p>
-                        <p>• Clic gauche: Rotation</p>
-                        <p>• Molette: Zoom</p>
-                        <p>• Clic droit: Déplacement</p>
-                      </div>
-                    </MaterialCardContent>
-                  </MaterialCard>
-                </div>
-              </div>
-            </MaterialCardContent>
-          </MaterialCard>
-
-          {/* Quick Stats and Actions */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <MaterialCard variant="elevated">
-              <MaterialCardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-semibold">Statistiques détaillées</h3>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Valeur totale estimée</span>
-                    <span className="font-semibold">€{(inventory.length * 2.5).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Catégories</span>
-                    <Badge variant="secondary">
-                      {new Set(inventory.map(item => item.product?.category)).size} types
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Fraîcheur moyenne</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-600 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${avgOverallFreshness}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium">{avgOverallFreshness}%</span>
-                    </div>
-                  </div>
-                </div>
-              </MaterialCardContent>
-            </MaterialCard>
-
-            <MaterialCard variant="elevated">
-              <MaterialCardContent className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Target className="w-5 h-5 text-green-600" />
-                  <h3 className="font-semibold">Actions recommandées</h3>
-                </div>
-                <div className="space-y-2">
-                  {stats.expiringThisWeek > 0 && (
-                    <div className="flex items-start gap-2 p-2 rounded-lg bg-orange-50">
-                      <AlertCircle className="w-4 h-4 text-orange-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-orange-900">
-                          {stats.expiringThisWeek} produits expirent bientôt
-                        </p>
-                        <p className="text-xs text-orange-700 mt-0.5">
-                          Utilisez-les dans vos prochains repas
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {stats.lowStock > 0 && (
-                    <div className="flex items-start gap-2 p-2 rounded-lg bg-blue-50">
-                      <Package className="w-4 h-4 text-blue-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-blue-900">
-                          {stats.lowStock} produits en stock faible
-                        </p>
-                        <p className="text-xs text-blue-700 mt-0.5">
-                          Pensez à les réapprovisionner
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </MaterialCardContent>
-            </MaterialCard>
-          </div>
-        </div>
-      ) : viewMode === 'progress' ? (
+      {viewMode === 'progress' ? (
         <div className="space-y-6">
           <MaterialCard variant="elevated">
             <MaterialCardContent className="p-4">
@@ -748,9 +665,13 @@ const Inventory = () => {
       ) : viewMode === 'zones' ? (
         <div className="space-y-6">
           {ZONES.map(zone => {
-            const zoneItems = inventoryByZones[zone.name];
+            // Intersection : items du zone ∩ items filtrés par catégorie.
+            // Permet de garder la vue groupée par lieu de stockage tout
+            // en respectant le chip catégorie actif (ex: "Légumes dans le Frigo").
+            const filteredSet = new Set(filteredItems.map((i) => i.id));
+            const zoneItems = inventoryByZones[zone.name].filter((i) => filteredSet.has(i.id));
             if (zoneItems.length === 0) return null;
-            
+
             return (
               <motion.div
                 key={zone.name}
@@ -763,7 +684,7 @@ const Inventory = () => {
                   <h2 className="text-xl font-semibold">{zone.name}</h2>
                   <Badge variant="secondary">{zoneItems.length}</Badge>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {zoneItems.map(item => (
                     <SmartProductCard
@@ -782,25 +703,114 @@ const Inventory = () => {
             );
           })}
         </div>
+      ) : viewMode === 'list' ? (
+        // Vue liste compacte : une ligne par produit avec emoji catégorie,
+        // nom, quantité, unité, péremption (badge) et actions inline.
+        // Beaucoup plus dense que le card grid du mode "Grille".
+        <MaterialCard variant="elevated">
+          <MaterialCardContent className="p-0">
+            <ul className="divide-y divide-border">
+              {filteredItems.length === 0 ? (
+                <li className="p-6 text-center text-sm text-muted-foreground">
+                  Aucun produit dans cette catégorie.
+                </li>
+              ) : (
+                filteredItems.map((item) => {
+                  const catDef = CATEGORY_DEFS.find(
+                    (d) => d.key === categorizeProduct(item.product?.category),
+                  );
+                  const daysToExpiry = item.expiry_date
+                    ? Math.ceil(
+                        (new Date(item.expiry_date).getTime() - Date.now()) /
+                          (24 * 60 * 60 * 1000),
+                      )
+                    : null;
+                  const expiryTone =
+                    daysToExpiry == null
+                      ? 'text-muted-foreground'
+                      : daysToExpiry < 0
+                        ? 'text-red-600'
+                        : daysToExpiry <= 3
+                          ? 'text-orange-600'
+                          : 'text-muted-foreground';
+                  return (
+                    <li
+                      key={item.id}
+                      className="flex items-center gap-3 px-3 py-3 sm:px-4 hover:bg-muted/40 transition-colors"
+                    >
+                      <span className="text-2xl shrink-0" aria-hidden>
+                        {catDef?.icon ?? '📦'}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">
+                          {item.product?.name ?? 'Produit'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {catDef?.label ?? 'Autres'}
+                          {item.location ? ` · ${item.location}` : ''}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold tabular-nums">
+                          {item.quantity}
+                          {item.unit && item.unit !== 'unité' ? ` ${item.unit}` : ''}
+                        </p>
+                        {daysToExpiry != null && (
+                          <p className={cn('text-xs tabular-nums', expiryTone)}>
+                            {daysToExpiry < 0
+                              ? `expiré il y a ${Math.abs(daysToExpiry)}j`
+                              : daysToExpiry === 0
+                                ? "expire aujourd'hui"
+                                : `J-${daysToExpiry}`}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex items-center gap-1">
+                        <MaterialButton
+                          variant="text"
+                          size="sm"
+                          onClick={() => handleEdit(item)}
+                          icon={<Pencil className="w-4 h-4" />}
+                          aria-label={`Modifier ${item.product?.name ?? 'le produit'}`}
+                          className="min-h-10 min-w-10"
+                        />
+                        <MaterialButton
+                          variant="text"
+                          size="sm"
+                          onClick={() => handleDiscard(item)}
+                          icon={<Trash2 className="w-4 h-4 text-red-600" />}
+                          aria-label={`Jeter ${item.product?.name ?? 'le produit'}`}
+                          className="min-h-10 min-w-10"
+                        />
+                      </div>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </MaterialCardContent>
+        </MaterialCard>
       ) : (
-        <div className={cn(
-          "grid gap-4",
-          viewMode === 'grid' 
-            ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-            : "grid-cols-1"
-        )}>
-          {(selectedZone ? filteredByZone : inventory).map(item => (
-            <SmartProductCard
-              key={item.id}
-              product={item}
-              onQuantityChange={handleQuantityChange}
-              onMoveToShoppingList={handleMoveToShoppingList}
-              onConsume={handleConsume}
-              onEdit={handleEdit}
-              onFindRecipes={handleFindRecipes}
-              onDiscard={handleDiscard}
-            />
-          ))}
+        // Vue grille (par défaut) : cartes produit denses, multi-colonnes.
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {filteredItems.length === 0 ? (
+            <p className="col-span-full text-center text-sm text-muted-foreground py-8">
+              Aucun produit dans cette catégorie.
+            </p>
+          ) : (
+            filteredItems.map((item) => (
+              <SmartProductCard
+                key={item.id}
+                product={item}
+                onQuantityChange={handleQuantityChange}
+                onMoveToShoppingList={handleMoveToShoppingList}
+                onConsume={handleConsume}
+                onEdit={handleEdit}
+                onFindRecipes={handleFindRecipes}
+                onDiscard={handleDiscard}
+              />
+            ))
+          )}
         </div>
       )}
 
