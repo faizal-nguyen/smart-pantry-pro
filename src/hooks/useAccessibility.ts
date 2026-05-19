@@ -65,4 +65,209 @@ export const useAccessibility = () => {
     }
     
     // Detect accessibility preferences
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n    const highContrast = window.matchMedia('(prefers-contrast: high)').matches;\n    const forcedColors = window.matchMedia('(forced-colors: active)').matches;\n    \n    // Detect if user prefers large text\n    const largeText = window.matchMedia('(prefers-reduced-data: reduce)').matches || \n                     window.devicePixelRatio < 1;\n    \n    // Detect screen reader usage (heuristic)\n    const screenReader = !window.speechSynthesis || \n                        ('speechSynthesis' in window && window.speechSynthesis.getVoices().length === 0);\n    \n    setSettings({\n      reducedMotion,\n      highContrast,\n      largeText,\n      focusVisible: true,\n      screenReader,\n      forcedColors,\n      platform,\n    });\n    \n    // Listen for preference changes\n    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');\n    const highContrastQuery = window.matchMedia('(prefers-contrast: high)');\n    const forcedColorsQuery = window.matchMedia('(forced-colors: active)');\n    \n    const handleReducedMotionChange = (e: MediaQueryListEvent) => {\n      setSettings(prev => ({ ...prev, reducedMotion: e.matches }));\n    };\n    \n    const handleHighContrastChange = (e: MediaQueryListEvent) => {\n      setSettings(prev => ({ ...prev, highContrast: e.matches }));\n    };\n    \n    const handleForcedColorsChange = (e: MediaQueryListEvent) => {\n      setSettings(prev => ({ ...prev, forcedColors: e.matches }));\n    };\n    \n    reducedMotionQuery.addEventListener('change', handleReducedMotionChange);\n    highContrastQuery.addEventListener('change', handleHighContrastChange);\n    forcedColorsQuery.addEventListener('change', handleForcedColorsChange);\n    \n    return () => {\n      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);\n      highContrastQuery.removeEventListener('change', handleHighContrastChange);\n      forcedColorsQuery.removeEventListener('change', handleForcedColorsChange);\n    };\n  }, []);\n  \n  // Calculate accessibility enhancements based on settings\n  const enhancements = useMemo((): AccessibilityEnhancements => {\n    // Platform-specific touch target sizes\n    let baseTouchSize = 44; // Default minimum\n    if (settings.platform === 'ios') {\n      baseTouchSize = 44; // iOS Human Interface Guidelines\n    } else if (settings.platform === 'android') {\n      baseTouchSize = 48; // Material Design Guidelines\n    }\n    \n    // Enhance touch targets for accessibility\n    const touchTargetSize = settings.largeText ? baseTouchSize * 1.2 : baseTouchSize;\n    \n    // Animation duration adjustments\n    const animationDuration = settings.reducedMotion ? 0 : \n                             settings.largeText ? 400 : 300;\n    \n    // Contrast level requirements\n    const contrastLevel: 'AA' | 'AAA' = settings.highContrast ? 'AAA' : 'AA';\n    \n    // Focus ring width for better visibility\n    const focusRingWidth = settings.highContrast ? 3 : 2;\n    \n    // Text scaling for readability\n    const textScale = settings.largeText ? 1.2 : 1.0;\n    \n    return {\n      touchTargetSize,\n      animationDuration,\n      contrastLevel,\n      focusRingWidth,\n      textScale,\n    };\n  }, [settings]);\n  \n  // Keyboard navigation detection\n  useEffect(() => {\n    let isUsingKeyboard = false;\n    \n    const handleKeyDown = (e: KeyboardEvent) => {\n      if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) {\n        isUsingKeyboard = true;\n        setMetrics(prev => ({ ...prev, keyboardNavigation: true }));\n      }\n    };\n    \n    const handleMouseDown = () => {\n      isUsingKeyboard = false;\n      setMetrics(prev => ({ ...prev, keyboardNavigation: false }));\n    };\n    \n    document.addEventListener('keydown', handleKeyDown);\n    document.addEventListener('mousedown', handleMouseDown);\n    \n    return () => {\n      document.removeEventListener('keydown', handleKeyDown);\n      document.removeEventListener('mousedown', handleMouseDown);\n    };\n  }, []);\n  \n  // Apply accessibility enhancements to document\n  useEffect(() => {\n    if (typeof document === 'undefined') return;\n    \n    const root = document.documentElement;\n    \n    // Apply CSS custom properties for accessibility\n    root.style.setProperty('--a11y-touch-target-size', `${enhancements.touchTargetSize}px`);\n    root.style.setProperty('--a11y-animation-duration', `${enhancements.animationDuration}ms`);\n    root.style.setProperty('--a11y-focus-ring-width', `${enhancements.focusRingWidth}px`);\n    root.style.setProperty('--a11y-text-scale', `${enhancements.textScale}`);\n    \n    // Apply accessibility classes\n    root.classList.toggle('reduced-motion', settings.reducedMotion);\n    root.classList.toggle('high-contrast', settings.highContrast);\n    root.classList.toggle('large-text', settings.largeText);\n    root.classList.toggle('forced-colors', settings.forcedColors);\n    root.classList.toggle('keyboard-navigation', metrics.keyboardNavigation);\n    \n    // Platform-specific classes\n    root.classList.toggle('platform-ios', settings.platform === 'ios');\n    root.classList.toggle('platform-android', settings.platform === 'android');\n    \n    return () => {\n      // Cleanup classes if needed\n      root.classList.remove(\n        'reduced-motion', 'high-contrast', 'large-text', 'forced-colors',\n        'keyboard-navigation', 'platform-ios', 'platform-android'\n      );\n    };\n  }, [settings, metrics.keyboardNavigation, enhancements]);\n  \n  // Announce content changes for screen readers\n  const announceToScreenReader = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {\n    if (!settings.screenReader) return;\n    \n    const announcement = document.createElement('div');\n    announcement.setAttribute('aria-live', priority);\n    announcement.setAttribute('aria-atomic', 'true');\n    announcement.style.position = 'absolute';\n    announcement.style.left = '-10000px';\n    announcement.style.width = '1px';\n    announcement.style.height = '1px';\n    announcement.style.overflow = 'hidden';\n    \n    document.body.appendChild(announcement);\n    announcement.textContent = message;\n    \n    // Remove after announcement\n    setTimeout(() => {\n      if (announcement.parentNode) {\n        announcement.parentNode.removeChild(announcement);\n      }\n    }, 1000);\n  }, [settings.screenReader]);\n  \n  // Touch target compliance checker\n  const checkTouchTargetCompliance = useCallback((element: HTMLElement): boolean => {\n    const rect = element.getBoundingClientRect();\n    const minSize = enhancements.touchTargetSize;\n    \n    return rect.width >= minSize && rect.height >= minSize;\n  }, [enhancements.touchTargetSize]);\n  \n  // Color contrast ratio calculator (simplified)\n  const calculateContrastRatio = useCallback((foreground: string, background: string): number => {\n    // This is a simplified version - in production, use a proper color contrast library\n    // For now, return the target contrast ratio based on settings\n    return settings.highContrast ? 7.0 : 4.5;\n  }, [settings.highContrast]);\n  \n  return {\n    settings,\n    metrics,\n    enhancements,\n    announceToScreenReader,\n    checkTouchTargetCompliance,\n    calculateContrastRatio,\n    \n    // Utility functions\n    isAccessibilityEnhanced: settings.reducedMotion || settings.highContrast || settings.largeText,\n    shouldReduceAnimations: settings.reducedMotion,\n    shouldEnhanceContrast: settings.highContrast,\n    shouldScaleText: settings.largeText,\n    isPlatformNative: settings.platform !== 'web',\n  };\n};\n\n/**\n * Accessibility-aware component wrapper\n */\ninterface AccessibleComponentProps {\n  children: React.ReactNode;\n  role?: string;\n  label?: string;\n  description?: string;\n  className?: string;\n  onFocus?: () => void;\n  onBlur?: () => void;\n}\n\nexport const AccessibleComponent: React.FC<AccessibleComponentProps> = ({\n  children,\n  role,\n  label,\n  description,\n  className,\n  onFocus,\n  onBlur,\n}) => {\n  const { settings, enhancements } = useAccessibility();\n  \n  return (\n    <div\n      role={role}\n      aria-label={label}\n      aria-description={description}\n      className={`accessible-component ${className || ''}`}\n      onFocus={onFocus}\n      onBlur={onBlur}\n      style={{\n        minHeight: role === 'button' ? enhancements.touchTargetSize : undefined,\n        minWidth: role === 'button' ? enhancements.touchTargetSize : undefined,\n        fontSize: settings.largeText ? `calc(1rem * ${enhancements.textScale})` : undefined,\n      }}\n    >\n      {children}\n    </div>\n  );\n};\n\nexport default useAccessibility;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const highContrast = window.matchMedia('(prefers-contrast: high)').matches;
+    const forcedColors = window.matchMedia('(forced-colors: active)').matches;
+    
+    // Detect if user prefers large text
+    const largeText = window.matchMedia('(prefers-reduced-data: reduce)').matches || 
+                     window.devicePixelRatio < 1;
+    
+    // Detect screen reader usage (heuristic)
+    const screenReader = !window.speechSynthesis || 
+                        ('speechSynthesis' in window && window.speechSynthesis.getVoices().length === 0);
+    
+    setSettings({
+      reducedMotion,
+      highContrast,
+      largeText,
+      focusVisible: true,
+      screenReader,
+      forcedColors,
+      platform,
+    });
+    
+    // Listen for preference changes
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const highContrastQuery = window.matchMedia('(prefers-contrast: high)');
+    const forcedColorsQuery = window.matchMedia('(forced-colors: active)');
+    
+    const handleReducedMotionChange = (e: MediaQueryListEvent) => {
+      setSettings(prev => ({ ...prev, reducedMotion: e.matches }));
+    };
+    
+    const handleHighContrastChange = (e: MediaQueryListEvent) => {
+      setSettings(prev => ({ ...prev, highContrast: e.matches }));
+    };
+    
+    const handleForcedColorsChange = (e: MediaQueryListEvent) => {
+      setSettings(prev => ({ ...prev, forcedColors: e.matches }));
+    };
+    
+    reducedMotionQuery.addEventListener('change', handleReducedMotionChange);
+    highContrastQuery.addEventListener('change', handleHighContrastChange);
+    forcedColorsQuery.addEventListener('change', handleForcedColorsChange);
+    
+    return () => {
+      reducedMotionQuery.removeEventListener('change', handleReducedMotionChange);
+      highContrastQuery.removeEventListener('change', handleHighContrastChange);
+      forcedColorsQuery.removeEventListener('change', handleForcedColorsChange);
+    };
+  }, []);
+  
+  // Calculate accessibility enhancements based on settings
+  const enhancements = useMemo((): AccessibilityEnhancements => {
+    // Platform-specific touch target sizes
+    let baseTouchSize = 44; // Default minimum
+    if (settings.platform === 'ios') {
+      baseTouchSize = 44; // iOS Human Interface Guidelines
+    } else if (settings.platform === 'android') {
+      baseTouchSize = 48; // Material Design Guidelines
+    }
+    
+    // Enhance touch targets for accessibility
+    const touchTargetSize = settings.largeText ? baseTouchSize * 1.2 : baseTouchSize;
+    
+    // Animation duration adjustments
+    const animationDuration = settings.reducedMotion ? 0 : 
+                             settings.largeText ? 400 : 300;
+    
+    // Contrast level requirements
+    const contrastLevel: 'AA' | 'AAA' = settings.highContrast ? 'AAA' : 'AA';
+    
+    // Focus ring width for better visibility
+    const focusRingWidth = settings.highContrast ? 3 : 2;
+    
+    // Text scaling for readability
+    const textScale = settings.largeText ? 1.2 : 1.0;
+    
+    return {
+      touchTargetSize,
+      animationDuration,
+      contrastLevel,
+      focusRingWidth,
+      textScale,
+    };
+  }, [settings]);
+  
+  // Keyboard navigation detection
+  useEffect(() => {
+    let isUsingKeyboard = false;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) {
+        isUsingKeyboard = true;
+        setMetrics(prev => ({ ...prev, keyboardNavigation: true }));
+      }
+    };
+    
+    const handleMouseDown = () => {
+      isUsingKeyboard = false;
+      setMetrics(prev => ({ ...prev, keyboardNavigation: false }));
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleMouseDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, []);
+  
+  // Apply accessibility enhancements to document
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    
+    const root = document.documentElement;
+    
+    // Apply CSS custom properties for accessibility
+    root.style.setProperty('--a11y-touch-target-size', `${enhancements.touchTargetSize}px`);
+    root.style.setProperty('--a11y-animation-duration', `${enhancements.animationDuration}ms`);
+    root.style.setProperty('--a11y-focus-ring-width', `${enhancements.focusRingWidth}px`);
+    root.style.setProperty('--a11y-text-scale', `${enhancements.textScale}`);
+    
+    // Apply accessibility classes
+    root.classList.toggle('reduced-motion', settings.reducedMotion);
+    root.classList.toggle('high-contrast', settings.highContrast);
+    root.classList.toggle('large-text', settings.largeText);
+    root.classList.toggle('forced-colors', settings.forcedColors);
+    root.classList.toggle('keyboard-navigation', metrics.keyboardNavigation);
+    
+    // Platform-specific classes
+    root.classList.toggle('platform-ios', settings.platform === 'ios');
+    root.classList.toggle('platform-android', settings.platform === 'android');
+    
+    return () => {
+      // Cleanup classes if needed
+      root.classList.remove(
+        'reduced-motion', 'high-contrast', 'large-text', 'forced-colors',
+        'keyboard-navigation', 'platform-ios', 'platform-android'
+      );
+    };
+  }, [settings, metrics.keyboardNavigation, enhancements]);
+  
+  // Announce content changes for screen readers
+  const announceToScreenReader = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {
+    if (!settings.screenReader) return;
+    
+    const announcement = document.createElement('div');
+    announcement.setAttribute('aria-live', priority);
+    announcement.setAttribute('aria-atomic', 'true');
+    announcement.style.position = 'absolute';
+    announcement.style.left = '-10000px';
+    announcement.style.width = '1px';
+    announcement.style.height = '1px';
+    announcement.style.overflow = 'hidden';
+    
+    document.body.appendChild(announcement);
+    announcement.textContent = message;
+    
+    // Remove after announcement
+    setTimeout(() => {
+      if (announcement.parentNode) {
+        announcement.parentNode.removeChild(announcement);
+      }
+    }, 1000);
+  }, [settings.screenReader]);
+  
+  // Touch target compliance checker
+  const checkTouchTargetCompliance = useCallback((element: HTMLElement): boolean => {
+    const rect = element.getBoundingClientRect();
+    const minSize = enhancements.touchTargetSize;
+    
+    return rect.width >= minSize && rect.height >= minSize;
+  }, [enhancements.touchTargetSize]);
+  
+  // Color contrast ratio calculator (simplified)
+  const calculateContrastRatio = useCallback((foreground: string, background: string): number => {
+    // This is a simplified version - in production, use a proper color contrast library
+    // For now, return the target contrast ratio based on settings
+    return settings.highContrast ? 7.0 : 4.5;
+  }, [settings.highContrast]);
+  
+  return {
+    settings,
+    metrics,
+    enhancements,
+    announceToScreenReader,
+    checkTouchTargetCompliance,
+    calculateContrastRatio,
+    
+    // Utility functions
+    isAccessibilityEnhanced: settings.reducedMotion || settings.highContrast || settings.largeText,
+    shouldReduceAnimations: settings.reducedMotion,
+    shouldEnhanceContrast: settings.highContrast,
+    shouldScaleText: settings.largeText,
+    isPlatformNative: settings.platform !== 'web',
+  };
+};
+
+// `AccessibleComponent` (un wrapper React qui composait `<div>` avec
+// les enhancements de ce hook) vivait ici avant le fix. Il n'avait
+// aucun consumer dans le code source — supprimé pendant le reformat
+// pour garder ce fichier en `.ts` pur (JSX → ce fichier devrait être
+// `.tsx`). Si besoin futur, ré-introduire dans un fichier `.tsx`
+// dédié `src/components/accessibility/AccessibleComponent.tsx`.
+
+export default useAccessibility;

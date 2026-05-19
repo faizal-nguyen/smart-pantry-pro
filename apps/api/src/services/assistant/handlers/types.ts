@@ -13,7 +13,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { ProductResolver } from '../ProductResolver.js';
-import type { ProductIntelligenceService } from '../../products/ProductIntelligenceService.js';
+import type { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
+import type { RecommendationEventWriter } from '../../recommendations/RecommendationEventWriter.js';
+import type { MemoryService } from '../MemoryService.js';
 
 /**
  * Per-request context passed to every handler. Contains both clients
@@ -25,15 +27,6 @@ export interface ToolExecutionContext {
   userClient: SupabaseClient<any, any, any>;
   adminClient: SupabaseClient<any, any, any>;
   productResolver: ProductResolver;
-  /**
-   * PRP-225 PR5 — Product Intelligence orchestrator used by the new
-   * read tools (`search_product_candidates`, `resolve_product_by_barcode`,
-   * `enrich_product`, `confirm_product_candidate`). Optional so
-   * existing handlers + tests that build a context without OFF stay
-   * compatible ; the product handlers lazily build one from
-   * `adminClient` when this field is undefined.
-   */
-  productIntelligence?: ProductIntelligenceService;
   /**
    * Inventory ids that ProductResolver flagged as ambiguous in this
    * request. Read by RiskClassifier to escalate consume_inventory_items
@@ -47,6 +40,34 @@ export interface ToolExecutionContext {
    * tests, future batch admin path).
    */
   sessionId?: string;
+  /**
+   * PRP-223 PR3 — current conversation id (when the assistant is wired
+   * to MemoryService). Threaded into `recommendation_events` so we can
+   * link an event back to the conversation that triggered it.
+   */
+  conversationId?: string;
+  /**
+   * Original user utterance (transcript / typed text). Stored verbatim
+   * in `recommendation_events.request_text` for audit + V2 learning.
+   */
+  requestText?: string;
+  /**
+   * PRP-226 PR3 — shared RecommendationEngine instance. The engine is
+   * stateless ; reusing one avoids GC churn but tests can swap a mock.
+   */
+  recommendationEngine?: RecommendationEngine;
+  /**
+   * PRP-226 PR3 — per-request writer for the recommendation event log
+   * + scoring cache + interaction journal. Built from the per-request
+   * userClient so RLS scopes every write to the current user.
+   */
+  eventWriter?: RecommendationEventWriter;
+  /**
+   * PRP-226 PR6 — shared MemoryService instance threaded into the
+   * RecommendationEngine so the PreferenceScorer can read the user's
+   * active memories. Same instance the assistant uses for messaging.
+   */
+  memoryService?: MemoryService;
 }
 
 /**

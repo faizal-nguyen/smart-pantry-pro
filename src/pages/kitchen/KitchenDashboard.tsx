@@ -1,27 +1,33 @@
 /**
- * KitchenDashboard - Dashboard principal de la section Cuisine
- * Implémente la vue d'ensemble du PRP-040.1 pour la section Kitchen
+ * KitchenDashboard — `/kitchen` (Aujourd'hui en cuisine).
+ *
+ * PRP-234 PR3 — remplace les 3 nav cards de PR1 par les 4 panels
+ * Today branchés sur des données réelles :
+ *   - Continuer       (recipe_interactions.viewed + imports inbox)
+ *   - À cuisiner      (POST /api/v1/recommendations/suggest, top 3)
+ *   - Cette semaine   (useWeeklyMenu projeté à aujourd'hui+)
+ *   - Anti-gaspi      (inventory.expiry_date ≤ 7j)
+ *
+ * Chaque panel a son propre loading/error/empty state — pas de
+ * spinner global, pas de page blanche si un bloc tombe.
  */
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate } from 'react-router-dom';
+import { BookOpen, ChefHat, Plus } from 'lucide-react';
+import type { User } from '@supabase/supabase-js';
 
-import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import { ChefHat, Heart, CalendarDays, BookOpen, Clock } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PageLoader } from '@/components/layout/PageLoader';
+import TodayContinuePanel from '@/components/kitchen/TodayContinuePanel';
+import TodayRecommendationsPanel from '@/components/kitchen/TodayRecommendationsPanel';
+import TodayWeekPanel from '@/components/kitchen/TodayWeekPanel';
+import TodayAntiWastePanel from '@/components/kitchen/TodayAntiWastePanel';
 
 const KitchenDashboard: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-  const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
 
   useEffect(() => {
     const getUser = async () => {
@@ -40,124 +46,46 @@ const KitchenDashboard: React.FC = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  // P1 polish: removed the mock `dashboardStats` (totalRecipes: 247,
-  // etc.) and `recentRecipes` array flagged by the UI/UX audit. The
-  // numbers were never real and broke user trust. Until a real
-  // aggregator hook is wired (TODO: useKitchenStats), the hub shows
-  // navigation cards only — no fabricated numbers.
-  const quickActions = [
-    {
-      title: 'Parcourir les Recettes',
-      description: 'Découvrir de nouvelles recettes',
-      icon: <BookOpen className="w-6 h-6" />,
-      action: () => navigate('/kitchen/recipes'),
-      badge: undefined,
-      childFriendlyName: 'Voir les recettes',
-    },
-    {
-      title: 'Mes Favoris',
-      description: 'Mes recettes préférées',
-      icon: <Heart className="w-6 h-6" />,
-      // PRP-232 PR3 — URL favoris canonique sur library.
-      action: () => navigate('/kitchen/recipes?tab=library&filter=favorites'),
-      badge: undefined,
-      childFriendlyName: 'Mes préférées',
-    },
-    {
-      title: 'Planification Repas',
-      description: 'Organiser mes repas de la semaine',
-      icon: <CalendarDays className="w-6 h-6" />,
-      action: () => navigate('/kitchen/meal-planning'),
-      badge: undefined,
-      childFriendlyName: 'Planifier mes repas',
-    },
-    {
-      title: 'Activité Récente',
-      description: 'Voir mes dernières recettes consultées',
-      icon: <Clock className="w-6 h-6" />,
-      action: () => navigate('/kitchen/recipes'),
-      badge: undefined,
-      childFriendlyName: 'Mes dernières recettes',
-    },
-  ];
-
   return (
     <AppNavigation user={user}>
-      <div className={cn(
-        "container mx-auto p-6 space-y-8",
-        getStyleClasses(),
-        adaptiveInterface.buttonSpacing === 'spacious' && "space-y-12"
-      )}>
-        {/* Header */}
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center gap-3">
-            <ChefHat className={cn(
-              "text-primary",
-              adaptiveInterface.iconSize === 'large' ? "w-8 h-8" : "w-6 h-6"
-            )} />
-            <h1 className={cn(
-              "font-bold text-foreground",
-              adaptiveInterface.largerText ? "text-4xl" : "text-3xl"
-            )}>
-              Cuisine
-            </h1>
+      <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+        {/* Header — PRP-237 PR4: actions directes vers la library
+            depuis le dashboard, demandé par l'utilisateur 2026-05-17. */}
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <ChefHat className="text-primary h-5 w-5" aria-hidden="true" />
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+                Aujourd&apos;hui en cuisine
+              </h1>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Qu&apos;est-ce qu&apos;on cuisine ?
+            </p>
           </div>
-          <p className={cn(
-            "text-muted-foreground",
-            adaptiveInterface.largerText ? "text-lg" : "text-base"
-          )}>
-            Découvrez, planifiez et cuisinez vos repas préférés
-          </p>
-        </div>
-
-        {/* Actions rapides */}
-        <div>
-          <h2 className={cn(
-            "font-semibold mb-4",
-            adaptiveInterface.largerText ? "text-2xl" : "text-xl"
-          )}>
-            Actions Rapides
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {quickActions.map((action, index) => (
-              <Card 
-                key={index} 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={action.action}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-primary/10 rounded-lg">
-                        {action.icon}
-                      </div>
-                      <div>
-                        <h3 className={cn(
-                          "font-medium",
-                          adaptiveInterface.largerText ? "text-lg" : "text-base"
-                        )}>
-                          {action.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {action.description}
-                        </p>
-                      </div>
-                    </div>
-                    {action.badge && (
-                      <Badge variant="secondary">{action.badge}</Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/kitchen/recipes?tab=library">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Mes recettes
+              </Link>
+            </Button>
+            <Button variant="default" size="sm" asChild>
+              <Link to="/kitchen/recipes?tab=import">
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter
+              </Link>
+            </Button>
           </div>
-        </div>
+        </header>
 
-        {/* P1 polish: removed the "Recettes Récentes" mock block.
-            The previous list was hardcoded (carbonara / César / risotto)
-            with click-handlers pointing at fake ids. A real "recently
-            viewed" feed needs a `recipe_views` table or a localStorage
-            ring buffer — TODO when we build the real activity hook. */}
+        {/* 4 Today panels — 1 col mobile, 2 cols desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TodayContinuePanel />
+          <TodayRecommendationsPanel />
+          <TodayWeekPanel />
+          <TodayAntiWastePanel />
+        </div>
       </div>
     </AppNavigation>
   );

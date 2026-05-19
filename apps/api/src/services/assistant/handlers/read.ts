@@ -497,141 +497,98 @@ export interface SuggestRecipesResult {
   recent_suggestions: RecipeSummaryView[];
   /** Total recipes the user has, useful for the LLM to phrase fallbacks. */
   total_user_recipes: number;
+  /**
+   * PRP-226 PR4 — id of the `recommendation_events` row this call
+   * produced. The assistant persists it in
+   * `assistant_messages.metadata.recipe_proposals.event_id` so each
+   * frontend action (« j'ai cuisiné », « ajouter les manquants », …)
+   * can attribute itself back to the originating recommendation.
+   * Absent when the writer is not wired (legacy tests).
+   */
+  event_id?: string;
 }
 
 /**
- * One-shot recipe suggestion. Wraps the same data sources as
- * `find_cookable_recipes` + `read_recent_recipes` and returns a
- * structured 3-bucket response so the LLM never lands on "empty" with
- * nothing to propose. Saves one LLM round-trip vs chaining the two tools.
+ * One-shot recipe suggestion. Thin wrapper around the
+ * `RecommendationEngine` (PRP-226 PR2) — the engine handles the SQL
+ * queries, the scoring + bucketing, and the explainable reasons. This
+ * handler just adapts the assistant tool args to a
+ * `RecommendationContext` and adapts the engine result back to the
+ * legacy `SuggestRecipesResult` shape so the frontend (PRP-224 Sprint
+ * 2) keeps working unchanged.
+ *
+ * PRP-226 PR2 also accepts the new args (`meal_type`, `goal`,
+ * `servings`) introduced by PR1. Score parts and reasons are returned
+ * as additional fields on each recipe — backward compatible with
+ * `CookableRecipeView`.
  */
+import { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
+import type {
+  RecommendationContext,
+  RecommendedRecipeView,
+} from '../../recommendations/types.js';
+
 export class SuggestRecipesForContextHandler
   implements ToolHandler<SuggestRecipesForContextArgs, SuggestRecipesResult>
 {
+  private readonly engine: RecommendationEngine;
+
+  constructor(engine?: RecommendationEngine) {
+    this.engine = engine ?? new RecommendationEngine();
+  }
+
   async execute(
     ctx: ToolExecutionContext,
     args: SuggestRecipesForContextArgs
   ): Promise<ToolExecutionResult<SuggestRecipesResult>> {
-    const limit = args.limit_per_bucket ?? 6;
-    const almostThreshold = args.almost_threshold ?? 3;
-    const maxPrep = args.max_prep_time;
-    const query = args.query?.trim();
-
-    let recipesQuery = ctx.userClient
-      .from('recipes')
-      .select(
-        'id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, created_at, recipe_ingredients(id, ingredient_name, quantity, inventory_product_id, is_essential)'
-      )
-      .eq('user_id', ctx.userId)
-      .order('created_at', { ascending: false });
-
-    if (query) recipesQuery = recipesQuery.ilike('name', `%${query}%`);
-
-    const [recipesRes, invRes] = await Promise.all([
-      recipesQuery,
-      ctx.userClient.from('inventory').select('product_id, quantity').eq('user_id', ctx.userId),
-    ]);
-
-    if (recipesRes.error) throw recipesRes.error;
-    if (invRes.error) throw invRes.error;
-
-    const inventory = (invRes.data ?? []) as InventorySnapshotRow[];
-    const inventoryByProduct = new Map<string, number>();
-    for (const inv of inventory) {
-      inventoryByProduct.set(inv.product_id, (inventoryByProduct.get(inv.product_id) ?? 0) + inv.quantity);
-    }
-
-    type RawWithMeta = RawRecipeWithIngs & {
-      description: string | null;
-      servings: number | null;
-      cuisine_category: string | null;
-      meal_type: string | null;
-      tags: string[] | null;
-      created_at: string;
+    const recommendationContext: RecommendationContext = {
+      query: args.query,
+      mealType: args.meal_type,
+      goal: args.goal,
+      timeLimitMinutes: args.max_prep_time,
+      servings: args.servings,
+      almostThreshold: args.almost_threshold,
+      limitPerBucket: args.limit_per_bucket,
+      // PRP-226 PR4 — forward the raw transcript so it lands in
+      // `recommendation_events.request_text`. Stripped from the JSONB
+      // `context` by the writer (PR3 sanitiseContext).
+      requestText: ctx.requestText,
     };
 
-    const cookableNow: CookableRecipeView[] = [];
-    const almostCookable: CookableRecipeView[] = [];
-    const recent: RecipeSummaryView[] = [];
+    // PRP-226 PR4 — prefer the shared engine + writer from the route
+    // ctx so cache + audit run in production. Tests that don't inject
+    // them fall back to the local engine and skip the audit log (PR2
+    // behaviour preserved).
+    const engine = ctx.recommendationEngine ?? this.engine;
+    const result = await engine.suggestForUser(
+      {
+        userId: ctx.userId,
+        userClient: ctx.userClient,
+        eventWriter: ctx.eventWriter,
+        memoryService: ctx.memoryService,
+        conversationId: ctx.conversationId,
+      },
+      recommendationContext,
+    );
 
-    for (const r of (recipesRes.data ?? []) as RawWithMeta[]) {
-      if (maxPrep !== undefined && r.prep_time !== null && r.prep_time > maxPrep) {
-        continue;
-      }
-
-      // Always keep a "recent" view of every recipe.
-      recent.push({
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        prep_time: r.prep_time,
-        cook_time: r.cook_time,
-        servings: r.servings,
-        image_url: r.image_url,
-        cuisine_category: r.cuisine_category,
-        meal_type: r.meal_type,
-        tags: r.tags,
-      });
-
-      const ings = r.recipe_ingredients ?? [];
-      const essentials = ings.filter((i) => i.is_essential !== false);
-      if (essentials.length === 0) continue; // can't bucket cookability without essentials
-
-      const linked = essentials.filter((i) => i.inventory_product_id);
-      const unlinkedCount = essentials.length - linked.length;
-
-      const missing: string[] = [];
-      for (const ing of linked) {
-        const have = inventoryByProduct.get(ing.inventory_product_id!) ?? 0;
-        if (have < ing.quantity) missing.push(ing.ingredient_name);
-      }
-
-      const view: CookableRecipeView = {
-        id: r.id,
-        name: r.name,
-        prep_time: r.prep_time,
-        cook_time: r.cook_time,
-        image_url: r.image_url,
-        total_essential: essentials.length,
-        linked_essential: linked.length,
-        missing_count: missing.length,
-        missing_ingredients: missing,
-        unlinked: unlinkedCount > 0,
-        unlinked_count: unlinkedCount,
-      };
-
-      const score = missing.length + unlinkedCount;
-      if (score === 0) cookableNow.push(view);
-      else if (score <= almostThreshold) almostCookable.push(view);
-    }
-
-    // Sort the cookable buckets: lower score first, then alpha.
-    const byScoreThenName = (a: CookableRecipeView, b: CookableRecipeView) => {
-      const aScore = a.missing_count + a.unlinked_count;
-      const bScore = b.missing_count + b.unlinked_count;
-      if (aScore !== bScore) return aScore - bScore;
-      return a.name.localeCompare(b.name);
-    };
-    cookableNow.sort(byScoreThenName);
-    almostCookable.sort(byScoreThenName);
-
-    // Dedupe recent against the two cookable buckets.
-    const seen = new Set<string>([
-      ...cookableNow.map((r) => r.id),
-      ...almostCookable.map((r) => r.id),
-    ]);
-    const recentDeduped = recent.filter((r) => !seen.has(r.id));
-
+    // The engine returns `RecommendedRecipeView` which extends
+    // `CookableRecipeView` ; the legacy shape is satisfied
+    // structurally so the cast is widening only.
     return {
       result: {
-        cookable_now: cookableNow.slice(0, limit),
-        almost_cookable: almostCookable.slice(0, limit),
-        recent_suggestions: recentDeduped.slice(0, limit),
-        total_user_recipes: recent.length,
+        cookable_now: result.cookable_now as unknown as CookableRecipeView[],
+        almost_cookable: result.almost_cookable as unknown as CookableRecipeView[],
+        recent_suggestions: result.recent_suggestions,
+        total_user_recipes: result.total_user_recipes,
+        event_id: result.event_id,
       },
     };
   }
 }
+
+// Re-export so callers depending on the engine's wider shape can opt
+// into the score + reasons without breaking the legacy contract.
+export type { RecommendedRecipeView };
 
 // ---- Convenience registration helper --------------------------------
 

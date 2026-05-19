@@ -120,7 +120,32 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
       setProducts(prev => [...prev, data]);
       return data;
-    } catch (err) {
+    } catch (err: unknown) {
+      // 2026-05-18 — recover from `idx_products_normalized_name_unique`
+      // violations. The DB normalises name via
+      // `lower(unaccent(trim(name)))` (migration 20260508120000).
+      // Another caller (previous run, assistant, shared catalog) may
+      // already own the product; we fetch and return it so the bulk
+      // add stops failing on every second attempt.
+      const pgError = err as { code?: string };
+      if (pgError?.code === '23505') {
+        const normalized = productData.name
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .toLowerCase()
+          .trim();
+        const { data: existing, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('normalized_name', normalized)
+          .maybeSingle();
+        if (!fetchError && existing) {
+          setProducts(prev =>
+            prev.some(p => p.id === existing.id) ? prev : [...prev, existing],
+          );
+          return existing;
+        }
+      }
       console.error('Error adding product:', err);
       throw err;
     }

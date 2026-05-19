@@ -22,10 +22,6 @@ import { useBarcodeAPI, ProductInfo } from "@/hooks/useBarcodeAPI";
 import BarcodeScanner from "./BarcodeScanner";
 import { ImageUploadSection } from "./ImageUploadSection";
 import { toast } from "@/hooks/use-toast";
-// PRP-225 PR6 — Product Intelligence UI components.
-import { ProductBadge } from "@/components/products/ProductBadge";
-import { NutritionMiniPanel, type NutritionPer100g } from "@/components/products/NutritionMiniPanel";
-import { EnrichmentStatus } from "@/components/products/EnrichmentStatus";
 
 const CATEGORIES = [
   "Fruits et légumes",
@@ -59,27 +55,26 @@ const UNIT_TYPES = [
 
 interface AddProductDialogProps {
   trigger?: React.ReactNode;
+  /**
+   * 2026-05-18 — optional controlled-open API. When `open` is
+   * provided, this dialog mirrors it (no internal toggle) and skips
+   * rendering its `defaultTrigger` FAB. Inventory.tsx drives the
+   * dialog through its FAB menu and used to pass these props that
+   * were silently ignored, causing the default trigger to render a
+   * stray "+" button under the global AssistantFAB.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-/**
- * PRP-225 PR6 — adapt the legacy `useBarcodeAPI` ProductInfo nutrition
- * shape (energy_100g / proteins_100g / etc.) to the unified
- * `NutritionMiniPanel` projection (energyKcal / proteinG / …). Keeps
- * the modal forward-compatible with future barcode response shapes
- * without breaking the existing form state.
- */
-function apiNutritionToProjection(n: ProductInfo['nutrition']): NutritionPer100g {
-  if (!n) return {};
-  return {
-    energyKcal: n.energy_100g,
-    proteinG: n.proteins_100g,
-    carbsG: n.carbohydrates_100g,
-    fatG: n.fat_100g,
+const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddProductDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
   };
-}
-
-const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'product' | 'inventory'>('product');
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -87,7 +82,10 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
   // Product form
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("");
-  const [unitType, setUnitType] = useState("");
+  // 2026-05-18 — default to count units so the dialog matches the
+  // app-wide "compter en quantité par défaut" decision. The user can
+  // still pick g/kg/L if they really want to weigh.
+  const [unitType, setUnitType] = useState("unité");
   const [barcode, setBarcode] = useState("");
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
   
@@ -107,7 +105,7 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     console.log('🔄 Resetting form...');
     setProductName("");
     setCategory("");
-    setUnitType("");
+    setUnitType("unité");
     setBarcode("");
     setImageUrl(undefined);
     setQuantity("");
@@ -305,14 +303,18 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
     </Button>
   );
 
+  // Only render a trigger when the consumer provided one OR when the
+  // dialog is uncontrolled (legacy mounts that rely on the default FAB).
+  const renderedTrigger = trigger ?? (isControlled ? null : defaultTrigger);
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       setOpen(newOpen);
       if (!newOpen) resetForm();
     }}>
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      {renderedTrigger !== null && (
+        <DialogTrigger asChild>{renderedTrigger}</DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
@@ -533,60 +535,48 @@ const AddProductDialog = ({ trigger }: AddProductDialogProps) => {
                 </div>
               </div>
 
-              {/* PRP-225 PR6 — informations API : tokens PRP-237
-                  (surface-muted + accent-ai badge OFF) + NutritionMiniPanel +
-                  EnrichmentStatus pour re-sync manuel. */}
+              {/* Affichage des informations API */}
               {apiProductInfo && (
-                <div className="p-4 bg-surface-muted border rounded-md space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <ProductBadge status="enriched" source="openfoodfacts" />
-                    {/* `EnrichmentStatus` n'apparaît qu'après création produit
-                        (besoin de l'id). On expose un placeholder ici si
-                        `selectedProduct` existe déjà, sinon le bouton
-                        apparaîtra dans la `inventory` step. */}
-                    {selectedProduct && (
-                      <EnrichmentStatus
-                        productId={selectedProduct.id}
-                        status="enriched"
-                        force
-                        refreshLabel="Re-sync OFF"
-                      />
-                    )}
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      Informations récupérées automatiquement
+                    </span>
                   </div>
-
+                  
                   <div className="flex gap-3">
                     {apiProductInfo.image_url && (
-                      <img
-                        src={apiProductInfo.image_url}
+                      <img 
+                        src={apiProductInfo.image_url} 
                         alt={apiProductInfo.name}
-                        className="w-16 h-16 rounded-md object-cover border"
-                        loading="lazy"
+                        className="w-16 h-16 rounded-lg object-cover border"
                       />
                     )}
                     <div className="flex-1 space-y-1">
-                      <p className="font-medium text-sm text-foreground">{apiProductInfo.name}</p>
+                      <p className="font-medium text-sm">{apiProductInfo.name}</p>
                       {apiProductInfo.brand && (
-                        <p className="text-xs text-muted-foreground">Marque : {apiProductInfo.brand}</p>
+                        <p className="text-xs text-muted-foreground">Marque: {apiProductInfo.brand}</p>
                       )}
                       {apiProductInfo.category && (
-                        <p className="text-xs text-muted-foreground">Catégorie : {apiProductInfo.category}</p>
+                        <p className="text-xs text-muted-foreground">Catégorie: {apiProductInfo.category}</p>
+                      )}
+                      {apiProductInfo.nutrition && (
+                        <p className="text-xs text-muted-foreground">
+                          {apiProductInfo.nutrition.energy_100g && 
+                            `${Math.round(apiProductInfo.nutrition.energy_100g)} kcal/100g`
+                          }
+                        </p>
                       )}
                     </div>
                   </div>
-
-                  {apiProductInfo.nutrition && (
-                    <NutritionMiniPanel
-                      per100g={apiNutritionToProjection(apiProductInfo.nutrition)}
-                      sourceLabel="OpenFoodFacts"
-                    />
-                  )}
-
+                  
                   {apiProductInfo.ingredients && (
                     <details className="text-xs">
-                      <summary className="cursor-pointer font-medium text-accent-ai">
+                      <summary className="cursor-pointer text-green-700 font-medium">
                         Voir les ingrédients
                       </summary>
-                      <p className="mt-2 text-muted-foreground">{apiProductInfo.ingredients}</p>
+                      <p className="mt-2 text-green-600">{apiProductInfo.ingredients}</p>
                     </details>
                   )}
                 </div>
