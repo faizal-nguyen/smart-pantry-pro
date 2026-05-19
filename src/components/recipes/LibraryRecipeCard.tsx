@@ -66,7 +66,7 @@ export default function LibraryRecipeCard({ recipe, viewMode }: LibraryRecipeCar
       className="cursor-pointer overflow-hidden border-border hover:border-foreground/20 hover:shadow-md transition-shadow"
       onClick={handleClick}
     >
-      <div className="w-full aspect-[16/10] bg-muted">
+      <div className="w-full aspect-[4/3] sm:aspect-[16/10] bg-muted">
         {image ? (
           <img src={image} alt={title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
