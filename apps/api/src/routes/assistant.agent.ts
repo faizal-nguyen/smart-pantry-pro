@@ -51,6 +51,7 @@ import {
   saveImportedDraftAsRecipe,
 } from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
+import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
 import {
@@ -240,6 +241,13 @@ export function createAssistantAgentRouter(
     { memoryService, contextBuilder, memoryExtractor }
   );
 
+  // Phase 3 — singleton EmbeddingService so its LRU cache is shared
+  // across requests (whisper transcripts commonly repeat items). The
+  // service is best-effort: a missing OPENAI_API_KEY surfaces at call
+  // time as a soft failure, the ProductResolver simply skips the
+  // semantic step and falls through to the existing fuzzy path.
+  const embeddingService = new EmbeddingService();
+
   // PRP-226 PR4 — one shared engine (stateless ; safe to reuse across
   // requests). The EventWriter on the other hand is per-request because
   // it binds the user-scoped Supabase client for RLS.
@@ -314,7 +322,7 @@ export function createAssistantAgentRouter(
         userId: req.user.id,
         userClient: req.supabaseClient as SupabaseClient<any, any, any>,
         adminClient,
-        productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+        productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
         ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
       };
 
@@ -339,7 +347,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
@@ -374,7 +382,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
@@ -404,7 +412,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 

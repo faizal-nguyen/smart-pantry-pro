@@ -403,3 +403,280 @@ describe('ProductResolver.resolveBatch', () => {
     expect(fuzzyCallCount).toBe(2);
   });
 });
+
+// =====================================================================
+// Phase 3 — semantic step (EmbeddingService + cosine RPC).
+// =====================================================================
+
+const FAKE_VEC = Array.from({ length: 1536 }, (_, i) => (i % 7) / 10);
+
+interface SemanticPlan {
+  exactSingle?: ProductRow | null;
+  semanticHits?: Array<{ product: ProductRow; score: number }>;
+  fuzzy?: Array<{ product: ProductRow; score: number }>;
+  insertResult?: ProductRow;
+  /** Track UPDATEs (used for the post-insert embedding write-back). */
+  updates?: Array<{ id: string; payload: Record<string, unknown> }>;
+}
+
+function makeSemanticClient(plan: SemanticPlan) {
+  const rpcCalls: Array<{ name: string; args: any }> = [];
+  const inserts: Array<Record<string, unknown>> = [];
+
+  const builder: any = {
+    from(table: string) {
+      if (table !== 'products') throw new Error(`unexpected table ${table}`);
+      return {
+        select() {
+          return {
+            eq(_col: string, _val: string) {
+              return {
+                async maybeSingle() {
+                  return { data: plan.exactSingle ?? null, error: null };
+                },
+              };
+            },
+          };
+        },
+        insert(payload: Record<string, unknown>) {
+          inserts.push(payload);
+          return {
+            select() {
+              return {
+                async single() {
+                  return {
+                    data:
+                      plan.insertResult ??
+                      makeProduct(payload as Partial<ProductRow>),
+                    error: null,
+                  };
+                },
+              };
+            },
+          };
+        },
+        update(payload: Record<string, unknown>) {
+          return {
+            async eq(_col: string, id: string) {
+              plan.updates?.push({ id, payload });
+              return { error: null };
+            },
+          };
+        },
+      };
+    },
+    async rpc(name: string, args: any) {
+      rpcCalls.push({ name, args });
+      if (name === 'assistant_semantic_search_products') {
+        return { data: plan.semanticHits ?? [], error: null };
+      }
+      if (name === 'assistant_fuzzy_search_products') {
+        return { data: plan.fuzzy ?? [], error: null };
+      }
+      throw new Error(`unexpected rpc ${name}`);
+    },
+  };
+
+  return { client: builder, rpcCalls, inserts };
+}
+
+function makeStubEmbeddingService(opts: {
+  vector?: number[] | null;
+  batch?: Array<number[] | null>;
+}) {
+  let generateCalls = 0;
+  const generated: string[] = [];
+  return {
+    async generate(text: string) {
+      generateCalls += 1;
+      generated.push(text);
+      return opts.vector ?? null;
+    },
+    async generateBatch(_texts: readonly string[]) {
+      return opts.batch ?? _texts.map(() => opts.vector ?? null);
+    },
+    get _calls() {
+      return generateCalls;
+    },
+    get _generated() {
+      return generated;
+    },
+  } as any;
+}
+
+describe('ProductResolver.resolve — semantic step', () => {
+  it('returns "matched" via semantic when the cosine RPC yields a confident hit', async () => {
+    const semanticHit = makeProduct({
+      id: 'psem',
+      name: "Huile d'olive",
+      normalized_name: "huile d'olive",
+    });
+    const { client, rpcCalls } = makeSemanticClient({
+      exactSingle: null,
+      semanticHits: [{ product: semanticHit, score: 0.91 }],
+    });
+    const embeddingService = makeStubEmbeddingService({ vector: FAKE_VEC });
+    const resolver = new ProductResolver(client, { embeddingService });
+
+    const result = await resolver.resolve(USER_ID, { name: 'olive oil' });
+
+    expect(result.kind).toBe('matched');
+    if (result.kind === 'matched') {
+      expect(result.via).toBe('semantic');
+      expect(result.product.id).toBe('psem');
+      expect(result.confidence).toBeCloseTo(0.91);
+    }
+    // Semantic RPC was called, fuzzy was NOT.
+    expect(rpcCalls.find((c) => c.name === 'assistant_semantic_search_products')).toBeDefined();
+    expect(rpcCalls.find((c) => c.name === 'assistant_fuzzy_search_products')).toBeUndefined();
+  });
+
+  it('returns "ambiguous" when top 2 semantic candidates are within delta', async () => {
+    const a = makeProduct({ id: 'pa', normalized_name: 'oignon rouge' });
+    const b = makeProduct({ id: 'pb', normalized_name: 'oignon blanc' });
+    const { client } = makeSemanticClient({
+      exactSingle: null,
+      semanticHits: [
+        { product: a, score: 0.93 },
+        { product: b, score: 0.9 },
+      ],
+    });
+    const embeddingService = makeStubEmbeddingService({ vector: FAKE_VEC });
+    const resolver = new ProductResolver(client, { embeddingService });
+
+    const result = await resolver.resolve(USER_ID, { name: 'oignon' });
+
+    expect(result.kind).toBe('ambiguous');
+  });
+
+  it('falls through to fuzzy when the semantic RPC returns nothing', async () => {
+    const fuzzyHit = makeProduct({ id: 'pf', normalized_name: 'tomate cerise' });
+    const { client, rpcCalls } = makeSemanticClient({
+      exactSingle: null,
+      semanticHits: [],
+      fuzzy: [{ product: fuzzyHit, score: 0.82 }],
+    });
+    const embeddingService = makeStubEmbeddingService({ vector: FAKE_VEC });
+    const resolver = new ProductResolver(client, { embeddingService });
+
+    const result = await resolver.resolve(USER_ID, { name: 'tomates cerises' });
+
+    expect(result.kind).toBe('matched');
+    if (result.kind === 'matched') {
+      expect(result.via).toBe('fuzzy');
+    }
+    expect(rpcCalls.map((c) => c.name)).toEqual([
+      'assistant_semantic_search_products',
+      'assistant_fuzzy_search_products',
+    ]);
+  });
+
+  it('skips the semantic step entirely when the embedding service returns null', async () => {
+    const fuzzyHit = makeProduct({ id: 'pf', normalized_name: 'tomate' });
+    const { client, rpcCalls } = makeSemanticClient({
+      exactSingle: null,
+      fuzzy: [{ product: fuzzyHit, score: 0.95 }],
+    });
+    const embeddingService = makeStubEmbeddingService({ vector: null });
+    const resolver = new ProductResolver(client, { embeddingService });
+
+    const result = await resolver.resolve(USER_ID, { name: 'tomate' });
+
+    expect(result.kind).toBe('matched');
+    // No semantic RPC call because the embedding came back null.
+    expect(rpcCalls.find((c) => c.name === 'assistant_semantic_search_products')).toBeUndefined();
+  });
+
+  it('writes the embedding back to the row after auto-creating a product', async () => {
+    const created = makeProduct({ id: 'pnew', name: 'Skyr nature', normalized_name: 'skyr nature' });
+    const updates: SemanticPlan['updates'] = [];
+    const { client } = makeSemanticClient({
+      exactSingle: null,
+      semanticHits: [],
+      fuzzy: [],
+      insertResult: created,
+      updates,
+    });
+    const embeddingService = makeStubEmbeddingService({ vector: FAKE_VEC });
+    const resolver = new ProductResolver(client, { embeddingService });
+
+    const result = await resolver.resolve(USER_ID, { name: 'Skyr nature' });
+    expect(result.kind).toBe('created');
+
+    // attachEmbedding runs asynchronously, give it a tick.
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(updates).toHaveLength(1);
+    expect(updates![0]?.id).toBe('pnew');
+    expect(updates![0]?.payload.embedding).toBeDefined();
+    expect(updates![0]?.payload.embedding_updated_at).toBeDefined();
+  });
+});
+
+describe('ProductResolver.resolveBatch — semantic step', () => {
+  it('runs ONE generateBatch for all misses, not N generate calls', async () => {
+    const tomate = makeProduct({ id: 'pt', normalized_name: 'tomate' });
+    const semanticHit = makeProduct({ id: 'psem', normalized_name: 'huile d olive' });
+
+    let batchCalls = 0;
+    const embeddingService = {
+      async generate() {
+        throw new Error('should not call generate in batch path');
+      },
+      async generateBatch(texts: readonly string[]) {
+        batchCalls += 1;
+        // Return a vector for every non-empty input
+        return texts.map((t) => (t ? FAKE_VEC : null));
+      },
+    } as any;
+
+    let rpcCalls = 0;
+    const builder: any = {
+      from() {
+        return {
+          select() {
+            return {
+              eq() {
+                return { async maybeSingle() { return { data: null, error: null }; } };
+              },
+              in() {
+                // exact batch lookup — tomate hits, the other miss
+                return Promise.resolve({ data: [tomate], error: null });
+              },
+            };
+          },
+        };
+      },
+      async rpc(name: string, args: any) {
+        rpcCalls += 1;
+        if (name === 'assistant_semantic_search_products') {
+          // Only the miss ("olive oil") triggers a semantic RPC; return a hit
+          // so we don't fall through to fuzzy.
+          return {
+            data: [{ product: semanticHit, score: 0.9 }],
+            error: null,
+          };
+        }
+        return { data: [], error: null };
+      },
+    };
+    const resolver = new ProductResolver(builder, { embeddingService });
+
+    const results = await resolver.resolveBatch(USER_ID, [
+      { name: 'tomate' },
+      { name: 'olive oil' },
+    ]);
+
+    expect(results).toHaveLength(2);
+    expect(results[0].kind).toBe('matched');
+    if (results[0].kind === 'matched') expect(results[0].via).toBe('exact');
+    expect(results[1].kind).toBe('matched');
+    if (results[1].kind === 'matched') {
+      expect(results[1].via).toBe('semantic');
+      expect(results[1].product.id).toBe('psem');
+    }
+
+    expect(batchCalls).toBe(1); // single batched embedding call
+    expect(rpcCalls).toBe(1); // single semantic RPC, no fuzzy
+  });
+});
