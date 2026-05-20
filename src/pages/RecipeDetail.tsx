@@ -37,7 +37,7 @@ import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
 import { useShoppingList } from "@/hooks/useShoppingList";
 import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchUnifiedRecipe } from "@/lib/recipeSource";
+import { fetchUnifiedRecipe, invalidateUnifiedRecipeCache, type UnifiedRecipe } from "@/lib/recipeSource";
 import { useImageManagement } from "@/hooks/useImageManagement";
 
 interface RecipeIngredient {
@@ -65,8 +65,18 @@ const RecipeDetail = () => {
   // after upload, without waiting for the next `fetchRecipes` round
   // (which can take 1-2s on cold cache).
   const [overrideImageUrl, setOverrideImageUrl] = useState<string | null>(null);
+  // Bug fix 2026-05-20 — useRecipes() ne fetche que `recipes` + `user_recipes`
+  // (pas `recipes_catalog` direct), donc recipes.find(id) reste undefined
+  // pour les ids catalog → on flashait "Recette non trouvée" même quand
+  // fetchUnifiedRecipe résolvait. On capture maintenant le résultat unifié
+  // dans un state local et on l'utilise en fallback.
+  const [unifiedRecipe, setUnifiedRecipe] = useState<UnifiedRecipe | null>(null);
 
-  const recipe = recipes.find(r => r.id === id);
+  const recipeFromList = recipes.find(r => r.id === id);
+  // recipe : union des shapes Recipe (useRecipes) et UnifiedRecipe (recipeSource).
+  // Les champs lus par cette page (name, image_url, prep_time, etc.) existent
+  // dans les deux shapes — la tolerance null|undefined est déjà gérée.
+  const recipe = recipeFromList ?? unifiedRecipe;
   const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
   // Perf audit 2026-05-19 — l'inventaire fournit products.nutrition_json
   // déjà enrichis. Passés à RecipeNutrition, ils court-circuitent les
@@ -95,11 +105,11 @@ const RecipeDetail = () => {
     return out;
   }, [inventoryAnalysis]);
 
-  // Détecter si la recette a été supprimée
-  // Bug fix 2026-05-19 — race condition exposée par le push perf : le
-  // `loading` local (driven by fetchRecipeDetails) résolvait avant que
-  // `recipes` de useRecipes() ne se peuple, ce qui flashait "Recette
-  // supprimée" pendant ~200ms. On attend que les deux loadings finissent.
+  // Bug fix 2026-05-20 — `recipe` est maintenant l'union des 2 sources
+  // (useRecipes pour legacy/user_recipes + unifiedRecipe pour catalog).
+  // Si `recipe` est null alors que fetchRecipeDetails a fini, c'est
+  // VRAIMENT introuvable. Le "supprimée vs non trouvée" se base toujours
+  // sur recipesLoading pour distinguer un vrai delete d'un id inconnu.
   const recipeDeleted = !recipe && !loading && !recipesLoading && id;
 
   // PRP-234 PR3 — writer `recipe_interactions.viewed` au mount.
@@ -164,8 +174,13 @@ const RecipeDetail = () => {
       // See lib/recipeSource.ts for the rationale.
       const recipeData = await fetchUnifiedRecipe(id!);
       if (!recipeData) {
+        setUnifiedRecipe(null);
         throw new Error('Recipe not found in any source');
       }
+      // Bug fix 2026-05-20 — capture le recipe résolu pour le render.
+      // useRecipes() ne couvre pas recipes_catalog, donc sans ça les
+      // catalog-only recipes restent affichées comme "non trouvée".
+      setUnifiedRecipe(recipeData);
 
       // Ingredients: catalog-backed rows carry them inline as JSONB.
       // Legacy `recipes` rows still use the dedicated `recipe_ingredients`
@@ -272,6 +287,9 @@ const RecipeDetail = () => {
 
       // Refresh the merged `useRecipes` cache so other surfaces (cards,
       // library grid) pick up the new image too. Best-effort.
+      // Bug fix 2026-05-20 — invalide aussi le cache module fetchUnifiedRecipe
+      // pour que la prochaine ouverture de la recette voie la nouvelle photo.
+      if (id) invalidateUnifiedRecipeCache(id);
       try { await fetchRecipes?.(); } catch { /* swallow */ }
 
       toast({
@@ -295,6 +313,10 @@ const RecipeDetail = () => {
 
     try {
       await deleteRecipe(id);
+      // Bug fix 2026-05-20 — invalide le cache module pour qu'une
+      // navigation back-and-forward sur la même URL ne resserve pas
+      // la recette supprimée depuis le cache 30s.
+      invalidateUnifiedRecipeCache(id);
       toast({
         title: "Recette supprimée",
         description: "La recette a été supprimée avec succès",
