@@ -182,7 +182,15 @@ export async function fetchUnifiedRecipe(id: string): Promise<UnifiedRecipe | nu
   unifiedRecipeCache.set(id, { inflight });
   try {
     const value = await inflight;
-    unifiedRecipeCache.set(id, { value, ts: Date.now() });
+    if (value !== null) {
+      // Cache positif uniquement. Ne PAS stocker les null : ils peuvent
+      // venir d'une race RLS / propagation Supabase / row pas encore visible.
+      // Servir un null cached 30s ferait flasher "Recette non trouvée"
+      // pour une recette qui existe désormais.
+      unifiedRecipeCache.set(id, { value, ts: Date.now() });
+    } else {
+      unifiedRecipeCache.delete(id);
+    }
     return value;
   } catch (error) {
     unifiedRecipeCache.delete(id);

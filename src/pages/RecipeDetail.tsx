@@ -71,6 +71,18 @@ const RecipeDetail = () => {
   // fetchUnifiedRecipe résolvait. On capture maintenant le résultat unifié
   // dans un state local et on l'utilise en fallback.
   const [unifiedRecipe, setUnifiedRecipe] = useState<UnifiedRecipe | null>(null);
+  // Bug fix 2026-05-20 (round 2) — track explicitement la confirmation
+  // d'absence. Auparavant la gate erreur déduisait l'absence depuis
+  // `!recipe && !loading && !recipesLoading`, mais ça déclenchait l'écran
+  // d'erreur quand fetchUnifiedRecipe lisait un null cached (race RLS).
+  // Maintenant on ne déclare 404 que quand une VRAIE résolution a retourné
+  // null. Reset au changement d'id (navigation entre recettes).
+  const [notFoundConfirmed, setNotFoundConfirmed] = useState(false);
+
+  useEffect(() => {
+    setNotFoundConfirmed(false);
+    setUnifiedRecipe(null);
+  }, [id]);
 
   const recipeFromList = recipes.find(r => r.id === id);
   // recipe : union des shapes Recipe (useRecipes) et UnifiedRecipe (recipeSource).
@@ -105,12 +117,12 @@ const RecipeDetail = () => {
     return out;
   }, [inventoryAnalysis]);
 
-  // Bug fix 2026-05-20 — `recipe` est maintenant l'union des 2 sources
-  // (useRecipes pour legacy/user_recipes + unifiedRecipe pour catalog).
-  // Si `recipe` est null alors que fetchRecipeDetails a fini, c'est
-  // VRAIMENT introuvable. Le "supprimée vs non trouvée" se base toujours
-  // sur recipesLoading pour distinguer un vrai delete d'un id inconnu.
-  const recipeDeleted = !recipe && !loading && !recipesLoading && id;
+  // Bug fix 2026-05-20 (round 2) — la gate erreur se base désormais sur
+  // notFoundConfirmed (confirmation explicite via fetchUnifiedRecipe)
+  // ET sur recipesLoading (useRecipes a fini son merge) ET sur l'absence
+  // dans les deux sources. Le distinguo supprimée/non-trouvée garde la
+  // même sémantique : un id valide qui n'existe nulle part = supprimée.
+  const recipeDeleted = notFoundConfirmed && !recipesLoading && !recipe && id;
 
   // PRP-234 PR3 — writer `recipe_interactions.viewed` au mount.
   // Alimente le bloc « Continuer » du dashboard Today (PR3
@@ -175,12 +187,16 @@ const RecipeDetail = () => {
       const recipeData = await fetchUnifiedRecipe(id!);
       if (!recipeData) {
         setUnifiedRecipe(null);
+        // Marque l'absence comme CONFIRMÉE — la gate erreur ne se base
+        // que sur ce flag, jamais sur "loading=false && recipe=null".
+        setNotFoundConfirmed(true);
         throw new Error('Recipe not found in any source');
       }
       // Bug fix 2026-05-20 — capture le recipe résolu pour le render.
       // useRecipes() ne couvre pas recipes_catalog, donc sans ça les
       // catalog-only recipes restent affichées comme "non trouvée".
       setUnifiedRecipe(recipeData);
+      setNotFoundConfirmed(false); // au cas où on a retry après un null précédent
 
       // Ingredients: catalog-backed rows carry them inline as JSONB.
       // Legacy `recipes` rows still use the dedicated `recipe_ingredients`
@@ -486,13 +502,15 @@ const RecipeDetail = () => {
     return <AlertCircle className="w-4 h-4 text-warning" />;
   };
 
-  // Bug fix 2026-05-20 — le précédent fix n'éliminait que le flash
-  // "Recette supprimée" en gardant la branche d'erreur "Recette non
-  // trouvée" pendant la fenêtre où useRecipes() est encore en train de
-  // charger. On exclut maintenant cet état au niveau de l'if externe :
-  // tant que recipesLoading est true, on continue d'afficher le
-  // PageLoader (déclenché par !recipe avant le fallback final).
-  if (!recipe && !loading && !recipesLoading) {
+  // Bug fix 2026-05-20 (round 2) — Gate erreur déterministe. On ne
+  // déclare une recette comme introuvable QUE quand :
+  //   1. fetchUnifiedRecipe a vraiment résolu sur null (notFoundConfirmed)
+  //   2. ET useRecipes a fini son merge (recipesLoading = false)
+  //   3. ET la recette n'est dans aucune des deux sources (!recipe)
+  // Auparavant la déduction implicite `!recipe && !loading` flashait
+  // l'erreur sur un null cached (race RLS) avant que le vrai recipe
+  // arrive via useRecipes refetch.
+  if (notFoundConfirmed && !recipesLoading && !recipe) {
     return (
       <div className="page-container">
         <div className="text-center py-12">
