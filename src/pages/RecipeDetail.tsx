@@ -464,7 +464,13 @@ const RecipeDetail = () => {
     return <AlertCircle className="w-4 h-4 text-warning" />;
   };
 
-  if (!recipe && !loading) {
+  // Bug fix 2026-05-20 — le précédent fix n'éliminait que le flash
+  // "Recette supprimée" en gardant la branche d'erreur "Recette non
+  // trouvée" pendant la fenêtre où useRecipes() est encore en train de
+  // charger. On exclut maintenant cet état au niveau de l'if externe :
+  // tant que recipesLoading est true, on continue d'afficher le
+  // PageLoader (déclenché par !recipe avant le fallback final).
+  if (!recipe && !loading && !recipesLoading) {
     return (
       <div className="page-container">
         <div className="text-center py-12">
