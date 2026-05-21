@@ -195,4 +195,166 @@ describe('SocialImportService.save (PRP-220.11)', () => {
     const svc = new SocialImportService(repo);
     await expect(svc.save(fakeClient, 'user-a', 'imp-1')).rejects.toBeInstanceOf(SaveFailedError);
   });
+
+  // ===== PRP-239 PR1b §7.4 — sanitizer is on the save path ===============
+  describe('recipe policy sanitization', () => {
+    function makeChainableClient(initialFacets: Record<string, unknown> = {}) {
+      const state = {
+        recipe_facets: initialFacets,
+        updates: [] as Array<Record<string, unknown>>,
+      };
+      const builder: any = {
+        select: jest.fn(() => builder),
+        eq: jest.fn(() => builder),
+        single: jest.fn(() => Promise.resolve({ data: { recipe_facets: state.recipe_facets }, error: null })),
+        update: jest.fn((payload: Record<string, unknown>) => {
+          state.updates.push(payload);
+          return builder;
+        }),
+      };
+      const client = {
+        from: jest.fn(() => builder),
+      };
+      return { client, state, builder };
+    }
+
+    const draftWithViolations = () => ({
+      title: 'Test Korean Stew',
+      ingredients: [
+        { name: 'pork belly', quantity: 200, unit: 'g' },
+        { name: 'mirin', quantity: 30, unit: 'ml', notes: 'sauce' },
+      ],
+      instructions: [{ step: 1, description: 'cuire' }],
+      tags: [],
+      source: {
+        platform: 'instagram',
+        sourceUrl: 'https://www.instagram.com/reel/xyz/',
+        importedAt: new Date().toISOString(),
+        extractionMethod: 'ai_inference',
+      },
+      confidence: 0.85,
+      extractionWarnings: [],
+    });
+
+    it('sanitizes the stored draft before persistence — pork belly + mirin → no porc/alcool', async () => {
+      const repo = makeRepo({
+        findCurrentDraft: jest.fn().mockResolvedValue({
+          id: 'draft-violations',
+          import_id: 'imp-1',
+          user_id: 'user-a',
+          draft_json: draftWithViolations(),
+          version: 1,
+          is_current: true,
+          source_extraction_method: 'ai_inference',
+          ai_model: null,
+          ai_input_tokens: null,
+          ai_output_tokens: null,
+          cost_usd_estimate: null,
+          created_at: '2026-05-21T00:00:00.000Z',
+        }),
+      });
+      const saveImpl = jest.fn().mockResolvedValue('rec-pol-1');
+      const { client } = makeChainableClient();
+      const svc = new SocialImportService(repo, { saveImportedDraftAsRecipe: saveImpl });
+
+      await svc.save(client as any, 'user-a', 'imp-1');
+
+      const passedDraft = saveImpl.mock.calls[0][2];
+      const ingredientNames = passedDraft.ingredients.map((i: { name: string }) => i.name);
+      // No porc / no alcool left in either name field.
+      for (const n of ingredientNames) {
+        expect(n.toLowerCase()).not.toMatch(/\bpork\b|\bporc\b|\bmirin\b|\bsake\b|\bvin\b/);
+      }
+      // Substitutions landed.
+      expect(ingredientNames).toContain('boeuf gras');
+      expect(ingredientNames.some((n: string) => n.includes('vinaigre de riz'))).toBe(true);
+    });
+
+    it('persists the sanitized draft as a new revision (audit trail)', async () => {
+      const repo = makeRepo({
+        findCurrentDraft: jest.fn().mockResolvedValue({
+          id: 'draft-violations',
+          import_id: 'imp-1',
+          user_id: 'user-a',
+          draft_json: draftWithViolations(),
+          version: 1,
+          is_current: true,
+          source_extraction_method: 'ai_inference',
+          ai_model: null,
+          ai_input_tokens: null,
+          ai_output_tokens: null,
+          cost_usd_estimate: null,
+          created_at: '2026-05-21T00:00:00.000Z',
+        }),
+      });
+      const { client } = makeChainableClient();
+      const svc = new SocialImportService(repo, {
+        saveImportedDraftAsRecipe: jest.fn().mockResolvedValue('rec-pol-2'),
+      });
+
+      await svc.save(client as any, 'user-a', 'imp-1');
+
+      expect(repo.insertNewDraft).toHaveBeenCalledTimes(1);
+      const insertCall = repo.insertNewDraft.mock.calls[0][0];
+      const ingredients: Array<{ name: string }> = insertCall.draftJson.ingredients;
+      expect(ingredients.find((i) => i.name === 'pork belly')).toBeUndefined();
+      expect(ingredients.find((i) => i.name === 'boeuf gras')).toBeDefined();
+    });
+
+    it('tags the saved recipe with quality_flags', async () => {
+      const repo = makeRepo({
+        findCurrentDraft: jest.fn().mockResolvedValue({
+          id: 'draft-violations',
+          import_id: 'imp-1',
+          user_id: 'user-a',
+          draft_json: draftWithViolations(),
+          version: 1,
+          is_current: true,
+          source_extraction_method: 'ai_inference',
+          ai_model: null,
+          ai_input_tokens: null,
+          ai_output_tokens: null,
+          cost_usd_estimate: null,
+          created_at: '2026-05-21T00:00:00.000Z',
+        }),
+      });
+      const { client, state } = makeChainableClient({});
+      const svc = new SocialImportService(repo, {
+        saveImportedDraftAsRecipe: jest.fn().mockResolvedValue('rec-pol-3'),
+      });
+
+      await svc.save(client as any, 'user-a', 'imp-1');
+
+      expect(state.updates).toHaveLength(1);
+      const update = state.updates[0] as { recipe_facets: { quality_flags: string[] } };
+      expect(update.recipe_facets.quality_flags).toEqual(
+        expect.arrayContaining(['porc_substituted', 'alcohol_removed']),
+      );
+    });
+
+    it('does not persist a sanitized revision when the draft is already clean', async () => {
+      const repo = makeRepo();
+      const { client } = makeChainableClient();
+      const svc = new SocialImportService(repo, {
+        saveImportedDraftAsRecipe: jest.fn().mockResolvedValue('rec-clean'),
+      });
+
+      await svc.save(client as any, 'user-a', 'imp-1');
+
+      // validDraft() has only `pates` — no violation → no extra revision.
+      expect(repo.insertNewDraft).not.toHaveBeenCalled();
+    });
+
+    it('does not tag the recipe when there are no quality flags', async () => {
+      const repo = makeRepo();
+      const { client, state } = makeChainableClient();
+      const svc = new SocialImportService(repo, {
+        saveImportedDraftAsRecipe: jest.fn().mockResolvedValue('rec-clean-tag'),
+      });
+
+      await svc.save(client as any, 'user-a', 'imp-1');
+
+      expect(state.updates).toHaveLength(0);
+    });
+  });
 });

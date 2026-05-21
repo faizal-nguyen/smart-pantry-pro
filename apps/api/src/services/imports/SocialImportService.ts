@@ -42,8 +42,9 @@ import {
   SaveFailedError,
 } from './importErrors.js';
 import { metrics } from '../../lib/metrics.js';
-import { logExtraction } from '../../lib/logger.js';
+import { logExtraction, logger } from '../../lib/logger.js';
 import type { ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
+import { sanitizeImportedDraft } from '../recipeQuality/sanitizeImportedDraft.js';
 
 export interface CaptureResult {
   import: SocialImportRow;
@@ -413,6 +414,24 @@ export class SocialImportService {
       draft = validation.data;
     }
 
+    // PRP-239 PR1b §7.4 — every import passes through the policy
+    // sanitizer before persistence. The sanitizer is pure; it rewrites
+    // ingredient name/notes in place and flags description/instructions
+    // violations for review (we don't auto-rewrite prose).
+    const policy = sanitizeImportedDraft(draft);
+    if (policy.hasChanges) {
+      draft = policy.sanitized;
+      // Persist the sanitized version as a new draft revision so the
+      // audit trail shows what was actually saved (mirrors the
+      // user-edit path above).
+      await this.repo.insertNewDraft({
+        importId,
+        userId,
+        draftJson: draft,
+        sourceExtractionMethod: draft.source.extractionMethod,
+      });
+    }
+
     let recipeId: string;
     try {
       const saveOpts: SaveDraftAsRecipeOptions = {
@@ -426,6 +445,27 @@ export class SocialImportService {
       throw new SaveFailedError(message, error);
     }
 
+    // PRP-239 PR1b §7.4 — tag the newly created recipe with the
+    // quality flags emitted by the sanitizer. We merge into the
+    // existing `recipe_facets.quality_flags` array (set-style) so a
+    // re-save never duplicates entries. Best-effort: if the update
+    // fails, the recipe is still saved correctly — the policy already
+    // ran on the data path. We surface the failure as a metric.
+    if (policy.qualityFlags.length > 0) {
+      try {
+        await this.tagRecipeWithQualityFlags(client, recipeId, policy.qualityFlags);
+      } catch (error: unknown) {
+        logger.warn(
+          {
+            event: 'recipe_policy.tag_facets_failed',
+            recipeId,
+            err: error instanceof Error ? error.message : 'unknown',
+          },
+          'Failed to tag recipe with sanitizer quality_flags (data was sanitized regardless)',
+        );
+      }
+    }
+
     const updated = await this.repo.updateLifecycle(userId, importId, {
       status: 'saved',
       recipe_id: recipeId,
@@ -435,6 +475,38 @@ export class SocialImportService {
     if (!updated) throw new ImportNotFoundError(importId);
 
     return { import: updated, recipeId };
+  }
+
+  /**
+   * PRP-239 PR1b §7.4 — append the sanitizer's quality flags into the
+   * recipe's `recipe_facets.quality_flags` array. Idempotent: we merge
+   * via `jsonb_set` so subsequent imports of the same recipe (which
+   * shouldn't happen, but defense-in-depth) don't duplicate flags.
+   */
+  private async tagRecipeWithQualityFlags(
+    client: SupabaseClient<any, any, any>,
+    recipeId: string,
+    qualityFlags: readonly string[],
+  ): Promise<void> {
+    const { data, error } = await client
+      .from('recipes')
+      .select('recipe_facets')
+      .eq('id', recipeId)
+      .single();
+    if (error) throw error;
+
+    const facets = ((data?.recipe_facets ?? {}) as Record<string, unknown>) || {};
+    const existing = Array.isArray((facets as { quality_flags?: unknown }).quality_flags)
+      ? ((facets as { quality_flags: string[] }).quality_flags)
+      : [];
+    const merged = Array.from(new Set([...existing, ...qualityFlags]));
+
+    const nextFacets = { ...facets, quality_flags: merged };
+    const { error: updateError } = await client
+      .from('recipes')
+      .update({ recipe_facets: nextFacets })
+      .eq('id', recipeId);
+    if (updateError) throw updateError;
   }
 }
 
