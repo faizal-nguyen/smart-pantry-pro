@@ -37,6 +37,7 @@ interface CliArgs {
   seeds: string;
   out?: string;
   check: boolean;
+  generatedAt?: string;
 }
 
 function parseArgs(argv: readonly string[]): CliArgs {
@@ -46,6 +47,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
     if (a === '--seeds') args.seeds = argv[++i] ?? args.seeds;
     else if (a === '--out') args.out = argv[++i];
     else if (a === '--check') args.check = true;
+    else if (a === '--generated-at') args.generatedAt = argv[++i];
     else if (a === '--help' || a === '-h') {
       printHelp();
       process.exit(0);
@@ -370,7 +372,7 @@ function main(): void {
   }
 
   const scanner = new RecipeQualityScanner();
-  const manifest = scanner.scan(allRecipes);
+  const manifest = scanner.scan(allRecipes, { generatedAt: args.generatedAt });
   const serialized = RecipeQualityScanner.serialize(manifest);
 
   if (args.out) {
