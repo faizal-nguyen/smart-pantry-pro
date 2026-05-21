@@ -73,11 +73,9 @@ jobs:
           path: output/recipe-policy-manifest-ci.json
           if-no-files-found: error
 
-      # PRP-239 PR1a: the seeds still contain ~300 policy violations
-      # that PR1b will clean up via the manifest above. We surface the
-      # count and exit 0 here so PR1a can merge on green. Once PR1b
-      # lands, flip `continue-on-error: true` → `false` to enforce the
-      # guardrail going forward (see PRP §6.8 AC).
-      - name: Policy check (informational until PR1b)
-        continue-on-error: true
+      # PRP-239 PR1b — guardrail is now blocking. The seeds + the
+      # archived v1 manifest are aligned; any new violation introduced
+      # by a future seed (or by a regression in the sanitizer rules)
+      # fails CI.
+      - name: Policy check
         run: npm run recipe:policy:check

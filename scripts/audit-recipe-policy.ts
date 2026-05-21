@@ -393,14 +393,24 @@ function main(): void {
   process.stderr.write(summary);
 
   if (args.check) {
-    const offending = manifest.changes.length + manifest.violations_remaining.length;
-    if (offending > 0) {
+    // Only auto-fixable substitutions block the guardrail. Violations
+    // remaining (descriptions / instructions) are informational —
+    // they're intentionally not auto-rewritten and surface in the
+    // manifest for human review (see PRP §7.3).
+    const blocking = manifest.changes.length;
+    if (blocking > 0) {
       process.stderr.write(
-        `[audit-recipe-policy] FAIL — ${offending} policy issue(s) detected. Run without --check to emit the manifest.\n`,
+        `[audit-recipe-policy] FAIL — ${blocking} auto-fixable policy violation(s) detected. Run without --check to emit the manifest.\n`,
       );
       process.exit(1);
     }
-    process.stderr.write('[audit-recipe-policy] OK — no policy issues.\n');
+    if (manifest.violations_remaining.length > 0) {
+      process.stderr.write(
+        `[audit-recipe-policy] OK — no auto-fixable issues. ${manifest.violations_remaining.length} description/instructions mention(s) flagged for review (detect-only, non-blocking).\n`,
+      );
+    } else {
+      process.stderr.write('[audit-recipe-policy] OK — no policy issues.\n');
+    }
     process.exit(0);
   }
 }
