@@ -9,7 +9,7 @@
  *  - le layout Tabs.
  * Le contenu de chaque onglet vit dans `src/components/recipes/tabs/`.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { BookOpen, Plus, Sparkles } from 'lucide-react';
 
@@ -23,11 +23,20 @@ import { useUserRecipes } from '@/hooks/useUserRecipes';
 import { useRecipes } from '@/hooks/useRecipes';
 import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
 
-import AddRecipeDialog from '@/components/recipes/AddRecipeDialog';
-import { ExtractedRecipeModal } from '@/components/recipes/ExtractedRecipeModal';
-import RecipeOnboarding from '@/components/onboarding/RecipeOnboarding';
+// PRP-238 PR3 — Lazy-split des surfaces lourdes :
+//   - RecipeImportTab (177L) : seulement quand l'user ouvre l'onglet Ajouter
+//   - AddRecipeDialog (1043L) : seulement a la 1ere ouverture du dialog
+//   - ExtractedRecipeModal (392L) : seulement apres extraction
+//   - RecipeOnboarding (494L) : flow first-time-user seulement
+// RecipeLibraryTab reste eager — c'est le default tab.
 import RecipeLibraryTab from '@/components/recipes/tabs/RecipeLibraryTab';
-import RecipeImportTab from '@/components/recipes/tabs/RecipeImportTab';
+const RecipeImportTab = lazy(() => import('@/components/recipes/tabs/RecipeImportTab'));
+const AddRecipeDialog = lazy(() => import('@/components/recipes/AddRecipeDialog'));
+const ExtractedRecipeModal = lazy(() =>
+  import('@/components/recipes/ExtractedRecipeModal').then((m) => ({ default: m.ExtractedRecipeModal })),
+);
+const RecipeOnboarding = lazy(() => import('@/components/onboarding/RecipeOnboarding'));
+
 import { draftToLegacyPayload } from '@/services/recipe-import/draftAdapter';
 
 // PRP-232 PR1 — URL state contract.
@@ -226,56 +235,81 @@ export default function Recipes() {
           </TabsContent>
 
           <TabsContent value="import" className="space-y-6">
-            <RecipeImportTab
-              onRecipeExtracted={(recipe, sourceUrl) => {
-                setExtractedRecipe({ ...recipe, sourceUrl });
-                setShowExtractedModal(true);
-              }}
-              onOpenAddDialog={() => setShowAddDialog(true)}
-              pendingCount={inboxPendingCount}
-              onVerifyDraft={({ import: socialImport, draft }) => {
-                if (!draft) return;
-                setExtractedRecipe(draftToLegacyPayload(socialImport, draft));
-                setShowExtractedModal(true);
-              }}
-            />
+            {/* Radix Tabs ne mount TabsContent que quand activeTab match.
+                Wrap dans Suspense pour gerer le chunk fetch au premier
+                switch sur l'onglet. Fallback minimal pour eviter le flash. */}
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-12">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              }
+            >
+              <RecipeImportTab
+                onRecipeExtracted={(recipe, sourceUrl) => {
+                  setExtractedRecipe({ ...recipe, sourceUrl });
+                  setShowExtractedModal(true);
+                }}
+                onOpenAddDialog={() => setShowAddDialog(true)}
+                pendingCount={inboxPendingCount}
+                onVerifyDraft={({ import: socialImport, draft }) => {
+                  if (!draft) return;
+                  setExtractedRecipe(draftToLegacyPayload(socialImport, draft));
+                  setShowExtractedModal(true);
+                }}
+              />
+            </Suspense>
           </TabsContent>
         </Tabs>
 
+        {/* Dialogs/modals lazy — fetch du chunk a la 1ere ouverture
+            seulement. Suspense fallback=null parce que les dialogs
+            apparaissent en overlay, le spinner inline serait visible
+            sous l'overlay et n'apporterait rien. */}
         {showOnboarding && (
-          <RecipeOnboarding
-            isOpen={showOnboarding}
-            onComplete={() => {
-              setShowOnboarding(false);
-              setActiveTab('library');
-              toast({
-                title: '🎉 Bienvenue !',
-                description: 'Votre bibliothèque de recettes est prête !',
-              });
-            }}
-            onSkip={() => {
-              setShowOnboarding(false);
-              setActiveTab('feed');
-            }}
-          />
+          <Suspense fallback={null}>
+            <RecipeOnboarding
+              isOpen={showOnboarding}
+              onComplete={() => {
+                setShowOnboarding(false);
+                setActiveTab('library');
+                toast({
+                  title: '🎉 Bienvenue !',
+                  description: 'Votre bibliothèque de recettes est prête !',
+                });
+              }}
+              onSkip={() => {
+                setShowOnboarding(false);
+                setActiveTab('feed');
+              }}
+            />
+          </Suspense>
         )}
 
-        <AddRecipeDialog
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          onRecipeAdded={() => {
-            setShowAddDialog(false);
-            setActiveTab('library');
-          }}
-        />
+        {showAddDialog && (
+          <Suspense fallback={null}>
+            <AddRecipeDialog
+              open={showAddDialog}
+              onOpenChange={setShowAddDialog}
+              onRecipeAdded={() => {
+                setShowAddDialog(false);
+                setActiveTab('library');
+              }}
+            />
+          </Suspense>
+        )}
 
-        <ExtractedRecipeModal
-          open={showExtractedModal}
-          onOpenChange={setShowExtractedModal}
-          recipe={extractedRecipe}
-          sourceUrl={extractedRecipe?.sourceUrl}
-          onConfirm={handleExtractedConfirm}
-        />
+        {showExtractedModal && (
+          <Suspense fallback={null}>
+            <ExtractedRecipeModal
+              open={showExtractedModal}
+              onOpenChange={setShowExtractedModal}
+              recipe={extractedRecipe}
+              sourceUrl={extractedRecipe?.sourceUrl}
+              onConfirm={handleExtractedConfirm}
+            />
+          </Suspense>
+        )}
       </div>
     </div>
   );
