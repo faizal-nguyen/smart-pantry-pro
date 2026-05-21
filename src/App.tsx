@@ -7,6 +7,7 @@ import { LayoutPerformanceProvider } from "./components/performance/PerformanceM
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 import { AssistantProvider } from "./components/assistant/AssistantProvider";
+import { ResponsiveProvider } from "./contexts/ResponsiveContext";
 import { usePersonalizationMigration } from "./hooks/usePersonalizationMigration";
 
 // Pages critiques (chargées immédiatement)
@@ -173,13 +174,18 @@ const router = createBrowserRouter(
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <LayoutPerformanceProvider enableAutoOptimizations={true}>
-        <ThemeProvider>
-          <MaterialYouThemeProvider>
-            <RouterProvider router={router} />
-          </MaterialYouThemeProvider>
-        </ThemeProvider>
-      </LayoutPerformanceProvider>
+      {/* PRP-238 PR1 etape (b) — ResponsiveProvider unique pour partager
+          le viewport + breakpoint + navHeight throttled rAF a tous les
+          consommateurs (useViewport, useBreakpoints, useHybridGrid...). */}
+      <ResponsiveProvider>
+        <LayoutPerformanceProvider enableAutoOptimizations={true}>
+          <ThemeProvider>
+            <MaterialYouThemeProvider>
+              <RouterProvider router={router} />
+            </MaterialYouThemeProvider>
+          </ThemeProvider>
+        </LayoutPerformanceProvider>
+      </ResponsiveProvider>
     </QueryClientProvider>
   </ErrorBoundary>
 );

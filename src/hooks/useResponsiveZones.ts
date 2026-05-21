@@ -4,8 +4,9 @@
  * Based on PRP-022-Layout-Optimization specification
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { HybridGoldenGrid } from '@/design-system/HybridGoldenGrid';
+import { useResponsive } from '@/hooks/useResponsive';
 
 interface Viewport {
   width: number;
@@ -41,58 +42,23 @@ interface ResponsiveZones {
   contextual?: ResponsiveZone;
 }
 
+/**
+ * PRP-238 PR1 etape (b) — adaptateur. Le viewport vient maintenant du
+ * `ResponsiveContext` partage (listener unique throttle rAF). On garde la
+ * signature publique de Viewport pour ne casser aucun appelant existant.
+ */
 export const useViewport = (): Viewport => {
-  const [viewport, setViewport] = useState<Viewport>(() => ({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
-    height: typeof window !== 'undefined' ? window.innerHeight : 768,
-    innerWidth: typeof window !== 'undefined' ? window.innerWidth : 1024,
-    innerHeight: typeof window !== 'undefined' ? window.innerHeight : 768,
-    availableHeight: typeof window !== 'undefined' ? window.innerHeight : 768,
-  }));
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const updateViewport = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      
-      // Calculate available height excluding mobile browser UI
-      const availableHeight = window.visualViewport 
-        ? window.visualViewport.height 
-        : height;
-
-      setViewport({
-        width,
-        height,
-        innerWidth: width,
-        innerHeight: height,
-        availableHeight,
-      });
-    };
-
-    // Initial update
-    updateViewport();
-
-    // Listen for viewport changes
-    window.addEventListener('resize', updateViewport);
-    window.addEventListener('orientationchange', updateViewport);
-    
-    // Listen for visual viewport changes (mobile browser UI)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateViewport);
-    }
-
-    return () => {
-      window.removeEventListener('resize', updateViewport);
-      window.removeEventListener('orientationchange', updateViewport);
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateViewport);
-      }
-    };
-  }, []);
-
-  return viewport;
+  const { viewport } = useResponsive();
+  return useMemo(
+    () => ({
+      width: viewport.width,
+      height: viewport.height,
+      innerWidth: viewport.width,
+      innerHeight: viewport.height,
+      availableHeight: viewport.availableHeight,
+    }),
+    [viewport.width, viewport.height, viewport.availableHeight],
+  );
 };
 
 export const useBreakpoints = (): BreakpointState => {
