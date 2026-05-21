@@ -17,6 +17,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import { useToast } from '@/hooks/use-toast';
 import { useAssistantVoice } from '@/hooks/useAssistantVoice';
@@ -74,17 +75,23 @@ export function AssistantProvider({
 }: AssistantProviderProps) {
   const { toast } = useToast();
   const location = useLocation();
+  const { isMobile } = useResponsive();
   // PRP-233 PR3 — read the sticky conversation_id once at mount and
   // again before each recording so the FAB inherits it across pages.
   const getConversationId = useCallback(() => getStickyConversationId(), []);
   const voice = useAssistantVoice({ language, allowedTools, getConversationId });
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // Mobile audit P0#2 — la page /assistant a déjà son propre composer
-  // (micro + texte). Le FAB global créerait un doublon visuel et un
-  // overlap bottom-right avec le composer docké. On masque donc le FAB
-  // sur cette route uniquement, partout ailleurs il reste visible.
-  const hideFab = location.pathname.startsWith('/assistant');
+  // FAB visibility rules :
+  //   1. Mobile audit P0#2 (PR1) — Sur /assistant le composer dedie
+  //      remplit deja le besoin micro + texte. Le FAB global ferait
+  //      doublon + overlap bottom-right.
+  //   2. PRP-238 PR2 — Sur mobile, l'Assistant a deja sa propre entree
+  //      dans la bottom nav (MobileNavigation). Le FAB ailleurs creerait
+  //      donc un doublon visuel et masque potentiellement des actions.
+  //      Sur desktop/tablet (sm+) la sidebar gauche n'a pas l'entree
+  //      assistant prominente, le FAB reste utile la.
+  const hideFab = location.pathname.startsWith('/assistant') || isMobile;
 
   // Auto-open the dialog when a result lands + invalidate downstream
   // hook caches for any table the executed actions touched.

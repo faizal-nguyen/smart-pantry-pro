@@ -6,16 +6,13 @@
  * been logged yet.
  */
 import React from 'react';
-import { Navigate } from 'react-router-dom';
 import { Trash2, Calendar, TrendingDown, Euro, AlertCircle } from 'lucide-react';
-import AppNavigation from '@/components/navigation/AppNavigation';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { PageLoader } from '@/components/layout/PageLoader';
 import { useFoodWaste, WasteReason } from '@/hooks/useFoodWaste';
-import { useAuth } from '@/hooks/useAuth';
 
 const REASON_LABELS: Record<WasteReason, string> = {
   expired: 'Périmé',
@@ -36,15 +33,13 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 
 const WasteInsightsPage: React.FC = () => {
-  const { user, isLoading: authLoading } = useAuth();
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const { events, stats, loading, error, deleteEvent } = useFoodWaste();
 
-  if (authLoading) return <PageLoader />;
-  if (!user) return <Navigate to="/auth" replace />;
-
   return (
-    <AppNavigation user={user}>
-      <div className="container mx-auto p-4 sm:p-6 space-y-6">
+    <div className="container mx-auto p-4 sm:p-6 space-y-6">
         <header className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <Trash2 className="w-6 h-6 text-primary" />
@@ -223,8 +218,7 @@ const WasteInsightsPage: React.FC = () => {
             </section>
           </>
         )}
-      </div>
-    </AppNavigation>
+    </div>
   );
 };
 

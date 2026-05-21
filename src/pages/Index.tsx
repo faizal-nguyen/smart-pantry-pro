@@ -1,23 +1,17 @@
+// PRP-238 PR2 — cette page est servie sous `AuthenticatedLayout`, donc
+// l'auth est deja garantie. On redirige directement vers `/insights`
+// sans recheck de session. Le visual loader s'affiche brievement
+// pendant la redirection cote client.
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate('/insights');
-      } else {
-        navigate('/auth');
-      }
-    };
-    checkAuth();
+    navigate('/insights', { replace: true });
   }, [navigate]);
 
-  // Show loading while checking auth
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="animate-pulse">

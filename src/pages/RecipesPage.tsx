@@ -1,37 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
+// PRP-238 PR2 — auth check + AppNavigation sont geres par
+// AuthenticatedLayout (cf. App.tsx). Cette page rend uniquement
+// le composant Recipes.
+import React from 'react';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import Recipes from "./Recipes";
 
 const RecipesPage = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const user = useAuthenticatedUser();
+  void user;
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return (
-    <AppNavigation user={user}>
-      <Recipes />
-    </AppNavigation>
-  );
+  return <Recipes />;
 };
 
 export default RecipesPage;

@@ -1,27 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { InsightsDashboard } from '@/components/insights';
-import AppNavigation from '@/components/navigation/AppNavigation';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { AdaptiveHeroViewport } from '@/components/layout/AdaptiveHeroViewport';
-import { PageLoader } from '@/components/layout/PageLoader';
 import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
 import { BarChart3 } from 'lucide-react';
 
 const InsightsPage: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
 
   // P1 polish: removed the mock dashboardStats (€127 économies, 3/5
   // objectifs, 92% score — all fabricated). The hero used to render
@@ -29,22 +17,10 @@ const InsightsPage: React.FC = () => {
   // exists, drop the hero stats grid entirely; InsightsDashboard
   // below renders the actual user data.
 
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  // P2 fix (UI/UX audit): the previous `<div>Non authentifié</div>`
-  // stranded the user on a navless screen forever. Bounce to /auth
-  // so the user can sign back in.
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
   return (
     <LayoutPerformanceProvider>
-      <AppNavigation user={user}>
-        {/* Enhanced Hero Section with Golden Ratio */}
-        <AdaptiveHeroViewport
+      {/* Enhanced Hero Section with Golden Ratio */}
+      <AdaptiveHeroViewport
           content={{ density: 'medium', hasImages: false }}
           context={{ mode: 'browsing' }}
           performanceMode="balanced"
@@ -71,18 +47,17 @@ const InsightsPage: React.FC = () => {
           {/* P1 polish: hero stats grid removed (was driven by mock
               dashboardStats — see comment above). InsightsDashboard
               below renders the real user data. */}
-        </AdaptiveHeroViewport>
-        
-        {/* Main Dashboard Content */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-          className="container-primary app-content"
-        >
-          <InsightsDashboard />
-        </motion.div>
-      </AppNavigation>
+      </AdaptiveHeroViewport>
+
+      {/* Main Dashboard Content */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="container-primary app-content"
+      >
+        <InsightsDashboard />
+      </motion.div>
     </LayoutPerformanceProvider>
   );
 };

@@ -1,42 +1,21 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
+import React, { useState } from 'react';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { AIAssistantChat, AIAssistantErrorBoundary } from '@/components/ai';
-import { PageLoader } from '@/components/layout/PageLoader';
 import { MaterialButton } from '@/components/ui/material/Button';
 import { MaterialCard, MaterialCardContent } from '@/components/ui/material/Card';
 import { MessageSquare, X, ChefHat, ShoppingCart, Calendar, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AppNavigation from '@/components/navigation/AppNavigation';
 
 export default function AssistantAI() {
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const [showChat, setShowChat] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
 
   return (
-    <AppNavigation user={user}>
-      <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4">
         <div className="max-w-6xl mx-auto">
           <header className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-3">
@@ -133,27 +112,26 @@ export default function AssistantAI() {
           </div>
         </div>
 
-        {/* Floating Chat Interface */}
-        <AnimatePresence>
-          {showChat && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="fixed inset-4 md:inset-auto md:bottom-6 md:right-6 z-50 md:w-[450px] md:h-[600px] flex flex-col"
-            >
-              <AIAssistantErrorBoundary>
-                <AIAssistantChat
-                  defaultMode="expanded"
-                  onClose={() => setShowChat(false)}
-                  className="h-full shadow-2xl"
-                />
-              </AIAssistantErrorBoundary>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </AppNavigation>
+      {/* Floating Chat Interface */}
+      <AnimatePresence>
+        {showChat && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed inset-4 md:inset-auto md:bottom-6 md:right-6 z-50 md:w-[450px] md:h-[600px] flex flex-col"
+          >
+            <AIAssistantErrorBoundary>
+              <AIAssistantChat
+                defaultMode="expanded"
+                onClose={() => setShowChat(false)}
+                className="h-full shadow-2xl"
+              />
+            </AIAssistantErrorBoundary>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

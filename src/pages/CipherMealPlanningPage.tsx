@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WeeklyCalendar } from '@/components/meal-planning/WeeklyCalendar';
 import { ShoppingListPreview } from '@/components/meal-planning/ShoppingListPreview';
 import { ShoppingListBridge } from '@/services/planning/core/ShoppingListBridge';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { ContextualAdaptationsPanel } from '@/components/meal-planning/ContextualAdaptationsPanel';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 
 export default function CipherMealPlanningPage() {
   const navigate = useNavigate();
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth (et l'user).
+  const authUser = useAuthenticatedUser();
   const {
     // Meal planning features
     currentPlan,
@@ -65,10 +67,8 @@ export default function CipherMealPlanningPage() {
   const handleExportShopping = async () => {
     try {
       if (!currentPlan) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Non authentifié');
       const bridge = new ShoppingListBridge();
-      const result = await bridge.convertMealPlanToShoppingList(currentPlan as any, user.id, true);
+      const result = await bridge.convertMealPlanToShoppingList(currentPlan as any, authUser.id, true);
       toast.success(`Liste générée: ${result.summary.totalItems} items (dont ${result.summary.newItems} nouveaux)`);
       // Optionnel: naviguer vers la liste
       // navigate('/shopping/list');

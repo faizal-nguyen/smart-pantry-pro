@@ -11,16 +11,12 @@
  * `add_recipe_to_meal_plan` ; `useAgentDbInvalidation` rafraîchit
  * automatiquement.
  */
-import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2 } from 'lucide-react';
 import { addDays, format, startOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import type { User } from '@supabase/supabase-js';
 
-import { supabase } from '@/integrations/supabase/client';
-import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -49,29 +45,15 @@ function weekLabel(weekStart: string): string {
 
 export default function MenusPage() {
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const [weekStart, setWeekStart] = useState<string>(() => isoWeekStart(new Date()));
   const [openDialog, setOpenDialog] = useState(false);
   const [slot, setSlot] = useState<MenuSlot | null>(null);
   const [assistantLoading, setAssistantLoading] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setUser(data.session?.user ?? null);
-      setAuthLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const menu = useWeeklyMenu(weekStart);
-
-  if (authLoading) return <PageLoader />;
-  if (!user) return <Navigate to="/auth" replace />;
 
   const handleAddSlot = (s: MenuSlot) => {
     setSlot(s);
@@ -137,8 +119,7 @@ export default function MenusPage() {
     : undefined;
 
   return (
-    <AppNavigation user={user}>
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -239,6 +220,5 @@ export default function MenusPage() {
           onSelect={handleSelectRecipe}
         />
       </div>
-    </AppNavigation>
   );
 }

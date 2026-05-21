@@ -11,44 +11,26 @@
  * Chaque panel a son propre loading/error/empty state — pas de
  * spinner global, pas de page blanche si un bloc tombe.
  */
-import React, { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { BookOpen, ChefHat, Plus } from 'lucide-react';
-import type { User } from '@supabase/supabase-js';
 
-import { supabase } from '@/integrations/supabase/client';
-import AppNavigation from '@/components/navigation/AppNavigation';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
-import { PageLoader } from '@/components/layout/PageLoader';
 import TodayContinuePanel from '@/components/kitchen/TodayContinuePanel';
 import TodayRecommendationsPanel from '@/components/kitchen/TodayRecommendationsPanel';
 import TodayWeekPanel from '@/components/kitchen/TodayWeekPanel';
 import TodayAntiWastePanel from '@/components/kitchen/TodayAntiWastePanel';
 
 const KitchenDashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth. On appelle le
+  // hook pour valider qu'on est bien dans le tree authentifie, meme
+  // si `user` n'est pas utilise ici.
+  const user = useAuthenticatedUser();
+  void user;
 
   return (
-    <AppNavigation user={user}>
-      <div className="container mx-auto p-6 space-y-6 max-w-7xl">
+    <div className="container mx-auto p-6 space-y-6 max-w-7xl">
         {/* Header — PRP-237 PR4: actions directes vers la library
             depuis le dashboard, demandé par l'utilisateur 2026-05-17. */}
         <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -89,7 +71,6 @@ const KitchenDashboard: React.FC = () => {
           <TodayAntiWastePanel />
         </div>
       </div>
-    </AppNavigation>
   );
 };
 

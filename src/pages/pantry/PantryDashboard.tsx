@@ -3,24 +3,23 @@
  * Vue d'ensemble de l'inventaire avec mode famille
  */
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Package, Bell, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
-import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useInventory } from '@/hooks/useInventory';
 import { Autocomplete, AutocompleteSuggestion } from '@/components/ui/Autocomplete';
 import { useToast } from '@/hooks/use-toast';
 
 const PantryDashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // PRP-238 PR2 — user vient du context AuthSessionProvider via le hook.
+  // Plus de getSession() local ni de wrapper AppNavigation manuel.
+  const user = useAuthenticatedUser();
   const navigate = useNavigate();
   const { adaptiveInterface, isChildMode } = useAgeAdaptiveUI();
 
@@ -49,23 +48,6 @@ const PantryDashboard: React.FC = () => {
       return Number.isFinite(ts) && ts >= weekAgo;
     }).length;
   }, [inventory]);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
 
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,12 +108,15 @@ const PantryDashboard: React.FC = () => {
     }
   ];
 
+  // PRP-238 PR2 — `user` consumed for keyboard logging etc. (silence
+  // unused-variable warning when no direct use). Keep readable.
+  void user;
+
   return (
-    <AppNavigation user={user}>
-      <div className={cn(
-        "p-4 space-y-6",
-        isChildMode && "p-6 space-y-8"
-      )}>
+    <div className={cn(
+      "p-4 space-y-6 app-content",
+      isChildMode && "p-6 space-y-8"
+    )}>
         <div>
           <h1 className={cn(
             "text-2xl font-bold text-foreground mb-2",
@@ -387,8 +372,7 @@ const PantryDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
-      </div>
-    </AppNavigation>
+    </div>
   );
 };
 

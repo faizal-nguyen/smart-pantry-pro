@@ -3,42 +3,23 @@
  * Implémente la vue d'ensemble du PRP-040.1 pour la section Shopping
  */
 
-import React, { useState, useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, Plus, CheckCircle2, Euro } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
-import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 const ShoppingDashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const navigate = useNavigate();
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
 
   // P1 polish: removed the mock `dashboardStats` (activeItems: 12,
   // totalBudget: 85.50, savedMoney: 15.30 — all fabricated) and the
@@ -64,12 +45,11 @@ const ShoppingDashboard: React.FC = () => {
   ];
 
   return (
-    <AppNavigation user={user}>
-      <div className={cn(
-        "container mx-auto p-6 space-y-8",
-        getStyleClasses(),
-        adaptiveInterface.buttonSpacing === 'spacious' && "space-y-12"
-      )}>
+    <div className={cn(
+      "container mx-auto p-6 space-y-8",
+      getStyleClasses(),
+      adaptiveInterface.buttonSpacing === 'spacious' && "space-y-12"
+    )}>
         {/* Header */}
         <div className="flex flex-col space-y-4">
           <div className="flex items-center gap-3">
@@ -140,12 +120,11 @@ const ShoppingDashboard: React.FC = () => {
             The "Voir tout" CTA already exists as the "Ma Liste de
             Courses" quick action above. */}
 
-        {/* P1 polish: removed the "Progrès de la Semaine" widget that
-            consumed the same fake `dashboardStats` numbers (8/12 items
-            "completed" against fabricated totals). Wire a real
-            useShoppingProgress() hook later to bring it back. */}
-      </div>
-    </AppNavigation>
+      {/* P1 polish: removed the "Progrès de la Semaine" widget that
+          consumed the same fake `dashboardStats` numbers (8/12 items
+          "completed" against fabricated totals). Wire a real
+          useShoppingProgress() hook later to bring it back. */}
+    </div>
   );
 };
 

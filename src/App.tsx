@@ -8,6 +8,8 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 import { AssistantProvider } from "./components/assistant/AssistantProvider";
 import { ResponsiveProvider } from "./contexts/ResponsiveContext";
+import { AuthSessionProvider } from "./contexts/AuthSessionContext";
+import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
 import { usePersonalizationMigration } from "./hooks/usePersonalizationMigration";
 
 // Pages critiques (chargées immédiatement)
@@ -64,12 +66,25 @@ const queryClient = new QueryClient({
   },
 });
 
-// PRP-222 PR1 — Navigation diet : seulement les routes coeur produit V1.
-const baseRoutes: RouteObject[] = [
-  { path: "/", element: <Index /> },
+// PRP-238 PR2 — Routes restructurees en 2 groupes :
+//   - publicRoutes : accessibles sans auth (/auth, /onboarding, share-target)
+//   - protectedRoutes : enfants de <AuthenticatedLayout> qui :
+//       - lit user + isLoading depuis AuthSessionContext
+//       - redirige vers /auth si pas connecte
+//       - rend <AppNavigation user={user}> UNE SEULE FOIS qui wrappe l'Outlet
+//   Les pages enfants n'ont plus besoin de wrapper <AppNavigation> ni
+//   d'appeler getSession() — elles utilisent useAuthenticatedUser().
+
+const publicRoutes: RouteObject[] = [
   { path: "/auth", element: <Auth /> },
   { path: "/share-target", element: withSuspense(ShareTarget) },
   { path: "/onboarding", element: withSuspense(OnboardingPage) },
+];
+
+const protectedRoutes: RouteObject[] = [
+  // Home : Index.tsx fait sa propre redirection. AuthenticatedLayout
+  // garantit qu'on est authentifie, donc Index n'a plus besoin de checker.
+  { path: "/", element: <Index /> },
 
   // Pantry
   { path: "/pantry", element: withSuspense(PantryDashboard) },
@@ -82,17 +97,13 @@ const baseRoutes: RouteObject[] = [
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
   // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
-  // Le redirect legacy `/kitchen/favorites` pointe désormais vers cette
-  // URL complète (au lieu du fallback `/kitchen/recipes` sans filtre).
   { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
 
-  // Shopping — PRP-230 Commit 2 : `/shopping` redirige vers la liste, qui
-  // est l'expérience principale (dashboard reporté à PRP-234 Today).
+  // Shopping
   { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
 
-  // Assistant — PRP-233 PR1 : `/assistant/chat` redirige vers la surface
-  // principale `/assistant` (legacy chat UI déprécié, PRP-224 reprendra).
+  // Assistant
   { path: "/assistant", element: withSuspense(AssistantDashboard) },
   { path: "/assistant/chat", element: <Navigate to="/assistant" replace /> },
 
@@ -100,16 +111,11 @@ const baseRoutes: RouteObject[] = [
   { path: "/insights", element: withSuspense(InsightsPage) },
   { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
 
-  // Settings — PRP-235 PR1 : `/settings` est désormais sectionné via
-  // `?section=...` (geré par `useSettingsSection`). L'ancien lien
-  // `/settings/appearance` redirige vers la section Apparence pour
-  // préserver les favoris utilisateurs.
+  // Settings
   { path: "/settings", element: withSuspense(Settings) },
   { path: "/settings/appearance", element: <Navigate to="/settings?section=appearance" replace /> },
 
-  // Redirections vers routes coeur. /games/* et /shopping/store-mode étaient
-  // exposées dans la nav avant PRP-222 — on garde un redirect minimal pour
-  // ne pas casser les favoris utilisateurs.
+  // Redirections legacy
   { path: "/games", element: <Navigate to="/kitchen/recipes" replace /> },
   { path: "/games/*", element: <Navigate to="/kitchen/recipes" replace /> },
   { path: "/shopping/store-mode", element: <Navigate to="/shopping/list" replace /> },
@@ -125,10 +131,8 @@ const baseRoutes: RouteObject[] = [
 ];
 
 // Dev-only redirects pour anciennes routes /inventory et /recipes.
-// Fix PRP-222 : /recipes pointait vers /kitchen via LegacyRedirect — on
-// redirige directement vers /kitchen/recipes pour éviter le saut indirect.
 if (import.meta.env.DEV) {
-  baseRoutes.push(
+  protectedRoutes.push(
     { path: "/inventory", element: <Navigate to="/pantry/inventory" replace /> },
     { path: "/recipes", element: <Navigate to="/kitchen/recipes" replace /> },
     { path: "/shopping-legacy", element: <Navigate to="/shopping/list" replace /> },
@@ -136,9 +140,6 @@ if (import.meta.env.DEV) {
 }
 
 void LegacyRedirect;
-
-// 404 - must be last
-baseRoutes.push({ path: "*", element: <NotFound /> });
 
 // PRP-221: wrap every route under a layout that mounts the global
 // voice-assistant FAB + dialog. The FAB self-hides on /auth and when
@@ -160,7 +161,17 @@ const router = createBrowserRouter(
   [
     {
       element: <RootLayout />,
-      children: baseRoutes,
+      children: [
+        // Routes publiques (Auth, Onboarding, ShareTarget)
+        ...publicRoutes,
+        // Routes protegees - wrapped in AuthenticatedLayout (PRP-238 PR2)
+        {
+          element: <AuthenticatedLayout />,
+          children: protectedRoutes,
+        },
+        // 404 catch-all (doit etre le dernier)
+        { path: "*", element: <NotFound /> },
+      ],
     },
   ],
   {
@@ -178,13 +189,19 @@ const App = () => (
           le viewport + breakpoint + navHeight throttled rAF a tous les
           consommateurs (useViewport, useBreakpoints, useHybridGrid...). */}
       <ResponsiveProvider>
-        <LayoutPerformanceProvider enableAutoOptimizations={true}>
-          <ThemeProvider>
-            <MaterialYouThemeProvider>
-              <RouterProvider router={router} />
-            </MaterialYouThemeProvider>
-          </ThemeProvider>
-        </LayoutPerformanceProvider>
+        {/* PRP-238 PR2 — AuthSessionProvider monte au top : 1 seul
+            appel auth.getSession() pour toute l'app + listen aux
+            transitions login/logout via onAuthStateChange. Les pages
+            consomment via useAuthenticatedUser(). */}
+        <AuthSessionProvider>
+          <LayoutPerformanceProvider enableAutoOptimizations={true}>
+            <ThemeProvider>
+              <MaterialYouThemeProvider>
+                <RouterProvider router={router} />
+              </MaterialYouThemeProvider>
+            </ThemeProvider>
+          </LayoutPerformanceProvider>
+        </AuthSessionProvider>
       </ResponsiveProvider>
     </QueryClientProvider>
   </ErrorBoundary>

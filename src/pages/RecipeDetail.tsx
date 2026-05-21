@@ -40,6 +40,7 @@ import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchUnifiedRecipe, invalidateUnifiedRecipeCache, type UnifiedRecipe } from "@/lib/recipeSource";
 import { useImageManagement } from "@/hooks/useImageManagement";
+import { useAuthenticatedUser } from "@/hooks/useAuthenticatedUser";
 
 interface RecipeIngredient {
   id: string;
@@ -53,6 +54,10 @@ interface RecipeIngredient {
 const RecipeDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth ; on remplace
+  // l'ancien supabase.auth.getSession() du tracker `viewed` (l.149)
+  // par cette lecture synchrone depuis le contexte.
+  const sessionUser = useAuthenticatedUser();
   const { recipes, loading: recipesLoading, deleteRecipe, fetchRecipes } = useRecipes();
   const { addToShoppingList } = useShoppingList();
   const { uploadImage } = useImageManagement();
@@ -144,11 +149,10 @@ const RecipeDetail = () => {
       if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
         return;
       }
-      // Perf : getSession() est synchrone depuis le store local quand la
-      // session est déjà initialisée — évite 1 round-trip réseau.
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user || !active) return;
+      // PRP-238 PR2 — user vient de useAuthenticatedUser() (synchrone,
+      // garanti non-null par AuthenticatedLayout). Plus de round-trip
+      // auth.getSession() necessaire.
+      if (!active) return;
       const unified = await fetchUnifiedRecipe(id);
       if (!unified || unified.source !== 'recipes') {
         // Catalog-backed or absent — don't write a 'viewed' interaction
@@ -158,7 +162,7 @@ const RecipeDetail = () => {
       const { error } = await supabase
         .from('recipe_interactions')
         .insert({
-          user_id: user.id,
+          user_id: sessionUser.id,
           recipe_id: unified.canonicalId,
           interaction_type: 'viewed',
         });
@@ -170,7 +174,7 @@ const RecipeDetail = () => {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, sessionUser.id]);
 
   useEffect(() => {
     if (id) {

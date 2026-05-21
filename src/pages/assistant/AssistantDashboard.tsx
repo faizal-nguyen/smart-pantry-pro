@@ -8,16 +8,13 @@
  * PRP-224 PR3 — lit `?mode=` depuis l'URL, le passe au composer ;
  *  toute modification met à jour l'URL + persiste côté backend.
  */
-import React, { useEffect, useMemo, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
+import React, { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
-import AppNavigation from '@/components/navigation/AppNavigation';
-import { PageLoader } from '@/components/layout/PageLoader';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
 import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
@@ -41,8 +38,9 @@ function normaliseMode(raw: string | null): AssistantConversationMode {
 }
 
 const AssistantDashboard: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationId = searchParams.get('conversation');
@@ -63,27 +61,14 @@ const AssistantDashboard: React.FC = () => {
     );
   };
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setLoading(false);
-    };
-    getUser();
-  }, []);
-
-  if (loading) return <PageLoader />;
-  if (!user) return <Navigate to="/auth" replace />;
-
   return (
-    <AppNavigation user={user}>
-      <div
-        className={cn(
-          'container mx-auto p-4 sm:p-6 space-y-6',
-          getStyleClasses(),
-          adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
-        )}
-      >
+    <div
+      className={cn(
+        'container mx-auto p-4 sm:p-6 space-y-6',
+        getStyleClasses(),
+        adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
+      )}
+    >
         <header className="flex flex-col space-y-2">
           <div className="flex items-center gap-3">
             {/* PRP-237 PR3 — Bot icon en accent-ai (electric blue) au
@@ -123,13 +108,12 @@ const AssistantDashboard: React.FC = () => {
           </aside>
         </div>
 
-        {/* Mobile : memory + history sous le fil */}
-        <div className="lg:hidden space-y-6">
-          <MemoryPanel />
-          <ConversationHistoryList />
-        </div>
+      {/* Mobile : memory + history sous le fil */}
+      <div className="lg:hidden space-y-6">
+        <MemoryPanel />
+        <ConversationHistoryList />
       </div>
-    </AppNavigation>
+    </div>
   );
 };
 

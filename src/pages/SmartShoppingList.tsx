@@ -1,9 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { User } from '@supabase/supabase-js';
-import AppNavigation from "@/components/navigation/AppNavigation";
-import { PageLoader } from "@/components/layout/PageLoader";
+import { useState, useMemo } from "react";
+import { useAuthenticatedUser } from "@/hooks/useAuthenticatedUser";
 import { MaterialCard, MaterialCardContent, MaterialCardHeader } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Badge } from "@/components/ui/badge";
@@ -65,8 +61,9 @@ const STORE_SECTIONS = [
 ];
 
 const SmartShoppingList = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
+  const user = useAuthenticatedUser();
+  void user;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState("Tous");
   const [showPurchased, setShowPurchased] = useState(true);
@@ -82,16 +79,7 @@ const SmartShoppingList = () => {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [showFABMenu, setShowFABMenu] = useState(false);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      setAuthLoading(false);
-    };
-    getUser();
-  }, []);
-  
-  const { 
+  const {
     shoppingList, 
     loading, 
     addMultipleToShoppingList,
@@ -233,24 +221,14 @@ const SmartShoppingList = () => {
 
   if (loading) {
     return (
-      <AppNavigation user={user!}>
-        <div className="flex items-center justify-center h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </AppNavigation>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
     );
   }
 
-  if (authLoading) {
-    return <PageLoader />;
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
   return (
-    <AppNavigation user={user}>
+    <>
       <div className="min-h-screen flex flex-col">
         {/* Sticky compact — titre + search uniquement (≈80px sur mobile) */}
         <div className="sticky top-0 bg-background z-10 border-b">
@@ -535,7 +513,7 @@ const SmartShoppingList = () => {
           onSave={handleSaveEdit}
         />
       )}
-    </AppNavigation>
+    </>
   );
 };
 
