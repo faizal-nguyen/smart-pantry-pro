@@ -13,7 +13,7 @@
  * shopping parser already returns the right shape
  * (`{ productName, quantity, unit, category }`).
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -60,8 +60,12 @@ const EXAMPLES = [
 ];
 
 export default function TextBulkAddDialog({ open, onOpenChange }: TextBulkAddDialogProps) {
-  const { addProduct, addToInventory, products } = useInventory();
+  const { addProduct, addToInventory, products, loadProducts } = useInventory();
   const { toast } = useToast();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. La dedup contre le catalogue existant en a besoin.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);

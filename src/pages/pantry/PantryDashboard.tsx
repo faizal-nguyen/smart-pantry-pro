@@ -3,7 +3,7 @@
  * Vue d'ensemble de l'inventaire avec mode famille
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Bell, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,8 +24,12 @@ const PantryDashboard: React.FC = () => {
   const { adaptiveInterface, isChildMode } = useAgeAdaptiveUI();
 
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
-  const { inventory, products, addToInventory } = useInventory();
+  const { inventory, products, addToInventory, loadProducts } = useInventory();
   const { toast } = useToast();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. Le dashboard a un autocomplete quick-add qui en a besoin.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
   const [quick, setQuick] = useState({ name: '', qty: 1, unit: 'pcs' });
   const [openAuto, setOpenAuto] = useState(false);
 

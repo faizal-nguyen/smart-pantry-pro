@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +80,11 @@ const AddShoppingItemDialog = ({ trigger }: AddShoppingItemDialogProps) => {
   });
   
   const { addToShoppingList } = useShoppingList();
-  const { products } = useInventory();
+  const { products, loadProducts } = useInventory();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. L'autocomplete en a besoin a l'ouverture du dialog.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   const resetForm = () => {
     setFormData({

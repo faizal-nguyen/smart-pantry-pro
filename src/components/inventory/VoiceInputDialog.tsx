@@ -66,7 +66,11 @@ const VoiceInputDialog = ({ open, onOpenChange }: VoiceInputDialogProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const { toast } = useToast();
-  const { products, addProduct, addToInventory } = useInventory();
+  const { products, addProduct, addToInventory, loadProducts } = useInventory();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. La dedup voice contre le catalogue en a besoin.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   const {
     isListening,

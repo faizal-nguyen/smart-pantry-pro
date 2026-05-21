@@ -70,7 +70,11 @@ export const SmartGroceryInput: React.FC<SmartGroceryInputProps> = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { products } = useInventory();
+  const { products, loadProducts } = useInventory();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. L'autocomplete de SmartGroceryInput en a besoin.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   // Hooks TOUJOURS appelés dans le même ordre
   const whisperHook = useWhisperGroceryInput();

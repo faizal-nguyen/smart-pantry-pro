@@ -87,7 +87,11 @@ const EditShoppingItemDialog = ({
     storeSection: ""
   });
 
-  const { products } = useInventory();
+  const { products, loadProducts } = useInventory();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. L'autocomplete en a besoin a l'ouverture du dialog.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   // Update form when item changes
   useEffect(() => {

@@ -128,19 +128,44 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('products')
-        .select('*')
-        .order('name');
+  // Perf audit 2026-05-21 — le catalogue `products` est gros (toutes les
+  // recettes seedees creent des produits avec `nutrition_json`) et n'est
+  // utile que pour les autocompletes / dialogs d'ajout. On le charge
+  // paresseusement la premiere fois qu'un consommateur en a besoin.
+  const productsLoadedRef = useRef(false);
+  const productsInflightRef = useRef<Promise<void> | null>(null);
 
-      if (fetchError) throw fetchError;
-      setProducts(data || []);
-    } catch (err) {
-      console.error('Error fetching products:', err);
-    }
+  const fetchProducts = async () => {
+    if (productsInflightRef.current) return productsInflightRef.current;
+    const p = (async () => {
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .order('name');
+
+        if (fetchError) throw fetchError;
+        setProducts(data || []);
+        productsLoadedRef.current = true;
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      } finally {
+        productsInflightRef.current = null;
+      }
+    })();
+    productsInflightRef.current = p;
+    return p;
   };
+
+  /**
+   * Lazy-load le catalogue `products` a la demande. Idempotent : si deja
+   * charge (ou en vol), no-op. A appeler depuis chaque dialog/autocomplete
+   * qui consomme `products` (`useEffect(() => { void loadProducts() }, [])`).
+   */
+  const loadProducts = useCallback(async () => {
+    if (productsLoadedRef.current) return;
+    await fetchProducts();
+  }, []);
 
   const addProduct = async (productData: Omit<Product, 'id'>) => {
     try {
@@ -446,7 +471,11 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchInventory(), fetchProducts()]);
+      // Perf audit 2026-05-21 — on ne charge plus `products` au mount.
+      // L'inventaire ramene deja `product:products(*)` joint pour chaque
+      // ligne ; le catalogue complet n'est utile que dans les dialogs
+      // (autocomplete / ajout) qui appellent `loadProducts()` a l'ouverture.
+      await fetchInventory();
       setLoading(false);
     };
 
@@ -455,10 +484,14 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
   // PRP-221: refetch when the voice agent has touched inventory or
   // products (a new auto-created product cascades into name/category
-  // displayed alongside inventory rows).
-  useAgentDbInvalidation(['inventory', 'products'], () =>
-    Promise.all([fetchInventory(), fetchProducts()])
-  );
+  // displayed alongside inventory rows). Pour `products` on ne refetch
+  // que si on l'a deja charge une fois (sinon : lazy-load au prochain
+  // besoin).
+  useAgentDbInvalidation(['inventory', 'products'], () => {
+    const tasks: Promise<unknown>[] = [fetchInventory()];
+    if (productsLoadedRef.current) tasks.push(fetchProducts());
+    return Promise.all(tasks);
+  });
 
   return {
     // Data

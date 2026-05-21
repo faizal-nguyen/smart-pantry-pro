@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -98,8 +98,12 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddPr
   const [apiProductInfo, setApiProductInfo] = useState<ProductInfo | null>(null);
   const [categoryAutoFilled, setCategoryAutoFilled] = useState(false);
   
-  const { products, addProduct, addToInventory } = useInventory();
+  const { products, addProduct, addToInventory, loadProducts } = useInventory();
   const { fetchProductInfo, loading: apiLoading, error: apiError } = useBarcodeAPI();
+
+  // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
+  // mount. Ce dialog en a besoin pour l'autocomplete -> lazy-load a l'ouverture.
+  useEffect(() => { void loadProducts(); }, [loadProducts]);
 
   const resetForm = () => {
     console.log('🔄 Resetting form...');
