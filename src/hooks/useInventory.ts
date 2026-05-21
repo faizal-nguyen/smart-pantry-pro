@@ -517,6 +517,10 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
     searchInventory,
     getStats,
 
+    // Lazy catalog loader — consumers that need `products` (autocomplete,
+    // bulk-add dialogs) must call this in a mount effect.
+    loadProducts,
+
     // Sync
     refetch: () => Promise.all([fetchInventory(), fetchProducts()]),
     handleRealtimeUpdate,
