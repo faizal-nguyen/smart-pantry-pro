@@ -63,6 +63,11 @@ services/video-processor/__pycache__/
 /blob-report/
 /playwright/.cache/
 
+# PRP-238 PR1 etape (e) — Playwright auth storage state contient un
+# token de session Supabase actif. Ne JAMAIS le committer.
+e2e/.auth/
+e2e/screenshots/
+
 # macOS iCloud / Finder duplicates — files named "foo 2.ext" or dirs "foo 2/"
 *\ 2.*
 *\ 2/

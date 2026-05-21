@@ -4,7 +4,7 @@
  * Based on PRP-022-Layout-Optimization specification
  */
 
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { HybridGoldenGrid } from '@/design-system/HybridGoldenGrid';
 import { useResponsive } from '@/hooks/useResponsive';
 

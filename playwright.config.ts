@@ -13,8 +13,12 @@
  *     gigabytes of artefacts on the green path.
  */
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3002';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STORAGE_STATE = path.join(__dirname, 'e2e', '.auth', 'user.json');
 
 export default defineConfig({
   testDir: './e2e',
@@ -46,6 +50,13 @@ export default defineConfig({
     },
   },
   projects: [
+    // PRP-238 PR1 etape (e) — setup project qui logge le user test
+    // une seule fois et persiste le storageState dans e2e/.auth/user.json.
+    // Les projects authentifies en dependent via testMatch + dependencies.
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts$/,
+    },
     {
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
@@ -57,6 +68,35 @@ export default defineConfig({
     {
       name: 'mobile',
       use: { ...devices['Pixel 7'] },
+    },
+    // Projects mobile authentifies : reutilisent le storageState du
+    // project 'setup'. 3 viewports comme demande dans le PRP-238.
+    {
+      name: 'mobile-auth-se',
+      testMatch: /mobile-foundation\.spec\.ts$/,
+      use: {
+        ...devices['iPhone SE'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-auth-pro-max',
+      testMatch: /mobile-foundation\.spec\.ts$/,
+      use: {
+        ...devices['iPhone 13 Pro Max'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-auth-pixel',
+      testMatch: /mobile-foundation\.spec\.ts$/,
+      use: {
+        ...devices['Pixel 7'],
+        storageState: STORAGE_STATE,
+      },
+      dependencies: ['setup'],
     },
   ],
 });
