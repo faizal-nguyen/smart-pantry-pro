@@ -177,8 +177,8 @@ describe('IngredientAliasResolver — semantic step', () => {
       aliases: { data: [], error: null },
       semanticRpc: {
         data: [
-          { product_id: 'prod-A', similarity: 0.92 },
-          { product_id: 'prod-B', similarity: 0.83 },
+          { product: { id: 'prod-A', normalized_name: 'crevettes' }, score: 0.92 },
+          { product: { id: 'prod-B', normalized_name: 'crevettes-decortiquees' }, score: 0.83 },
         ],
         error: null,
       },
@@ -198,8 +198,8 @@ describe('IngredientAliasResolver — semantic step', () => {
       aliases: { data: [], error: null },
       semanticRpc: {
         data: [
-          { product_id: 'prod-A', similarity: 0.88 },
-          { product_id: 'prod-B', similarity: 0.86 }, // delta 0.02 < default 0.05
+          { product: { id: 'prod-A' }, score: 0.88 },
+          { product: { id: 'prod-B' }, score: 0.86 }, // delta 0.02 < default 0.05
         ],
         error: null,
       },
@@ -275,7 +275,7 @@ describe('IngredientAliasResolver — pipeline priority', () => {
       },
       productsByCanonical: { data: [{ id: 'alias-hit', normalized_name: 'oignon' }], error: null },
       semanticRpc: {
-        data: [{ product_id: 'semantic-hit', similarity: 0.99 }],
+        data: [{ product: { id: 'semantic-hit' }, score: 0.99 }],
         error: null,
       },
     });

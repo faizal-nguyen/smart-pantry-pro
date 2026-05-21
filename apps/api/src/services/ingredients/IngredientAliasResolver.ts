@@ -80,8 +80,8 @@ interface ProductRow {
 }
 
 interface SemanticCandidate {
-  product_id: string;
-  similarity: number;
+  product: { id: string; normalized_name?: string; name?: string } | null;
+  score: number;
 }
 
 export interface IngredientAliasResolverOptions {
@@ -306,8 +306,11 @@ export class IngredientAliasResolver {
       return this.unresolved();
     }
 
+    // Real RPC signature (see migration 20260520120001):
+    //   assistant_semantic_search_products(p_query vector, p_limit int, p_min_score real)
+    //   RETURNS TABLE (product jsonb, score real)
     const { data, error } = await this.client.rpc('assistant_semantic_search_products', {
-      p_query_embedding: embedding,
+      p_query: embedding,
       p_limit: SEMANTIC_LOOKUP_LIMIT,
       p_min_score: this.semanticMinScore,
     });
@@ -321,24 +324,24 @@ export class IngredientAliasResolver {
     }
 
     const [top, second] = candidates;
-    if (top.similarity < this.semanticMinScore) {
+    if (!top.product?.id || top.score < this.semanticMinScore) {
       return this.unresolved();
     }
-    if (second && top.similarity - second.similarity < this.semanticAmbiguityDelta) {
+    if (second && top.score - second.score < this.semanticAmbiguityDelta) {
       return {
         productId: null,
         kind: 'ambiguous',
-        canonicalName: null,
-        confidence: top.similarity,
-        reason: `semantic_ambiguous_top2_delta_${(top.similarity - second.similarity).toFixed(3)}`,
+        canonicalName: top.product.normalized_name ?? top.product.name ?? null,
+        confidence: top.score,
+        reason: `semantic_ambiguous_top2_delta_${(top.score - second.score).toFixed(3)}`,
       };
     }
 
     return {
-      productId: top.product_id,
+      productId: top.product.id,
       kind: 'semantic',
-      canonicalName: null,
-      confidence: top.similarity,
+      canonicalName: top.product.normalized_name ?? top.product.name ?? null,
+      confidence: top.score,
     };
   }
 

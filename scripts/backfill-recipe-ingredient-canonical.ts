@@ -115,7 +115,15 @@ async function applyResolution(
 
 async function main(): Promise<void> {
   const supabaseUrl = envOrThrow('SUPABASE_URL');
-  const serviceRole = envOrThrow('SUPABASE_SERVICE_ROLE_KEY');
+  // Accept either name — sibling backfill script uses SUPABASE_SERVICE_KEY.
+  const serviceRole =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+  if (!serviceRole) {
+    process.stderr.write(
+      '✖ Missing env var: SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY)\n',
+    );
+    process.exit(1);
+  }
   const client = createClient(supabaseUrl, serviceRole, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
