@@ -32,6 +32,10 @@ export const RECIPE_POLICY_WHITELIST: readonly WhitelistEntry[] = [
     pattern: /(^|[^a-z0-9])sans alcool([^a-z0-9]|$)/,
     reason: 'Negative mention, not a violation.',
   },
+  {
+    pattern: /(^|[^a-z0-9])chorizo de boeuf([^a-z0-9]|$)/,
+    reason: 'Post-substitution form — already converted from pork chorizo.',
+  },
 ] as const;
 
 /**

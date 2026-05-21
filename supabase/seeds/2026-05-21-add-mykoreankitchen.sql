@@ -53,7 +53,7 @@ $instr$, 30, 30, 3, 3, 'Coréenne', 'dinner',
   ) RETURNING id INTO v_recipe_id;
   INSERT INTO public.recipe_ingredients (recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes) VALUES
     (v_recipe_id, 'cuisses de poulet désossées',600,'g',true,1,'sans peau'),
-    (v_recipe_id, 'mirin',1,'c. à soupe',true,2,'marinade'),
+    (v_recipe_id, 'vinaigre de riz, sucre et eau (3:1:3)',1,'c. à soupe',true,2,'marinade'),
     (v_recipe_id, 'huile de cuisson',60,'ml',true,3,'pour sauce mala'),
     (v_recipe_id, 'poivre du Sichuan',2,'c. à soupe',true,4,'grains entiers'),
     (v_recipe_id, 'flocons de piment',2,'c. à soupe',true,5,'séché'),
@@ -97,7 +97,7 @@ $instr$, 10, 35, 5, 2, 'Coréenne', 'dinner',
   ) RETURNING id INTO v_recipe_id;
   INSERT INTO public.recipe_ingredients (recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes) VALUES
     (v_recipe_id, 'bœuf à mijoter',250,'g',true,1,'en dés'),
-    (v_recipe_id, 'mirin',15,'ml',true,2,'marinade'),
+    (v_recipe_id, 'vinaigre de riz, sucre et eau (3:1:3)',15,'ml',true,2,'marinade'),
     (v_recipe_id, 'poudre de curry coréenne',100,'g',true,3,'ingrédient clé'),
     (v_recipe_id, 'eau',180,'ml',true,4,'pour curry'),
     (v_recipe_id, 'huile de cuisson',30,'ml',true,5,NULL),
@@ -203,7 +203,7 @@ $instr$, 10, 10, 2, 2, 'Coréenne', 'lunch',
     (v_recipe_id, 'oignon',0.5,'unité',true,8,'tranché fin'),
     (v_recipe_id, 'sauce soja',22,'ml',true,9,NULL),
     (v_recipe_id, 'sucre brun',7,'ml',true,10,NULL),
-    (v_recipe_id, 'mirin',30,'ml',true,11,NULL),
+    (v_recipe_id, 'vinaigre de riz, sucre et eau (3:1:3)',30,'ml',true,11,NULL),
     (v_recipe_id, 'furikake',2,'c. à café',false,12,'garniture optionnelle');
 
   -- 6. Korean Toast (Gilgeori)
@@ -234,7 +234,7 @@ $instr$, 5, 10, 1, 2, 'Coréenne', 'breakfast',
     (v_recipe_id, 'huile de cuisson',1,'c. à soupe',true,9,'pour omelette'),
     (v_recipe_id, 'ketchup',1,'c. à soupe',true,10,NULL),
     (v_recipe_id, 'sucre roux',1,'c. à café',false,11,'classique'),
-    (v_recipe_id, 'jambon',1,'tranche',false,12,'optionnel'),
+    (v_recipe_id, 'dinde fumee',1,'tranche',false,12,'optionnel'),
     (v_recipe_id, 'fromage râpé',2,'c. à soupe',false,13,'optionnel');
 
   -- 7. Easy Kimbap (Yachae)
@@ -261,7 +261,7 @@ $instr$, 25, 20, 4, 2, 'Coréenne', 'lunch',
     (v_recipe_id, 'œufs',2,'unité',true,3,'battus, pour omelette'),
     (v_recipe_id, 'carotte',120,'g',true,4,'juliennée'),
     (v_recipe_id, 'bâtons imitation crabe',3,'unité',true,5,'coupés en 2'),
-    (v_recipe_id, 'jambon kimbap',4,'bâton',true,6,'en lanières'),
+    (v_recipe_id, 'dinde fumee kimbap',4,'bâton',true,6,'en lanières'),
     (v_recipe_id, 'radis jaune mariné (danmuji)',4,'bâton',true,7,'en lanières'),
     (v_recipe_id, 'bardane assaisonnée',12,'lanière',false,8,'optionnel'),
     (v_recipe_id, 'riz cuit',500,'g',true,9,'grain court'),
@@ -287,7 +287,7 @@ $instr$, 5, 10, 4, 1, 'Coréenne', 'lunch',
   ) RETURNING id INTO v_recipe_id;
   INSERT INTO public.recipe_ingredients (recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes) VALUES
     (v_recipe_id, 'kimchi',200,'g',true,1,'en petits morceaux'),
-    (v_recipe_id, 'bacon',150,'g',true,2,'en petits morceaux'),
+    (v_recipe_id, 'beef bacon',150,'g',true,2,'en petits morceaux'),
     (v_recipe_id, 'champignons enoki',200,'g',false,3,'optionnel, racines retirées'),
     (v_recipe_id, 'riz cuit',600,'g',true,4,'grain court'),
     (v_recipe_id, 'œufs',4,'unité',true,5,'pour œufs au plat'),

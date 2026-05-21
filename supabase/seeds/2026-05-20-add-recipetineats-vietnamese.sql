@@ -213,7 +213,7 @@ $instr$,
   ) VALUES
     (v_recipe_id, 'beurre',                     30,  'g',          true,  1,  'non salé'),
     (v_recipe_id, 'ail',                        3,   'gousse',     true,  2,  'hachée fin'),
-    (v_recipe_id, 'jambon',                     125, 'ml',         true,  3,  'haché en petits dés'),
+    (v_recipe_id, 'dinde fumee',                     125, 'ml',         true,  3,  'haché en petits dés'),
     (v_recipe_id, 'petits pois surgelés',       250, 'ml',         true,  4,  NULL),
     (v_recipe_id, 'riz jasmin cuit',            625, 'ml',         true,  5,  'de la veille'),
     (v_recipe_id, 'pâte de tomate',             30,  'ml',         true,  6,  NULL),

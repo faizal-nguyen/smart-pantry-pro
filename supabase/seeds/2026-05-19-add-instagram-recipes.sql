@@ -219,9 +219,9 @@ $instr$,
   INSERT INTO public.recipe_ingredients (
     recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
   ) VALUES
-    (v_recipe_id, 'porc haché',              200, 'g',          true,  1,  'ou poulet haché'),
+    (v_recipe_id, 'boeuf hache',              200, 'g',          true,  1,  'ou poulet haché'),
     (v_recipe_id, 'œufs',                    3,   'unité',      true,  2,  NULL),
-    (v_recipe_id, 'vin de riz',              15,  'ml',         false, 3,  'Shaoxing, optionnel'),
+    (v_recipe_id, 'bouillon leger et vinaigre de riz',              15,  'ml',         false, 3,  'Shaoxing, optionnel'),
     (v_recipe_id, 'huile végétale',          15,  'ml',         true,  4,  '1 c. à soupe'),
     (v_recipe_id, 'riz cuit',                200, 'g',          true,  5,  '1 bol, chaud'),
     -- Sauce
@@ -325,7 +325,7 @@ $instr$,
     (v_recipe_id, 'crevettes crues',         24,  'unité',      true,  1,  'décortiquées, 4 par rouleau'),
     (v_recipe_id, 'sel',                     1,   'pincée',     true,  2,  'marinade'),
     (v_recipe_id, 'poivre noir',             1,   'pincée',     true,  3,  'marinade'),
-    (v_recipe_id, 'vin de Shaoxing',         5,   'ml',         true,  4,  '1 c. à café, marinade'),
+    (v_recipe_id, 'bouillon de poulet et vinaigre de cidre',         5,   'ml',         true,  4,  '1 c. à café, marinade'),
     (v_recipe_id, 'huile de sésame',         5,   'ml',         true,  5,  '1 c. à café, marinade'),
     -- Roulage
     (v_recipe_id, 'cébette',                 1,   'unité',      true,  6,  'ciselée'),
@@ -587,7 +587,7 @@ $instr$,
     -- Marinade bœuf
     (v_recipe_id, 'bœuf émincé',              160, 'g',          true,  3,  'tranches fines'),
     (v_recipe_id, 'sauce soja',               5,   'ml',         true,  4,  '1 c. à café, marinade'),
-    (v_recipe_id, 'vin de Shaoxing',          5,   'ml',         true,  5,  '1 c. à café, marinade'),
+    (v_recipe_id, 'bouillon de poulet et vinaigre de cidre',          5,   'ml',         true,  5,  '1 c. à café, marinade'),
     (v_recipe_id, 'fécule de maïs',           2.5, 'g',          true,  6,  '1 c. à café, marinade'),
     -- Sauce et sauté
     (v_recipe_id, 'huile',                    30,  'ml',         true,  7,  '2 c. à soupe'),
@@ -638,7 +638,7 @@ $instr$,
     -- Marinade steak
     (v_recipe_id, 'steak',                    170, 'g',          true,  1,  '6 oz, en cubes 1.25 cm'),
     (v_recipe_id, 'sauce soja',               5,   'ml',         true,  2,  '1 c. à café, marinade'),
-    (v_recipe_id, 'vin de Shaoxing',          5,   'ml',         true,  3,  '1 c. à café, marinade'),
+    (v_recipe_id, 'bouillon de poulet et vinaigre de cidre',          5,   'ml',         true,  3,  '1 c. à café, marinade'),
     (v_recipe_id, 'fécule de maïs',           2.5, 'g',          true,  4,  '0.5 c. à café, marinade'),
     -- Sauté
     (v_recipe_id, 'oignon jaune',             0.5, 'unité',      true,  5,  'en dés'),

@@ -216,7 +216,7 @@ $instr$,
     (v_recipe_id, 'huile végétale',            45,  'ml',         true,  7,  'divisée'),
     (v_recipe_id, 'ail',                       2,   'gousse',     true,  8,  'haché'),
     (v_recipe_id, 'sauce soja',                45,  'ml',         true,  9,  'divisée'),
-    (v_recipe_id, 'effiloché de porc',         60,  'g',          false, 10, 'optionnel'),
+    (v_recipe_id, 'effiloché de boeuf',         60,  'g',          false, 10, 'optionnel'),
     (v_recipe_id, 'échalotes frites',          30,  'g',          false, 11, 'garniture');
 
   -- =====================================================================
@@ -289,7 +289,7 @@ $instr$,
   INSERT INTO public.recipe_ingredients (
     recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
   ) VALUES
-    (v_recipe_id, 'porc haché',              450, 'g',          true,  1,  '80% maigre 20% gras'),
+    (v_recipe_id, 'boeuf hache',              450, 'g',          true,  1,  '80% maigre 20% gras'),
     (v_recipe_id, 'crevettes',               125, 'g',          true,  2,  'décortiquées, hachées'),
     (v_recipe_id, 'sel',                     0.5, 'c. à café',  true,  3,  NULL),
     (v_recipe_id, 'sauce de poisson',        2,   'c. à café',  true,  4,  NULL),
@@ -335,7 +335,7 @@ $instr$,
   INSERT INTO public.recipe_ingredients (
     recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
   ) VALUES
-    (v_recipe_id, 'pieds de porc',           1800,'g',          true,  1,  NULL),
+    (v_recipe_id, 'pieds de boeuf',           1800,'g',          true,  1,  NULL),
     (v_recipe_id, 'jarret de bœuf',          900, 'g',          true,  2,  NULL),
     (v_recipe_id, 'échalote',                2,   'unité',      true,  3,  'divisées'),
     (v_recipe_id, 'citronnelle',             6,   'tige',       true,  4,  'divisée'),

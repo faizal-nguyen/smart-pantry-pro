@@ -276,7 +276,13 @@ export class RecipePolicySanitizer {
     // here so the position check works directly.
     const matchEnd = matchIndex + matchLength;
     // Find any whitelist phrase in raw text that overlaps the match.
-    const whitelistTokens = ['beef bacon', 'former en saucisse', 'sans porc', 'sans alcool'];
+    const whitelistTokens = [
+      'beef bacon',
+      'former en saucisse',
+      'sans porc',
+      'sans alcool',
+      'chorizo de boeuf',
+    ];
     for (const phrase of whitelistTokens) {
       const rgx = buildAccentTolerantRegex(phrase);
       const wm = rgx.exec(text);
