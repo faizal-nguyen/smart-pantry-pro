@@ -26,8 +26,7 @@ import DesktopNavigation from './DesktopNavigation';
 
 // Configuration de navigation
 import { useNavigationConfig } from './NavigationHub';
-import { useInventory } from '@/hooks/useInventory';
-import { useShoppingList } from '@/hooks/useShoppingList';
+import { useNavCounts } from '@/hooks/useNavCounts';
 
 // Types
 import { User } from '@supabase/supabase-js';
@@ -271,27 +270,11 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
   // le rationale et le hors-scope vers PRP-234.
   const navigationConfig = useNavigationConfig();
 
-  // Badges de navigation (à consommer / items courses)
-  const { inventory } = useInventory();
-  const { shoppingList } = useShoppingList();
-
-  const toConsumeCount = useMemo(() => {
-    try {
-      const now = Date.now();
-      return (inventory || []).filter(it => {
-        if (!it.expiry_date) return false;
-        const d = new Date(it.expiry_date).getTime();
-        const days = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
-        return days <= 3; // J-3/J-1/expirés
-      }).length;
-    } catch { return 0; }
-  }, [inventory]);
-
-  const shoppingCount = useMemo(() => {
-    try {
-      return (shoppingList || []).filter(it => !it.is_purchased).length;
-    } catch { return 0; }
-  }, [shoppingList]);
+  // PRP-238 PR1 etape (c) — badges lightweight via 2 count(*) queries
+  // au lieu d'un fetch complet de inventory + shopping_list a chaque mount.
+  // Hook auth-passif : on lui passe user.id, pas de getSession() interne.
+  const { expiringSoonCount: toConsumeCount, shoppingOpenCount: shoppingCount } =
+    useNavCounts(user?.id);
 
   const navigationConfigWithBadges = useMemo(() => {
     // Use object spreading to preserve React component references (icons)
@@ -421,13 +404,16 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
   }
 
   return (
-    <div className={cn(
-      "min-h-screen bg-background flex flex-col",
-      getStyleClasses(),
-      isFamilyModeActive && "family-mode-active",
-      isChildMode && "child-mode-active",
-      isSupervisionActive && "supervision-active"
-    )}>
+    <div
+      data-testid="app-navigation"
+      className={cn(
+        "min-h-screen bg-background flex flex-col",
+        getStyleClasses(),
+        isFamilyModeActive && "family-mode-active",
+        isChildMode && "child-mode-active",
+        isSupervisionActive && "supervision-active"
+      )}
+    >
       {/* PRP-237 PR2 — FamilyModeIndicator + FamilyProfileSelector
           retirés du shell. Family mode est inactif en V1 (PRP-222 PR3b)
           ; les composants restent définis dans ce fichier pour permettre
