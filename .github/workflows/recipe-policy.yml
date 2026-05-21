@@ -1,0 +1,83 @@
+name: Recipe Policy (PRP-239)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/api/src/services/recipeQuality/**'
+      - 'scripts/audit-recipe-policy.ts'
+      - 'supabase/seeds/**'
+      - 'package.json'
+      - '.github/workflows/recipe-policy.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/src/services/recipeQuality/**'
+      - 'scripts/audit-recipe-policy.ts'
+      - 'supabase/seeds/**'
+      - 'package.json'
+      - '.github/workflows/recipe-policy.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recipe-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy-tests:
+    name: Recipe policy unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      LOG_PRETTY_PRINT: 'false'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run RecipePolicySanitizer + Scanner tests
+        run: npm run test:api -- --testPathPattern=recipeQuality
+
+  policy-audit:
+    name: Seed policy audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: policy-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Emit manifest
+        run: npm run recipe:policy:audit -- --seeds supabase/seeds --out output/recipe-policy-manifest-ci.json
+
+      - name: Upload manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: recipe-policy-manifest
+          path: output/recipe-policy-manifest-ci.json
+          if-no-files-found: error
+
+      # PRP-239 PR1a: the seeds still contain ~300 policy violations
+      # that PR1b will clean up via the manifest above. We surface the
+      # count and exit 0 here so PR1a can merge on green. Once PR1b
+      # lands, flip `continue-on-error: true` → `false` to enforce the
+      # guardrail going forward (see PRP §6.8 AC).
+      - name: Policy check (informational until PR1b)
+        continue-on-error: true
+        run: npm run recipe:policy:check
