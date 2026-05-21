@@ -28,6 +28,7 @@ import {
 import { RecipeNutrition } from "@/components/recipes/RecipeNutrition";
 import RecipeMediaFrame from "@/components/recipes/RecipeMediaFrame";
 import RecipePrimaryActions from "@/components/recipes/RecipePrimaryActions";
+import RecipeMobileActionBar from "@/components/recipes/RecipeMobileActionBar";
 import RecipeSourcePreview from "@/components/recipes/RecipeSourcePreview";
 import type { RecipeSourceLike } from "@/components/recipes/RecipeSourceCard";
 import { toast } from "@/hooks/use-toast";
@@ -632,16 +633,21 @@ const RecipeDetail = () => {
         </div>
       </header>
 
-      {/* 3. Actions primaires */}
-      <RecipePrimaryActions
-        onCook={handleCook}
-        onAddMissingToShoppingList={handleAddToShoppingList}
-        onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
-        cooking={cooking}
-        addingToCart={addingToCart}
-        canCook={!!inventoryAnalysis?.availableIngredients?.length}
-        canAddMissing={!inventoryAnalysis?.canMake}
-      />
+      {/* 3. Actions primaires
+          PRP-238 PR1 etape (d) — sur mobile (< sm) on n'affiche pas le
+          bloc inline ; une RecipeMobileActionBar sticky est rendue en
+          bas de page (voir plus bas dans ce return). */}
+      <div className="hidden sm:block">
+        <RecipePrimaryActions
+          onCook={handleCook}
+          onAddMissingToShoppingList={handleAddToShoppingList}
+          onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
+          cooking={cooking}
+          addingToCart={addingToCart}
+          canCook={!!inventoryAnalysis?.availableIngredients?.length}
+          canAddMissing={!inventoryAnalysis?.canMake}
+        />
+      </div>
 
       {/* Inventory status compact (sans Indian Price PRP-232 PR4) */}
       {inventoryAnalysis && (
@@ -819,6 +825,21 @@ const RecipeDetail = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PRP-238 PR1 etape (d) — Mobile action bar sticky. Doublon des
+          actions de RecipePrimaryActions cache sur mobile (cf. plus haut
+          dans ce render). Empilee sur la bottom nav via
+          `--mobile-nav-height` (CSS variable etape (a)). */}
+      <RecipeMobileActionBar
+        onCook={handleCook}
+        onAddMissingToShoppingList={handleAddToShoppingList}
+        onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
+        cooking={cooking}
+        addingToCart={addingToCart}
+        canCook={!!inventoryAnalysis?.availableIngredients?.length}
+        canAddMissing={!inventoryAnalysis?.canMake}
+        missingCount={inventoryAnalysis?.missingIngredients?.length ?? 0}
+      />
     </div>
   );
 };
