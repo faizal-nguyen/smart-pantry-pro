@@ -590,3 +590,39 @@
     font-size: 16px;
   }
 }
+
+/* ============================================================================
+ * PRP-238 PR1 — Mobile Foundation V3 variables (2026-05-21)
+ *
+ * Source de verite pour la hauteur de la bottom nav mobile + safe area iOS.
+ * Remplace les `pb-20` / `pb-24` / `pb-28` dispersees dans les pages.
+ *
+ * Usage attendu :
+ *   - .app-content       : container de page authentifiee, padding-bottom auto
+ *   - .app-action-bar-mobile : sticky action bar qui s'empile au-dessus de la nav
+ *
+ * Sur sm+ (>= 640px) la sidebar prend le relais, --mobile-nav-height passe a 0.
+ * ============================================================================ */
+:root {
+  --mobile-nav-height: 4.5rem;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --content-bottom-pad: calc(var(--mobile-nav-height) + var(--safe-bottom) + 0.5rem);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --mobile-nav-height: 0px;
+    --content-bottom-pad: 1.5rem;
+  }
+}
+
+.app-content {
+  padding-bottom: var(--content-bottom-pad);
+}
+
+.app-action-bar-mobile {
+  position: sticky;
+  bottom: var(--mobile-nav-height);
+  padding-bottom: var(--safe-bottom);
+  z-index: 30;
+}

@@ -357,7 +357,7 @@ const SmartShoppingList = () => {
         </div>
 
         {/* Contenu principal scrollable */}
-        <div className="flex-1 overflow-y-auto pb-20">
+        <div className="flex-1 overflow-y-auto app-content">
           <div className="p-4 space-y-4">
             {/* Actions pour les articles achetés */}
             {getPurchasedCount() > 0 && (
