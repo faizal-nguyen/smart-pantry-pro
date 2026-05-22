@@ -129,6 +129,8 @@ const proteinCutSchema = z.enum([
   'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
   // boeuf (hache already above, deduplicated by zod)
   'steak', 'tranche', 'jarret', 'chuck', 'gras',
+  // agneau (PRP-239 PR3.2 extension — jarret + hache reused from boeuf)
+  'gigot', 'epaule', 'cotelette', 'selle',
   // poisson / fruits_de_mer
   'saumon', 'thon', 'poisson_blanc', 'crevette',
 ]);
@@ -497,6 +499,7 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
           enum: [
             'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
             'steak', 'tranche', 'jarret', 'chuck', 'gras',
+            'gigot', 'epaule', 'cotelette', 'selle',
             'saumon', 'thon', 'poisson_blanc', 'crevette',
           ],
           description: 'PRP-239: narrow by recipes.recipe_facets.protein_cuts',
@@ -541,6 +544,7 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
           enum: [
             'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
             'steak', 'tranche', 'jarret', 'chuck', 'gras',
+            'gigot', 'epaule', 'cotelette', 'selle',
             'saumon', 'thon', 'poisson_blanc', 'crevette',
           ],
           description: 'PRP-239: narrow by recipes.recipe_facets.protein_cuts (e.g. "haut_de_cuisse").',

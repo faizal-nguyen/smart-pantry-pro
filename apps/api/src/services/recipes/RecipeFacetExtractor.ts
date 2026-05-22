@@ -50,9 +50,11 @@ export type ChickenCut =
 
 export type BeefCut = 'hache' | 'steak' | 'tranche' | 'jarret' | 'chuck' | 'gras';
 
+export type LambCut = 'gigot' | 'epaule' | 'cotelette' | 'selle' | 'jarret' | 'hache';
+
 export type SeafoodCut = 'saumon' | 'thon' | 'crevette' | 'poisson_blanc';
 
-export type ProteinCut = ChickenCut | BeefCut | SeafoodCut;
+export type ProteinCut = ChickenCut | BeefCut | LambCut | SeafoodCut;
 
 export interface RecipeIngredientInput {
   /** Free-text ingredient name (already policy-sanitized). */
@@ -132,6 +134,16 @@ const CUT_RULES: Partial<Record<ProteinFamily, Record<string, string[]>>> = {
     jarret: ['jarret de boeuf', 'jarret'],
     chuck: ['chuck'],
     gras: ['boeuf gras', 'graisse de boeuf'],
+  },
+  // PRP-239 PR3.2 — agneau cuts. Not in PRP §9.2 V1 but a sensible
+  // extension (the recipes seeded with agneau cover gigot + épaule).
+  agneau: {
+    gigot: ['gigot', 'gigot d\'agneau'],
+    epaule: ['epaule d\'agneau', 'épaule d\'agneau'],
+    cotelette: ['cotelette d\'agneau', 'cotelettes d\'agneau', 'côtelette', 'côtelettes'],
+    selle: ['selle d\'agneau'],
+    jarret: ['jarret d\'agneau', 'souris d\'agneau'],
+    hache: ['agneau hache', 'agneau haché'],
   },
   poisson: {
     saumon: ['saumon'],

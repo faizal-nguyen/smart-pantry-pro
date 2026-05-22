@@ -71,6 +71,21 @@ describe('extractRecipeFacets — cuts (§9.4)', () => {
     expect(blanc.protein_cuts).toContain('blanc');
   });
 
+  it('lamb cuts: gigot + epaule + cotelette + selle (PR3.2)', () => {
+    expect(
+      extractRecipeFacets([ing('gigot d\'agneau')], FIXED).protein_cuts,
+    ).toContain('gigot');
+    expect(
+      extractRecipeFacets([ing('épaule d\'agneau')], FIXED).protein_cuts,
+    ).toContain('epaule');
+    expect(
+      extractRecipeFacets([ing('côtelettes d\'agneau')], FIXED).protein_cuts,
+    ).toContain('cotelette');
+    expect(
+      extractRecipeFacets([ing('selle d\'agneau')], FIXED).protein_cuts,
+    ).toContain('selle');
+  });
+
   it('beef cuts: gras + steak + jarret', () => {
     expect(
       extractRecipeFacets([ing('boeuf gras')], FIXED).protein_cuts,

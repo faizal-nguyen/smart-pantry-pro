@@ -178,6 +178,8 @@ export default function RecipeLibraryTab({
     hache: 'Haché', steak: 'Steak', tranche: 'Tranches', jarret: 'Jarret',
     chuck: 'Chuck', gras: 'Gras', saumon: 'Saumon', thon: 'Thon',
     poisson_blanc: 'Poisson blanc', crevette: 'Crevettes',
+    // PRP-239 PR3.2 — agneau cuts (not in PRP §9.2 V1, added by request)
+    gigot: 'Gigot', epaule: 'Épaule', cotelette: 'Côtelettes', selle: 'Selle',
   };
   // PRP-239 PR3.1 — which cut belongs to which family. Mirror of
   // RecipeFacetExtractor.CUT_RULES so the UI never shows "crevette" as
@@ -188,9 +190,9 @@ export default function RecipeLibraryTab({
   const CUTS_BY_FAMILY: Record<string, string[]> = {
     poulet: ['cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache'],
     boeuf: ['hache', 'steak', 'tranche', 'jarret', 'chuck', 'gras'],
+    agneau: ['gigot', 'epaule', 'cotelette', 'selle', 'jarret', 'hache'],
     poisson: ['saumon', 'thon', 'poisson_blanc'],
     fruits_de_mer: ['crevette'],
-    agneau: [],
     tofu: [],
     oeuf: [],
     mixte: [],
