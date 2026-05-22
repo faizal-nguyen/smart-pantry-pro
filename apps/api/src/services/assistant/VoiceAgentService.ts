@@ -589,6 +589,15 @@ export class VoiceAgentService {
       });
     }
 
+    // PRP-239 PR4 §10.3 — recipe-tool detection drives BOTH the round-2
+    // chef escalation (gpt-4o + policy prompt) AND the post-check
+    // redaction (detectOnly). Hoisting it here so the post-check can
+    // run on the final message regardless of whether round-2 fired —
+    // QA suite (recipe.002) revealed that a round-1-with-content path
+    // could leak "porc" from a recipe description without ever entering
+    // the chef branch.
+    const chefMode = executed.some((a) => isRecipeTool(a.tool));
+
     // PRP-224 follow-up — LLM Round 2 synthesis. The Round 1 call often
     // returns only tool_calls and an empty `content`. Without a second
     // round the user just sees "1 action exécutée." which is useless.
@@ -615,7 +624,8 @@ export class VoiceAgentService {
         // gpt-4o's richer reasoning + the explicit policy + structure
         // injected in `chefSystemPrompt`. For non-recipe turns (e.g.
         // shopping list ack, confirmation) we keep gpt-4o-mini.
-        const chefMode = executed.some((a) => isRecipeTool(a.tool));
+        // `chefMode` is computed at the outer scope above so the
+        // post-check after round-2 can use the same signal.
         const synthesisModel = chefMode ? this.fallbackModel : this.model;
         const synthesisSystem = chefMode
           ? `${systemContent}\n\n${chefSystemPrompt()}`
@@ -667,34 +677,37 @@ export class VoiceAgentService {
           activeResponse = { ...synthesis, model: synthesis.model || synthesisModel };
         }
 
-        // PRP-239 PR4 §10.4 — deterministic post-check on the chef
-        // output. detectOnly runs ONLY in chefMode (after a recipe tool
-        // fired) so pedagogical answers like "why is mirin excluded?" on
-        // round-1 simple turns are not redacted. If a violation is
-        // detected, we replace the text with a redacted version so the
-        // user never sees raw porc / alcool mentions in a chef
-        // suggestion.
-        if (chefMode) {
-          const guard = postcheckChefOutput(activeResponse.content);
-          if (guard) {
-            activeResponse = { ...activeResponse, content: guard.redacted };
-            // eslint-disable-next-line no-console
-            console.warn(
-              '[assistant.chef.policy_postcheck_blocked]',
-              guard.violations.map((v) => v.ruleId),
-            );
-            // PRP-239 PR4 §10.2 — surface the redaction event so the
-            // stream client can render a non-blocking notice.
-            onProgress?.({
-              type: 'policy_warning',
-              violations: guard.violations,
-              action: 'redacted',
-            });
-          }
-        }
+        // Post-check moved out of the round-2 branch (see below) so it
+        // fires even when round-2 was skipped because round-1 already
+        // returned content.
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[assistant.synthesis] round 2 failed, falling back:', err);
+      }
+    }
+
+    // PRP-239 PR4 §10.4 — deterministic post-check on chef-mode output.
+    // detectOnly runs ONLY when a recipe tool fired (`chefMode`), so
+    // pedagogical answers like "explique le mirin" on non-recipe turns
+    // are not redacted. Hoisted out of the round-2 branch so it ALSO
+    // fires when round-1 already produced content (QA suite caught a
+    // `Kimchi Jjigae … et du porc.` leak coming straight from a recipe
+    // description echoed by the LLM without the chef synthesis).
+    if (chefMode && activeResponse.content) {
+      const guard = postcheckChefOutput(activeResponse.content);
+      if (guard) {
+        activeResponse = { ...activeResponse, content: guard.redacted };
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[assistant.chef.policy_postcheck_blocked]',
+          guard.violations.map((v) => v.ruleId),
+        );
+        // Surface the redaction event for streaming clients.
+        onProgress?.({
+          type: 'policy_warning',
+          violations: guard.violations,
+          action: 'redacted',
+        });
       }
     }
 

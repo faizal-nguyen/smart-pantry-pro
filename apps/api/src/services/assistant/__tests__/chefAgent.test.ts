@@ -24,11 +24,14 @@ import {
 } from '../chefAgent';
 
 describe('chefAgent — isRecipeTool', () => {
-  it('matches the four recipe-centric tool names', () => {
+  it('matches every recipe-centric tool name', () => {
     expect(isRecipeTool('find_recipes_using_ingredient')).toBe(true);
     expect(isRecipeTool('suggest_recipes_for_context')).toBe(true);
     expect(isRecipeTool('search_recipes')).toBe(true);
     expect(isRecipeTool('find_cookable_recipes')).toBe(true);
+    // QA-discovered: read_recent_recipes returns descriptions the LLM
+    // tends to echo, so it must drive chefMode + post-check.
+    expect(isRecipeTool('read_recent_recipes')).toBe(true);
   });
 
   it('rejects non-recipe tools (inventory / shopping / etc.)', () => {
@@ -40,8 +43,9 @@ describe('chefAgent — isRecipeTool', () => {
   });
 
   it('exposes the canonical name set for downstream consumers', () => {
-    expect(RECIPE_TOOL_NAMES.size).toBe(4);
+    expect(RECIPE_TOOL_NAMES.size).toBe(5);
     expect(RECIPE_TOOL_NAMES.has('find_recipes_using_ingredient')).toBe(true);
+    expect(RECIPE_TOOL_NAMES.has('read_recent_recipes')).toBe(true);
   });
 });
 

@@ -11,12 +11,20 @@ import { recipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js
 import type { PolicyViolation } from '../recipeQuality/policyTypes.js';
 
 /**
- * Tool names that trigger chef-mode escalation on round-2 synthesis.
+ * Tool names that trigger chef-mode escalation on round-2 synthesis
+ * AND the detectOnly post-check on the final message.
  *
  * - `find_recipes_using_ingredient` — ingredient-centric ("recettes au saumon")
  * - `suggest_recipes_for_context`   — open ("que cuisiner ce soir")
  * - `search_recipes`                — by-name ("la recette du Bibimbap")
  * - `find_cookable_recipes`         — inventory-driven cookability
+ * - `read_recent_recipes`           — "tu m'as déjà proposé quoi ?"
+ *                                     Returns recipe descriptions that
+ *                                     the LLM tends to echo verbatim,
+ *                                     so the post-check must cover this
+ *                                     surface. QA suite caught a
+ *                                     pork-belly leak that bypassed
+ *                                     chefMode without this entry.
  *
  * Anything else (shopping list, inventory ack, conversational) keeps
  * the gpt-4o-mini single-pass behaviour from PRP-224.
@@ -26,6 +34,7 @@ export const RECIPE_TOOL_NAMES = new Set<string>([
   'suggest_recipes_for_context',
   'search_recipes',
   'find_cookable_recipes',
+  'read_recent_recipes',
 ]);
 
 export function isRecipeTool(toolName: string): boolean {

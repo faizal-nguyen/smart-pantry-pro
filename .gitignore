@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Assistant QA run artifacts — local-only by default. Commit a specific
+# report manually if you want a "golden run" snapshot.
+output/assistant-qa/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
