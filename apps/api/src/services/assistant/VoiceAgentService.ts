@@ -59,6 +59,14 @@ import {
 } from '../media/WhisperTranscriber.js';
 import type { RiskTier } from './schemas/tools.js';
 
+// PRP-239 PR4 — chef agent helpers (round-2 escalation + post-check).
+import {
+  isRecipeTool,
+  chefSystemPrompt,
+  CHEF_ROUND2_INSTRUCTION,
+  postcheckChefOutput,
+} from './chefAgent.js';
+
 const DEFAULT_MODEL = 'gpt-4o-mini';
 const FALLBACK_MODEL = 'gpt-4o';
 const DEFAULT_MAX_TOOL_CALLS = 6;
@@ -588,24 +596,54 @@ export class VoiceAgentService {
             : JSON.stringify(a.result).slice(0, 1500);
           return `• ${a.tool}(${JSON.stringify(a.args).slice(0, 200)}) → ${result}`;
         });
+
+        // PRP-239 PR4 §10.3 — escalate to the quality model when a
+        // recipe-centric tool ran. The chef synthesis benefits from
+        // gpt-4o's richer reasoning + the explicit policy + structure
+        // injected in `chefSystemPrompt`. For non-recipe turns (e.g.
+        // shopping list ack, confirmation) we keep gpt-4o-mini.
+        const chefMode = executed.some((a) => isRecipeTool(a.tool));
+        const synthesisModel = chefMode ? this.fallbackModel : this.model;
+        const synthesisSystem = chefMode
+          ? `${systemContent}\n\n${chefSystemPrompt()}`
+          : systemContent;
+        const synthesisInstruction = chefMode
+          ? CHEF_ROUND2_INSTRUCTION
+          : "Maintenant rédige ta réponse finale, courte et utile, dans la langue de ma question. Appuie-toi sur les résultats ci-dessus, ne ré-invoque pas d'outil.";
+
         const synthesisMessages: AICompletionRequest['messages'] = [
-          { role: 'system', content: systemContent },
+          { role: 'system', content: synthesisSystem },
           { role: 'user', content: transcript },
           {
             role: 'assistant',
             content:
               `J'ai déjà exécuté ces outils pour répondre :\n${summaryParts.join('\n')}`,
           },
-          {
-            role: 'user',
-            content:
-              "Maintenant rédige ta réponse finale, courte et utile, dans la langue de ma question. Appuie-toi sur les résultats ci-dessus, ne ré-invoque pas d'outil.",
-          },
+          { role: 'user', content: synthesisInstruction },
         ];
-        const synthesis = await this.callLLMSafe(this.model, synthesisMessages, []);
-        llmUsd += this.usdFromUsage(synthesis.model || this.model, synthesis.usage);
+        const synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+        llmUsd += this.usdFromUsage(synthesis.model || synthesisModel, synthesis.usage);
         if (synthesis.content && synthesis.content.trim()) {
-          activeResponse = { ...synthesis, model: synthesis.model || this.model };
+          activeResponse = { ...synthesis, model: synthesis.model || synthesisModel };
+        }
+
+        // PRP-239 PR4 §10.4 — deterministic post-check on the chef
+        // output. detectOnly runs ONLY in chefMode (after a recipe tool
+        // fired) so pedagogical answers like "why is mirin excluded?" on
+        // round-1 simple turns are not redacted. If a violation is
+        // detected, we replace the text with a redacted version so the
+        // user never sees raw porc / alcool mentions in a chef
+        // suggestion.
+        if (chefMode) {
+          const guard = postcheckChefOutput(activeResponse.content);
+          if (guard) {
+            activeResponse = { ...activeResponse, content: guard.redacted };
+            // eslint-disable-next-line no-console
+            console.warn(
+              '[assistant.chef.policy_postcheck_blocked]',
+              guard.violations.map((v) => v.ruleId),
+            );
+          }
         }
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -1078,3 +1116,4 @@ export function extractRecipeProposalsFromExecuted(
   }
   return buckets;
 }
+
