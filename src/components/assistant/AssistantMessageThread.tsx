@@ -8,10 +8,49 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, User as UserIcon, Cog } from 'lucide-react';
+import { Bot, User as UserIcon, Cog, Sparkles } from 'lucide-react';
 
 import type { AssistantMessage } from '@/services/assistantApi';
 import AssistantRecipeProposals from './AssistantRecipeProposals';
+
+/**
+ * PRP-239 PR4 §10.4 — split a chef synthesis text on the off-DB header.
+ * Returns { db, offDb }. When the header isn't present, the whole text
+ * lands in `db` and `offDb` is null. Detection is case-insensitive
+ * + accent-insensitive, and matches the exact phrase the chef system
+ * prompt instructs the LLM to use.
+ */
+function splitChefSections(text: string): { db: string; offDb: string | null } {
+  const headerRegex = /(?:^|\n)\s*[*#-]*\s*Id[eé]es?\s+chef\s+hors\s+biblioth[eè]que[*:.]*\s*\n?/i;
+  const match = headerRegex.exec(text);
+  if (!match) return { db: text, offDb: null };
+  const db = text.slice(0, match.index).trimEnd();
+  const offDb = text.slice(match.index + match[0].length).trim();
+  if (!offDb) return { db: text, offDb: null };
+  return { db, offDb };
+}
+
+function renderChefContent(content: string): React.ReactElement {
+  const { db, offDb } = splitChefSections(content);
+  if (!offDb) {
+    return <p className="whitespace-pre-wrap text-sm">{content}</p>;
+  }
+  return (
+    <>
+      <p className="whitespace-pre-wrap text-sm">{db}</p>
+      <div className="mt-3 pt-3 border-t border-border/60 space-y-1.5">
+        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Sparkles className="h-3 w-3" aria-hidden="true" />
+          Idées chef hors bibliothèque
+        </p>
+        <p className="whitespace-pre-wrap text-sm opacity-90">{offDb}</p>
+        <p className="text-[10px] opacity-60 italic">
+          Conversion en recette à venir
+        </p>
+      </div>
+    </>
+  );
+}
 
 interface AssistantMessageThreadProps {
   messages: AssistantMessage[];
@@ -65,7 +104,15 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
           {msg.content_format === 'transcript' && (
             <p className="text-xs italic opacity-70 mb-1">Transcrit depuis l'audio</p>
           )}
-          <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+          {/* PRP-239 PR4 §10.4 — visual separation of off-DB chef ideas.
+              The chef prompt instructs the LLM to prefix non-library
+              suggestions with "Idées chef hors bibliothèque" — when we
+              detect that header we render the section below a divider
+              with muted text + a "non actionnable en V1" disclaimer. */}
+          {isAssistant && msg.content
+            ? renderChefContent(msg.content)
+            : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+          }
           <p
             className={cn(
               'text-[10px] mt-1 opacity-60',
