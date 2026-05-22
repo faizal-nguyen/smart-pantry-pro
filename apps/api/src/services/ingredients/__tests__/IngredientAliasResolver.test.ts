@@ -28,10 +28,11 @@ function makeClient(plan: {
   productsByCanonical?: QueryResult;
   aliases?: QueryResult;
   semanticRpc?: QueryResult;
+  /** PRP-239 PR-B — pre-existing cache entry returned by readEmbeddingFromCache. */
+  embeddingCache?: QueryResult;
+  /** Records what was upserted into ingredient_embeddings during the test. */
+  embeddingUpserts?: Array<Record<string, unknown>>;
 }) {
-  // Count `from('products')` calls so the 1st = exact-match payload,
-  // 2nd = lookup-by-canonical payload. Avoids the trap of mutating
-  // state inside `from()` before `limit()` reads it.
   let productsFromCount = 0;
 
   const makeProductsBuilder = (result: QueryResult): any => ({
@@ -46,6 +47,20 @@ function makeClient(plan: {
     limit: jest.fn(() => Promise.resolve(plan.aliases ?? { data: [], error: null })),
   };
 
+  // PRP-239 PR-B — ingredient_embeddings cache mock. Reads use
+  // .maybeSingle(); writes use .upsert(...).
+  const embeddingCacheBuilder: any = {
+    select: jest.fn(function (this: any) { return this; }),
+    eq: jest.fn(function (this: any) { return this; }),
+    maybeSingle: jest.fn(() =>
+      Promise.resolve(plan.embeddingCache ?? { data: null, error: null }),
+    ),
+    upsert: jest.fn((payload: Record<string, unknown>) => {
+      plan.embeddingUpserts?.push(payload);
+      return Promise.resolve({ data: null, error: null });
+    }),
+  };
+
   const client = {
     from: jest.fn((table: string) => {
       if (table === 'products') {
@@ -58,6 +73,9 @@ function makeClient(plan: {
       }
       if (table === 'ingredient_aliases') {
         return aliasBuilder;
+      }
+      if (table === 'ingredient_embeddings') {
+        return embeddingCacheBuilder;
       }
       throw new Error(`Unexpected table in mock: ${table}`);
     }),
@@ -286,6 +304,90 @@ describe('IngredientAliasResolver — pipeline priority', () => {
     expect(result.kind).toBe('alias');
     expect(result.productId).toBe('alias-hit');
     expect(client.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('IngredientAliasResolver — embedding cache (PR-B)', () => {
+  it('skips the live embedding call when cache HIT returns a stored vector', async () => {
+    const cachedVec = [0.1, 0.2, 0.3, 0.4];
+    const embedding = fakeEmbedding();
+    const client = makeClient({
+      products: { data: [], error: null },
+      aliases: { data: [], error: null },
+      embeddingCache: { data: { embedding: cachedVec }, error: null },
+      semanticRpc: {
+        data: [{ product: { id: 'prod-cached' }, score: 0.93 }],
+        error: null,
+      },
+    });
+    const resolver = new IngredientAliasResolver(client, { embeddingService: embedding });
+    const result = await resolver.resolve('unknown ingredient');
+    expect(result.kind).toBe('semantic');
+    expect(result.productId).toBe('prod-cached');
+    // Live embedding service must NOT be called on cache hit.
+    expect(embedding.generate).not.toHaveBeenCalled();
+  });
+
+  it('falls through to live embedding when cache MISS', async () => {
+    const embedding = fakeEmbedding([0.5, 0.6, 0.7]);
+    const upserts: Array<Record<string, unknown>> = [];
+    const client = makeClient({
+      products: { data: [], error: null },
+      aliases: { data: [], error: null },
+      embeddingCache: { data: null, error: null }, // miss
+      embeddingUpserts: upserts,
+      semanticRpc: {
+        data: [{ product: { id: 'prod-fresh' }, score: 0.91 }],
+        error: null,
+      },
+    });
+    const resolver = new IngredientAliasResolver(client, { embeddingService: embedding });
+    const result = await resolver.resolve('fresh ingredient');
+    expect(result.kind).toBe('semantic');
+    expect(result.productId).toBe('prod-fresh');
+    expect(embedding.generate).toHaveBeenCalledWith('fresh ingredient');
+    // Newly computed embedding must be persisted to the cache.
+    expect(upserts.length).toBe(1);
+    expect(upserts[0]).toMatchObject({
+      ingredient_text: 'fresh ingredient',
+      ingredient_text_normalized: 'fresh ingredient',
+      embedding_model: 'text-embedding-3-small',
+    });
+  });
+
+  it('parses cached embeddings serialised as a JSON string', async () => {
+    const cachedVecString = JSON.stringify([0.1, 0.2, 0.3]);
+    const embedding = fakeEmbedding();
+    const client = makeClient({
+      products: { data: [], error: null },
+      aliases: { data: [], error: null },
+      embeddingCache: { data: { embedding: cachedVecString }, error: null },
+      semanticRpc: {
+        data: [{ product: { id: 'prod-str' }, score: 0.92 }],
+        error: null,
+      },
+    });
+    const resolver = new IngredientAliasResolver(client, { embeddingService: embedding });
+    const result = await resolver.resolve('weird wire-format ingredient');
+    expect(result.kind).toBe('semantic');
+    expect(embedding.generate).not.toHaveBeenCalled();
+  });
+
+  it('degrades to live call when cache read errors', async () => {
+    const embedding = fakeEmbedding();
+    const client = makeClient({
+      products: { data: [], error: null },
+      aliases: { data: [], error: null },
+      embeddingCache: { data: null, error: { message: 'rls denied' } },
+      semanticRpc: {
+        data: [{ product: { id: 'prod-deg' }, score: 0.93 }],
+        error: null,
+      },
+    });
+    const resolver = new IngredientAliasResolver(client, { embeddingService: embedding });
+    const result = await resolver.resolve('cache-broken ingredient');
+    expect(result.kind).toBe('semantic');
+    expect(embedding.generate).toHaveBeenCalled();
   });
 });
 

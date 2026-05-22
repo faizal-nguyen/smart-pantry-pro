@@ -293,15 +293,25 @@ export class IngredientAliasResolver {
   private async semanticMatch(rawText: string): Promise<ResolvedIngredient> {
     if (!this.embeddingService) return this.unresolved();
 
-    // Embed once, then ask Postgres for the nearest products.
-    let embedding: number[] | null;
-    try {
-      embedding = await this.embeddingService.generate(rawText);
-    } catch (err) {
-      return this.failureResult(
-        'embedding_error: ' + (err instanceof Error ? err.message : 'unknown'),
-      );
+    // PRP-239 PR-B — consult the persistent embedding cache first.
+    // Saves an OpenAI round-trip on every cache hit (~700 cold calls
+    // per backfill pass before the cache exists). Cache miss / read
+    // errors degrade to a live call, never block resolution.
+    let embedding: number[] | null = await this.readEmbeddingFromCache(rawText);
+
+    if (!embedding) {
+      try {
+        embedding = await this.embeddingService.generate(rawText);
+      } catch (err) {
+        return this.failureResult(
+          'embedding_error: ' + (err instanceof Error ? err.message : 'unknown'),
+        );
+      }
+      if (embedding && embedding.length > 0) {
+        await this.writeEmbeddingToCache(rawText, embedding);
+      }
     }
+
     if (!embedding || embedding.length === 0) {
       return this.unresolved();
     }
@@ -343,6 +353,67 @@ export class IngredientAliasResolver {
       canonicalName: top.product.normalized_name ?? top.product.name ?? null,
       confidence: top.score,
     };
+  }
+
+  // ---- Embedding cache (PRP-239 PR-B) -------------------------------
+  // `public.ingredient_embeddings` schema (migration 20260521120004):
+  //   ingredient_text PRIMARY KEY
+  //   ingredient_text_normalized TEXT NOT NULL
+  //   embedding vector(1536)
+  //   embedding_model TEXT
+  //
+  // Reads + writes are best-effort: any DB error swallows + falls
+  // through to the live embedding call. This mirrors the resolver's
+  // graceful-degradation stance and prevents a cache outage from
+  // breaking ingredient resolution.
+
+  private async readEmbeddingFromCache(rawText: string): Promise<number[] | null> {
+    const normalized = normalizeIngredientText(rawText);
+    if (!normalized) return null;
+    try {
+      const { data, error } = await this.client
+        .from('ingredient_embeddings')
+        .select('embedding')
+        .eq('ingredient_text_normalized', normalized)
+        .maybeSingle();
+      if (error || !data?.embedding) return null;
+      // Supabase serializes pgvector as either a JSON array or a
+      // string like "[0.1, 0.2, …]" depending on the wire format.
+      // Handle both shapes defensively.
+      if (Array.isArray(data.embedding)) {
+        return data.embedding as number[];
+      }
+      if (typeof data.embedding === 'string') {
+        try {
+          const parsed = JSON.parse(data.embedding);
+          return Array.isArray(parsed) ? (parsed as number[]) : null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async writeEmbeddingToCache(rawText: string, embedding: number[]): Promise<void> {
+    const normalized = normalizeIngredientText(rawText);
+    if (!normalized) return;
+    try {
+      await this.client.from('ingredient_embeddings').upsert(
+        {
+          ingredient_text: rawText,
+          ingredient_text_normalized: normalized,
+          embedding: embedding as unknown as string, // pgvector accepts both JSON-array and stringified
+          embedding_model: 'text-embedding-3-small',
+          embedding_updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'ingredient_text' },
+      );
+    } catch {
+      // best-effort
+    }
   }
 
   private unresolved(): ResolvedIngredient {
