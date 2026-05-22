@@ -65,6 +65,7 @@ import {
   chefSystemPrompt,
   CHEF_ROUND2_INSTRUCTION,
   postcheckChefOutput,
+  type AssistantStreamEvent,
 } from './chefAgent.js';
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
@@ -287,9 +288,17 @@ export class VoiceAgentService {
 
   // ---- /voice and /text -------------------------------------------
 
+  /**
+   * PRP-239 PR4 §10.2 — optional progress sink. When provided, the
+   * service fires a callback for each major milestone (tool execution,
+   * policy redaction). The `/api/assistant/text/stream` route wires
+   * this into an SSE writer; the non-streaming `/text` and `/voice`
+   * routes pass `undefined` and stay unchanged.
+   */
   async handleRequest(
     input: VoiceAgentRequestInput,
-    ctx: ToolExecutionContext
+    ctx: ToolExecutionContext,
+    onProgress?: (event: AssistantStreamEvent) => void,
   ): Promise<AssistantPlanResponse> {
     const start = Date.now();
     const sessionId = randomUUID();
@@ -530,6 +539,10 @@ export class VoiceAgentService {
                 : null,
             risk_tier: risk.tier,
           });
+          // PRP-239 PR4 §10.2 — stream the tool result as it lands so
+          // the UI can render intermediate progress (recipe cards,
+          // inventory rows) before the LLM finishes the synthesis.
+          onProgress?.({ type: 'tool_result', tool: tc.name, payload: exec.result });
         } catch (err) {
           if (err instanceof ToolHandlerNotFoundError) {
             await this.writer.markFailed(
@@ -643,6 +656,13 @@ export class VoiceAgentService {
               '[assistant.chef.policy_postcheck_blocked]',
               guard.violations.map((v) => v.ruleId),
             );
+            // PRP-239 PR4 §10.2 — surface the redaction event so the
+            // stream client can render a non-blocking notice.
+            onProgress?.({
+              type: 'policy_warning',
+              violations: guard.violations,
+              action: 'redacted',
+            });
           }
         }
       } catch (err) {

@@ -100,6 +100,19 @@ export function buildRedactedChefMessage(
 }
 
 /**
+ * PRP-239 PR4 §10.2 — discriminated union of SSE event payloads. The
+ * `/api/assistant/text/stream` route writes one `data: <JSON>\n\n`
+ * line per event; consumers can rely on the `type` tag to dispatch.
+ *
+ * Non-streaming callers can ignore this — the same execution path
+ * runs handleRequest without injecting an onProgress callback.
+ */
+export type AssistantStreamEvent =
+  | { type: 'tool_result'; tool: string; payload: unknown }
+  | { type: 'policy_warning'; violations: PolicyViolation[]; action: 'redacted' }
+  | { type: 'done'; response: unknown };
+
+/**
  * Run detectOnly() on a chef synthesis output. Returns `null` when the
  * text is clean (or empty), otherwise a `{ redacted, violations }`
  * pair the caller can use to replace the message + emit the

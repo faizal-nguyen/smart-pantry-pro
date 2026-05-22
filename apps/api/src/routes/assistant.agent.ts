@@ -372,6 +372,92 @@ export function createAssistantAgentRouter(
     }
   });
 
+  // ---- /text/stream (PRP-239 PR4 §10.2) ----------------------------
+  // SSE wrapper around the same `service.handleRequest`. The service
+  // fires `tool_result` and `policy_warning` events through the
+  // `onProgress` callback as it walks the tool list; we forward each
+  // one as `data: <JSON>\n\n`. The final `done` event carries the
+  // full AssistantPlanResponse so the client doesn't need a separate
+  // request to fetch the assembled message + action ids.
+  //
+  // Note: this is incremental streaming at the TOOL granularity, not
+  // per-LLM-token. True token streaming requires refactoring the
+  // LLM client to use OpenAI's streaming API — deferred to a follow-up.
+  router.post('/text/stream', requestLimiter, async (req: Request, res: Response) => {
+    const parsed = TextRequestSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 'Invalid body', 400, 'INVALID_BODY');
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+
+    const ctx = {
+      userId: req.user.id,
+      userClient: req.supabaseClient as SupabaseClient<any, any, any>,
+      adminClient,
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+      ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
+    };
+
+    // SSE headers — flush immediately so the client opens the stream
+    // even before the LLM round-1 returns.
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    // Avoid intermediate proxies buffering small payloads.
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const writeEvent = (event: { type: string; [k: string]: unknown }): void => {
+      try {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      } catch (err) {
+        // Client likely disconnected — surface as a warn, the
+        // background handleRequest continues to completion to avoid
+        // leaving partial state in the action log.
+        console.warn('[assistant.text.stream] write failed:', err);
+      }
+    };
+
+    // Heartbeat every 15s so proxies (Render, Cloudflare) don't drop
+    // the connection during long LLM calls.
+    const heartbeat = setInterval(() => {
+      try { res.write(': ping\n\n'); } catch { /* ignored */ }
+    }, 15_000);
+
+    try {
+      const result = await service.handleRequest(
+        {
+          source: 'text',
+          text: parsed.data.text,
+          userId: req.user.id,
+          clientRequestId: parsed.data.client_request_id,
+          language: parsed.data.language,
+          allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
+          conversationId: parsed.data.conversation_id,
+        },
+        ctx,
+        writeEvent,
+      );
+      writeEvent({ type: 'done', response: result });
+    } catch (err) {
+      if (err instanceof VoiceAgentError) {
+        writeEvent({
+          type: 'error',
+          code: err.code,
+          message: err.message,
+        });
+      } else {
+        console.error('[assistant.text.stream] error:', err);
+        writeEvent({
+          type: 'error',
+          code: 'ASSISTANT_FAILED',
+          message: 'Assistant error',
+        });
+      }
+    } finally {
+      clearInterval(heartbeat);
+      res.end();
+    }
+  });
+
   // ---- /actions/execute --------------------------------------------
   router.post('/actions/execute', confirmLimiter, async (req: Request, res: Response) => {
     const parsed = ConfirmRequestSchema.safeParse(req.body);
