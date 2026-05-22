@@ -88,8 +88,31 @@ export interface AICompletionResponse {
   tool_calls?: AICompletionToolCall[];
 }
 
+/**
+ * PRP-239 PR-C — incremental text chunk yielded by `completeStream`.
+ * `done: false` means more chunks are coming; `done: true` is the
+ * single terminal event that carries the full accumulated content +
+ * usage for cost accounting.
+ */
+export type AICompletionStreamEvent =
+  | { delta: string; done: false }
+  | {
+      content: string;
+      model: string;
+      usage: { prompt_tokens: number; completion_tokens: number };
+      done: true;
+    };
+
 export interface AICompletionClient {
   complete(req: AICompletionRequest): Promise<AICompletionResponse>;
+  /**
+   * Optional. Implementations that wire OpenAI streaming yield text
+   * deltas as they arrive. Tools are unsupported here — round-1
+   * tool-call assembly stays on the non-streaming `complete()` path
+   * because reassembling streamed tool-call JSON is brittle and
+   * delivers no UX win.
+   */
+  completeStream?(req: AICompletionRequest): AsyncIterable<AICompletionStreamEvent>;
 }
 
 // ---- Cost table (USD per 1M tokens) ---------------------------------
@@ -489,6 +512,63 @@ export function createOpenAICompletionClient(): AICompletionClient {
         },
         ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
       };
+    },
+
+    /**
+     * PRP-239 PR-C — OpenAI streaming. Yields `{ delta, done: false }`
+     * for every chunk of text the model emits, then a single
+     * `{ content, model, usage, done: true }` terminal event.
+     *
+     * `stream_options.include_usage: true` is required for the SDK to
+     * surface a `usage` object on the final chunk so we keep cost
+     * accounting parity with the non-streaming path.
+     *
+     * Tools / response_format are not threaded here on purpose — the
+     * caller (VoiceAgentService chef synthesis) explicitly asks for
+     * `tool_choice: 'none'`-equivalent semantics by routing the
+     * tool-bearing round-1 through `complete()` instead.
+     */
+    async *completeStream(req: AICompletionRequest): AsyncIterable<AICompletionStreamEvent> {
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is not set on the server.');
+      }
+      if (!cachedClient) {
+        const mod = await import('openai');
+        const OpenAI = (mod as any).default ?? (mod as any).OpenAI ?? mod;
+        cachedClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      }
+      const params: Record<string, unknown> = {
+        model: req.model,
+        messages: req.messages,
+        temperature: req.temperature,
+        max_tokens: req.max_tokens,
+        stream: true,
+        stream_options: { include_usage: true },
+      };
+
+      let accumulated = '';
+      let model = req.model;
+      let usage = { prompt_tokens: 0, completion_tokens: 0 };
+      const stream = await cachedClient.chat.completions.create(params);
+      for await (const chunk of stream as AsyncIterable<{
+        model?: string;
+        choices?: Array<{ delta?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      }>) {
+        if (chunk.model) model = chunk.model;
+        if (chunk.usage) {
+          usage = {
+            prompt_tokens: chunk.usage.prompt_tokens ?? 0,
+            completion_tokens: chunk.usage.completion_tokens ?? 0,
+          };
+        }
+        const delta = chunk.choices?.[0]?.delta?.content ?? '';
+        if (delta) {
+          accumulated += delta;
+          yield { delta, done: false };
+        }
+      }
+      yield { content: accumulated, model, usage, done: true };
     },
   };
 }

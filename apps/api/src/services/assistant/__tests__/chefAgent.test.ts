@@ -20,6 +20,7 @@ import {
   chefSystemPrompt,
   isRecipeTool,
   postcheckChefOutput,
+  type AssistantStreamEvent,
 } from '../chefAgent';
 
 describe('chefAgent — isRecipeTool', () => {
@@ -121,6 +122,33 @@ describe('chefAgent — postcheckChefOutput', () => {
     expect(ruleIds.length).toBeGreaterThanOrEqual(2);
     // The redaction includes the rule ids so the dev can trace what fired.
     expect(result!.redacted).toMatch(/Détection automatique/);
+  });
+});
+
+describe('chefAgent — AssistantStreamEvent union (PR-C)', () => {
+  it('accepts a delta event', () => {
+    const evt: AssistantStreamEvent = { type: 'delta', text: 'Pour ce ' };
+    expect(evt.type).toBe('delta');
+    expect(evt.text).toContain('Pour');
+  });
+
+  it('a stream of deltas accumulates to a coherent message', () => {
+    // Simulates what /api/assistant/text/stream emits during chef
+    // round-2: a sequence of delta events whose `text` fields,
+    // concatenated, reproduce the final assistant message.
+    const events: AssistantStreamEvent[] = [
+      { type: 'delta', text: 'Pour ' },
+      { type: 'delta', text: 'ce soir : ' },
+      { type: 'delta', text: 'Bibimbap ' },
+      { type: 'delta', text: '(boeuf, 25 min).' },
+      { type: 'done', response: { message: 'final', recipes: [] } },
+    ];
+    const accumulated = events
+      .filter((e): e is Extract<AssistantStreamEvent, { type: 'delta' }> => e.type === 'delta')
+      .map((e) => e.text)
+      .join('');
+    expect(accumulated).toBe('Pour ce soir : Bibimbap (boeuf, 25 min).');
+    expect(events[events.length - 1]?.type).toBe('done');
   });
 });
 

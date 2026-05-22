@@ -108,6 +108,7 @@ export function buildRedactedChefMessage(
  * runs handleRequest without injecting an onProgress callback.
  */
 export type AssistantStreamEvent =
+  | { type: 'delta'; text: string }
   | { type: 'tool_result'; tool: string; payload: unknown }
   | { type: 'policy_warning'; violations: PolicyViolation[]; action: 'redacted' }
   | { type: 'done'; response: unknown };

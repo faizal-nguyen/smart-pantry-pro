@@ -634,7 +634,34 @@ export class VoiceAgentService {
           },
           { role: 'user', content: synthesisInstruction },
         ];
-        const synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+
+        // PRP-239 PR-C — stream the chef synthesis token-by-token when
+        // the caller subscribed to onProgress AND the configured AI
+        // client supports completeStream. Falls back to the
+        // non-streaming path transparently otherwise (legacy tests,
+        // mock clients, /text and /voice routes that don't pass
+        // onProgress).
+        let synthesis: AICompletionResponse;
+        const wantStream = chefMode && Boolean(onProgress) && Boolean(this.ai.completeStream);
+        if (wantStream) {
+          try {
+            synthesis = await this.callLLMStreamSafe(
+              synthesisModel,
+              synthesisMessages,
+              (delta) => onProgress?.({ type: 'delta', text: delta }),
+            );
+          } catch (err) {
+            // Graceful degradation — if streaming throws (e.g. the
+            // injected AICompletionClient doesn't implement
+            // completeStream), retry once on the non-streaming path so
+            // we never lose the synthesis to a transient stream error.
+            // eslint-disable-next-line no-console
+            console.warn('[assistant.chef.stream] falling back to non-stream:', err);
+            synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+          }
+        } else {
+          synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+        }
         llmUsd += this.usdFromUsage(synthesis.model || synthesisModel, synthesis.usage);
         if (synthesis.content && synthesis.content.trim()) {
           activeResponse = { ...synthesis, model: synthesis.model || synthesisModel };
@@ -933,6 +960,52 @@ export class VoiceAgentService {
       throw new VoiceAgentError(
         'LLM_FAILED',
         err instanceof Error ? err.message : 'AI client failed'
+      );
+    }
+  }
+
+  /**
+   * PRP-239 PR-C — streaming counterpart of callLLMSafe. Yields each
+   * delta to `onDelta` as it arrives, then resolves with the full
+   * `AICompletionResponse` once the terminal `done: true` chunk lands.
+   *
+   * Used only by the chef round-2 synthesis (text-only, no tools). If
+   * the configured AICompletionClient doesn't implement
+   * `completeStream`, we throw a typed error so the caller can fall
+   * back to the non-streaming path.
+   */
+  private async callLLMStreamSafe(
+    model: string,
+    messages: AICompletionRequest['messages'],
+    onDelta: (text: string) => void,
+  ): Promise<AICompletionResponse> {
+    if (!this.ai.completeStream) {
+      throw new Error('STREAM_NOT_SUPPORTED');
+    }
+    try {
+      const stream = this.ai.completeStream({
+        model,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1500,
+      });
+      let finalContent = '';
+      let finalModel = model;
+      let finalUsage = { prompt_tokens: 0, completion_tokens: 0 };
+      for await (const evt of stream) {
+        if (evt.done === true) {
+          finalContent = evt.content;
+          finalModel = evt.model;
+          finalUsage = evt.usage;
+        } else {
+          onDelta(evt.delta);
+        }
+      }
+      return { content: finalContent, model: finalModel, usage: finalUsage };
+    } catch (err) {
+      throw new VoiceAgentError(
+        'LLM_FAILED',
+        err instanceof Error ? err.message : 'AI client stream failed',
       );
     }
   }
