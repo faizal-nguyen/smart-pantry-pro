@@ -124,6 +124,10 @@ export default function RecipeLibraryTab({
   // shows only the cuts that appear within that family.
   const [selectedProteinFamily, setSelectedProteinFamily] = useState<string>('');
   const [selectedProteinCut, setSelectedProteinCut] = useState<string>('');
+  // PRP-239 PR-A — dietary filter. Single-select. Only `vegetarien` and
+  // `vegan` are exposed in the UI — `sans_porcin` / `sans_alcool` are
+  // policy defaults present on 100% of recipes, so they'd be noise.
+  const [selectedDietary, setSelectedDietary] = useState<string>('');
   const [searchParams] = useSearchParams();
   const filterParam = searchParams.get('filter');
   const showFavoritesOnly = filterParam === 'favorites';
@@ -198,6 +202,28 @@ export default function RecipeLibraryTab({
     mixte: [],
   };
 
+  // PRP-239 PR-A — dietary chip ribbon. Only displayable flags
+  // (vegetarien + vegan). sans_porcin / sans_alcool are policy
+  // defaults (320/320) so they don't help narrow the grid.
+  const DIETARY_LABELS: Record<string, { label: string; icon: string }> = {
+    vegetarien: { label: 'Végétarien', icon: '🌱' },
+    vegan:      { label: 'Vegan',      icon: '🌿' },
+  };
+
+  const dietaryChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of recipes) {
+      const flags = r.recipe_facets?.dietary_flags ?? [];
+      for (const f of flags) {
+        if (!(f in DIETARY_LABELS)) continue; // skip policy-default flags
+        counts.set(f, (counts.get(f) ?? 0) + 1);
+      }
+    }
+    return Object.keys(DIETARY_LABELS)
+      .filter((k) => (counts.get(k) ?? 0) > 0)
+      .map((k) => ({ key: k, ...DIETARY_LABELS[k], count: counts.get(k) ?? 0 }));
+  }, [recipes]);
+
   const proteinFamilyChips = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of recipes) {
@@ -235,6 +261,11 @@ export default function RecipeLibraryTab({
     if (selectedCuisine !== ALL_CUISINES_KEY) {
       out = out.filter(({ cuisineKey }) => cuisineKey === selectedCuisine);
     }
+    if (selectedDietary) {
+      out = out.filter(({ recipe }) =>
+        (recipe.recipe_facets?.dietary_flags ?? []).includes(selectedDietary),
+      );
+    }
     if (selectedProteinFamily) {
       out = out.filter(({ recipe }) =>
         (recipe.recipe_facets?.protein_families ?? []).includes(selectedProteinFamily),
@@ -250,6 +281,7 @@ export default function RecipeLibraryTab({
     recipesWithCuisine,
     showFavoritesOnly,
     selectedCuisine,
+    selectedDietary,
     selectedProteinFamily,
     selectedProteinCut,
   ]);
@@ -347,6 +379,32 @@ export default function RecipeLibraryTab({
             >
               <span aria-hidden className="mr-1">{c.icon}</span>
               {c.label} ({c.count})
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* PRP-239 PR-A — Régime ribbon. Only shown when at least one
+          recipe matches a non-policy dietary flag (vegetarien/vegan).
+          sans_porcin / sans_alcool are 100% prevalence post-PR1b so
+          they're suppressed to avoid no-op chips. */}
+      {dietaryChips.length > 0 && (
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+          role="tablist"
+          aria-label="Filtre par régime"
+        >
+          {dietaryChips.map((d) => (
+            <Badge
+              key={d.key}
+              variant={selectedDietary === d.key ? 'default' : 'outline'}
+              className="cursor-pointer whitespace-nowrap"
+              onClick={() =>
+                setSelectedDietary(selectedDietary === d.key ? '' : d.key)
+              }
+            >
+              <span aria-hidden className="mr-1">{d.icon}</span>
+              {d.label} ({d.count})
             </Badge>
           ))}
         </div>
