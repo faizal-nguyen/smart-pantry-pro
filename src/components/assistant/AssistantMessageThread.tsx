@@ -6,12 +6,14 @@
  * tool/system discrets. Cards d'actions inline si action_log_ids
  * remonte un mapping (déferré PR4+, V1 affiche juste les ids count).
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, User as UserIcon, Cog, Sparkles } from 'lucide-react';
+import { Bot, User as UserIcon, Cog, Sparkles, BookmarkPlus } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import type { AssistantMessage } from '@/services/assistantApi';
 import AssistantRecipeProposals from './AssistantRecipeProposals';
+import AddChefIdeaDialog from './AddChefIdeaDialog';
 
 /**
  * PRP-239 PR4 §10.4 — split a chef synthesis text on the off-DB header.
@@ -30,24 +32,50 @@ function splitChefSections(text: string): { db: string; offDb: string | null } {
   return { db, offDb };
 }
 
-function renderChefContent(content: string): React.ReactElement {
+/**
+ * Inner component that renders the chef synthesis. Extracted so it can
+ * own the AddChefIdeaDialog `open` state — keeping it close to the
+ * off-DB section + button (PR-D wires the conversion CTA here).
+ */
+function ChefContent({
+  content,
+  conversationId,
+}: {
+  content: string;
+  conversationId?: string;
+}): React.ReactElement {
   const { db, offDb } = splitChefSections(content);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   if (!offDb) {
     return <p className="whitespace-pre-wrap text-sm">{content}</p>;
   }
   return (
     <>
       <p className="whitespace-pre-wrap text-sm">{db}</p>
-      <div className="mt-3 pt-3 border-t border-border/60 space-y-1.5">
+      <div className="mt-3 pt-3 border-t border-border/60 space-y-2">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Sparkles className="h-3 w-3" aria-hidden="true" />
           Idées chef hors bibliothèque
         </p>
         <p className="whitespace-pre-wrap text-sm opacity-90">{offDb}</p>
-        <p className="text-[10px] opacity-60 italic">
-          Conversion en recette à venir
-        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setDialogOpen(true)}
+        >
+          <BookmarkPlus className="h-3 w-3 mr-1" />
+          Ajouter à mes recettes
+        </Button>
       </div>
+      <AddChefIdeaDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        ideaText={offDb}
+        conversationId={conversationId}
+      />
     </>
   );
 }
@@ -105,12 +133,11 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
             <p className="text-xs italic opacity-70 mb-1">Transcrit depuis l'audio</p>
           )}
           {/* PRP-239 PR4 §10.4 — visual separation of off-DB chef ideas.
-              The chef prompt instructs the LLM to prefix non-library
-              suggestions with "Idées chef hors bibliothèque" — when we
-              detect that header we render the section below a divider
-              with muted text + a "non actionnable en V1" disclaimer. */}
+              PR-D adds the "Ajouter à mes recettes" CTA on the off-DB
+              section so users can convert chef suggestions into real
+              library entries via RecipePolicySanitizer + RPC. */}
           {isAssistant && msg.content
-            ? renderChefContent(msg.content)
+            ? <ChefContent content={msg.content} conversationId={msg.conversation_id} />
             : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
           }
           <p

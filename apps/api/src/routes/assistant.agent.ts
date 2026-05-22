@@ -54,6 +54,7 @@ import { ProductResolver } from '../services/assistant/ProductResolver.js';
 import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
+import { RecipePolicySanitizer } from '../services/recipeQuality/RecipePolicySanitizer.js';
 import {
   createOpenAICompletionClient,
   type AICompletionClient,
@@ -140,6 +141,30 @@ const VoiceFormFieldsSchema = z.object({
 
 const ConfirmRequestSchema = z.object({
   confirmation_token: z.string().min(1).max(2000),
+});
+
+// PRP-239 PR-D — body for /api/assistant/save-chef-idea. The frontend
+// dialog hands us a structured draft that the user already curated.
+// We still run RecipePolicySanitizer.run() server-side as defence in
+// depth — the LLM-parsed initial draft could leak porc/alcool tokens.
+const ChefIdeaSaveSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  instructions: z.array(z.string().min(1).max(1000)).min(1).max(50),
+  ingredients: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(200),
+        quantity: z.number().nonnegative().optional(),
+        unit: z.string().max(40).optional(),
+        notes: z.string().max(200).optional(),
+      }),
+    )
+    .max(60)
+    .optional(),
+  cuisine_category: z.string().max(50).optional(),
+  meal_type: z.string().max(50).optional(),
+  conversation_id: z.string().uuid().optional(),
 });
 
 // ---- Error mapping --------------------------------------------------
@@ -455,6 +480,111 @@ export function createAssistantAgentRouter(
     } finally {
       clearInterval(heartbeat);
       res.end();
+    }
+  });
+
+  // ---- /save-chef-idea (PRP-239 PR-D) ------------------------------
+  // Persist a user-curated chef idea as a real recipe.
+  //
+  //   1. Validate body shape (Zod).
+  //   2. Run the draft through RecipePolicySanitizer.run() (defence in
+  //      depth — PRP V3.1 mandates every conversion from off-DB ideas
+  //      goes through the sanitizer).
+  //   3. INSERT INTO public.recipes + public.recipe_ingredients via the
+  //      user-scoped Supabase client (RLS sets user_id).
+  //   4. Tag source_type='assistant_chef' + recipe_facets.quality_flags.
+  //   5. Return the new recipe_id + sanitisation report so the dialog
+  //      can surface "we replaced X with Y" to the user.
+  router.post('/save-chef-idea', requestLimiter, async (req: Request, res: Response) => {
+    const parsed = ChefIdeaSaveSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 'Invalid body', 400, 'INVALID_BODY');
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+
+    const body = parsed.data;
+    const client = req.supabaseClient as SupabaseClient<any, any, any>;
+
+    // Run sanitizer on the curated draft.
+    const sanitizer = new RecipePolicySanitizer();
+    const policyResult = sanitizer.run({
+      name: body.title,
+      description: body.description ?? null,
+      instructions: body.instructions,
+      ingredients: (body.ingredients ?? []).map((i) => ({
+        name: i.name,
+        quantity: i.quantity ?? null,
+        unit: i.unit ?? null,
+        notes: i.notes ?? null,
+      })),
+    });
+
+    const sanitized = policyResult.sanitized;
+    const instructionsText = (sanitized.instructions as string[])
+      .map((step, i) => `${i + 1}. ${step}`)
+      .join('\n');
+
+    try {
+      const { data: recipeRow, error: insertErr } = await client
+        .from('recipes')
+        .insert({
+          user_id: req.user.id,
+          name: sanitized.name,
+          description: sanitized.description ?? null,
+          instructions: instructionsText,
+          source_type: 'assistant_chef',
+          source_url: null,
+          image_url: null,
+          cuisine_category: body.cuisine_category ?? null,
+          meal_type: body.meal_type ?? null,
+          tags: [],
+          recipe_facets: {
+            protein_families: [],
+            protein_cuts: [],
+            dietary_flags: ['sans_porcin', 'sans_alcool'],
+            quality_flags: [
+              ...(policyResult.qualityFlags ?? []),
+              'assistant_chef_origin',
+            ],
+            generated_at: new Date().toISOString(),
+            generated_by: 'prp-239-prd',
+          },
+        })
+        .select('id')
+        .single();
+      if (insertErr) throw insertErr;
+      const recipeId = recipeRow?.id as string;
+
+      const ingredientRows = sanitized.ingredients.map((ing, idx) => ({
+        recipe_id: recipeId,
+        ingredient_name: ing.name,
+        quantity: ing.quantity ?? null,
+        unit: ing.unit ?? null,
+        is_essential: ing.isEssential ?? true,
+        order_index: idx + 1,
+        notes: ing.notes ?? null,
+      }));
+      if (ingredientRows.length > 0) {
+        const { error: ingErr } = await client
+          .from('recipe_ingredients')
+          .insert(ingredientRows);
+        if (ingErr) {
+          // Best-effort rollback so we don't leave an orphan recipe.
+          await client.from('recipes').delete().eq('id', recipeId);
+          throw ingErr;
+        }
+      }
+
+      return ok(res, {
+        recipe_id: recipeId,
+        sanitization: {
+          changes: policyResult.changes,
+          quality_flags: policyResult.qualityFlags,
+          violations_remaining: policyResult.violationsRemaining,
+        },
+      }, 'OK', 'CHEF_IDEA_SAVED');
+    } catch (err) {
+      console.error('[assistant.save-chef-idea] error:', err);
+      const message = err instanceof Error ? err.message : 'Save failed';
+      return fail(res, message, 500, 'CHEF_IDEA_SAVE_FAILED');
     }
   });
 
