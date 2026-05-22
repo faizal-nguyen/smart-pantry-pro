@@ -71,6 +71,21 @@ describe('extractRecipeFacets — cuts (§9.4)', () => {
     expect(blanc.protein_cuts).toContain('blanc');
   });
 
+  it('matches French plurals (jarrets / cuisses / pilons / côtelettes) — PR3.3', () => {
+    // Singular tokens in CUT_RULES must still match the plural form
+    // verified live against recipe 21beee11 "Massaman Lamb Shanks
+    // (Jarrets d'Agneau)" which has "jarrets d'agneau" as ingredient.
+    const jarrets = extractRecipeFacets([ing('jarrets d\'agneau')], FIXED);
+    expect(jarrets.protein_families).toContain('agneau');
+    expect(jarrets.protein_cuts).toContain('jarret');
+
+    const beefJarret = extractRecipeFacets([ing('jarrets de boeuf')], FIXED);
+    expect(beefJarret.protein_cuts).toContain('jarret');
+
+    const steaks = extractRecipeFacets([ing('steaks de boeuf')], FIXED);
+    expect(steaks.protein_cuts).toContain('steak');
+  });
+
   it('lamb cuts: gigot + epaule + cotelette + selle (PR3.2)', () => {
     expect(
       extractRecipeFacets([ing('gigot d\'agneau')], FIXED).protein_cuts,

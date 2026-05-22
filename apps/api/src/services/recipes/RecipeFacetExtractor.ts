@@ -252,14 +252,33 @@ export function extractRecipeFacets(
 }
 
 /**
- * Check `(^|\W)token(\W|$)` on already-normalized text.
- * Anchors avoid false hits like "porc" matching inside "support" — same
- * approach as RecipePolicySanitizer (PR1a).
+ * Check whether a normalized token appears in `normalizedText`, tolerant
+ * of French plurals on EACH word of the token.
+ *
+ * Multi-word tokens like `jarret d'agneau` must match `jarrets d'agneau`
+ * (verified live on recipe 21beee11 — "Massaman Lamb Shanks"). A
+ * single trailing `s?` would only cover the last word, leaving the
+ * first word strict and silently missing the plural. So we split on
+ * whitespace and append `[sx]?` to every word — covers both -s plurals
+ * and the French -x exception (agneau → agneaux, bateau → bateaux).
+ *
+ * Anchors `(^|[^a-z0-9])…([^a-z0-9]|$)` avoid false hits like `porc`
+ * matching inside `support`.
+ *
+ * False-positive risk is bounded — extending `gras` to `grass` is
+ * harmless in a French culinary corpus, and the cut taxonomy is small
+ * enough to audit by hand if a token ever needs to opt out.
  */
 function containsToken(normalizedText: string, normalizedToken: string): boolean {
   if (!normalizedText || !normalizedToken) return false;
   const t = normalizePolicyText(normalizedToken);
-  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
-  const rgx = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`);
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return false;
+  const escapedWords = words.map((w) => {
+    const e = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return `${e}[sx]?`;
+  });
+  const pattern = escapedWords.join('\\s+');
+  const rgx = new RegExp(`(^|[^a-z0-9])${pattern}([^a-z0-9]|$)`);
   return rgx.test(normalizedText);
 }
