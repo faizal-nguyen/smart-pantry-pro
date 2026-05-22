@@ -76,6 +76,7 @@
     "dedup:plurals": "tsx scripts/dedup-product-plurals.ts",
     "backfill:recipe-ingredient-fk": "tsx scripts/backfill-recipe-ingredient-fk.ts",
     "backfill:recipe-ingredient-canonical": "tsx scripts/backfill-recipe-ingredient-canonical.ts",
+    "backfill:recipe-facets": "tsx scripts/backfill-recipe-facets.ts",
     "recipe:policy:audit": "tsx scripts/audit-recipe-policy.ts",
     "recipe:policy:check": "tsx scripts/audit-recipe-policy.ts --seeds supabase/seeds --check",
     "postinstall": "npm run shared:build || true"
