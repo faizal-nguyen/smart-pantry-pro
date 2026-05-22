@@ -118,6 +118,12 @@ export default function RecipeLibraryTab({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showDiscover, setShowDiscover] = useState(false);
   const [selectedCuisine, setSelectedCuisine] = useState<string>(ALL_CUISINES_KEY);
+  // PRP-239 PR3 — protein family / cut filters. Single-select per axis
+  // (matches the cuisine ribbon UX) so the visual remains a tap target,
+  // not a dropdown. When a family is selected, the cut ribbon below
+  // shows only the cuts that appear within that family.
+  const [selectedProteinFamily, setSelectedProteinFamily] = useState<string>('');
+  const [selectedProteinCut, setSelectedProteinCut] = useState<string>('');
   const [searchParams] = useSearchParams();
   const filterParam = searchParams.get('filter');
   const showFavoritesOnly = filterParam === 'favorites';
@@ -153,14 +159,77 @@ export default function RecipeLibraryTab({
       .map((def) => ({ ...def, count: counts.get(def.key) ?? 0 }));
   }, [recipesWithCuisine]);
 
+  // PRP-239 PR3 — Family + cut chip data, derived from recipe_facets
+  // populated by the PR3 backfill. Recipes without facets (custom,
+  // pre-backfill) silently pass when no filter is selected.
+  const PROTEIN_FAMILY_LABELS: Record<string, { label: string; icon: string }> = {
+    poulet:        { label: 'Poulet',        icon: '🍗' },
+    boeuf:         { label: 'Bœuf',          icon: '🥩' },
+    agneau:        { label: 'Agneau',        icon: '🐑' },
+    poisson:       { label: 'Poisson',       icon: '🐟' },
+    fruits_de_mer: { label: 'Fruits de mer', icon: '🦐' },
+    tofu:          { label: 'Tofu',          icon: '🍱' },
+    oeuf:          { label: 'Œuf',           icon: '🥚' },
+    mixte:         { label: 'Mixte',         icon: '🍽️' },
+  };
+  const PROTEIN_CUT_LABELS: Record<string, string> = {
+    cuisse: 'Cuisses', haut_de_cuisse: 'Hauts de cuisse', pilon: 'Pilons',
+    aile: 'Ailes', blanc: 'Blancs', escalope: 'Escalopes', entier: 'Entier',
+    hache: 'Haché', steak: 'Steak', tranche: 'Tranches', jarret: 'Jarret',
+    chuck: 'Chuck', gras: 'Gras', saumon: 'Saumon', thon: 'Thon',
+    poisson_blanc: 'Poisson blanc', crevette: 'Crevettes',
+  };
+
+  const proteinFamilyChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of recipes) {
+      const fams = r.recipe_facets?.protein_families ?? [];
+      for (const f of fams) counts.set(f, (counts.get(f) ?? 0) + 1);
+    }
+    return Object.keys(PROTEIN_FAMILY_LABELS)
+      .filter((k) => (counts.get(k) ?? 0) > 0)
+      .map((k) => ({ key: k, ...PROTEIN_FAMILY_LABELS[k], count: counts.get(k) ?? 0 }));
+  }, [recipes]);
+
+  const proteinCutChips = useMemo(() => {
+    if (!selectedProteinFamily) return [];
+    const counts = new Map<string, number>();
+    for (const r of recipes) {
+      const fams = r.recipe_facets?.protein_families ?? [];
+      if (!fams.includes(selectedProteinFamily)) continue;
+      const cuts = r.recipe_facets?.protein_cuts ?? [];
+      for (const c of cuts) counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .filter(([_, n]) => n > 0)
+      .map(([k, n]) => ({ key: k, label: PROTEIN_CUT_LABELS[k] ?? k, count: n }))
+      .sort((a, b) => b.count - a.count);
+  }, [recipes, selectedProteinFamily]);
+
   const visibleRecipes = useMemo(() => {
     let out = recipesWithCuisine;
     if (showFavoritesOnly) out = out.filter(({ recipe }) => isFavorite(recipe));
     if (selectedCuisine !== ALL_CUISINES_KEY) {
       out = out.filter(({ cuisineKey }) => cuisineKey === selectedCuisine);
     }
+    if (selectedProteinFamily) {
+      out = out.filter(({ recipe }) =>
+        (recipe.recipe_facets?.protein_families ?? []).includes(selectedProteinFamily),
+      );
+    }
+    if (selectedProteinCut) {
+      out = out.filter(({ recipe }) =>
+        (recipe.recipe_facets?.protein_cuts ?? []).includes(selectedProteinCut),
+      );
+    }
     return out.map(({ recipe }) => recipe);
-  }, [recipesWithCuisine, showFavoritesOnly, selectedCuisine]);
+  }, [
+    recipesWithCuisine,
+    showFavoritesOnly,
+    selectedCuisine,
+    selectedProteinFamily,
+    selectedProteinCut,
+  ]);
 
   // Catalog recipes the user hasn't added yet. Drives the bottom
   // "Découvrir" section: skips the no-op of showing recipes already
@@ -254,6 +323,61 @@ export default function RecipeLibraryTab({
               }
             >
               <span aria-hidden className="mr-1">{c.icon}</span>
+              {c.label} ({c.count})
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* PRP-239 PR3 — Protéine ribbon. Only shown when at least one
+          recipe has been classified (post-backfill). Selecting a family
+          reveals the matching cuts ribbon below. */}
+      {proteinFamilyChips.length > 0 && (
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+          role="tablist"
+          aria-label="Filtre par protéine"
+        >
+          {proteinFamilyChips.map((p) => (
+            <Badge
+              key={p.key}
+              variant={selectedProteinFamily === p.key ? 'default' : 'outline'}
+              className="cursor-pointer whitespace-nowrap"
+              onClick={() => {
+                if (selectedProteinFamily === p.key) {
+                  setSelectedProteinFamily('');
+                  setSelectedProteinCut('');
+                } else {
+                  setSelectedProteinFamily(p.key);
+                  // Reset cut when switching family (the previously
+                  // selected cut may not exist within the new family).
+                  setSelectedProteinCut('');
+                }
+              }}
+            >
+              <span aria-hidden className="mr-1">{p.icon}</span>
+              {p.label} ({p.count})
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Cuts ribbon — only when a family is selected and has cuts to expose */}
+      {selectedProteinFamily && proteinCutChips.length > 0 && (
+        <div
+          className="flex items-center gap-2 overflow-x-auto -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:flex-wrap"
+          role="tablist"
+          aria-label={`Coupes pour ${PROTEIN_FAMILY_LABELS[selectedProteinFamily]?.label ?? selectedProteinFamily}`}
+        >
+          {proteinCutChips.map((c) => (
+            <Badge
+              key={c.key}
+              variant={selectedProteinCut === c.key ? 'default' : 'outline'}
+              className="cursor-pointer whitespace-nowrap text-xs"
+              onClick={() =>
+                setSelectedProteinCut(selectedProteinCut === c.key ? '' : c.key)
+              }
+            >
               {c.label} ({c.count})
             </Badge>
           ))}

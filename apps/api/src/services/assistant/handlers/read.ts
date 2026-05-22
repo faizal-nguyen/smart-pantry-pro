@@ -332,42 +332,92 @@ export class FindRecipesUsingIngredientHandler
     args: FindRecipesUsingIngredientArgs
   ): Promise<ToolExecutionResult<{ recipes: RecipeUsingIngredientView[] }>> {
     const limit = args.limit ?? 12;
-    const safe = args.ingredient.replace(/[%_]/g, '\\$&');
 
-    // Join recipe_ingredients → recipes (inner) so RLS on recipes
-    // scopes the result to the calling user. We grab a few extra rows
-    // to dedupe later — same recipe can match via multiple ingredients.
+    // Path A — ingredient-name ilike (existing behaviour).
+    // Path B — PRP-239 PR3: recipe_facets protein_family / protein_cut.
+    // When both are present we use Path A (ingredient is more specific)
+    // and then post-filter by facets so the LLM gets the intersection.
+    if (args.ingredient) {
+      const safe = args.ingredient.replace(/[%_]/g, '\\$&');
+      const fetchTarget = Math.min(limit * 4, 200);
+      const { data, error } = await ctx.userClient
+        .from('recipe_ingredients')
+        .select(
+          'ingredient_name, recipes!inner(id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, user_id, recipe_facets)',
+        )
+        .ilike('ingredient_name', `%${safe}%`)
+        .limit(fetchTarget);
+      if (error) throw error;
+
+      const seen = new Map<string, RecipeUsingIngredientView>();
+      for (const row of (data ?? []) as unknown as Array<{
+        ingredient_name: string;
+        recipes: {
+          id: string;
+          name: string;
+          description: string | null;
+          prep_time: number | null;
+          cook_time: number | null;
+          servings: number | null;
+          image_url: string | null;
+          cuisine_category: string | null;
+          meal_type: string | null;
+          tags: string[] | null;
+          user_id: string;
+          recipe_facets: Record<string, unknown> | null;
+        };
+      }>) {
+        const r = row.recipes;
+        if (!r || r.user_id !== ctx.userId) continue;
+        if (seen.has(r.id)) continue;
+        if (!matchesFacetFilters(r.recipe_facets, args)) continue;
+        seen.set(r.id, {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          prep_time: r.prep_time,
+          cook_time: r.cook_time,
+          servings: r.servings,
+          image_url: r.image_url,
+          cuisine_category: r.cuisine_category,
+          meal_type: r.meal_type,
+          tags: r.tags,
+          matched_ingredient: row.ingredient_name,
+        });
+        if (seen.size >= limit) break;
+      }
+      return { result: { recipes: Array.from(seen.values()) } };
+    }
+
+    // Path B: facet-only lookup. The schema's `.refine` already ensures
+    // at least one of ingredient / protein_family is set, so we have a
+    // family here. We add cut narrowing in-memory because Supabase REST
+    // doesn't support arbitrary jsonb path queries on @> with multiple
+    // criteria in a single call.
     const fetchTarget = Math.min(limit * 4, 200);
-    const { data, error } = await ctx.userClient
-      .from('recipe_ingredients')
-      .select(
-        'ingredient_name, recipes!inner(id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, user_id)',
-      )
-      .ilike('ingredient_name', `%${safe}%`)
+    const { data: recipes, error: rErr } = await ctx.userClient
+      .from('recipes')
+      .select('id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, recipe_facets')
+      .contains('recipe_facets', { protein_families: [args.protein_family] })
       .limit(fetchTarget);
-    if (error) throw error;
+    if (rErr) throw rErr;
 
-    const seen = new Map<string, RecipeUsingIngredientView>();
-    for (const row of (data ?? []) as unknown as Array<{
-      ingredient_name: string;
-      recipes: {
-        id: string;
-        name: string;
-        description: string | null;
-        prep_time: number | null;
-        cook_time: number | null;
-        servings: number | null;
-        image_url: string | null;
-        cuisine_category: string | null;
-        meal_type: string | null;
-        tags: string[] | null;
-        user_id: string;
-      };
+    const out: RecipeUsingIngredientView[] = [];
+    for (const r of (recipes ?? []) as unknown as Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      prep_time: number | null;
+      cook_time: number | null;
+      servings: number | null;
+      image_url: string | null;
+      cuisine_category: string | null;
+      meal_type: string | null;
+      tags: string[] | null;
+      recipe_facets: Record<string, unknown> | null;
     }>) {
-      const r = row.recipes;
-      if (!r || r.user_id !== ctx.userId) continue;
-      if (seen.has(r.id)) continue;
-      seen.set(r.id, {
+      if (!matchesFacetFilters(r.recipe_facets, args)) continue;
+      out.push({
         id: r.id,
         name: r.name,
         description: r.description,
@@ -378,13 +428,33 @@ export class FindRecipesUsingIngredientHandler
         cuisine_category: r.cuisine_category,
         meal_type: r.meal_type,
         tags: r.tags,
-        matched_ingredient: row.ingredient_name,
+        matched_ingredient: args.protein_family + (args.protein_cut ? `.${args.protein_cut}` : ''),
       });
-      if (seen.size >= limit) break;
+      if (out.length >= limit) break;
     }
-
-    return { result: { recipes: Array.from(seen.values()) } };
+    return { result: { recipes: out } };
   }
+}
+
+/**
+ * PRP-239 PR3 — check a recipe's recipe_facets against optional family /
+ * cut narrowing. Recipes with no facets pass when no filter is set,
+ * mirroring the UI's "unclassified recipes don't disappear" behaviour.
+ */
+function matchesFacetFilters(
+  facets: Record<string, unknown> | null | undefined,
+  args: { protein_family?: string; protein_cut?: string },
+): boolean {
+  if (!args.protein_family && !args.protein_cut) return true;
+  const f = (facets ?? {}) as {
+    protein_families?: unknown;
+    protein_cuts?: unknown;
+  };
+  const fams = Array.isArray(f.protein_families) ? (f.protein_families as string[]) : [];
+  const cuts = Array.isArray(f.protein_cuts) ? (f.protein_cuts as string[]) : [];
+  if (args.protein_family && !fams.includes(args.protein_family)) return false;
+  if (args.protein_cut && !cuts.includes(args.protein_cut)) return false;
+  return true;
 }
 
 interface RawMealPlanEntry {

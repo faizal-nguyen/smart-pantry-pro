@@ -61,6 +61,17 @@ export interface UserRecipe {
   
   // Relation avec le catalogue (si applicable)
   catalog_recipe?: CatalogRecipe;
+
+  // PRP-239 PR3 — facets extracted from ingredients. Populated for legacy
+  // `recipes` rows by RecipeFacetExtractor (Phase 3 backfill). Optional
+  // because `user_recipes` (catalog pointers) doesn't have its own facets
+  // yet — those land in V2.
+  recipe_facets?: {
+    protein_families?: string[];
+    protein_cuts?: string[];
+    dietary_flags?: string[];
+    quality_flags?: string[];
+  };
 }
 
 export interface UserRecipeFilters {
@@ -70,6 +81,12 @@ export interface UserRecipeFilters {
   isCustom?: boolean;
   hasBeenCooked?: boolean;
   rating?: number;
+  // PRP-239 PR3 — protein/cut/dietary filters. Multi-select within
+  // each axis (OR), combined across axes (AND). E.g. families=['poulet','boeuf']
+  // + cuts=['hache'] returns recipes that have poulet OR boeuf AND hache.
+  proteinFamilies?: string[];
+  proteinCuts?: string[];
+  dietaryFlags?: string[];
 }
 
 // Hook principal pour les recettes utilisateur
@@ -465,6 +482,29 @@ function applyUserRecipeFilters(
       ].filter(Boolean).join(' ').toLowerCase();
       if (!haystack.includes(q)) return false;
     }
+    // PRP-239 PR3 — facet filters. A recipe with no recipe_facets
+    // (catalog rows pre-backfill, custom recipes) passes the family
+    // filter only when the filter is empty, so we don't silently drop
+    // user-owned data that hasn't been classified yet.
+    const facets = r.recipe_facets ?? {};
+    if (filters.proteinFamilies?.length) {
+      const have = facets.protein_families ?? [];
+      const hit = filters.proteinFamilies.some((f) => have.includes(f));
+      if (!hit) return false;
+    }
+    if (filters.proteinCuts?.length) {
+      const have = facets.protein_cuts ?? [];
+      const hit = filters.proteinCuts.some((c) => have.includes(c));
+      if (!hit) return false;
+    }
+    if (filters.dietaryFlags?.length) {
+      const have = facets.dietary_flags ?? [];
+      // Dietary filters are AND (recipe must have ALL the requested flags).
+      // Otherwise selecting "végétarien + vegan" would return recipes
+      // that match either, defeating the purpose of stacking constraints.
+      const all = filters.dietaryFlags.every((f) => have.includes(f));
+      if (!all) return false;
+    }
     return true;
   });
 }
@@ -591,6 +631,7 @@ function mapRecipeToUserRecipe(recipe: any): UserRecipe {
     shared_with: [],
     created_at: recipe.created_at,
     updated_at: recipe.updated_at,
+    recipe_facets: recipe.recipe_facets ?? undefined,
   };
 }
 

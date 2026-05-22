@@ -112,12 +112,46 @@ const searchRecipesArgs = z.object({
 });
 export type SearchRecipesArgs = z.infer<typeof searchRecipesArgs>;
 
+// PRP-239 PR3 — protein family / cut enums shared by the recipe tools.
+// Mirrors the taxonomy in `apps/api/src/services/recipes/RecipeFacetExtractor.ts`.
+const proteinFamilySchema = z.enum([
+  'poulet',
+  'boeuf',
+  'agneau',
+  'poisson',
+  'fruits_de_mer',
+  'tofu',
+  'oeuf',
+  'mixte',
+]);
+const proteinCutSchema = z.enum([
+  // poulet
+  'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
+  // boeuf (hache already above, deduplicated by zod)
+  'steak', 'tranche', 'jarret', 'chuck', 'gras',
+  // poisson / fruits_de_mer
+  'saumon', 'thon', 'poisson_blanc', 'crevette',
+]);
+const dietaryFlagSchema = z.enum(['vegetarien', 'vegan', 'sans_porcin', 'sans_alcool']);
+
 const findRecipesUsingIngredientArgs = z.object({
-  /** Free-text ingredient name. e.g. "cuisses de poulet", "tomate", "œuf". */
-  ingredient: z.string().min(1).max(200),
+  /**
+   * Free-text ingredient name. Optional when `protein_family` is given —
+   * lets the assistant pose "what can I cook with chicken thighs?" as
+   * `{ protein_family: 'poulet', protein_cut: 'haut_de_cuisse' }` without
+   * having to invent a synthetic ingredient string.
+   */
+  ingredient: z.string().min(1).max(200).optional(),
+  /** PRP-239 PR3 — narrow to a protein family. */
+  protein_family: proteinFamilySchema.optional(),
+  /** PRP-239 PR3 — narrow to a specific cut (poulet/boeuf/etc.). */
+  protein_cut: proteinCutSchema.optional(),
   /** Maximum recipes returned (default 12). */
   limit: z.number().int().min(1).max(50).optional(),
-});
+}).refine(
+  (args) => Boolean(args.ingredient || args.protein_family),
+  { message: 'Either `ingredient` or `protein_family` is required.' },
+);
 export type FindRecipesUsingIngredientArgs = z.infer<typeof findRecipesUsingIngredientArgs>;
 
 const suggestRecipesForContextArgs = z.object({
@@ -146,6 +180,12 @@ const suggestRecipesForContextArgs = z.object({
     ])
     .optional(),
   servings: z.number().int().min(1).max(20).optional(),
+  // PRP-239 PR3 — facet-aware narrowing. Filters the underlying recipe
+  // set before bucketing. Combinable with `query` + `meal_type` +
+  // `max_prep_time` (AND semantics).
+  protein_family: proteinFamilySchema.optional(),
+  protein_cut: proteinCutSchema.optional(),
+  dietary_flag: dietaryFlagSchema.optional(),
 });
 export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForContextArgs>;
 
@@ -441,13 +481,26 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
   {
     name: 'find_recipes_using_ingredient',
     description:
-      "Return recipes that USE a given ingredient. Use this when the user asks 'quelles recettes je peux faire avec X', 'recettes au X', 'recettes avec du X', or any phrasing centered on an ingredient. Matches against recipe_ingredients.ingredient_name (case-insensitive substring), so 'cuisses de poulet' matches 'cuisses de poulet désossées' too. Returns the recipe summary plus the actual matched_ingredient string for each row.",
+      "Return recipes that USE a given ingredient or match a protein family/cut. Use this when the user asks 'quelles recettes je peux faire avec X', 'recettes au X', 'recettes avec du X', or any phrasing centered on an ingredient. Matches recipe_ingredients.ingredient_name (case-insensitive substring). PRP-239: you can also (or instead) pass protein_family/protein_cut to narrow by recipes.recipe_facets (e.g. {protein_family:'poulet', protein_cut:'haut_de_cuisse'} for 'cuisses de poulet'). Returns the recipe summary plus the actual matched_ingredient string for each row.",
     schema: findRecipesUsingIngredientArgs,
     jsonSchema: {
       type: 'object',
-      required: ['ingredient'],
       properties: {
         ingredient: { type: 'string', minLength: 1, maxLength: 200 },
+        protein_family: {
+          type: 'string',
+          enum: ['poulet', 'boeuf', 'agneau', 'poisson', 'fruits_de_mer', 'tofu', 'oeuf', 'mixte'],
+          description: 'PRP-239: narrow by recipes.recipe_facets.protein_families',
+        },
+        protein_cut: {
+          type: 'string',
+          enum: [
+            'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
+            'steak', 'tranche', 'jarret', 'chuck', 'gras',
+            'saumon', 'thon', 'poisson_blanc', 'crevette',
+          ],
+          description: 'PRP-239: narrow by recipes.recipe_facets.protein_cuts',
+        },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
       },
       additionalProperties: false,
@@ -478,6 +531,25 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
           description: 'high-level intent — anti_waste boosts near-expiry, quick caps prep time, etc. (PRP-226)',
         },
         servings: { type: 'integer', minimum: 1, maximum: 20, description: 'expected servings, narrows recipes (PRP-226)' },
+        protein_family: {
+          type: 'string',
+          enum: ['poulet', 'boeuf', 'agneau', 'poisson', 'fruits_de_mer', 'tofu', 'oeuf', 'mixte'],
+          description: 'PRP-239: narrow recipes by protein family (recipes.recipe_facets.protein_families).',
+        },
+        protein_cut: {
+          type: 'string',
+          enum: [
+            'cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache',
+            'steak', 'tranche', 'jarret', 'chuck', 'gras',
+            'saumon', 'thon', 'poisson_blanc', 'crevette',
+          ],
+          description: 'PRP-239: narrow by recipes.recipe_facets.protein_cuts (e.g. "haut_de_cuisse").',
+        },
+        dietary_flag: {
+          type: 'string',
+          enum: ['vegetarien', 'vegan', 'sans_porcin', 'sans_alcool'],
+          description: 'PRP-239: narrow by recipes.recipe_facets.dietary_flags. Use sparingly — sans_porcin and sans_alcool are policy defaults.',
+        },
       },
       additionalProperties: false,
     },
