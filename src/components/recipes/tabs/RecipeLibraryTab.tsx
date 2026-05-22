@@ -179,6 +179,22 @@ export default function RecipeLibraryTab({
     chuck: 'Chuck', gras: 'Gras', saumon: 'Saumon', thon: 'Thon',
     poisson_blanc: 'Poisson blanc', crevette: 'Crevettes',
   };
+  // PRP-239 PR3.1 — which cut belongs to which family. Mirror of
+  // RecipeFacetExtractor.CUT_RULES so the UI never shows "crevette" as
+  // a poulet cut on a mixte recipe (e.g. poulet+crevettes). Without this
+  // a recipe in {poulet, fruits_de_mer} would expose ALL its cuts when
+  // the user clicked "Poulet". oeuf/tofu/agneau/mixte have no cuts in
+  // the V1 taxonomy → empty ribbon (we hide it when empty).
+  const CUTS_BY_FAMILY: Record<string, string[]> = {
+    poulet: ['cuisse', 'haut_de_cuisse', 'pilon', 'aile', 'blanc', 'escalope', 'entier', 'hache'],
+    boeuf: ['hache', 'steak', 'tranche', 'jarret', 'chuck', 'gras'],
+    poisson: ['saumon', 'thon', 'poisson_blanc'],
+    fruits_de_mer: ['crevette'],
+    agneau: [],
+    tofu: [],
+    oeuf: [],
+    mixte: [],
+  };
 
   const proteinFamilyChips = useMemo(() => {
     const counts = new Map<string, number>();
@@ -193,12 +209,17 @@ export default function RecipeLibraryTab({
 
   const proteinCutChips = useMemo(() => {
     if (!selectedProteinFamily) return [];
+    const allowedCuts = new Set(CUTS_BY_FAMILY[selectedProteinFamily] ?? []);
+    if (allowedCuts.size === 0) return []; // family has no cut taxonomy (oeuf, tofu, agneau, mixte)
     const counts = new Map<string, number>();
     for (const r of recipes) {
       const fams = r.recipe_facets?.protein_families ?? [];
       if (!fams.includes(selectedProteinFamily)) continue;
       const cuts = r.recipe_facets?.protein_cuts ?? [];
-      for (const c of cuts) counts.set(c, (counts.get(c) ?? 0) + 1);
+      for (const c of cuts) {
+        if (!allowedCuts.has(c)) continue; // skip cuts that belong to another family
+        counts.set(c, (counts.get(c) ?? 0) + 1);
+      }
     }
     return [...counts.entries()]
       .filter(([_, n]) => n > 0)

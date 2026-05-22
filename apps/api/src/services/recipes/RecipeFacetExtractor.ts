@@ -110,12 +110,16 @@ const FAMILY_RULES: FamilyRule[] = [
 ];
 
 // Cuts are scoped to a family: { family: { cut: tokens[] } }
+// Tokens within a family must NOT overlap — `escalope de poulet` used
+// to be in both `blanc` and `escalope`, which double-counted the same
+// ingredient. PRP §9.2 keeps them distinct: `blanc` = poitrine entière,
+// `escalope` = blanc tranché fin.
 const CUT_RULES: Partial<Record<ProteinFamily, Record<string, string[]>>> = {
   poulet: {
     haut_de_cuisse: ['haut de cuisse de poulet', 'hauts de cuisse de poulet', 'haut de cuisse'],
     pilon: ['pilon de poulet', 'pilons de poulet', 'pilon'],
     aile: ['aile de poulet', 'ailes de poulet'],
-    blanc: ['blanc de poulet', 'escalope de poulet', 'poitrine de poulet'],
+    blanc: ['blanc de poulet', 'poitrine de poulet'],
     escalope: ['escalope de poulet'],
     cuisse: ['cuisse de poulet', 'cuisses de poulet'],
     entier: ['poulet entier'],
