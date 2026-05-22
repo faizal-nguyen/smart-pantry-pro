@@ -57,60 +57,65 @@ interface RecipeIngredientRow {
 
 async function fetchUnlinkedBatch(
   client: SupabaseClient<any, any, any>,
-  offset: number,
+  afterId: string | null,
   limit: number,
 ): Promise<RecipeIngredientRow[]> {
-  const { data, error } = await client
+  let query = client
     .from('recipe_ingredients')
     .select('id, recipe_id, ingredient_name')
     .is('inventory_product_id', null)
     .not('ingredient_name', 'is', null)
     .neq('ingredient_name', '')
     .order('id')
-    .range(offset, offset + limit - 1);
+    .limit(limit);
+  if (afterId) query = query.gt('id', afterId);
 
-  if (error) {
-    throw new Error(`fetch failed: ${error.message}`);
-  }
+  const { data, error } = await query;
+  if (error) throw new Error(`fetch failed: ${error.message}`);
   return (data ?? []) as RecipeIngredientRow[];
 }
 
-async function applyResolution(
+async function applyFkUpdate(
   client: SupabaseClient<any, any, any>,
   row: RecipeIngredientRow,
-  resolved: ResolvedIngredient,
+  productId: string,
 ): Promise<void> {
-  if (resolved.productId) {
-    const { error } = await client
-      .from('recipe_ingredients')
-      .update({ inventory_product_id: resolved.productId })
-      .eq('id', row.id);
-    if (error) throw new Error(`update ri ${row.id}: ${error.message}`);
-    return;
-  }
+  const { error } = await client
+    .from('recipe_ingredients')
+    .update({ inventory_product_id: productId })
+    .eq('id', row.id);
+  if (error) throw new Error(`update ri ${row.id}: ${error.message}`);
+}
 
-  // Unresolved → tag the recipe with low_confidence_match. Merge via
-  // set union on the existing array.
+/**
+ * Tag a single recipe with `low_confidence_match` (idempotent set-union
+ * on `recipe_facets.quality_flags`). Caller is responsible for deduping
+ * recipe ids so we only hit this once per recipe per run.
+ */
+async function tagRecipeLowConfidence(
+  client: SupabaseClient<any, any, any>,
+  recipeId: string,
+): Promise<void> {
   const { data: facetRow, error: readErr } = await client
     .from('recipes')
     .select('recipe_facets')
-    .eq('id', row.recipe_id)
+    .eq('id', recipeId)
     .single();
-  if (readErr) throw new Error(`read recipe ${row.recipe_id}: ${readErr.message}`);
+  if (readErr) throw new Error(`read recipe ${recipeId}: ${readErr.message}`);
 
   const facets =
     (facetRow?.recipe_facets as Record<string, unknown> | null | undefined) ?? {};
   const existing = Array.isArray((facets as { quality_flags?: unknown }).quality_flags)
     ? ((facets as { quality_flags: string[] }).quality_flags)
     : [];
-  if (existing.includes('low_confidence_match')) return; // already flagged
+  if (existing.includes('low_confidence_match')) return;
 
   const next = { ...facets, quality_flags: [...existing, 'low_confidence_match'] };
   const { error: writeErr } = await client
     .from('recipes')
     .update({ recipe_facets: next })
-    .eq('id', row.recipe_id);
-  if (writeErr) throw new Error(`tag recipe ${row.recipe_id}: ${writeErr.message}`);
+    .eq('id', recipeId);
+  if (writeErr) throw new Error(`tag recipe ${recipeId}: ${writeErr.message}`);
 }
 
 async function main(): Promise<void> {
@@ -133,8 +138,12 @@ async function main(): Promise<void> {
     : new EmbeddingService({ apiKey: process.env.OPENAI_API_KEY });
   const resolver = new IngredientAliasResolver(client, { embeddingService });
 
-  let offset = 0;
+  // Cursor-based pagination on `id` so APPLY mode doesn't loop forever
+  // on rows that stayed NULL (low_confidence / ambiguous never get an
+  // FK, so they remain in the candidate set if we'd offset-paginate).
+  let afterId: string | null = null;
   let processed = 0;
+  const startedAt = Date.now();
   const stats = {
     exact: 0,
     alias: 0,
@@ -143,6 +152,10 @@ async function main(): Promise<void> {
     low_confidence: 0,
   };
   const taggedRecipes = new Set<string>();
+  // Cache recipes we've ALREADY tagged in THIS run so we don't re-read
+  // + re-write the same row 20 times when 20 of its ingredients are
+  // unresolved.
+  const taggedThisRun = new Set<string>();
 
   process.stderr.write(
     `[backfill-canonical] mode=${APPLY ? 'APPLY' : 'DRY-RUN'} batch=${BATCH_SIZE} maxRows=${
@@ -152,8 +165,9 @@ async function main(): Promise<void> {
 
   while (processed < MAX_ROWS) {
     const remaining = Math.min(BATCH_SIZE, MAX_ROWS - processed);
-    const rows = await fetchUnlinkedBatch(client, offset, remaining);
+    const rows = await fetchUnlinkedBatch(client, afterId, remaining);
     if (rows.length === 0) break;
+    afterId = rows[rows.length - 1].id;
 
     for (const row of rows) {
       const resolved = await resolver.resolve(row.ingredient_name);
@@ -161,11 +175,16 @@ async function main(): Promise<void> {
 
       if (APPLY) {
         try {
-          await applyResolution(client, row, resolved);
-          if (!resolved.productId) taggedRecipes.add(row.recipe_id);
+          if (resolved.productId) {
+            await applyFkUpdate(client, row, resolved.productId);
+          } else if (!taggedThisRun.has(row.recipe_id)) {
+            await tagRecipeLowConfidence(client, row.recipe_id);
+            taggedThisRun.add(row.recipe_id);
+            taggedRecipes.add(row.recipe_id);
+          }
         } catch (err) {
           process.stderr.write(
-            `[backfill-canonical] error on ri ${row.id}: ${
+            `[backfill-canonical] error on ri ${row.id} (recipe=${row.recipe_id}): ${
               err instanceof Error ? err.message : String(err)
             }\n`,
           );
@@ -173,15 +192,16 @@ async function main(): Promise<void> {
       }
 
       processed += 1;
+      if (processed % 50 === 0) {
+        const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+        const rate = (processed / Math.max(Number(elapsed), 0.1)).toFixed(1);
+        process.stderr.write(
+          `[backfill-canonical] progress ${processed} rows in ${elapsed}s (${rate}/s) — exact=${stats.exact} alias=${stats.alias} semantic=${stats.semantic} ambig=${stats.ambiguous} low=${stats.low_confidence}\n`,
+        );
+      }
       if (processed >= MAX_ROWS) break;
     }
 
-    // When we APPLY and the FK was just set, the next page's offset
-    // would skip rows because the WHERE filter (`inventory_product_id IS
-    // NULL`) shrinks the candidate set. In APPLY mode we therefore
-    // stay at offset 0 and the loop terminates naturally when the set
-    // is empty. In dry-run we paginate normally so we see the full set.
-    if (!APPLY) offset += rows.length;
   }
 
   process.stderr.write('\n[backfill-canonical] Summary\n');
