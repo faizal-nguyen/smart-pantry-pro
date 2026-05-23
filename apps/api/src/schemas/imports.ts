@@ -25,6 +25,9 @@ export const STATUS_VALUES = [
   'saved',
   'failed',
   'archived',
+  // PRP-240 V2
+  'needs_upload',
+  'video_processing',
 ] as const;
 
 export const PlatformSchema = z.enum(PLATFORM_VALUES);

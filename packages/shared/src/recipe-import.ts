@@ -33,8 +33,27 @@ export const ExtractionMethodSchema = z.enum([
   'screenshot_ocr',
   'voice_dictation',
   'ai_inference',
+  // PRP-240 V2 — true multimodal (audio + visual + on-screen text)
+  // video analysis. Distinct from `ai_inference`, which is reserved
+  // for metadata/caption inference that did not inspect the video.
+  'video_multimodal',
 ]);
 export type ExtractionMethod = z.infer<typeof ExtractionMethodSchema>;
+
+// PRP-240 §9.4 — machine-readable warning codes. Stored under
+// `source_metadata.video.warning_codes` so the UI can branch on a
+// stable enum instead of string-matching prose in `extractionWarnings`.
+export const ExtractionWarningCodeSchema = z.enum([
+  'not_a_recipe',
+  'download_metadata_only',
+  'schema_partial',
+  'missing_quantities',
+  'cost_cap_exceeded',
+  'policy_rewritten',
+  'low_confidence',
+  'frame_persistence_blocked',
+]);
+export type ExtractionWarningCode = z.infer<typeof ExtractionWarningCodeSchema>;
 
 // === Source snapshot (what the recipe came from) ======================
 
