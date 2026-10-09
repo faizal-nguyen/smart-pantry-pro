@@ -1,0 +1,602 @@
+{
+  "scope": "changed product files and V10 visual fixtures; test files and configs excluded",
+  "errors": 0,
+  "warnings": 32,
+  "results": [
+    {
+      "file": "apps/api/src/routes/stock.routes.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/routes/v1.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/assistant/VoiceAgentService.ts",
+      "errorCount": 0,
+      "warningCount": 13,
+      "messages": [
+        {
+          "line": 377,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 415,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 497,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 512,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 555,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 668,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 684,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 700,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 751,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 800,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 805,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 824,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 834,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        }
+      ]
+    },
+    {
+      "file": "apps/api/src/services/assistant/handlers/internal.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/assistant/handlers/read.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/assistant/handlers/types.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/assistant/handlers/write.ts",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 136,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        }
+      ]
+    },
+    {
+      "file": "apps/api/src/services/assistant/schemas/tools.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/assistant/undo.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/cooking/CookingJournalService.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/imports/SocialVideoImportQueue.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/recommendations/CookabilityScorer.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/recommendations/RecommendationEngine.ts",
+      "errorCount": 0,
+      "warningCount": 5,
+      "messages": [
+        {
+          "line": 138,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 278,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 288,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 363,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        },
+        {
+          "line": 401,
+          "severity": 1,
+          "rule": null,
+          "message": "Unused eslint-disable directive (no problems were reported from 'no-console')."
+        }
+      ]
+    },
+    {
+      "file": "apps/api/src/services/recommendations/types.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "apps/api/src/services/stock/StockCommandService.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "packages/shared/src/index.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "packages/shared/src/quantities.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "packages/shared/src/recipe-model.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "packages/shared/src/stock-commands.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "public/sw.js",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "scripts/fixtures/v10/api.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "scripts/fixtures/v10/main.tsx",
+      "errorCount": 0,
+      "warningCount": 2,
+      "messages": [
+        {
+          "line": 32,
+          "severity": 1,
+          "rule": "react-refresh/only-export-components",
+          "message": "Fast refresh only works when a file has exports. Move your component(s) to a separate file."
+        },
+        {
+          "line": 36,
+          "severity": 1,
+          "rule": "react-refresh/only-export-components",
+          "message": "Fast refresh only works when a file has exports. Move your component(s) to a separate file."
+        }
+      ]
+    },
+    {
+      "file": "scripts/fixtures/v10/supabase.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/App.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/assistant/AssistantProvider.tsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 112,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/components/inventory/ProductCard.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/inventory/SmartProductCard.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/meal-planning/AddRecipeToMenuDialog.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/navigation/AppNavigation.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/navigation/MobileNavigation.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/recipes/AddRecipeDialog.tsx",
+      "errorCount": 0,
+      "warningCount": 2,
+      "messages": [
+        {
+          "line": 231,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array."
+        },
+        {
+          "line": 243,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'user'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/components/recipes/RecipeMobileActionBar.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/settings/AccountSection.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/settings/CookingPreferencesSection.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/ui/sonner.tsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 29,
+          "severity": 1,
+          "rule": "react-refresh/only-export-components",
+          "message": "Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components."
+        }
+      ]
+    },
+    {
+      "file": "src/components/ui/toast.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/contexts/AuthSessionContext.tsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 32,
+          "severity": 1,
+          "rule": "react-refresh/only-export-components",
+          "message": "Fast refresh only works when a file only exports components. Move your React context(s) to a separate file."
+        }
+      ]
+    },
+    {
+      "file": "src/hooks/use-toast.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useAssistantVoice.ts",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 129,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "The ref value 'epochRef.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'epochRef.current' to a variable inside the effect, and use that variable in the cleanup function."
+        }
+      ]
+    },
+    {
+      "file": "src/hooks/useCookingJournal.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useInventory.ts",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 494,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'fetchInventory'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/hooks/useMealPlanningRecipes.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useNavCounts.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useOnboarding.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/usePersonalization.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/usePersonalizationMigration.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRecipeInventoryAnalysis.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRecipes.ts",
+      "errorCount": 0,
+      "warningCount": 2,
+      "messages": [
+        {
+          "line": 348,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'fetchRecipes'. Either include it or remove the dependency array."
+        },
+        {
+          "line": 366,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'fetchRecipes'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/hooks/useShoppingList.ts",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 41,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useCallback has a missing dependency: 'user'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/hooks/useSocialRecipeParser.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useTheme.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useTodayRecommendations.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useUserRecipes.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useWeeklyMenu.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/integrations/supabase/types.augmented.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/agentEvents.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/api.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/recipeActions.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/recipeSource.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/Inventory.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/RecipeDetail.tsx",
+      "errorCount": 0,
+      "warningCount": 1,
+      "messages": [
+        {
+          "line": 190,
+          "severity": 1,
+          "rule": "react-hooks/exhaustive-deps",
+          "message": "React Hook useEffect has a missing dependency: 'fetchRecipeDetails'. Either include it or remove the dependency array."
+        }
+      ]
+    },
+    {
+      "file": "src/pages/SmartShoppingList.tsx",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/assistantApi.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/recipePersistence.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/stockCommands.ts",
+      "errorCount": 0,
+      "warningCount": 0,
+      "messages": []
+    }
+  ]
+}

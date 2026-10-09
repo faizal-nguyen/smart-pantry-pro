@@ -1,74 +1,41 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
 type Theme = 'light' | 'dark';
-
-interface UseThemeReturn {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
+let fallbackTheme: Theme | undefined;
+const THEME_EVENT = 'smart-pantry-theme-change';
+function readTheme(): Theme {
+  if (typeof window === 'undefined') return 'light';
+  try {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch { if (fallbackTheme) return fallbackTheme; }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function subscribe(listener: () => void): () => void {
+  const onStorage = (event: StorageEvent) => { if (event.key === 'theme' || event.key === null) listener(); };
+  const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+  window.addEventListener(THEME_EVENT, listener);
+  window.addEventListener('storage', onStorage);
+  media?.addEventListener('change', listener);
+  return () => {
+    window.removeEventListener(THEME_EVENT, listener);
+    window.removeEventListener('storage', onStorage);
+    media?.removeEventListener('change', listener);
+  };
+}
+function setSharedTheme(theme: Theme) {
+  fallbackTheme = theme;
+  try { localStorage.setItem('theme', theme); } catch { /* Private browsing can restrict storage. */ }
+  window.dispatchEvent(new Event(THEME_EVENT));
 }
 
-export const useTheme = (): UseThemeReturn => {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    // Check localStorage first
-    const savedTheme = localStorage.getItem('theme') as Theme;
-    if (savedTheme) return savedTheme;
-    
-    // Check system preference
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
-    }
-    
-    return 'light';
-  });
-
-  // Apply theme to document
+/** Every shell, Material theme and notification host observes the same preference. */
+export const useTheme = () => {
+  const theme = useSyncExternalStore(subscribe, readTheme, () => 'light' as Theme);
   useEffect(() => {
-    const root = document.documentElement;
-    
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    
-    // Save to localStorage
-    localStorage.setItem('theme', theme);
-    
-    // Update meta theme-color for mobile browsers
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#ffffff');
-    }
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#1a1a1a' : '#ffffff');
   }, [theme]);
-
-  // Listen for system theme changes
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const handleChange = (e: MediaQueryListEvent) => {
-      const savedTheme = localStorage.getItem('theme');
-      // Only update if user hasn't manually set a preference
-      if (!savedTheme) {
-        setThemeState(e.matches ? 'dark' : 'light');
-      }
-    };
-    
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setThemeState(prev => prev === 'light' ? 'dark' : 'light');
-  }, []);
-
-  return {
-    theme,
-    setTheme,
-    toggleTheme
-  };
+  const toggleTheme = useCallback(() => setSharedTheme(readTheme() === 'dark' ? 'light' : 'dark'), []);
+  return { theme, setTheme: setSharedTheme, toggleTheme };
 };

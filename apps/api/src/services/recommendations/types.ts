@@ -1,3 +1,4 @@
+import type { StockLot } from '@smart/shared';
 /**
  * PRP-226 PR2 — Kitchen Recommendation Engine types.
  *
@@ -177,7 +178,8 @@ export interface InventorySnapshotRow {
 }
 
 export interface InventorySnapshot {
-  byProduct: Map<string, { quantity: number; expiryDate: string | null; productName: string | null }>;
+  lots?: StockLot[];
+  byProduct: Map<string, { quantity: number; expiryDate: string | null; productName: string | null; unit?: string | null }>;
 }
 
 // ---- Reason builder API ---------------------------------------------

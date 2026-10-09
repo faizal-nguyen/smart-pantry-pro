@@ -27,9 +27,11 @@
 import { useEffect } from 'react';
 
 export type AgentAffectedTable =
+  | 'food_waste_events'
   | 'shopping_list'
   | 'inventory'
   | 'recipes'
+  | 'user_recipes'
   | 'recipe_ingredients'
   | 'meal_plan_entries'
   | 'weekly_meal_plans'
@@ -69,6 +71,7 @@ const TOOL_TABLES: Record<string, AgentAffectedTable[]> = {
   mark_shopping_items_bought: ['shopping_list'],
   unmark_shopping_items_bought: ['shopping_list'],
   add_recipe_to_meal_plan: ['meal_plan_entries', 'weekly_meal_plans'],
+  cook_recipe: ['inventory','cooking_journal','user_recipes'],
   consume_inventory_items: ['inventory'],
   update_inventory_item: ['inventory'],
   remove_shopping_items: ['shopping_list'],

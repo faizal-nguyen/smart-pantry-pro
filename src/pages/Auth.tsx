@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+
+import { routineDestination } from '@/lib/routineRoutes';
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -11,14 +14,10 @@ const Auth = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Check if user is already authenticated
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        navigate('/', { replace: true });
-      }
-    });
-  }, [navigate]);
+  const [params] = useSearchParams();
+  const destination = routineDestination(params.get('returnTo'));
+  const { user } = useAuthSessionOptional();
+  useEffect(() => { if (user) navigate(destination,{ replace:true }); },[user,destination,navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +29,7 @@ const Auth = () => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`
+          emailRedirectTo: `${window.location.origin}/auth?returnTo=${encodeURIComponent(destination)}`
         }
       });
 
@@ -87,7 +86,7 @@ const Auth = () => {
         setErrorMessage(message);
       } else {
         // Navigate immediately after successful login
-        navigate('/', { replace: true });
+        navigate(destination, { replace: true });
       }
     } catch (error) {
       setErrorMessage("Une erreur inattendue s'est produite. Veuillez réessayer.");

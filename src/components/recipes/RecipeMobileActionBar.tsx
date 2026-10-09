@@ -6,7 +6,7 @@
  * inline dans le flux de la page, donc accessibles seulement apres scroll.
  * Sur mobile en cuisine c'est inutilisable.
  *
- * Maintenant : sur mobile (`sm:hidden`), une barre sticky en bas s'empile
+ * Maintenant : sur mobile (`md:hidden`), une barre sticky en bas s'empile
  * juste au-dessus de la bottom nav (via `--mobile-nav-height` defini en
  * etape (a)). Les boutons mesurent au moins 44px (tap target iOS).
  *
@@ -39,23 +39,23 @@ export default function RecipeMobileActionBar({
   return (
     <div
       data-testid="recipe-action-bar-mobile"
-      className="sm:hidden app-action-bar-mobile bg-background/95 backdrop-blur-md border-t shadow-lg"
+      className="md:hidden app-action-bar-mobile bg-background/95 backdrop-blur-md border-t shadow-lg"
     >
       <div className="grid grid-cols-3 gap-2 p-2">
         <Button
           size="lg"
-          className="h-12 px-2 text-xs"
+          className="min-h-12 h-auto px-2 py-2 text-sm"
           onClick={onCook}
           disabled={cooking || !canCook}
           data-testid="primary-action"
-          aria-label="Marquer cette recette comme cuisinee"
+          aria-label="Commencer cette recette"
         >
           {cooking ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <>
               <ChefHat className="w-4 h-4 mr-1" aria-hidden="true" />
-              <span className="truncate">Cuisiner</span>
+              <span className="truncate">Commencer</span>
             </>
           )}
         </Button>
@@ -91,7 +91,7 @@ export default function RecipeMobileActionBar({
         <Button
           size="lg"
           variant="outline"
-          className="h-12 px-2 text-xs"
+          className="min-h-12 h-auto px-2 py-2 text-sm"
           onClick={onEdit}
           aria-label="Modifier cette recette"
         >

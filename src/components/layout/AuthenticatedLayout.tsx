@@ -21,12 +21,13 @@
  * un re-render plus large.
  */
 import { useContext } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import AppNavigation from '@/components/navigation/AppNavigation';
 import { PageLoader } from '@/components/layout/PageLoader';
 import { AuthSessionContext } from '@/contexts/AuthSessionContext';
 
 export function AuthenticatedLayout() {
+  const location = useLocation();
   const ctx = useContext(AuthSessionContext);
   if (!ctx) {
     throw new Error(
@@ -39,7 +40,7 @@ export function AuthenticatedLayout() {
   }
 
   if (!ctx.user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to={`/auth?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}`} replace />;
   }
 
   return (

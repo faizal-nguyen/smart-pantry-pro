@@ -1,69 +1,41 @@
-import React, { useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { toast } from 'sonner';
-
-import { importsApi } from '@/services/recipe-import/api';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { extractFirstUrl } from '@/services/recipe-import/helpers/url';
-
-/**
- * Web Share Target landing page (PRP-220.18).
- *
- * The PWA manifest declares `share_target.action = /share-target` with
- * GET params (`url`, `text`, `title`). Android forwards the share
- * payload as a query string, so we read those params, pull the first
- * URL we can find, capture it via the imports API, and bounce to the
- * inbox tab so the user lands on the freshly-captured row.
- *
- * Idempotency note: the API already returns the existing row for a
- * duplicate canonical URL (PRP-220.10), so a user double-tapping
- * "Share" doesn't create duplicates.
- */
-export default function ShareTargetPage() {
-  const [params] = useSearchParams();
-  const navigate = useNavigate();
-  // Strict-mode runs effects twice in dev; we only want one capture.
-  const launchedRef = useRef(false);
-
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
+import { beginShareCapture,bindShareCapture,captureSharedRecipe,readShareCapture,type ShareCapture } from '@/services/shareCaptures';
+import { Button } from '@/components/ui/button';
+export default function ShareTarget() {
+  const [params] = useSearchParams(), { user,isLoading } = useAuthSessionOptional();
+  const [capture,setCapture] = useState<ShareCapture|null>(null), [error,setError] = useState<string|null>(null), [busy,setBusy] = useState(false);
+  const url = [params.get('url'),params.get('text'),params.get('title')].map(value => value && extractFirstUrl(value)).find(Boolean);
   useEffect(() => {
-    if (launchedRef.current) return;
-    launchedRef.current = true;
-
-    const candidates = [params.get('url'), params.get('text'), params.get('title')]
-      .filter((v): v is string => Boolean(v));
-    const url = candidates.map(extractFirstUrl).find((u): u is string => Boolean(u));
-
-    if (!url) {
-      toast.error('Aucune URL détectée dans le partage');
-      navigate('/kitchen/recipes?tab=inbox', { replace: true });
-      return;
+    if (isLoading) return;
+    try {
+      // Source saved synchronously before displaying a link to authentication.
+      let draft = user ? bindShareCapture(user.id) : readShareCapture('anonymous');
+      if (url && (!draft || draft.source!==url)) draft = beginShareCapture(url,user?.id);
+      setCapture(draft);
+      if (!draft) setError('Aucun lien détecté. Revenez au partage ou collez un lien dans Cuisiner.');
+    } catch (failure) {
+      setError((failure as Error).message);
+      try { setCapture(readShareCapture(user?.id ?? 'anonymous')); } catch { /* Keep the storage error visible. */ }
     }
-
-    (async () => {
-      try {
-        const result = await importsApi.capture(url, 'share_target');
-        if (result.duplicate) {
-          toast.info('Cette recette est déjà dans ton inbox');
-        } else {
-          toast.success('Recette ajoutée à l\'inbox');
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Échec de la capture';
-        toast.error('Capture impossible', { description: msg });
-      } finally {
-        navigate('/kitchen/recipes?tab=inbox', { replace: true });
-      }
-    })();
-  }, [params, navigate]);
-
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="flex h-screen w-full flex-col items-center justify-center gap-3 bg-background"
-    >
-      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-      <p className="text-sm text-muted-foreground">Capture en cours…</p>
-    </div>
-  );
+  },[isLoading,user,url]);
+  const run = async () => {
+    if (!user || busy) return; setBusy(true); setError(null);
+    try { setCapture(await captureSharedRecipe(user.id)); }
+    catch (failure) { setError((failure as Error).message); setCapture(readShareCapture(user.id)); }
+    finally { setBusy(false); }
+  };
+  const returnTo = '/share-target';
+  return <div className="mx-auto max-w-lg min-h-screen p-5 flex flex-col justify-center gap-4"><h1 className="text-2xl font-semibold">Votre lien de recette</h1>
+    {isLoading && <p role="status">Vérification de la connexion…</p>}
+    {capture && <><p className="break-all rounded-lg border p-3">{capture.source}</p><p className="text-sm text-muted-foreground">Le lien est conservé sur cet appareil jusqu’à confirmation.</p></>}
+    {(error || capture?.error) && <p role="alert" className="text-destructive">{error || capture?.error}</p>}
+    {capture && !user && <Button className="min-h-11" asChild><Link to={`/auth?returnTo=${encodeURIComponent(returnTo)}`}>Me connecter pour reprendre ce partage</Link></Button>}
+    {capture && user && !['captured','saved'].includes(capture.status) && <Button className="min-h-11" disabled={busy} onClick={() => void run()}>{busy ? 'Capture…' : capture.status==='failed' ? 'Réessayer la capture' : 'Ajouter ce lien à mes recettes'}</Button>}
+    {capture && ['captured','saved'].includes(capture.status) && <><p role="status">{capture.duplicate ? 'Cette source était déjà enregistrée. Ouvrez la recette ou son brouillon existant.' : capture.status==='saved' ? 'Recette enregistrée.' : 'Lien ajouté. Le brouillon peut être complété dans les imports.'}</p><Button className="min-h-11" asChild><Link to={capture.destination}>{capture.status==='saved' ? 'Ouvrir la recette' : 'Ouvrir ce brouillon'}</Link></Button></>}
+    {capture && <Button variant="outline" className="min-h-11" onClick={() => { void navigator.clipboard.writeText(capture.source).catch(() => setError('Copie impossible. Sélectionnez le lien affiché pour le copier.')); }}>Copier le lien</Button>}
+    <Button variant="ghost" className="min-h-11" asChild><Link to="/kitchen">Reprendre plus tard</Link></Button>
+  </div>;
 }

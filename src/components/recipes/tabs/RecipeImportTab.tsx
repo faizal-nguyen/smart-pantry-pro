@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 /**
  * RecipeImportTab — onglet "Ajouter".
  *

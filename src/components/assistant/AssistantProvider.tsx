@@ -10,7 +10,7 @@
  *
  * PRP-233 PR3 — sticky conversation. The FAB now carries the active
  * conversation across pages: when a turn returns a `conversation_id`,
- * we stash `{id, ts}` in `sessionStorage.assistant.lastConversationId`
+ * we stash `{id, ts}` in `sessionStorage.assistant.lastConversationId:<account>:active`
  * and replay it on every subsequent tap as long as `ts` is younger
  * than 2 hours. The user can still pop into `/assistant?conversation=:id`
  * via the result dialog to read the full thread.
@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 
 import { useToast } from '@/hooks/use-toast';
 import { useAssistantVoice } from '@/hooks/useAssistantVoice';
@@ -34,10 +35,10 @@ import { AssistantResultDialog } from './AssistantResultDialog';
 const STICKY_CONVERSATION_KEY = 'assistant.lastConversationId';
 const STICKY_CONVERSATION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-function getStickyConversationId(): string | undefined {
-  if (typeof sessionStorage === 'undefined') return undefined;
+function getStickyConversationId(owner?: string): string | undefined {
+  if (!owner || typeof sessionStorage === 'undefined') return undefined;
   try {
-    const raw = sessionStorage.getItem(STICKY_CONVERSATION_KEY);
+    const raw = sessionStorage.getItem(`${STICKY_CONVERSATION_KEY}:${owner}:active`);
     if (!raw) return undefined;
     const parsed = JSON.parse(raw) as { id?: string; ts?: number };
     if (!parsed.id || typeof parsed.ts !== 'number') return undefined;
@@ -48,11 +49,11 @@ function getStickyConversationId(): string | undefined {
   }
 }
 
-function setStickyConversationId(id: string): void {
+function setStickyConversationId(owner: string, id: string): void {
   if (typeof sessionStorage === 'undefined') return;
   try {
     sessionStorage.setItem(
-      STICKY_CONVERSATION_KEY,
+      `${STICKY_CONVERSATION_KEY}:${owner}:active`,
       JSON.stringify({ id, ts: Date.now() }),
     );
   } catch {
@@ -76,9 +77,10 @@ export function AssistantProvider({
   const { toast } = useToast();
   const location = useLocation();
   const { isMobile } = useResponsive();
+  const { user } = useAuthSessionOptional();
   // PRP-233 PR3 — read the sticky conversation_id once at mount and
   // again before each recording so the FAB inherits it across pages.
-  const getConversationId = useCallback(() => getStickyConversationId(), []);
+  const getConversationId = useCallback(() => getStickyConversationId(user?.id), [user?.id]);
   const voice = useAssistantVoice({ language, allowedTools, getConversationId });
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -100,14 +102,14 @@ export function AssistantProvider({
     setDialogOpen(true);
     // PRP-233 PR3 — stash the conversation_id so the next FAB tap
     // (from any page) joins the same conversation for ≤ 2h.
-    if (voice.result.conversation_id) {
-      setStickyConversationId(voice.result.conversation_id);
+    if (user && voice.result.conversation_id) {
+      setStickyConversationId(user.id, voice.result.conversation_id);
     }
     const tables: AgentAffectedTable[] = voice.result.actions_executed.flatMap(
       (a) => tablesForTool(a.tool)
     );
     dispatchAgentDbChanged(tables);
-  }, [voice.status, voice.result]);
+  }, [voice.status, voice.result, user?.id]);
 
   // Surface errors as toasts so they don't get lost.
   useEffect(() => {

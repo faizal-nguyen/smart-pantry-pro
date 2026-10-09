@@ -1,30 +1,20 @@
 /**
- * PRP-234 PR4 — Helper partagé pour les actions sur une recette qui
- * passent par l'assistant (ajouter les manquants, planifier, cuisinée).
- *
- * Pattern : on construit un prompt natural-language explicite et on
- * le pousse à `/api/assistant/text`. L'assistant choisit le bon tool
- * (`add_shopping_items`, `add_recipe_to_meal_plan`,
- * `record_recipe_feedback` + `consume_inventory_items`) et bénéficie
- * gratuitement de l'`action_log` + l'undo 15 min (PRP-221).
- *
- * Déjà inline dans `AssistantRecipeProposals.tsx` (PRP-226 PR4). PR4
- * extrait le code pour le partager avec `TodayRecommendationsPanel`
- * et `MenuEntryCard` sans duplication.
+ * V10-01 — known recipe buttons use explicit typed commands.
+ * The assistant's handlers invoke the same atomic stock service.
+ * buildRecipeActionPrompt remains for old read-only prompt previews.
  */
-import {
-  getAssistantRequestId,
-  postAssistantText,
-} from '@/services/assistantApi';
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
+import type { RecipeReference } from '@smart/shared';
 
 export type RecipeAction = 'add_missing' | 'plan' | 'cooked';
 
 export interface ActionableRecipe {
   id: string;
+  source?: RecipeReference['source'];
   name: string;
   /** Linked essentials the user does NOT have enough of (optional). */
   missing_ingredients?: string[];
-  /** Default 1, used by `cooked` to scale `consume_inventory_items`. */
+  /** Optional portions; otherwise use the resolved recipe servings. */
   servings?: number | null;
 }
 
@@ -63,28 +53,33 @@ export function buildRecipeActionPrompt(
  */
 export function recipeActionToastTitle(action: RecipeAction): string {
   switch (action) {
-    case 'add_missing':
-      return 'Demande envoyée à l’assistant';
-    case 'plan':
-      return 'Planification demandée';
-    case 'cooked':
-      return 'Bien noté — j’ai prévenu l’assistant';
+    case 'add_missing': return 'Ingrédients ajoutés aux courses';
+    case 'plan': return 'Recette ajoutée au menu';
+    case 'cooked': return 'Repas enregistré et stock mis à jour';
   }
 }
 
-/**
- * Fire-and-forget : build the prompt, POST to `/api/assistant/text`,
- * return the toast title. Errors bubble up so callers can surface
- * them via their own toast/UI.
- */
-export async function fireRecipeAssistantAction(
-  recipe: ActionableRecipe,
-  action: RecipeAction,
-): Promise<string> {
-  const { client_request_id } = await getAssistantRequestId();
-  await postAssistantText({
-    text: buildRecipeActionPrompt(recipe, action),
-    clientRequestId: client_request_id,
-  });
+/** Known buttons execute the typed operation against this exact recipe id. */
+export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action: RecipeAction): Promise<string> {
+  const reference: RecipeReference = { id: recipe.id, source: recipe.source ?? 'auto' };
+  const intent = `recipe:${recipe.id}:${action}`;
+  let command = await pendingIntent(intent);
+  if (!command) {
+    const preview = await previewRecipeStock(reference,recipe.servings ?? undefined);
+    if (action === 'cooked') {
+      if (preview.missing.length) throw new Error('Des quantités ou unités restent à vérifier. Ouvrez la fiche recette pour confirmer les ingrédients utilisés hors stock.');
+      command = await commandForIntent('consume_recipe', intent, {
+        recipe: reference, servings: preview.servings, recipe_version: preview.recipe.version, outside_inventory: [],
+      });
+    } else if (action === 'add_missing') {
+      command = await commandForIntent('recipe_add_missing',intent,{ recipe: reference, servings: preview.servings });
+    } else {
+      const today = new Date();
+      const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      command = await commandForIntent('plan_recipe',intent,{ recipe: reference, servings: preview.servings, date, meal_type: 'dinner' });
+    }
+  }
+  await executeStockCommand(command);
+  await finishIntent(intent);
   return recipeActionToastTitle(action);
 }

@@ -39,6 +39,7 @@ function makeRecipe(
       id: `i${idx}`,
       ingredient_name: i.name ?? `ing-${idx}`,
       quantity: i.quantity ?? 1,
+      unit: "g",
       inventory_product_id: i.inventory_product_id,
       is_essential: i.is_essential ?? true,
     })),
@@ -52,7 +53,7 @@ function makeInventory(
     byProduct: new Map(
       rows.map((r) => [
         r.id,
-        { quantity: r.quantity, expiryDate: r.expiry ?? null, productName: null },
+        { quantity: r.quantity, unit: "g", expiryDate: r.expiry ?? null, productName: null },
       ]),
     ),
   };

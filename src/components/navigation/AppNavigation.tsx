@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 import { useFamilyMode, useFamilyNavigation, useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import { useBreakpoints, useResponsiveZones } from '@/hooks/useResponsiveZones';
 import { useHybridGrid, usePlatformAdaptiveTouch } from '@/hooks/useHybridGrid';
-import { usePersonalization } from '@/hooks/usePersonalization';
+import RoutineHeader from './RoutineHeader';
 
 // Composants de navigation spécialisés
 import MobileNavigation from './MobileNavigation';
@@ -237,7 +237,6 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
   // Hooks
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasCompletedOnboarding, isLoading: personalizationLoading } = usePersonalization();
   
   // Hooks famille
   const {
@@ -278,13 +277,13 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
 
   const navigationConfigWithBadges = useMemo(() => {
     // Use object spreading to preserve React component references (icons)
-    const mainNavigation = navigationConfig.mainNavigation.map((item: any) => {
+    const mainNavigation = navigationConfig.mainNavigation.map(item => {
       if (item.id === 'pantry') {
         const badgeVal = toConsumeCount > 0 ? toConsumeCount : undefined;
         return {
           ...item,
           badge: badgeVal,
-          subItems: (item.subItems || []).map((s: any) =>
+          subItems: (item.subItems || []).map(s =>
             s.id === 'pantry-alerts' ? { ...s, badge: badgeVal } : s
           )
         };
@@ -294,7 +293,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         return {
           ...item,
           badge: badgeVal,
-          subItems: (item.subItems || []).map((s: any) =>
+          subItems: (item.subItems || []).map(s =>
             s.id === 'shopping-list' ? { ...s, badge: badgeVal } : s
           )
         };
@@ -319,7 +318,10 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
 
   // Effet pour rediriger si l'accès est restreint
   useEffect(() => {
-    if (!currentProfile || !canAccessSection) return;
+    if (!isFamilyModeActive || !currentProfile || !canAccessSection) {
+      setAccessRestriction(null);
+      return;
+    }
 
     const currentSection = location.pathname.split('/')[1] as NavigationSection;
     if (currentSection && !canAccessSection(currentSection)) {
@@ -329,15 +331,17 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         setAccessRestriction({
           section: currentSection,
           reason: `Cette section nécessite l'âge minimum de ${
-            currentProfile.age || 0 < 7 ? '7 ans' : '13 ans'
+            (currentProfile.age || 0) < 7 ? '7 ans' : '13 ans'
           }`
         });
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           navigate(`/${redirectSection}`);
         }, 3000);
+        return () => clearTimeout(timer);
       }
     }
-  }, [location.pathname, currentProfile, canAccessSection, getAccessibleSections, navigate]);
+    setAccessRestriction(null);
+  }, [location.pathname, isFamilyModeActive, currentProfile, canAccessSection, getAccessibleSections, navigate]);
 
   // Gestion du changement de profil
   const handleProfileSwitch = async (profileId: string) => {
@@ -349,29 +353,8 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
     }
   };
 
-  // Redirection onboarding (via useEffect pour éviter setState pendant render)
-  // IMPORTANT: Doit être AVANT les early returns pour respecter Rules of Hooks
-  // Audit P1: gate skippable. Si l'utilisateur a explicitement choisi
-  // "Plus tard" (localStorage.skipOnboarding === '1'), on n'impose plus
-  // la redirection — il peut reprendre depuis Settings quand il veut.
-  React.useEffect(() => {
-    const userSkipped =
-      typeof window !== 'undefined' &&
-      window.localStorage.getItem('skipOnboarding') === '1';
-    if (
-      currentProfile &&
-      !personalizationLoading &&
-      !hasCompletedOnboarding() &&
-      !userSkipped &&
-      location.pathname !== '/onboarding' &&
-      location.pathname !== '/auth'
-    ) {
-      navigate('/onboarding', { replace: true });
-    }
-  }, [currentProfile, personalizationLoading, hasCompletedOnboarding, location.pathname, navigate]);
-
   // Chargement
-  if (familyLoading || personalizationLoading || !gridReady) {
+  if (familyLoading || !gridReady) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
@@ -450,7 +433,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
         "flex-1",
         // Bottom nav: ~64px content + dynamic safe-area-inset-bottom.
         // Use calc to auto-track home indicator height per device.
-        isMobile && "pb-[calc(64px+env(safe-area-inset-bottom))] pt-0",
+        isMobile && "pb-[var(--content-bottom-pad)] pt-0",
         isTablet && "ml-16 pb-16",
         isDesktopOrWide && "ml-64 pb-0",
         isChildMode && adaptiveInterface.buttonSpacing === 'spacious' && "p-6",
@@ -460,6 +443,7 @@ export const AppNavigation: React.FC<AppNavigationProps> = ({ children, user }) 
           "w-full h-full",
           adaptiveInterface.simplifiedNavigation && "max-w-4xl mx-auto"
         )}>
+          <RoutineHeader />
           {children}
         </div>
       </main>

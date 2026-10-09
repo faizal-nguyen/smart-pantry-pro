@@ -11,6 +11,8 @@ import { ResponsiveProvider } from "./contexts/ResponsiveContext";
 import { AuthSessionProvider } from "./contexts/AuthSessionContext";
 import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
 import { usePersonalizationMigration } from "./hooks/usePersonalizationMigration";
+import { Toaster } from "./components/ui/toaster";
+import { Toaster as Sonner } from "./components/ui/sonner";
 
 // Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
@@ -28,6 +30,7 @@ const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 // /assistant). Source file preserved for PRP-224 reference; the lazy import
 // is dropped to silence the unused-symbol warning.
 const RecipeDetail = lazy(() => import("./pages/RecipeDetail"));
+const CookingSessionPage = lazy(() => import("./pages/kitchen/CookingSessionPage"));
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
 const ShareTarget = lazy(() => import("./pages/ShareTarget"));
@@ -41,7 +44,7 @@ const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
 
 // Composants de navigation
-import LegacyRedirect from "./components/navigation/LegacyRedirect";
+import { getLegacyRedirections } from './components/navigation/NavigationHub';
 
 // Helper pour wrapper les composants lazy avec Suspense
 const withSuspense = (Component: React.ComponentType) => (
@@ -99,6 +102,8 @@ const protectedRoutes: RouteObject[] = [
   // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
   { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
 
+  { path: "/kitchen/cooking/:sessionId", element: withSuspense(CookingSessionPage) },
+
   // Shopping
   { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
@@ -130,8 +135,8 @@ const protectedRoutes: RouteObject[] = [
   { path: "/settings/parental", element: <Navigate to="/settings" replace /> },
 ];
 
-// Dev-only redirects pour anciennes routes /inventory et /recipes.
-if (import.meta.env.DEV) {
+// Historical links stay available in production.
+{
   protectedRoutes.push(
     { path: "/inventory", element: <Navigate to="/pantry/inventory" replace /> },
     { path: "/recipes", element: <Navigate to="/kitchen/recipes" replace /> },
@@ -139,7 +144,9 @@ if (import.meta.env.DEV) {
   );
 }
 
-void LegacyRedirect;
+protectedRoutes.push(...Object.entries(getLegacyRedirections())
+  .filter(([path,to]) => path !== to && !protectedRoutes.some(route => route.path === path))
+  .map(([path,to]) => ({ path, element:<Navigate to={to} replace /> })));
 
 // PRP-221: wrap every route under a layout that mounts the global
 // voice-assistant FAB + dialog. The FAB self-hides on /auth and when
@@ -198,6 +205,8 @@ const App = () => (
             <ThemeProvider>
               <MaterialYouThemeProvider>
                 <RouterProvider router={router} />
+                <Toaster />
+                <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
               </MaterialYouThemeProvider>
             </ThemeProvider>
           </LayoutPerformanceProvider>

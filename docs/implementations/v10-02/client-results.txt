@@ -1,0 +1,22 @@
+PASS src/components/recipes/__tests__/persistence.v10.test.tsx
+PASS src/services/__tests__/stockDiscard.v10.test.ts
+PASS src/hooks/__tests__/routine-preferences.v10.test.tsx
+PASS src/components/inventory/__tests__/QuickStockCorrection.v10.test.tsx
+PASS src/hooks/__tests__/shopping.v10.test.tsx
+PASS src/pages/kitchen/__tests__/cooking-session.v10.test.tsx
+PASS src/components/shopping/__tests__/ShoppingStorageReview.v10.test.tsx
+PASS src/components/settings/__tests__/account.v10.test.tsx
+PASS src/components/recipes/__tests__/routine-library.v10.test.tsx
+PASS src/lib/__tests__/routine.v10.test.ts
+PASS src/contexts/__tests__/auth-isolation.v10.test.tsx
+PASS src/hooks/__tests__/theme.v10.test.tsx
+PASS src/hooks/__tests__/onboarding-isolation.v10.test.tsx
+PASS src/hooks/__tests__/personalization.v10.test.tsx
+PASS src/services/__tests__/cookingSessions.v10.test.ts
+PASS src/services/__tests__/stockCommands.v10.test.ts
+PASS src/lib/__tests__/sw-isolation.v10.test.ts
+PASS src/services/__tests__/shareCaptures.v10.test.ts
+Test Suites: 18 passed, 18 total
+Tests:       59 passed, 59 total
+Snapshots:   0 total
+Time:        6.423 s

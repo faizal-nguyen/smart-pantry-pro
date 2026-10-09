@@ -22,6 +22,8 @@ function isoPlusDays(days: number): string {
 interface MockPlan {
   recipes: unknown[];
   inventory: unknown[];
+  library?: unknown[];
+  contextRevision?: number | null;
 }
 
 function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
@@ -30,6 +32,7 @@ function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
     if (table === 'recipes') data = plan.recipes;
     else if (table === 'inventory') data = plan.inventory;
     else if (table === 'recipe_interactions') data = plan.interactions ?? [];
+    else if (table === 'user_recipes') data = plan.library ?? [];
     const chain: any = {
       select() {
         return chain;
@@ -52,6 +55,7 @@ function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
       limit() {
         return chain;
       },
+      maybeSingle() { return Promise.resolve({ data: table === 'stock_context_versions' && plan.contextRevision != null ? { revision: plan.contextRevision } : null, error: null }); },
       then(resolve: (v: unknown) => unknown, reject?: (v: unknown) => unknown) {
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
@@ -88,6 +92,7 @@ function makeRecipe(opts: {
       id: `${opts.id}-i${idx}`,
       ingredient_name: i.name ?? `ing-${idx}`,
       quantity: i.qty ?? 1,
+      unit: "g",
       inventory_product_id: i.pid,
       is_essential: true,
     })),
@@ -95,7 +100,7 @@ function makeRecipe(opts: {
 }
 
 function makeInvRow(pid: string, qty: number, expiry: string | null = null) {
-  return { product_id: pid, quantity: qty, expiry_date: expiry, products: null };
+  return { id: `lot-${pid}`, product_id: pid, quantity: qty, unit: "g", stock_version: 0, expiry_date: expiry, products: null };
 }
 
 function buildEngine(plan: MockPlan) {
@@ -111,6 +116,35 @@ function buildEngine(plan: MockPlan) {
 }
 
 describe('RecommendationEngine — bucket assignment', () => {
+  it('retains customized library identity and checks kg/g for the requested portions', async () => {
+    const { engine, ctx } = buildEngine({ recipes: [], inventory: [{ ...makeInvRow('p',.3), unit: 'kg' }], library: [{
+      id: 'wrapper', user_id: USER, is_from_catalog: true, created_at: '', updated_at: '',
+      catalog_recipe: { id: 'canonical', title: 'Base', servings: 4, created_at: '', updated_at: '' },
+      custom_modifications: { title: 'Mon pain', servings_multiplier: 2, ingredients_override: [{ name: 'Farine', amount: '200', unit: 'g', inventory_product_id: 'p' }] },
+    }] });
+    const forFour = await engine.suggestForUser(ctx,{ servings: 4 });
+    expect(forFour.cookable_now[0]).toMatchObject({ id: 'wrapper', name: 'Mon pain', servings: 4, missing_count: 0 });
+    const forEight = await engine.suggestForUser(ctx,{ servings: 8 });
+    expect(forEight.cookable_now).toHaveLength(0);
+    expect(forEight.almost_cookable[0]).toMatchObject({ id: 'wrapper', missing_count: 1 });
+  });
+  it('never reuses a cookable result from an older stock context revision', async () => {
+    const plan: MockPlan = { recipes: [makeRecipe({ id: 'recipe', name: 'Pain', ings: [{ pid: 'p', qty: 200 }] })], inventory: [makeInvRow('p',200)], contextRevision: 1 };
+    const cache = new Map();
+    const writer = { readCache: jest.fn(async (_userId: string,key: string) => ({ hit: cache.get(key) ?? null, expired: false })),
+      writeCache: jest.fn(async (input: { cacheKey: string; payload: unknown }) => { cache.set(input.cacheKey,{ result: input.payload }); }),
+      recordEvent: jest.fn(async () => 'event'),
+    };
+    const ctx = { userId: USER, userClient: makeClient(plan) as any, now: NOW, eventWriter: writer as any };
+    const engine = new RecommendationEngine();
+    expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(1);
+    plan.contextRevision = 2; plan.inventory = [makeInvRow('p',0)];
+    expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
+    expect(writer.readCache.mock.calls.map(call => call[1])).toEqual([expect.stringContaining('v10:1:'),expect.stringContaining('v10:2:')]);
+    plan.contextRevision = null;
+    expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
+    expect(writer.readCache).toHaveBeenCalledTimes(2);
+  });
   it('routes a fully cookable recipe into cookable_now', async () => {
     const { engine, ctx } = buildEngine({
       recipes: [

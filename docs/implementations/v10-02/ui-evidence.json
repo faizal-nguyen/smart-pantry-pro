@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-09T00:19:32.036507+02:00",
+  "base_head": "818ce526a799ef72bfde9280b5cc3e74c10e9931",
+  "environment": "Chrome, local isolated production components with fictitious owner/products and API/Supabase aliases",
+  "url": "http://127.0.0.1:5174/scripts/fixtures/v10/index.html",
+  "viewport_note": "existing browser zoom differs from override: set 338 or 396 device-independent px to obtain measured 375 or 440 CSS px; height measured 900; not iPhone emulation",
+  "measurements": [
+    {
+      "css_width": 375,
+      "css_height": 900,
+      "document_scroll_width": 370,
+      "theme": "light",
+      "navigation_button_min_width": 87.5,
+      "navigation_button_height": 63.993,
+      "cooking_confirmation_button_width": 267.24,
+      "cooking_confirmation_button_height": 43.993,
+      "storage_retry_button_width": 287.78,
+      "storage_retry_button_height": 43.993
+    },
+    {
+      "css_width": 440,
+      "css_height": 900,
+      "document_scroll_width": 434,
+      "theme": "dark",
+      "navigation_button_min_width": 103.61,
+      "navigation_button_height": 63.993,
+      "storage_retry_button_height_approx": 44
+    }
+  ],
+  "contrast": {
+    "method": "OKLCH converted through OKLab to linear sRGB, clamped channels, relative luminance weights 0.2126/0.7152/0.0722",
+    "scope": "opaque shared primary button colors only; not an exhaustive contrast audit",
+    "light": {
+      "background": "oklch(56% 0.150 52)",
+      "foreground": "oklch(99% 0.004 80)",
+      "ratio": 4.771643404285074
+    },
+    "dark": {
+      "background": "oklch(74% 0.145 55)",
+      "foreground": "oklch(16% 0.012 260)",
+      "ratio": 8.07555117626714
+    }
+  },
+  "observations": [
+    "optional introduction skipped and absent after reload",
+    "stock correction draft 0.8 kg restored after close/reload and simulated write failure",
+    "first fictitious meal actual 125 g confirmed after a lost committed reply: original lot 0.8 -> 0.675 kg; subsequent reload remains 0.675",
+    "750 g flour, 800 ml milk and 3 pieces tomato reviewed transfers after simulated failures; original shopping quantities do not overwrite reviewed values; unknown dates remain unknown",
+    "second meal started/step 2/timer persisted after reload, no consumption from start or resume",
+    "library displays a personal legacy recipe, custom wrapper and actual catalog fixture without invented times",
+    "error inline in storage review; no toast over retry footer at 375 and 440 CSS px",
+    "correction of fictitious milk 800 -> 700 ml: failed inverse retained retry action; retry restored 800 ml",
+    "fictitious discarded tomato 3 -> 2 pieces: committed reply lost, draft frozen and retained after reload; receipt-only replay and existing log ID check confirmed one loss without another debit"
+  ],
+  "screenshots": [
+    "accueil-375-clair.png",
+    "cuisine-375-clair.png",
+    "cuisine-reprise-440-sombre.png",
+    "perte-reprise-375-sombre.png",
+    "rangement-erreur-375.png",
+    "rangement-erreur-440-sombre.png",
+    "rangement-reprise-440-sombre.png",
+    "stock-375-clair.png"
+  ],
+  "not_validated": [
+    "actual screen lock/background alarm",
+    "Safari/VoiceOver/iPhone",
+    "real share/auth/import remote services",
+    "physical native date picker editing",
+    "all contrast pairs",
+    "product timing objectives"
+  ],
+  "limits_on_waste_logging": "stock consumption is a V10 transaction; writing the existing food_waste_events table is separately recoverable, not a joint SQL transaction"
+}

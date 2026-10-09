@@ -25,8 +25,10 @@ import type { ProductIntelligenceService } from '../../products/ProductIntellige
  */
 export interface ToolExecutionContext {
   userId: string;
-  userClient: SupabaseClient<any, any, any>;
-  adminClient: SupabaseClient<any, any, any>;
+  /** Stable action-log id used by stock transactions and retries. */
+  commandId?: string;
+  userClient: SupabaseClient;
+  adminClient: SupabaseClient;
   productResolver: ProductResolver;
   /**
    * Inventory ids that ProductResolver flagged as ambiguous in this
@@ -138,7 +140,7 @@ export class ToolHandlerRegistry {
     this.handlers.set(name, handler as ToolHandler);
   }
 
-  registerAll(entries: ReadonlyArray<{ name: string; handler: ToolHandler<any, any> }>): void {
+  registerAll(entries: ReadonlyArray<{ name: string; handler: ToolHandler }>): void {
     for (const { name, handler } of entries) {
       this.register(name, handler);
     }

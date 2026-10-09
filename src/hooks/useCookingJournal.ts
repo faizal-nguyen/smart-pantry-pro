@@ -8,6 +8,8 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
+import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { apiGet, apiPost } from '@/lib/api';
 
 export type CookingOutcome = 'loved' | 'liked' | 'ok' | 'disliked' | 'failed';
@@ -59,18 +61,19 @@ function postCookingJournalEntry(
 }
 
 export function useCookingJournal(opts: { recipeId?: string; limit?: number; enabled?: boolean } = {}) {
+  const { user } = useAuthSessionOptional();
   const queryClient = useQueryClient();
 
   const query = useQuery<CursorPage<CookingJournalEntry>>({
-    queryKey: [...QUERY_KEY, opts.recipeId ?? null, opts.limit ?? 20],
+    queryKey: [...QUERY_KEY, user?.id, opts.recipeId ?? null, opts.limit ?? 20],
     queryFn: () => getCookingJournal({ recipeId: opts.recipeId, limit: opts.limit }),
-    enabled: opts.enabled ?? true,
+    enabled: !!user && (opts.enabled ?? true),
     staleTime: 60_000,
   });
 
   const record = useMutation({
     mutationFn: (input: RecordCookingFeedbackInput) => postCookingJournalEntry(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+    onSuccess: () => { dispatchAgentDbChanged(['cooking_journal']); return queryClient.invalidateQueries({ queryKey: QUERY_KEY }); },
   });
 
   return {

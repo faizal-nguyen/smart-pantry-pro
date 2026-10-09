@@ -1,3 +1,4 @@
+import { isNavigationActive } from '@/lib/routineRoutes';
 /**
  * TabletNavigation - Navigation Tablette hybride.
  *
@@ -60,7 +61,7 @@ const TabletNavigation: React.FC<TabletNavigationProps> = ({
 
           {/* Navigation principale compacte */}
           {navigationConfig.mainNavigation.slice(0, 4).map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
+            const isActive = isNavigationActive(location.pathname,item.path);
             const IconComponent = item.icon;
             
             return (
@@ -125,7 +126,7 @@ const TabletNavigation: React.FC<TabletNavigationProps> = ({
               
               <div className="space-y-1">
                 {[...navigationConfig.mainNavigation, ...navigationConfig.specialNavigation].map((item) => {
-                  const isActive = location.pathname.startsWith(item.path);
+                  const isActive = isNavigationActive(location.pathname,item.path);
                   const IconComponent = item.icon;
                   
                   return (

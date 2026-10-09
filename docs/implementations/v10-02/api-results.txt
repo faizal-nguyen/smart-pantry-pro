@@ -1,0 +1,19 @@
+PASS apps/api/src/__tests__/SocialVideoImportQueue.test.ts
+PASS apps/api/src/services/assistant/__tests__/VoiceAgentService.test.ts
+PASS apps/api/src/routes/__tests__/stock.routes.test.ts
+PASS apps/api/src/services/assistant/handlers/__tests__/internal.test.ts
+PASS apps/api/src/services/recommendations/__tests__/RecommendationEngine.test.ts
+PASS apps/api/src/services/assistant/handlers/__tests__/read.test.ts
+PASS apps/api/src/services/recommendations/__tests__/RecommendationEventWriter.test.ts
+PASS apps/api/src/services/stock/__tests__/quantities.test.ts
+PASS apps/api/src/services/recommendations/__tests__/ExpiryScorer.test.ts
+PASS apps/api/src/services/stock/__tests__/StockCommandService.test.ts
+PASS apps/api/src/services/recommendations/__tests__/PreferenceScorer.test.ts
+PASS apps/api/src/services/recommendations/__tests__/CookabilityScorer.test.ts
+PASS apps/api/src/services/assistant/handlers/__tests__/write.test.ts
+PASS apps/api/src/services/assistant/__tests__/CookingJournalService.test.ts
+PASS apps/api/src/services/assistant/__tests__/RiskClassifier.test.ts
+Test Suites: 15 passed, 15 total
+Tests:       233 passed, 233 total
+Snapshots:   0 total
+Time:        5.8 s

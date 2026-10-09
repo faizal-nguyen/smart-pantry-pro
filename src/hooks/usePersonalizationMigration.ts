@@ -20,7 +20,7 @@
  *
  * Best-effort : un échec partiel laisse le flag absent → on
  * re-essaie au prochain mount. Une fois tous les memories créés,
- * on stamp `personalizationMigratedToMemory:v1` dans localStorage.
+ * on stamp un indicateur par compte dans localStorage.
  * Idempotent : si déjà migré, no-op.
  *
  * Ce hook NE supprime PAS le localStorage legacy — la section
@@ -37,8 +37,9 @@ import {
   type CreateAssistantMemoryInput,
 } from '@/services/assistantApi';
 import { usePersonalization } from '@/hooks/usePersonalization';
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 
-const MIGRATION_FLAG_KEY = 'personalizationMigratedToMemory:v1';
+const migrationKey = (owner: string) => `v10-personalization:${owner}:memory-import-v1`;
 
 interface PersonalizationLike {
   householdSize?: string;
@@ -116,38 +117,41 @@ export function buildMemoriesFromPersonalization(
   return memories;
 }
 
-function hasAlreadyMigrated(): boolean {
+function hasAlreadyMigrated(owner: string): boolean {
   if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(MIGRATION_FLAG_KEY) === '1';
+  return window.localStorage.getItem(migrationKey(owner)) === '1';
 }
 
-function markMigrated(): void {
+function markMigrated(owner: string): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MIGRATION_FLAG_KEY, '1');
+  window.localStorage.setItem(migrationKey(owner), '1');
 }
 
 /**
  * Mount once per app session — auto-migrate legacy localStorage
- * preferences when the user is authenticated. Aucune UI ; toast
+ * preferences scoped to the authenticated account. Aucune UI ; toast
  * silencieux. Erreur réseau → flag non posé → retry au prochain
  * mount.
  */
 export function usePersonalizationMigration(): void {
   const { personalizationData, isLoading } = usePersonalization();
   const runningRef = useRef(false);
+  const { user } = useAuthSessionOptional();
+  const owner = user?.id;
 
   useEffect(() => {
-    if (isLoading || runningRef.current) return;
+    if (!owner || isLoading || runningRef.current) return;
     if (!personalizationData) return;
-    if (hasAlreadyMigrated()) return;
+    try { if (hasAlreadyMigrated(owner)) return; } catch { return; }
 
     runningRef.current = true;
+    let active = true;
     const memories = buildMemoriesFromPersonalization(personalizationData);
 
     if (memories.length === 0) {
       // Rien à migrer mais on stamp pour ne pas re-essayer chaque
       // mount → user pourra toujours créer manuellement.
-      markMigrated();
+      try { markMigrated(owner); } catch { /* No remote work was performed. */ }
       runningRef.current = false;
       return;
     }
@@ -161,9 +165,10 @@ export function usePersonalizationMigration(): void {
         // possibles si plusieurs retries — l'utilisateur peut
         // "Oublier" depuis MemoryPanel).
         for (const memory of memories) {
-          await createAssistantMemory(memory);
+          if (!active) return;
+          await createAssistantMemory(memory,{ expectedUserId: owner });
         }
-        markMigrated();
+        if (active) markMigrated(owner);
       } catch (err) {
         // Best-effort : on log en dev seulement, l'utilisateur ne
         // voit rien. Flag pas posé → retry au prochain mount.
@@ -174,5 +179,6 @@ export function usePersonalizationMigration(): void {
         runningRef.current = false;
       }
     })();
-  }, [personalizationData, isLoading]);
+    return () => { active = false; runningRef.current = false; };
+  }, [personalizationData, isLoading, owner]);
 }

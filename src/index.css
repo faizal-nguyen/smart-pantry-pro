@@ -44,10 +44,11 @@
     --popover-foreground: 18% 0.012 260;
 
     /* ---- Primary: Saffron (warm, culinary, not orange-permanent) -- */
-    --primary: 62% 0.150 52;
+    /* Normal-sized confirmation text: >4.5:1 against primary-foreground. */
+    --primary: 56% 0.150 52;
     --primary-foreground: 99% 0.004 80;
-    --primary-hover: 57% 0.155 50;
-    --primary-active: 52% 0.155 50;
+    --primary-hover: 53% 0.155 50;
+    --primary-active: 50% 0.155 50;
 
     /* ---- Secondary: muted Saffron tint for low-emphasis surfaces -- */
     --secondary: 94.5% 0.014 60;
@@ -133,7 +134,7 @@
     /* ---- Sidebar (light) — derived from main palette ------------- */
     --sidebar-background: 96.5% 0.006 260;
     --sidebar-foreground: 25% 0.014 260;
-    --sidebar-primary: 62% 0.150 52;
+    --sidebar-primary: 56% 0.150 52;
     --sidebar-primary-foreground: 99% 0.004 80;
     --sidebar-accent: 94.5% 0.006 260;
     --sidebar-accent-foreground: 25% 0.014 260;
@@ -601,15 +602,15 @@
  *   - .app-content       : container de page authentifiee, padding-bottom auto
  *   - .app-action-bar-mobile : sticky action bar qui s'empile au-dessus de la nav
  *
- * Sur sm+ (>= 640px) la sidebar prend le relais, --mobile-nav-height passe a 0.
+ * Sur md+ (>= 768px) la sidebar prend le relais, --mobile-nav-height passe a 0.
  * ============================================================================ */
 :root {
   --mobile-nav-height: 4.5rem;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --content-bottom-pad: calc(var(--mobile-nav-height) + var(--safe-bottom) + 0.5rem);
+  --content-bottom-pad: calc(var(--mobile-nav-total-height, calc(var(--mobile-nav-height) + var(--safe-bottom))) + 0.5rem);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   :root {
     --mobile-nav-height: 0px;
     --content-bottom-pad: 1.5rem;
@@ -621,8 +622,15 @@
 }
 
 .app-action-bar-mobile {
-  position: sticky;
-  bottom: var(--mobile-nav-height);
-  padding-bottom: var(--safe-bottom);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--mobile-nav-total-height, calc(var(--mobile-nav-height) + var(--safe-bottom)));
   z-index: 30;
 }
+
+/* V10-02: flex/scroll dialogs retain their confirmation above the web keyboard. */
+.routine-dialog { top: calc(var(--routine-viewport-offset, 0px) + var(--routine-viewport-height, 100dvh) / 2); max-height: calc(var(--routine-viewport-height, 100dvh) - 2rem); width: calc(100% - 2rem); padding-top: 3rem; }
+.routine-dialog button, .routine-dialog input, .routine-dialog select { min-height: 44px; }
+.routine-dialog input, .routine-dialog textarea, .routine-dialog select { font-size: 1rem; }
+.routine-dialog-footer { position: sticky; bottom: -1.5rem; background: hsl(var(--background)); padding-block: .75rem; }

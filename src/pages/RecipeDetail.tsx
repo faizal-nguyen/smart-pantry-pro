@@ -35,17 +35,22 @@ import { toast } from "@/hooks/use-toast";
 import { useRecipes } from "@/hooks/useRecipes";
 import { useInventory, type ProductNutritionEnvelope } from "@/hooks/useInventory";
 import { useRecipeInventoryAnalysis } from "@/hooks/useRecipeInventoryAnalysis";
-import { useShoppingList } from "@/hooks/useShoppingList";
-import { postCookingJournalEntry } from "@/hooks/useCookingJournal";
+
+import { Input } from "@/components/ui/input";
+
+import { startCookingSession } from "@/services/cookingSessions";
+
+import { fireRecipeAssistantAction } from "@/lib/recipeActions";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchUnifiedRecipe, invalidateUnifiedRecipeCache, type UnifiedRecipe } from "@/lib/recipeSource";
 import { useImageManagement } from "@/hooks/useImageManagement";
+import { useRecipeFavorites } from "@/hooks/useRecipeFavorites";
 import { useAuthenticatedUser } from "@/hooks/useAuthenticatedUser";
 
 interface RecipeIngredient {
   id: string;
   ingredient_name: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   is_essential: boolean;
   notes?: string;
@@ -58,14 +63,18 @@ const RecipeDetail = () => {
   // l'ancien supabase.auth.getSession() du tracker `viewed` (l.149)
   // par cette lecture synchrone depuis le contexte.
   const sessionUser = useAuthenticatedUser();
+  const favorites = useRecipeFavorites();
+  const [favoriting,setFavoriting] = useState(false);
+  const [sharing,setSharing] = useState(false);
   const { recipes, loading: recipesLoading, deleteRecipe, fetchRecipes } = useRecipes();
-  const { addToShoppingList } = useShoppingList();
   const { uploadImage } = useImageManagement();
   const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
   const [instructions, setInstructions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cooking, setCooking] = useState(false);
+  const [chosenServings, setChosenServings] = useState<number | undefined>();
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   // 2026-05-18 — let RecipeMediaFrame display the new photo instantly
   // after upload, without waiting for the next `fetchRecipes` round
@@ -95,14 +104,14 @@ const RecipeDetail = () => {
   // Les champs lus par cette page (name, image_url, prep_time, etc.) existent
   // dans les deux shapes — la tolerance null|undefined est déjà gérée.
   const recipe = recipeFromList ?? unifiedRecipe;
-  const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '');
+  const { analysis: inventoryAnalysis, error: analysisError } = useRecipeInventoryAnalysis(id || '',chosenServings);
   // Perf audit 2026-05-19 — l'inventaire fournit products.nutrition_json
   // déjà enrichis. Passés à RecipeNutrition, ils court-circuitent les
   // fetch OpenFoodFacts pour les ingrédients qu'on a en stock.
   // Le hook useInventory est appelé pour son effet : primer le cache
   // module via primeInventoryCache (Phase 3.1) si on arrive directement
   // sur la recette sans passer par /pantry.
-  useInventory();
+  const { inventory } = useInventory();
   // Bug fix 2026-05-19 — auparavant on passait l'inventaire brut à
   // RecipeNutrition (clé par product.name lowercased). Les noms recette
   // ("huile d'olive") matchaient rarement l'inventaire ("Huile d'olive
@@ -113,7 +122,7 @@ const RecipeDetail = () => {
     const out: Array<{ name: string; nutrition_json?: ProductNutritionEnvelope | null }> = [];
     if (!inventoryAnalysis) return out;
     for (const match of inventoryAnalysis.availableIngredients) {
-      const product = match.inventoryItem.product;
+      const product = inventory.find(row => row.product_id === match.inventoryItem.product_id)?.product;
       if (!product?.nutrition_json) continue;
       out.push({
         name: match.ingredient.ingredient_name,
@@ -121,7 +130,7 @@ const RecipeDetail = () => {
       });
     }
     return out;
-  }, [inventoryAnalysis]);
+  }, [inventoryAnalysis, inventory]);
 
   // Bug fix 2026-05-20 (round 2) — la gate erreur se base désormais sur
   // notFoundConfirmed (confirmation explicite via fetchUnifiedRecipe)
@@ -145,7 +154,7 @@ const RecipeDetail = () => {
     if (!id) return;
     let active = true;
     void (async () => {
-      const sessionKey = `viewed:${id}`;
+      const sessionKey = `v10-draft:${sessionUser.id}:viewed:${id}`;
       if (typeof window !== 'undefined' && sessionStorage.getItem(sessionKey)) {
         return;
       }
@@ -214,7 +223,7 @@ const RecipeDetail = () => {
           recipeData.inlineIngredients.map((it, idx) => ({
             id: `${recipeData.id}-${idx}`,
             ingredient_name: it.ingredient_name,
-            quantity: it.quantity ?? 0,
+            quantity: it.quantity ?? null,
             unit: it.unit ?? '',
             is_essential: it.is_essential,
             notes: it.notes,
@@ -354,135 +363,41 @@ const RecipeDetail = () => {
     }
   };
 
+  const showActionError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Action non confirmée. Réessayez.';
+    setActionError(message);
+    toast({ title: 'Action non confirmée', description: message, variant: 'destructive' });
+  };
+
   const handleAddToShoppingList = async () => {
-    if (!inventoryAnalysis || inventoryAnalysis.missingIngredients.length === 0) {
-      toast({
-        title: "Aucun ingrédient manquant",
-        description: "Tous les ingrédients sont déjà disponibles dans votre inventaire !",
-      });
-      return;
-    }
-
-    setAddingToCart(true);
+    if (!recipe || addingToCart) return;
+    setAddingToCart(true); setActionError(null);
     try {
-      // Ajouter chaque ingrédient manquant à la liste de courses
-      for (const missing of inventoryAnalysis.missingIngredients) {
-        await addToShoppingList({
-          productName: missing.ingredient.ingredient_name,
-          quantity: missing.ingredient.quantity || 1,
-          category: getStoreSectionForIngredient(missing.ingredient.ingredient_name),
-          unit: missing.ingredient.unit || 'unité',
-          storeSection: getStoreSectionForIngredient(missing.ingredient.ingredient_name)
-        });
-      }
-
-      toast({
-        title: "Ajouté à la liste de courses",
-        description: `${inventoryAnalysis.missingIngredients.length} ingrédients ajoutés à votre liste`,
-      });
-
-      // Optionnel : naviguer vers la liste de courses
-      // navigate('/shopping');
-    } catch (error) {
-      console.error('Error adding to shopping list:', error);
-      toast({
-        title: "Erreur",
-        description: "Impossible d'ajouter les ingrédients à la liste de courses",
-        variant: "destructive"
-      });
-    } finally {
-      setAddingToCart(false);
-    }
+      const title = await fireRecipeAssistantAction({ id: recipe.id, name: recipe.name, servings: chosenServings },'add_missing');
+      toast({ title });
+    } catch (error) { showActionError(error); }
+    finally { setAddingToCart(false); }
   };
 
   const handleCook = async () => {
-    if (!inventoryAnalysis || inventoryAnalysis.availableIngredients.length === 0) {
-      toast({
-        title: "Rien à décrémenter",
-        description: "Aucun ingrédient disponible dans l'inventaire.",
-      });
-    
-      return;
-    }
-
-    setCooking(true);
+    if (!id || cooking) return;
+    setCooking(true); setActionError(null);
     try {
-      const updates: { id: string; prev: number; next: number }[] = [];
-      for (const match of inventoryAnalysis.availableIngredients) {
-        const inv: any = match.inventoryItem;
-        const ing: any = match.ingredient;
-        const prevQty = Number(inv.quantity) || 0;
-        const reqQty = Number(ing.quantity) || 1;
-        const nextQty = Math.max(0, prevQty - reqQty);
-        if (nextQty !== prevQty) updates.push({ id: inv.id, prev: prevQty, next: nextQty });
-      }
-
-      if (updates.length === 0) {
-        toast({ title: "Quantités inchangées", description: "Aucun changement à appliquer." });
-        setCooking(false);
-        return;
-      }
-
-      await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.next }).eq('id', u.id)));
-
-      // PRP-223 PR7 — best-effort cooking journal entry on every cook.
-      // Failures here don't undo the inventory decrement above.
-      try {
-        await postCookingJournalEntry({
-          recipe_id: recipe?.id,
-          recipe_title: recipe?.name ?? 'Recette',
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[recipe] cooking journal write failed:', err);
-      }
-
-      toast({
-        title: "Cuisiné",
-        description: "Les ingrédients ont été décrémentés de l'inventaire.",
-        action: {
-          label: 'Annuler',
-          onClick: async () => {
-            try {
-              await Promise.all(updates.map(u => supabase.from('inventory').update({ quantity: u.prev }).eq('id', u.id)));
-            } catch {}
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Cook error:', error);
-      toast({ title: 'Erreur', description: "Impossible de mettre à jour l'inventaire", variant: 'destructive' });
-    } finally {
-      setCooking(false);
-    }
+      const session = await startCookingSession(sessionUser.id,{ id,source:unifiedRecipe?.source ?? 'auto' },instructions,chosenServings);
+      navigate(`/kitchen/cooking/${session.id}`);
+    } catch (error) { showActionError(error); }
+    finally { setCooking(false); }
   };
 
-  // Helper function pour déterminer la section du magasin
-  const getStoreSectionForIngredient = (ingredientName: string): string => {
-    const name = ingredientName.toLowerCase().trim();
-    
-    // Catégories simplifiées pour la liste de courses
-    if (name.includes('tomate') || name.includes('carotte') || name.includes('oignon') || 
-        name.includes('pomme') || name.includes('salade') || name.includes('légume') || 
-        name.includes('fruit')) {
-      return 'Fruits et légumes';
-    }
-    if (name.includes('viande') || name.includes('poulet') || name.includes('boeuf') || 
-        name.includes('porc')) {
-      return 'Boucherie';
-    }
-    if (name.includes('poisson') || name.includes('saumon') || name.includes('thon')) {
-      return 'Poissonnerie';
-    }
-    if (name.includes('lait') || name.includes('fromage') || name.includes('yaourt') || 
-        name.includes('beurre')) {
-      return 'Produits laitiers';
-    }
-    if (name.includes('pain') || name.includes('baguette')) {
-      return 'Boulangerie';
-    }
-    
-    return 'Épicerie';
+  const handleShare = async () => {
+    if (!id || sharing) return;setSharing(true);setActionError(null);
+    const url=new URL(`/kitchen/recipes/${encodeURIComponent(id)}`,window.location.origin);
+    url.searchParams.set('source',unifiedRecipe?.source ?? 'auto');
+    try {
+      if (navigator.share) await navigator.share({ title:recipe?.name ?? 'Recette',url:url.href });
+      else { await navigator.clipboard.writeText(url.href);toast({ title:'Lien de recette copié' }); }
+    } catch (failure) { if (!(failure instanceof DOMException && failure.name==='AbortError')) showActionError(failure); }
+    finally { setSharing(false); }
   };
 
   const getCuisineColor = (category: string) => {
@@ -571,17 +486,17 @@ const RecipeDetail = () => {
   // PRP-232 PR4 — hiérarchie §9 : media → titre/source/temps → actions
   // primaires → ingrédients → instructions → notes → source.
   return (
-    <div className="page-container max-w-4xl">
+    <div className="page-container max-w-4xl pb-[calc(var(--content-bottom-pad)+5rem)] md:pb-6">
       <div className="mb-4 flex items-center justify-between">
         <Button variant="ghost" onClick={() => navigate('/kitchen/recipes')}>
           <ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />
           Retour aux recettes
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" aria-label="Mettre en favori">
+          <Button variant="outline" size="icon" className="h-11 w-11" aria-label={favorites.isFavorite(id ?? '') ? 'Retirer des favoris' : 'Mettre en favori'} aria-pressed={favorites.isFavorite(id ?? '')} disabled={favoriting || favorites.isLoading || favorites.isError} onClick={() => { if (!id || favoriting) return; setFavoriting(true); void favorites.toggle({ id,source:unifiedRecipe?.source ?? 'auto' }).catch(showActionError).finally(() => setFavoriting(false)); }}>
             <Heart className="w-4 h-4" aria-hidden="true" />
           </Button>
-          <Button variant="outline" size="icon" aria-label="Partager">
+          <Button variant="outline" size="icon" disabled={sharing} aria-label={navigator.share ? 'Partager' : 'Copier le lien de recette'} onClick={() => void handleShare()}>
             <Share className="w-4 h-4" aria-hidden="true" />
           </Button>
           <Button
@@ -641,18 +556,23 @@ const RecipeDetail = () => {
           PRP-238 PR1 etape (d) — sur mobile (< sm) on n'affiche pas le
           bloc inline ; une RecipeMobileActionBar sticky est rendue en
           bas de page (voir plus bas dans ce return). */}
-      <div className="hidden sm:block">
+      <div className="hidden md:block">
         <RecipePrimaryActions
           onCook={handleCook}
           onAddMissingToShoppingList={handleAddToShoppingList}
           onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
           cooking={cooking}
           addingToCart={addingToCart}
-          canCook={!!inventoryAnalysis?.availableIngredients?.length}
+          canCook={!!recipe && !loading}
           canAddMissing={!inventoryAnalysis?.canMake}
         />
       </div>
 
+      {actionError && <p role="alert" className="mb-4 rounded-md border border-destructive p-3 text-destructive">{actionError} Relisez le stock si les quantités ont changé, puis réessayez.</p>}
+      <label className="mb-4 flex items-center gap-3 text-sm">Portions à préparer
+        <Input aria-label="Portions à préparer" className="w-24" type="number" min="1" max="100" step="1" value={chosenServings ?? recipe.servings}
+          disabled={cooking} onChange={event => setChosenServings(Number(event.target.value) || undefined)} />
+      </label>
       {/* Inventory status compact (sans Indian Price PRP-232 PR4) */}
       {inventoryAnalysis && (
         <Card className="mb-6">
@@ -703,16 +623,16 @@ const RecipeDetail = () => {
                       key={ingredient.id}
                       className={`flex items-center justify-between p-2 rounded-lg ${
                         !isAvailable && ingredient.is_essential
-                          ? 'bg-red-50'
+                          ? 'bg-red-100 text-red-950 dark:bg-red-950 dark:text-red-100'
                           : !isAvailable
-                          ? 'bg-yellow-50'
-                          : 'bg-green-50'
+                          ? 'bg-yellow-100 text-yellow-950 dark:bg-yellow-950 dark:text-yellow-100'
+                          : 'bg-green-100 text-green-950 dark:bg-green-950 dark:text-green-100'
                       }`}
                     >
                       <div className="flex items-center gap-2">
                         {getInventoryStatusIcon(isAvailable || false, ingredient.is_essential)}
-                        <span className={!isAvailable ? 'text-muted-foreground' : ''}>
-                          {ingredient.quantity} {ingredient.unit} {ingredient.ingredient_name}
+                        <span>
+                          {ingredient.quantity == null ? "Quantité à vérifier :" : Number((ingredient.quantity * (chosenServings ?? recipe.servings) / recipe.servings).toFixed(6))} {ingredient.unit} {ingredient.ingredient_name}
                         </span>
                       </div>
                       {ingredient.notes && (
@@ -840,7 +760,7 @@ const RecipeDetail = () => {
         onEdit={() => navigate(`/kitchen/recipes/${id}/edit`)}
         cooking={cooking}
         addingToCart={addingToCart}
-        canCook={!!inventoryAnalysis?.availableIngredients?.length}
+        canCook={!!recipe && !loading}
         canAddMissing={!inventoryAnalysis?.canMake}
         missingCount={inventoryAnalysis?.missingIngredients?.length ?? 0}
       />

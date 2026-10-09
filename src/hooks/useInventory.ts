@@ -1,3 +1,4 @@
+import { calendarDaysUntil } from '@smart/shared';
 /**
  * useInventory - Enhanced inventory hook with optimistic updates
  * Phase 1 Implementation: Fast UI feedback + real-time sync ready
@@ -11,11 +12,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { voiceOutputService } from "@/services/voice/voiceOutputService";
-import { useAgentDbInvalidation } from "@/lib/agentEvents";
-import {
-  primeInventoryCache,
-  invalidateInventoryCache,
-} from "@/hooks/useRecipeInventoryAnalysis";
+import { dispatchAgentDbChanged, useAgentDbInvalidation } from "@/lib/agentEvents";
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from "@/services/stockCommands";
+import { useAuthSessionOptional } from "@/hooks/useAuthenticatedUser";
 
 /**
  * Envelope `products.nutrition_json` (PRP-225, miroir
@@ -51,6 +50,8 @@ export interface InventoryItem {
   id: string;
   product_id: string;
   quantity: number;
+  unit?: string;
+  stock_version?: number;
   expiry_date?: string;
   location?: string;
   product?: Product;
@@ -70,12 +71,22 @@ interface UseInventoryOptions {
 
 export const useInventory = (options: UseInventoryOptions = {}) => {
   const { enableVoiceFeedback = false, enableOptimisticUpdates = true } = options;
+  const { user } = useAuthSessionOptional();
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const writing = useRef(false);
+  const beginWrite = () => {
+    if (writing.current) throw new Error('Une modification du stock est déjà en cours.');
+    writing.current = true; setIsSyncing(true);
+  };
+  const requireOwner = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || session.user.id !== user?.id) throw new Error('Reconnectez-vous au compte qui a commencé cette action.');
+  };
 
   // Track optimistic state for rollback
   const optimisticRef = useRef<OptimisticState>({
@@ -109,19 +120,13 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
           *,
           product:products(*)
         `)
+        .eq('user_id', user?.id ?? '')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
       const rows = data || [];
       setInventory(rows);
 
-      // Perf audit 2026-05-19 — prime le cache module partagé avec
-      // useRecipeInventoryAnalysis pour qu'une ouverture de recette ne
-      // refetch pas l'inventaire que ce hook vient de charger.
-      const firstUserId = rows.find((it) => it.user_id)?.user_id;
-      if (firstUserId) {
-        primeInventoryCache(firstUserId, rows as InventoryItem[]);
-      }
     } catch (err) {
       console.error('Error fetching inventory:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch inventory'));
@@ -211,9 +216,10 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
   };
 
   const addToInventory = async (inventoryData: Omit<InventoryItem, 'id' | 'product'>) => {
+    beginWrite();
     try {
       const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('User not authenticated');
+      if (!userData.user || userData.user.id !== user?.id) throw new Error('Reconnectez-vous à ce compte pour ajouter ce lot.');
 
       // Generate temporary ID for optimistic update
       const tempId = `temp-${Date.now()}`;
@@ -233,7 +239,7 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
       const { data, error: insertError } = await supabase
         .from('inventory')
-        .insert([{ ...inventoryData, user_id: userData.user.id }])
+        .insert([{ ...inventoryData, unit: inventoryData.unit ?? products.find(p => p.id === inventoryData.product_id)?.unit_type, user_id: userData.user.id }])
         .select(`
           *,
           product:products(*)
@@ -246,9 +252,7 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       }
 
       // Replace temp item with real item
-      setInventory(prev =>
-        prev.map(item => item.id === tempId ? data : item)
-      );
+      setInventory(prev => enableOptimisticUpdates ? prev.map(item => item.id === tempId ? data : item) : [data, ...prev]);
 
       // Clear from pending
       optimisticRef.current.pendingAdds =
@@ -263,54 +267,53 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
         );
       }
 
-      // Cache invalidé : la prochaine ouverture de recette refetchera.
-      if (data.user_id) invalidateInventoryCache(data.user_id);
+      dispatchAgentDbChanged(["inventory"]);
 
       return data;
     } catch (err) {
       console.error('Error adding to inventory:', err);
       throw err;
-    }
+    } finally { writing.current = false; setIsSyncing(false); }
   };
 
   const updateInventoryItem = async (id: string, updates: Partial<InventoryItem>) => {
-    try {
-      // Optimistic update
-      if (enableOptimisticUpdates) {
-        takeSnapshot();
-        setInventory(prev =>
-          prev.map(item =>
-            item.id === id ? { ...item, ...updates } : item
-          )
-        );
-        optimisticRef.current.pendingUpdates.set(id, updates);
-      }
-
-      setIsSyncing(true);
-      const { error: updateError } = await supabase
-        .from('inventory')
-        .update(updates)
-        .eq('id', id);
-
-      if (updateError) {
-        if (enableOptimisticUpdates) rollback();
-        throw updateError;
-      }
-
-      // Clear from pending
-      optimisticRef.current.pendingUpdates.delete(id);
-      // Cache invalidé : la prochaine ouverture de recette refetchera.
-      invalidateInventoryCache();
-    } catch (err) {
-      console.error('Error updating inventory item:', err);
-      throw err;
-    } finally {
-      setIsSyncing(false);
+    const item = inventory.find(row => row.id === id);
+    if (!item) throw new Error('Ce lot n’est plus disponible. Actualisez le stock.');
+    const intent = `inventory-adjust:${id}`;
+    beginWrite();
+    if (enableOptimisticUpdates) {
+      takeSnapshot();
+      setInventory(prev => prev.map(row => row.id === id ? { ...row, ...updates } : row));
     }
+    setIsSyncing(true);
+    try {
+      await requireOwner();
+      const pending = await pendingIntent(intent);
+      if (pending && pending.command_type !== 'adjust_inventory') throw new Error('L’action précédente reste à vérifier.');
+      if (pending && (pending.payload.items[0].quantity !== (updates.quantity ?? item.quantity) || pending.payload.items[0].unit !== (updates.unit ?? item.unit ?? item.product?.unit_type ?? '') ||
+        ('location' in updates && pending.payload.items[0].location !== updates.location) || ('expiry_date' in updates && pending.payload.items[0].expiry_date !== (updates.expiry_date || null)))) throw new Error('Réessayez la correction précédente avant de modifier sa saisie.');
+      const command = pending ?? await commandForIntent('adjust_inventory', intent, { items: [{
+        id, quantity: updates.quantity ?? item.quantity,
+        unit: updates.unit ?? item.unit ?? item.product?.unit_type ?? '',
+        expected_version: item.stock_version ?? 0,
+        ...(updates.location !== undefined ? { location: updates.location } : {}),
+        ...(updates.expiry_date !== undefined ? { expiry_date: updates.expiry_date || null } : {}),
+      }] });
+      const result = await executeStockCommand(command);
+      await finishIntent(intent);
+      await fetchInventory();
+      return result;
+    } catch (err) {
+      if (enableOptimisticUpdates) rollback();
+      setError(err instanceof Error ? err : new Error('Correction non confirmée.'));
+      throw err;
+    } finally { writing.current = false; setIsSyncing(false); }
   };
 
   const deleteInventoryItem = async (id: string) => {
+    beginWrite();
     try {
+      await requireOwner();
       // Get item for voice feedback
       const item = inventory.find(i => i.id === id);
 
@@ -322,14 +325,17 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       }
 
       setIsSyncing(true);
-      const { error: deleteError } = await supabase
+      const { data: deleted, error: deleteError } = await supabase
         .from('inventory')
         .delete()
-        .eq('id', id);
+        .eq('user_id', user?.id ?? '')
+        .eq('id', id)
+        .eq('stock_version', item?.stock_version ?? 0)
+        .select('id');
 
-      if (deleteError) {
+      if (deleteError || deleted?.length !== 1) {
         if (enableOptimisticUpdates) rollback();
-        throw deleteError;
+        throw deleteError ?? new Error("Ce lot a changé. Actualisez avant de le supprimer.");
       }
 
       // Clear from pending
@@ -340,12 +346,12 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
         voiceOutputService.announceItemRemoved(item.product.name);
       }
 
-      // Cache invalidé : la prochaine ouverture de recette refetchera.
-      invalidateInventoryCache();
+      dispatchAgentDbChanged(["inventory"]);
     } catch (err) {
       console.error('Error deleting inventory item:', err);
       throw err;
     } finally {
+      writing.current = false;
       setIsSyncing(false);
     }
   };
@@ -357,13 +363,21 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
     const item = inventory.find(i => i.id === id);
     if (!item) throw new Error('Item not found');
 
-    const newQuantity = Math.max(0, item.quantity - amount);
-
-    if (newQuantity === 0) {
-      await deleteInventoryItem(id);
-    } else {
-      await updateInventoryItem(id, { quantity: newQuantity });
-    }
+    const intent = `inventory-consume:${id}`;
+    beginWrite();
+    try {
+      await requireOwner();
+      const pending = await pendingIntent(intent);
+      if (pending && pending.command_type !== 'consume_inventory') throw new Error('L’action précédente reste à vérifier.');
+      const command = pending ?? await commandForIntent('consume_inventory', intent, { items: [{
+        id, quantity: amount, unit: item.unit ?? item.product?.unit_type ?? '',
+        expected_version: item.stock_version ?? 0,
+      }] });
+      const result = await executeStockCommand(command);
+      await finishIntent(intent);
+      await fetchInventory();
+      return result;
+    } finally { writing.current = false; setIsSyncing(false); }
   };
 
   /**
@@ -381,15 +395,7 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
    * Get items expiring soon
    */
   const getExpiringItems = useCallback((withinDays: number = 7): InventoryItem[] => {
-    const now = new Date();
-    const futureDate = new Date();
-    futureDate.setDate(now.getDate() + withinDays);
-
-    return inventory.filter(item => {
-      if (!item.expiry_date) return false;
-      const expiryDate = new Date(item.expiry_date);
-      return expiryDate <= futureDate && expiryDate >= now;
-    });
+    return inventory.filter(item => { const days = calendarDaysUntil(item.expiry_date); return item.quantity>0 && days != null && days>=0 && days<=withinDays; });
   }, [inventory]);
 
   /**
@@ -480,7 +486,7 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
     };
 
     loadData();
-  }, []);
+  }, [user?.id]);
 
   // PRP-221: refetch when the voice agent has touched inventory or
   // products (a new auto-created product cascades into name/category

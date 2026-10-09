@@ -251,12 +251,19 @@ export type ConfirmProductCandidateArgs = z.infer<typeof confirmProductCandidate
 
 // ---- MEDIUM write tools ----------------------------------------------
 
+const cookRecipeArgs = z.object({
+  recipe_id: z.string().uuid(), servings: z.number().finite().positive().max(100).optional(),
+  outside_inventory: z.array(z.number().int().nonnegative()).max(100).default([]),
+});
+export type CookRecipeArgs = z.infer<typeof cookRecipeArgs>;
+
 const consumeInventoryItemsArgs = z.object({
   items: z
     .array(
       z.object({
         inventory_id: z.string().uuid(),
-        quantity: z.number().nonnegative(),
+        quantity: z.number().finite().positive(),
+        unit: z.string().min(1).max(40).optional(),
       })
     )
     .min(1)
@@ -380,7 +387,7 @@ export type RecordRecipeFeedbackArgs = z.infer<typeof recordRecipeFeedbackArgs>;
 
 // ---- Catalog --------------------------------------------------------
 
-export const TOOL_SPECS: readonly ToolSpec<any>[] = [
+export const TOOL_SPECS: readonly ToolSpec[] = [
   // ===== READ =====
   {
     name: 'read_inventory',
@@ -741,9 +748,20 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
 
   // ===== MEDIUM write =====
   {
+    name: 'cook_recipe',
+    description: 'Record a cooked recipe by its exact id. Converts units and portions, updates stock and cooking journal atomically. Use instead of separate consume_inventory_items and feedback calls. outside_inventory may only name ingredient indexes explicitly confirmed by the user as used outside tracked inventory; otherwise leave it empty.',
+    schema: cookRecipeArgs,
+    jsonSchema: {
+      type: 'object', required: ['recipe_id'], properties: {
+        recipe_id: { type: 'string', format: 'uuid' }, servings: { type: 'number', exclusiveMinimum: 0, maximum: 100 },
+        outside_inventory: { type: 'array', items: { type: 'integer', minimum: 0 }, maxItems: 100 },
+      }, additionalProperties: false,
+    }, defaultRiskTier: 'medium', reversible: true,
+  },
+  {
     name: 'consume_inventory_items',
     description:
-      'Decrement inventory quantities (e.g. user cooked something or threw it away). Each item references an inventory row by id and a quantity to subtract.',
+      'Decrement inventory quantities (e.g. user cooked something or threw it away). Each item references an inventory row by id, a positive quantity and its unit. Use the inventory unit if no unit was specified. For a cooked recipe use cook_recipe so stock and journal remain atomic.',
     schema: consumeInventoryItemsArgs,
     jsonSchema: {
       type: 'object',
@@ -758,7 +776,8 @@ export const TOOL_SPECS: readonly ToolSpec<any>[] = [
             required: ['inventory_id', 'quantity'],
             properties: {
               inventory_id: { type: 'string', format: 'uuid' },
-              quantity: { type: 'number', minimum: 0 },
+              quantity: { type: 'number', exclusiveMinimum: 0 },
+              unit: { type: 'string', minLength: 1, maxLength: 40 },
             },
             additionalProperties: false,
           },

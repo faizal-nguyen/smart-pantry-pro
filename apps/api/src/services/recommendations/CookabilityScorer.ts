@@ -1,3 +1,4 @@
+import { allocateRecipeStock, type StockLot } from '@smart/shared';
 /**
  * PRP-226 PR2 — CookabilityScorer.
  *
@@ -49,6 +50,7 @@ const NO_ESSENTIALS_SCORE = 0;
 export function scoreCookability(
   recipe: RecipeWithIngredients,
   inventory: InventorySnapshot,
+  requestedServings?: number,
 ): CookabilityResult {
   const ings = recipe.recipe_ingredients ?? [];
   const essentials = ings.filter((i) => i.is_essential !== false);
@@ -66,34 +68,21 @@ export function scoreCookability(
   };
   if (essentials.length === 0) return empty;
 
-  const linked = essentials.filter((i) => i.inventory_product_id);
-  const unlinkedCount = essentials.length - linked.length;
-  const unknownIngredients = essentials
-    .filter((i) => !i.inventory_product_id)
-    .map((i) => i.ingredient_name);
-
-  const missing: string[] = [];
-  for (const ing of linked) {
-    const have = inventory.byProduct.get(ing.inventory_product_id!)?.quantity ?? 0;
-    if (have < ing.quantity) {
-      missing.push(ing.ingredient_name);
-    }
-  }
-
-  const combinedGap = missing.length + unlinkedCount;
-  const score =
-    combinedGap === 0 ? 1 : Math.max(0, 1 - combinedGap / essentials.length);
-
+  const lots: StockLot[] = inventory.lots ?? [...inventory.byProduct].map(([id,row]) => ({
+    id, product_id: id, product_name: row.productName ?? '', quantity: row.quantity,
+    unit: row.unit ?? null, stock_version: 0, expiry_date: row.expiryDate,
+  }));
+  const checked = allocateRecipeStock(ings,lots,recipe.servings ?? 4,requestedServings ?? recipe.servings ?? 4);
+  const gaps = checked.missing.filter(item => item.is_essential);
+  const unknown = gaps.filter(item => ['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason)
+    || (item.reason === 'NOT_IN_STOCK' && !ings[item.ingredient_index].inventory_product_id));
+  const missing = gaps.filter(item => !unknown.includes(item));
   return {
-    score,
-    total_essential: essentials.length,
-    linked_essential: linked.length,
-    missing_count: missing.length,
-    missing_ingredients: missing,
-    unlinked: unlinkedCount > 0,
-    unlinked_count: unlinkedCount,
-    unknown_ingredients: unknownIngredients,
-    combined_gap: combinedGap,
+    score: Math.max(0, 1 - gaps.length / essentials.length),
+    total_essential: essentials.length, linked_essential: essentials.length - unknown.length,
+    missing_count: missing.length, missing_ingredients: missing.map(item => item.ingredient_name),
+    unlinked: unknown.length > 0, unlinked_count: unknown.length,
+    unknown_ingredients: unknown.map(item => item.ingredient_name), combined_gap: gaps.length,
   };
 }
 

@@ -27,6 +27,7 @@
  * --project-id jwoxacnflphclslpqfzs > src/integrations/supabase/types.ts`,
  * delete this file — the canonical regeneration will subsume it.
  */
+import type { LibraryRecipeRow, RecipeCatalogRow } from '@smart/shared';
 import type { Database as BaseDatabase, Json } from './types';
 
 // ---- user_meal_preferences ------------------------------------------
@@ -118,6 +119,7 @@ interface MealPlanEntriesRow {
   day_of_week: number;
   meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   recipe_id: string | null;
+  recipe_reference: Json | null;
   recipe_name: string;
   servings: number;
   estimated_cost: number;
@@ -138,6 +140,7 @@ type MealPlanEntriesInsert = {
   day_of_week: number;
   meal_type: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   recipe_id?: string | null;
+  recipe_reference?: Json | null;
   recipe_name: string;
   servings?: number;
   estimated_cost?: number;
@@ -292,11 +295,43 @@ type MediaJobsInsert = {
 
 type MediaJobsUpdate = Partial<MediaJobsInsert>;
 
+// V10-01 additions are derived from the local migration, not a production type regeneration.
+type WithStockFields<T extends 'inventory' | 'shopping_list'> = {
+  Row: BaseDatabase['public']['Tables'][T]['Row'] & { unit: string | null; stock_version: number };
+  Insert: BaseDatabase['public']['Tables'][T]['Insert'] & { unit?: string | null; stock_version?: number };
+  Update: BaseDatabase['public']['Tables'][T]['Update'] & { unit?: string | null; stock_version?: number };
+  Relationships: BaseDatabase['public']['Tables'][T]['Relationships'];
+};
+type CatalogRow = RecipeCatalogRow & {
+  ingredients_json: Json; nutrition_json: Json; normalized_title: string | null;
+  rest_time: number; meal_type?: string | null; calories_per_serving: number | null;
+  quality_score: number; import_count: number; total_cook_time: number | null;
+};
+type UserLibraryRow = Omit<LibraryRecipeRow,'catalog_recipe' | 'custom_modifications' | 'custom_ingredients_json'> & {
+  custom_ingredients_json: Json | null; custom_modifications: Json;
+  personal_tags: string[]; collections: string[]; added_date: string; last_cooked_date: string | null;
+  times_cooked: number; is_shared: boolean; shared_with: string[];
+};
+type LooseTable<Row,RequiredKeys extends keyof Row = never> = {
+  Row: Row; Insert: Partial<Row> & Pick<Row,RequiredKeys>; Update: Partial<Row>; Relationships: [];
+};
+
 // ---- Augmented Database type ----------------------------------------
 
 export type Database = Omit<BaseDatabase, 'public'> & {
   public: Omit<BaseDatabase['public'], 'Tables'> & {
-    Tables: BaseDatabase['public']['Tables'] & {
+    Tables: Omit<BaseDatabase['public']['Tables'],'inventory' | 'shopping_list'> & {
+      inventory: WithStockFields<'inventory'>;
+      shopping_list: WithStockFields<'shopping_list'>;
+      recipes_catalog: LooseTable<CatalogRow,'title' | 'ingredients_json'>;
+      user_recipes: Omit<LooseTable<UserLibraryRow,'user_id'>,'Relationships'> & { Relationships: [{ foreignKeyName: 'user_recipes_recipe_id_fkey'; columns: ['recipe_id']; isOneToOne: false; referencedRelation: 'recipes_catalog'; referencedColumns: ['id'] }] };
+      stock_commands: LooseTable<{ user_id: string; command_id: string; command_type: string; payload_version: number; payload: Json; result: Json; reverses_command_id: string | null; created_at: string },'user_id' | 'command_id' | 'command_type' | 'payload_version' | 'payload'>;
+      stock_movements: LooseTable<{ id: string; user_id: string; command_id: string; inventory_id: string; delta: number; unit: string; version_after: number; snapshot: Json; source_shopping: Json | null; created_at: string }>;
+      stock_context_versions: LooseTable<{ user_id: string; revision: number }>;
+      user_collections: LooseTable<{ id: string; user_id: string; name: string; description: string | null; color: string | null; icon: string | null; created_at: string; updated_at: string },'user_id' | 'name'>;
+      recipe_collections: LooseTable<{ id: string; user_id: string; name: string; description: string | null; is_public: boolean; created_at: string; updated_at: string },'user_id' | 'name'>;
+      routine_recipe_favorites: LooseTable<{ user_id:string; recipe_id:string; recipe_source:'auto'|'recipes'|'user_recipes'|'recipes_catalog'; created_at:string },'user_id'|'recipe_id'|'recipe_source'>;
+      mobile_routine_preferences: LooseTable<{ user_id: string; introduction: 'new'|'stock'|'recipe'|'done'|'skipped'; stock_view:'list'|'grid'; updated_at:string },'user_id'>;
       user_meal_preferences: {
         Row: UserMealPreferencesRow;
         Insert: UserMealPreferencesInsert;

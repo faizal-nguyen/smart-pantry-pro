@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAgentDbInvalidation } from "@/lib/agentEvents";
+import { mapLibraryRecipe, type LibraryRecipeRow, type StockIngredient } from "@smart/shared";
+import { fetchUnifiedRecipe, invalidateUnifiedRecipeCache } from "@/lib/recipeSource";
+import { saveRecipeWithIngredients } from "@/services/recipePersistence";
+import { dispatchAgentDbChanged, useAgentDbInvalidation } from "@/lib/agentEvents";
 
 // Types adaptés du PRP Cipher Enhanced
 export interface Recipe {
@@ -19,13 +22,14 @@ export interface Recipe {
   tags?: string[];
   source_type?: string;
   source_url?: string;
-  nutrition_info?: any;
+  nutrition_info?: unknown;
   is_public: boolean;
   rating?: number;
   rating_count?: number;
   user_id: string;
   created_at: string;
   updated_at: string;
+  inlineIngredients?: StockIngredient[];
 }
 
 export interface RecipeIngredient {
@@ -39,7 +43,7 @@ export interface RecipeIngredient {
   order_index?: number;
   inventory_product_id?: string;
   calories_per_unit?: number;
-  nutrition_data?: any;
+  nutrition_data?: unknown;
 }
 
 export interface RecipeWithIngredients extends Recipe {
@@ -61,6 +65,7 @@ export const useRecipes = () => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [collections, setCollections] = useState<RecipeCollection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error,setError] = useState<Error | null>(null);
 
   // Fetch recipes avec pattern useInventory.
   //
@@ -91,21 +96,18 @@ export const useRecipes = () => {
       ]);
 
       if (legacy.error) throw legacy.error;
-      if (userLib.error) {
-        // Non-fatal: degrade to legacy-only on envs without the Spotify schema.
-        console.warn('Recipes: user_recipes merge failed, falling back to legacy only:', userLib.error.message);
-      }
+      if (userLib.error) throw userLib.error;
 
       const merged: Recipe[] = [
         ...((legacy.data as Recipe[] | null) ?? []),
-        ...((userLib.data as any[] | null) ?? [])
+        ...((userLib.data as LibraryRecipeRow[] | null) ?? [])
           .map(mapUserRecipeRowToRecipe)
           .filter((r): r is Recipe => r !== null),
       ];
 
-      setRecipes(merged);
+      setRecipes(merged); setError(null);
     } catch (error) {
-      console.error('Error fetching recipes:', error);
+      setError(error instanceof Error ? error : new Error('La bibliothèque n’a pas pu être chargée.'));
     }
   };
 
@@ -113,59 +115,21 @@ export const useRecipes = () => {
   // to the Recipe shape consumed by the rest of the app. Returns null when
   // the wrapper has neither a catalog backing nor a custom title (the row
   // would not display usefully).
-  function mapUserRecipeRowToRecipe(row: any): Recipe | null {
-    const cat = row.catalog_recipe;
-    const name = (cat?.title ?? row.custom_title ?? '').trim();
-    if (!name) return null;
-    return {
-      id: row.id,
-      name,
-      description: cat?.description ?? row.personal_notes ?? undefined,
-      image_url: cat?.photo_url ?? row.custom_photo_url ?? undefined,
-      cuisine_category: undefined,
-      meal_type: undefined,
-      prep_time: cat?.prep_time ?? 0,
-      cook_time: cat?.cook_time ?? 0,
-      rest_time: cat?.rest_time ?? 0,
-      servings: cat?.servings ?? 4,
-      difficulty: cat?.difficulty ?? 3,
-      instructions: cat?.instructions ?? row.custom_instructions ?? '',
-      tags: cat?.tags ?? row.personal_tags ?? [],
-      source_type: cat?.source ?? undefined,
-      source_url: cat?.source_url ?? undefined,
-      nutrition_info: cat?.nutrition_json ?? undefined,
-      is_public: row.is_from_catalog === true,
-      rating: cat?.rating_avg ?? undefined,
-      rating_count: cat?.rating_count ?? undefined,
-      user_id: row.user_id,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    };
+  function mapUserRecipeRowToRecipe(row: LibraryRecipeRow): Recipe {
+    return mapLibraryRecipe(row) as Recipe;
   }
 
   // Fetch une recette avec ses ingrédients
   const fetchRecipeWithIngredients = async (recipeId: string): Promise<RecipeWithIngredients | null> => {
     try {
-      const [recipeResult, ingredientsResult] = await Promise.all([
-        supabase
-          .from('recipes')
-          .select('*')
-          .eq('id', recipeId)
-          .single(),
-        supabase
-          .from('recipe_ingredients')
-          .select('*')
-          .eq('recipe_id', recipeId)
-          .order('order_index', { ascending: true })
-      ]);
-
-      if (recipeResult.error) throw recipeResult.error;
-      if (ingredientsResult.error) throw ingredientsResult.error;
-
-      return {
-        ...recipeResult.data,
-        ingredients: ingredientsResult.data || []
-      };
+      const recipe = await fetchUnifiedRecipe(recipeId);
+      if (!recipe) return null;
+      if (recipe.inlineIngredients) return { ...recipe, ingredients: recipe.inlineIngredients.map((ingredient,index) => ({
+        ...ingredient, id: `${recipeId}:${index}`, recipe_id: recipeId,
+      })) } as RecipeWithIngredients;
+      const { data, error } = await supabase.from('recipe_ingredients').select('*').eq('recipe_id',recipeId).order('order_index');
+      if (error) throw error;
+      return { ...recipe, ingredients: data ?? [] } as RecipeWithIngredients;
     } catch (error) {
       console.error('Error fetching recipe with ingredients:', error);
       return null;
@@ -223,45 +187,17 @@ export const useRecipes = () => {
     recipeData: Omit<Recipe, 'id' | 'user_id' | 'created_at' | 'updated_at'>,
     ingredients: Omit<RecipeIngredient, 'id' | 'recipe_id'>[]
   ) => {
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error('User not authenticated');
-
-      // 1. Ajouter la recette
-      const { data: recipe, error: recipeError } = await supabase
-        .from('recipes')
-        .insert([{
-          ...recipeData,
-          user_id: user.user.id
-        }])
-        .select()
-        .single();
-
-      if (recipeError) throw recipeError;
-
-      // 2. Ajouter les ingrédients
-      if (ingredients.length > 0) {
-        const ingredientsWithRecipeId = ingredients.map((ingredient, index) => ({
-          ...ingredient,
-          recipe_id: recipe.id,
-          order_index: index
-        }));
-
-        const { error: ingredientsError } = await supabase
-          .from('recipe_ingredients')
-          .insert(ingredientsWithRecipeId);
-
-        if (ingredientsError) throw ingredientsError;
-      }
-
-      setRecipes(prev => [recipe, ...prev]);
-      console.log(`🍳 Recette complète ajoutée: ${recipeData.name} avec ${ingredients.length} ingrédients`);
-      
-      return recipe;
-    } catch (error) {
-      console.error('Error adding recipe with ingredients:', error);
-      throw error;
-    }
+    const { name, instructions, description, image_url, cuisine_category, meal_type,
+      prep_time, cook_time, rest_time, servings, difficulty, tags, is_public, source_type, source_url } = recipeData;
+    const recipe = await saveRecipeWithIngredients({
+      recipe: { name, instructions, description, image_url, cuisine_category, meal_type, prep_time, cook_time,
+        rest_time, servings, difficulty, tags: tags ?? [], is_public, source_type, source_url },
+      ingredients: ingredients.map(({ ingredient_name, quantity, unit, is_essential, notes, inventory_product_id }) => ({
+        ingredient_name, quantity, unit, is_essential, notes, inventory_product_id,
+      })),
+    });
+    setRecipes(prev => [recipe as Recipe, ...prev.filter(row => row.id !== recipe.id)]);
+    return recipe;
   };
 
   // Mettre à jour recette (pattern updateInventory Cipher)
@@ -283,6 +219,8 @@ export const useRecipes = () => {
       );
 
       console.log(`📝 Recette mise à jour: ${data.name}`);
+      invalidateUnifiedRecipeCache(id);
+      dispatchAgentDbChanged(["recipes", "recipe_ingredients"]);
       return data;
     } catch (error) {
       console.error('Error updating recipe:', error);
@@ -293,15 +231,14 @@ export const useRecipes = () => {
   // Supprimer recette (pattern deleteInventory Cipher)
   const deleteRecipe = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('recipes')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
+      const recipe = await fetchUnifiedRecipe(id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!recipe || !user || recipe.user_id !== user.id || recipe.source === 'recipes_catalog') throw new Error('Cette recette ne peut pas être supprimée de votre bibliothèque.');
+      const { data, error } = await supabase.from(recipe.source === 'user_recipes' ? 'user_recipes' : 'recipes')
+        .delete().eq('user_id',user.id).eq('id',id).select('id');
+      if (error || data?.length !== 1) throw error ?? new Error('Suppression non confirmée.');
       setRecipes(prev => prev.filter(recipe => recipe.id !== id));
-      console.log(`🗑️ Recette supprimée: ${id} - ${window.location.href}`);
+      invalidateUnifiedRecipeCache(id); dispatchAgentDbChanged(['recipes','recipe_ingredients','user_recipes']);
     } catch (error) {
       console.error('Error deleting recipe:', error);
       throw error;
@@ -321,11 +258,7 @@ export const useRecipes = () => {
         is_public: false
       };
 
-      // Supprimer les champs auto-générés
-      delete (duplicatedRecipeData as any).id;
-      delete (duplicatedRecipeData as any).user_id;
-      delete (duplicatedRecipeData as any).created_at;
-      delete (duplicatedRecipeData as any).updated_at;
+      // The persistence helper selects only editable recipe fields and creates new identities.
 
       const duplicatedIngredients = ingredients.map(ingredient => {
         const { id, recipe_id, ...ingredientData } = ingredient;
@@ -435,13 +368,13 @@ export const useRecipes = () => {
 
   // PRP-221: belt-and-braces — also refetch on agent-triggered writes
   // even if the Supabase realtime channel hiccups.
-  useAgentDbInvalidation(['recipes', 'recipe_ingredients'], fetchRecipes);
+  useAgentDbInvalidation(['recipes', 'recipe_ingredients', 'user_recipes'], fetchRecipes);
 
   return {
     // Data
     recipes,
     collections,
-    loading,
+    loading, error,
     
     // Actions CRUD
     addRecipe,

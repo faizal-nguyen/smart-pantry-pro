@@ -1,0 +1,27 @@
+[
+  {
+    "case": "transfer_inventory_insert_failure",
+    "result": "reproduced",
+    "symptom": "shopping deletion and success notification despite failed inventory insert"
+  },
+  {
+    "case": "checkbox_purchase",
+    "result": "reproduced",
+    "symptom": "actual page omits required boolean and update receives undefined"
+  },
+  {
+    "case": "cook_mismatched_units_and_failed_update",
+    "result": "reproduced",
+    "symptom": "1 kg minus 200 g yields 0 and success is displayed despite update failure"
+  },
+  {
+    "case": "manual_recipe_not_saved",
+    "result": "reproduced",
+    "symptom": "handler announces recipe added, resets form and closes without any persistence; active parent callback also does not save"
+  },
+  {
+    "case": "catalog_add_returns_mock",
+    "result": "reproduced",
+    "symptom": "active addFromCatalog resolves with a temp id, no database call; UI announces added and refetches an unchanged library"
+  }
+]

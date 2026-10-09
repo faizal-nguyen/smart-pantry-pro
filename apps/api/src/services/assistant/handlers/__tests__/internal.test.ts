@@ -129,6 +129,7 @@ function makeCtx(client: any): ToolExecutionContext {
 describe('Internal tool name list', () => {
   it('matches the documented set (no orphans, no extras)', () => {
     expect(INTERNAL_TOOL_NAMES).toEqual([
+      '_undo_stock_command',
       '_remove_inventory_items',
       '_restore_inventory_quantities',
       '_restore_inventory_item_snapshot',
@@ -200,26 +201,12 @@ describe('RestoreInventoryQuantitiesInternalHandler', () => {
 });
 
 describe('RestoreInventoryItemSnapshotInternalHandler', () => {
-  it('writes only the fields present in the snapshot', async () => {
-    const { client, calls } = makeClient({});
-    const handler = new RestoreInventoryItemSnapshotInternalHandler();
-    const r = await handler.execute(makeCtx(client), {
-      inventory_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-      snapshot: { quantity: 12, expiry_date: '2030-01-01' },
-    });
-    expect(r.result.restored).toBe(true);
-    const update = calls.find((c) => c.op === 'update');
-    expect(update?.payload).toEqual({ quantity: 12, expiry_date: '2030-01-01' });
-  });
-
-  it('is a no-op when the snapshot is empty', async () => {
-    const { client, calls } = makeClient({});
-    const r = await new RestoreInventoryItemSnapshotInternalHandler().execute(makeCtx(client), {
-      inventory_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-      snapshot: {},
-    });
-    expect(r.result.restored).toBe(false);
-    expect(calls).toHaveLength(0);
+  it('refuses historical snapshots that cannot prove a current stock version', async () => {
+    const { client,calls } = makeClient({});
+    await expect(new RestoreInventoryItemSnapshotInternalHandler().execute(makeCtx(client),{
+      inventory_id: 'lot', snapshot: { quantity: 12, expiry_date: '2030-01-01' },
+    })).rejects.toThrow('version de stock');
+    expect(calls).toEqual([]);
   });
 });
 

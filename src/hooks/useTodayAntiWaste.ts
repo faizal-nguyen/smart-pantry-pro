@@ -1,3 +1,5 @@
+import { calendarDate, calendarDaysUntil } from '@smart/shared';
+import { useAuthSessionOptional } from './useAuthenticatedUser';
 /**
  * PRP-234 PR3 — useTodayAntiWaste.
  *
@@ -9,7 +11,6 @@
  * S'abonne aux écrits assistant (`inventory`) pour rafraîchir auto
  * quand un item est consommé ou ajouté.
  */
-import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -35,24 +36,9 @@ interface RawInventoryRow {
 const QUERY_KEY = ['today-anti-waste'] as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function daysUntil(dateIso: string, now = new Date()): number {
-  const target = new Date(dateIso);
-  const diff = target.getTime() - now.getTime();
-  return Math.floor(diff / DAY_MS);
-}
-
 export function useTodayAntiWaste(withinDays = 7) {
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (active) setUserId(data.user?.id ?? null);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { user } = useAuthSessionOptional();
+  const userId = user?.id ?? null;
 
   const query = useQuery<TodayExpiringItem[]>({
     queryKey: [...QUERY_KEY, userId, withinDays],
@@ -60,11 +46,12 @@ export function useTodayAntiWaste(withinDays = 7) {
     staleTime: 60_000,
     queryFn: async () => {
       const now = new Date();
-      const cutoff = new Date(now.getTime() + withinDays * DAY_MS).toISOString();
+      const cutoff = calendarDate(new Date(now.getTime() + withinDays * DAY_MS))!;
       const { data, error } = await supabase
         .from('inventory')
         .select('id, product_id, quantity, expiry_date, products(name)')
         .eq('user_id', userId!)
+        .gt('quantity',0)
         .not('expiry_date', 'is', null)
         .lte('expiry_date', cutoff)
         .order('expiry_date', { ascending: true })
@@ -78,7 +65,7 @@ export function useTodayAntiWaste(withinDays = 7) {
           product_name: r.products?.name ?? 'Produit',
           quantity: r.quantity,
           expiry_date: r.expiry_date,
-          days_to_expiry: daysUntil(r.expiry_date, now),
+          days_to_expiry: calendarDaysUntil(r.expiry_date, now) ?? 9999,
         }))
         // Exclut les déjà très en retard (> 7j passés) — on focus sur
         // « à finir maintenant », pas « à jeter ».

@@ -109,7 +109,7 @@ export class CookingJournalService {
     const limit = normaliseLimit(opts.limit);
     // Apply filters before the terminal .limit() call so the supabase
     // chain still has eq/lt available.
-    let q = this.admin.from('cooking_journal_entries').select('*').eq('user_id', userId);
+    let q = this.admin.from('cooking_journal_entries').select('*').eq('user_id', userId).is('voided_at',null);
     if (opts.recipe_id) q = q.eq('recipe_id', opts.recipe_id);
     if (opts.cursor) {
       const cur = decodeCursor(opts.cursor);
@@ -134,6 +134,7 @@ export class CookingJournalService {
       .from('cooking_journal_entries')
       .select('*')
       .eq('user_id', userId)
+      .is('voided_at',null)
       .order('cooked_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(Math.max(1, Math.min(limit, MAX_LIMIT)));

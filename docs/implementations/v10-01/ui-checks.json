@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-08",
+  "browser": "Chrome",
+  "data": "fictional in-memory fixtures; real application components, no production connection",
+  "deviceHardware": false,
+  "viewports": [
+    {
+      "targetCssWidth": 375,
+      "measuredCssWidth": 374,
+      "height": 812,
+      "theme": "dark",
+      "recipeActionBarBottom": 727.135,
+      "navigationTop": 727.135,
+      "navigationHeight": 85.087,
+      "overlap": false,
+      "screenshot": "screenshots/recette-sombre-374-css.png"
+    },
+    {
+      "targetCssWidth": 440,
+      "measuredCssWidth": 440,
+      "height": 912,
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "recipeActionBarBottom": 827.135,
+      "navigationTop": 827.135,
+      "navigationHeight": 85.087,
+      "overlap": false,
+      "screenshots": [
+        "screenshots/recette-sombre-440-css.png",
+        "screenshots/ingredients-clair-440-css.png"
+      ]
+    }
+  ],
+  "cooking": {
+    "recipe": "Pain maison",
+    "ingredient": "200 g Farine",
+    "servings": 4,
+    "startingStock": "1 kg",
+    "simulated503": "modal, selection and original intention preserved",
+    "retry": "confirmed by fixture",
+    "stockReadback": "0.8 kg",
+    "screenshots": [
+      "screenshots/cuisine-erreur-374-css.png",
+      "screenshots/stock-apres-repas-374-css.png"
+    ]
+  },
+  "shopping": {
+    "sixExplicitCheckboxesChecked": true,
+    "visibleUnits": [
+      "kg",
+      "l",
+      "pièce"
+    ],
+    "transferBrowserJourney": "Not completed: native window.confirm blocked browser control; client/real database transfer checks recorded separately"
+  },
+  "screenshotsBeforeFinalSettingsCorrections": true,
+  "finalSettingsValidation": "Client tests; not a visual deployed test",
+  "temporaryViewportReset": true,
+  "pending": [
+    "375 exact CSS px",
+    "Safari",
+    "iPhone 17 Pro Max",
+    "Hardware safe area",
+    "Keyboard",
+    "Large text",
+    "VoiceOver",
+    "Visual undo and final transfer",
+    "Deployed whole journey"
+  ]
+}

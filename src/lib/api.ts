@@ -18,9 +18,12 @@ function resolveBase(): string {
   return (fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, '') : '') + DEFAULT_BASE;
 }
 
-async function authHeader(): Promise<Record<string, string>> {
+async function authHeader(expectedUserId?: string): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
+  if (expectedUserId && data.session?.user.id !== expectedUserId) {
+    throw new ApiError('Reconnectez-vous au compte qui a commencé cette action.', { status: 401, code: 'AUTH_CHANGED' });
+  }
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -64,11 +67,10 @@ async function unwrap<T>(res: Response): Promise<T> {
   const body = (await parseJson(res)) as ApiResponse<T> | unknown;
 
   if (!res.ok) {
-    const err = body as ApiFailure | undefined;
-    throw new ApiError(err?.error?.message ?? `HTTP ${res.status}`, {
-      status: res.status,
-      code: err?.error?.code,
-      details: err?.error,
+    const err = body as ApiFailure & { code?: string } | undefined;
+    const value = err?.error;
+    throw new ApiError(typeof value === 'string' ? value : value?.message ?? `HTTP ${res.status}`, {
+      status: res.status, code: typeof value === 'string' ? err?.code : value?.code, details: value,
     });
   }
 
@@ -87,19 +89,19 @@ async function unwrap<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export async function apiPost<T = unknown>(path: string, body?: unknown): Promise<T> {
+export async function apiPost<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string }): Promise<T> {
   const res = await fetch(`${resolveBase()}${path}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeader()),
+      ...(await authHeader(options?.expectedUserId)),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return unwrap<T>(res);
 }
 
-export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>): Promise<T> {
+export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>, options?: { expectedUserId?: string }): Promise<T> {
   const url = new URL(`${resolveBase()}${path}`, window.location.origin);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -108,7 +110,7 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
   }
   const res = await fetch(url.pathname + url.search, {
     method: 'GET',
-    headers: { ...(await authHeader()) },
+    headers: { ...(await authHeader(options?.expectedUserId)) },
   });
   return unwrap<T>(res);
 }

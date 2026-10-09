@@ -1,3 +1,4 @@
+import { mapLibraryRecipe, convertQuantity, type LibraryRecipeRow, type StockLot } from '@smart/shared';
 /**
  * PRP-226 PR2 — RecommendationEngine orchestrator.
  *
@@ -69,9 +70,9 @@ const WEIGHTS = {
 export interface RecommendationExecutionContext {
   userId: string;
   /** User-scoped Supabase client (RLS-bound for recipe + inventory reads). */
-  userClient: SupabaseClient<any, any, any>;
+  userClient: SupabaseClient;
   /** Optional admin client for engine-internal writes (events, cache) — wired in PR3. */
-  serviceClient?: SupabaseClient<any, any, any>;
+  serviceClient?: SupabaseClient;
   /** Inject for deterministic tests. Defaults to `new Date()`. */
   now?: Date;
   conversationId?: string;
@@ -124,8 +125,10 @@ export class RecommendationEngine {
     // result verbatim and skips both the SQL queries + the scoring
     // loop. We deliberately log NO new event on a cache hit ; the
     // original event is still in `recommendation_events`.
-    const cacheKey = buildRecommendationCacheKey(input);
-    if (ctx.eventWriter) {
+    const revision = ctx.eventWriter ? await ctx.userClient.from('stock_context_versions').select('revision').eq('user_id',ctx.userId).maybeSingle() : null;
+    const cacheAllowed = !!revision?.data && !revision.error;
+    const cacheKey = `v10:${revision?.data?.revision ?? 'uncached'}:${buildRecommendationCacheKey(input)}`;
+    if (ctx.eventWriter && cacheAllowed) {
       try {
         const cached = await ctx.eventWriter.readCache(ctx.userId, cacheKey);
         if (cached.hit && !cached.expired) {
@@ -166,7 +169,7 @@ export class RecommendationEngine {
       // buckets below.
       recent.push(toRecipeSummary(recipe));
 
-      const cookability = scoreCookability(recipe, inventory);
+      const cookability = scoreCookability(recipe, inventory,input.servings);
       // Recipes with zero essentials cannot land in the cookable
       // buckets (we don't know what to check) — they still feed
       // recent_suggestions via the loop above.
@@ -215,7 +218,7 @@ export class RecommendationEngine {
         unlinked_count: cookability.unlinked_count,
         // RecommendedRecipeView additions :
         description: recipe.description,
-        servings: recipe.servings,
+        servings: input.servings ?? recipe.servings,
         cuisine_category: recipe.cuisine_category,
         meal_type: recipe.meal_type,
         tags: recipe.tags,
@@ -276,7 +279,7 @@ export class RecommendationEngine {
         console.error('[RecommendationEngine] recordEvent failed:', err);
       }
       try {
-        await ctx.eventWriter.writeCache({
+        if (cacheAllowed) await ctx.eventWriter.writeCache({
           userId: ctx.userId,
           cacheKey,
           payload: result,
@@ -313,7 +316,17 @@ export class RecommendationEngine {
 
     const { data, error } = await q;
     if (error) throw error;
-    return (data ?? []) as unknown as RecipeWithIngredients[];
+    const library = await ctx.userClient.from('user_recipes').select('*, catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId);
+    if (library.error) throw library.error;
+    const custom = ((library.data ?? []) as LibraryRecipeRow[]).map(row => {
+      const mapped = mapLibraryRecipe(row);
+      return { ...mapped, recipe_ingredients: mapped.inlineIngredients.map((ingredient,index) => ({
+        ...ingredient, id: `${mapped.id}:${index}`, inventory_product_id: ingredient.inventory_product_id ?? null,
+        quantity: ingredient.quantity ?? null,
+      })) } as RecipeWithIngredients;
+    }).filter(recipe => (!input.query?.trim() || recipe.name.toLowerCase().includes(input.query.trim().toLowerCase()))
+      && (!input.mealType || !recipe.meal_type || recipe.meal_type === input.mealType));
+    return [...(data ?? []) as RecipeWithIngredients[], ...custom];
   }
 
   /**
@@ -394,32 +407,28 @@ export class RecommendationEngine {
   private async loadInventory(
     ctx: RecommendationExecutionContext,
   ): Promise<InventorySnapshot> {
-    const { data, error } = await ctx.userClient
-      .from('inventory')
-      .select('product_id, quantity, expiry_date, products(name)')
-      .eq('user_id', ctx.userId);
+    const { data, error } = await ctx.userClient.from('inventory')
+      .select('id,product_id,quantity,unit,stock_version,expiry_date,products(name,unit_type)').eq('user_id',ctx.userId);
     if (error) throw error;
-
-    const byProduct = new Map<
-      string,
-      { quantity: number; expiryDate: string | null; productName: string | null }
-    >();
-    for (const row of (data ?? []) as Array<{
-      product_id: string;
-      quantity: number;
-      expiry_date: string | null;
-      products?: { name?: string | null } | null;
-    }>) {
-      const prev = byProduct.get(row.product_id);
-      const productName = row.products?.name ?? prev?.productName ?? null;
-      const expiryDate = pickEarlierExpiry(prev?.expiryDate ?? null, row.expiry_date ?? null);
-      byProduct.set(row.product_id, {
-        quantity: (prev?.quantity ?? 0) + row.quantity,
-        expiryDate,
-        productName,
-      });
+    const rows = (data ?? []) as Array<{
+      id: string; product_id: string; quantity: number; unit: string | null; stock_version: number; expiry_date: string | null;
+      products?: { name: string; unit_type: string } | { name: string; unit_type: string }[] | null;
+    }>;
+    const lots: StockLot[] = rows.map(row => ({ id: row.id, product_id: row.product_id,
+      quantity: Number(row.quantity), unit: row.unit ?? (Array.isArray(row.products) ? row.products[0]?.unit_type : row.products?.unit_type) ?? null,
+      product_name: (Array.isArray(row.products) ? row.products[0]?.name : row.products?.name) ?? '', stock_version: Number(row.stock_version), expiry_date: row.expiry_date }));
+    const byProduct: InventorySnapshot['byProduct'] = new Map();
+    for (const lot of lots) {
+      const prev = byProduct.get(lot.product_id);
+      let quantity = lot.quantity;
+      if (prev) {
+        try { quantity = prev.quantity + convertQuantity(lot.quantity,lot.unit,prev.unit); }
+        catch { quantity = prev.quantity; } // Availability uses every original lot below, never this summary.
+      }
+      byProduct.set(lot.product_id,{ quantity, unit: prev?.unit ?? lot.unit,
+        expiryDate: pickEarlierExpiry(prev?.expiryDate ?? null,lot.expiry_date ?? null), productName: lot.product_name });
     }
-    return { byProduct };
+    return { byProduct, lots };
   }
 }
 

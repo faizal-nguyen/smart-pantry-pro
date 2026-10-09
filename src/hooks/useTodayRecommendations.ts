@@ -14,6 +14,7 @@
  * recettes ou à l'inventaire, on re-fetch pour montrer les nouvelles
  * recommandations.
  */
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -32,13 +33,15 @@ const DEFAULT_INPUT: SuggestRecommendationsInput = {
 export function useTodayRecommendations(
   input: SuggestRecommendationsInput = DEFAULT_INPUT,
 ) {
+  const { user } = useAuthSessionOptional();
   const query = useQuery<RecommendationResultView>({
-    queryKey: [...QUERY_KEY, input.goal ?? null, input.limitPerBucket ?? null, input.mealType ?? null],
+    queryKey: [...QUERY_KEY, user?.id, input],
+    enabled: !!user,
     staleTime: 5 * 60_000,
     queryFn: () => postRecommendationSuggest(input),
   });
 
-  useAgentDbInvalidation(['inventory', 'recipes', 'recipe_ingredients'], () => {
+  useAgentDbInvalidation(['inventory', 'recipes', 'recipe_ingredients', 'user_recipes'], () => {
     void query.refetch();
   });
 

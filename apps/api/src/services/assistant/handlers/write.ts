@@ -1,3 +1,5 @@
+import { StockCommandService } from '../../stock/StockCommandService.js';
+import type { StockCommandResult } from '@smart/shared';
 /**
  * PRP-221 J5b — Write handlers (LOW + MEDIUM tiers).
  *
@@ -36,6 +38,7 @@ import type {
   UnmarkShoppingItemsBoughtArgs,
   AddRecipeToMealPlanArgs,
   ConsumeInventoryItemsArgs,
+  CookRecipeArgs,
   UpdateInventoryItemArgs,
   RemoveShoppingItemsArgs,
   ItemArg,
@@ -77,6 +80,7 @@ async function resolveItems(
     product_id: string;
     product_name: string;
     quantity: number;
+    unit: string | null;
     expiry_date: string | null;
     notes: string | null;
   }> = [];
@@ -108,6 +112,7 @@ async function resolveItems(
       product_id: r.product.id,
       product_name: r.product.name,
       quantity: item.quantity,
+      unit: item.unit ?? r.product.unit_type ?? null,
       expiry_date: item.expiry_date ?? null,
       notes: item.notes ?? null,
     });
@@ -167,6 +172,7 @@ export class AddInventoryItemsHandler
       user_id: ctx.userId,
       product_id: r.product_id,
       quantity: r.quantity,
+      unit: r.unit,
       expiry_date: r.expiry_date,
     }));
 
@@ -227,6 +233,7 @@ export class AddShoppingItemsHandler
       user_id: ctx.userId,
       product_id: r.product_id,
       quantity: r.quantity,
+      unit: r.unit,
       is_purchased: false,
     }));
 
@@ -346,94 +353,41 @@ export class AddRecipeToMealPlanHandler
     ctx: ToolExecutionContext,
     args: AddRecipeToMealPlanArgs
   ): Promise<ToolExecutionResult<AddRecipeToMealPlanResult>> {
-    // 1. Fetch the recipe (need name + servings + prep_time + cook_time
-    //    to populate meal_plan_entries). Also enforces ownership via RLS.
-    const { data: recipe, error: recipeErr } = await ctx.userClient
-      .from('recipes')
-      .select('id, name, servings, prep_time, cook_time')
-      .eq('user_id', ctx.userId)
-      .eq('id', args.recipe_id)
-      .maybeSingle();
-    if (recipeErr) throw recipeErr;
-    if (!recipe) {
-      throw new WriteHandlerError('RECIPE_NOT_FOUND', `Recipe ${args.recipe_id} not found`);
+    if (!ctx.commandId) throw new Error('Identité de commande manquante.');
+    const service = new StockCommandService(ctx.userClient);
+    let result = await service.getResult(ctx.userId,ctx.commandId);
+    if (!result) {
+      const preview = await service.preview(ctx.userId,{ id: args.recipe_id, source: 'auto' });
+      const day = new Date(`${args.week_start}T12:00:00Z`);
+      day.setUTCDate(day.getUTCDate() + args.day_of_week);
+      result = await service.execute(ctx.userId,{
+        command_id: ctx.commandId, command_type: 'plan_recipe', payload_version: 1,
+        payload: { recipe: { id: args.recipe_id, source: preview.recipe.source }, servings: preview.servings,
+          date: day.toISOString().slice(0,10), meal_type: args.meal_type },
+      });
     }
-    const r = recipe as {
-      id: string;
-      name: string;
-      servings: number | null;
-      prep_time: number | null;
-      cook_time: number | null;
-    };
-
-    // 2. Find or create the weekly_meal_plans row for this user/week.
-    const planId = await findOrCreateWeeklyPlan(ctx, args.week_start);
-
-    // 3. Insert the entry.
-    const { data: entry, error: insertErr } = await ctx.userClient
-      .from('meal_plan_entries')
-      .insert({
-        meal_plan_id: planId,
-        day_of_week: args.day_of_week,
-        meal_type: args.meal_type,
-        recipe_id: r.id,
-        recipe_name: r.name,
-        servings: r.servings ?? 1,
-        prep_time: r.prep_time ?? 0,
-        cook_time: r.cook_time ?? 0,
-      })
-      .select('id')
-      .single();
-    if (insertErr) throw insertErr;
-    const entryId = (entry as { id: string }).id;
-
-    await invalidateRecoCache(ctx);
-
-    return {
-      result: {
-        entry_id: entryId,
-        weekly_meal_plan_id: planId,
-        recipe_id: r.id,
-        recipe_name: r.name,
-        day_of_week: args.day_of_week,
-        meal_type: args.meal_type,
-      },
-      reversibleAction: {
-        tool: '_remove_meal_plan_entries',
-        args: { entry_ids: [entryId] },
-      },
-    };
+    return { result: {
+      entry_id: result.meal_plan_entry_id!, weekly_meal_plan_id: result.meal_plan_id!,
+      recipe_id: args.recipe_id, recipe_name: '', day_of_week: args.day_of_week, meal_type: args.meal_type,
+    }, reversibleAction: null }; // Replacement of a meal slot has no safe legacy DELETE inverse.
   }
 }
 
-async function findOrCreateWeeklyPlan(
-  ctx: ToolExecutionContext,
-  weekStart: string
-): Promise<string> {
-  const { data: existing, error: readErr } = await ctx.userClient
-    .from('weekly_meal_plans')
-    .select('id')
-    .eq('user_id', ctx.userId)
-    .eq('week_start_date', weekStart)
-    .maybeSingle();
-  if (readErr) {
-    throw new WriteHandlerError(
-      'WEEKLY_PLAN_FAILED',
-      readErr.message,
-      { weekStart }
-    );
+export class CookRecipeHandler implements ToolHandler<CookRecipeArgs,StockCommandResult> {
+  async execute(ctx: ToolExecutionContext,args: CookRecipeArgs) {
+    if (!ctx.commandId) throw new Error('Identité de commande manquante.');
+    const service = new StockCommandService(ctx.userClient);
+    let result = await service.getResult(ctx.userId,ctx.commandId);
+    if (!result) {
+      const preview = await service.preview(ctx.userId,{ id: args.recipe_id, source: 'auto' },args.servings);
+      result = await service.execute(ctx.userId,{
+        command_id: ctx.commandId, command_type: 'consume_recipe', payload_version: 1,
+        payload: { recipe: { id: args.recipe_id, source: preview.recipe.source }, servings: preview.servings,
+          recipe_version: preview.recipe.version, outside_inventory: args.outside_inventory },
+      });
+    }
+    return { result, reversibleAction: { tool: '_undo_stock_command', args: { original_command_id: result.command_id } } };
   }
-  if (existing) return (existing as { id: string }).id;
-
-  const { data: created, error: createErr } = await ctx.userClient
-    .from('weekly_meal_plans')
-    .insert({ user_id: ctx.userId, week_start_date: weekStart })
-    .select('id')
-    .single();
-  if (createErr) {
-    throw new WriteHandlerError('WEEKLY_PLAN_FAILED', createErr.message, { weekStart });
-  }
-  return (created as { id: string }).id;
 }
 
 // ---- MEDIUM : consume_inventory_items -------------------------------
@@ -450,66 +404,27 @@ export class ConsumeInventoryItemsHandler
     ctx: ToolExecutionContext,
     args: ConsumeInventoryItemsArgs
   ): Promise<ToolExecutionResult<ConsumeInventoryItemsResult>> {
-    const ids = args.items.map((i) => i.inventory_id);
-    const { data: rows, error: readErr } = await ctx.userClient
-      .from('inventory')
-      .select('id, quantity')
-      .eq('user_id', ctx.userId)
-      .in('id', ids);
-    if (readErr) throw readErr;
-
-    const currentById = new Map<string, number>(
-      ((rows ?? []) as Array<{ id: string; quantity: number }>).map((r) => [r.id, r.quantity])
-    );
-
-    const consumed: ConsumeInventoryItemsResult['consumed'] = [];
-    const insufficient: ConsumeInventoryItemsResult['insufficient'] = [];
-    const deltas: Array<{ inventory_id: string; quantity: number }> = [];
-
-    for (const item of args.items) {
-      const current = currentById.get(item.inventory_id);
-      if (current === undefined) {
-        insufficient.push({
-          inventory_id: item.inventory_id,
-          available: 0,
-          requested: item.quantity,
-        });
-        continue;
-      }
-      if (item.quantity > current) {
-        insufficient.push({
-          inventory_id: item.inventory_id,
-          available: current,
-          requested: item.quantity,
-        });
-        continue;
-      }
-      const newQty = current - item.quantity;
-      const { error } = await ctx.userClient
-        .from('inventory')
-        .update({ quantity: newQty })
-        .eq('user_id', ctx.userId)
-        .eq('id', item.inventory_id);
+    if (!ctx.commandId) throw new Error('Identité de commande manquante.');
+    const service = new StockCommandService(ctx.userClient);
+    let result = await service.getResult(ctx.userId,ctx.commandId);
+    if (!result) {
+      const { data, error } = await ctx.userClient.from('inventory').select('id,quantity,unit,stock_version,product:products(unit_type)')
+        .eq('user_id',ctx.userId).in('id',args.items.map(item => item.inventory_id));
       if (error) throw error;
-      consumed.push({
-        inventory_id: item.inventory_id,
-        new_quantity: newQty,
-        consumed_quantity: item.quantity,
+      const rows = data as Array<{ id: string; quantity: number; unit: string | null; stock_version: number; product?: { unit_type: string } | { unit_type: string }[] }>;
+      result = await service.execute(ctx.userId,{
+        command_id: ctx.commandId, command_type: 'consume_inventory', payload_version: 1,
+        payload: { items: args.items.map(item => {
+          const row = rows.find(lot => lot.id === item.inventory_id);
+          if (!row) throw new WriteHandlerError('INVENTORY_NOT_FOUND','Ce lot n’est plus accessible.');
+          return { id: row.id, quantity: item.quantity, unit: item.unit ?? row.unit ?? (Array.isArray(row.product) ? row.product[0]?.unit_type : row.product?.unit_type) ?? '', expected_version: Number(row.stock_version) };
+        }) },
       });
-      deltas.push({ inventory_id: item.inventory_id, quantity: item.quantity });
     }
-
-    const reversibleAction: ReversibleAction | null =
-      deltas.length > 0
-        ? {
-            tool: '_restore_inventory_quantities',
-            args: { deltas },
-          }
-        : null;
-
-    if (deltas.length > 0) await invalidateRecoCache(ctx);
-
-    return { result: { consumed, insufficient }, reversibleAction };
+    return { result: {
+      consumed: (result.changes ?? []).map(change => ({ inventory_id: change.id, new_quantity: change.after_quantity,
+        consumed_quantity: change.before_quantity - change.after_quantity })), insufficient: [],
+    }, reversibleAction: { tool: '_undo_stock_command', args: { original_command_id: result.command_id } } };
   }
 }
 
@@ -528,55 +443,28 @@ export class UpdateInventoryItemHandler
     ctx: ToolExecutionContext,
     args: UpdateInventoryItemArgs
   ): Promise<ToolExecutionResult<UpdateInventoryItemResult>> {
-    const update: Record<string, unknown> = {};
-    if (args.quantity !== undefined) update.quantity = args.quantity;
-    if (args.expiry_date !== undefined) update.expiry_date = args.expiry_date;
-    if (args.location !== undefined) update.location = args.location;
-    if (Object.keys(update).length === 0) {
-      throw new WriteHandlerError('EMPTY_UPDATE', 'No field to update');
-    }
-
-    // Snapshot before update.
-    const { data: snap, error: readErr } = await ctx.userClient
-      .from('inventory')
-      .select('quantity, expiry_date, location')
-      .eq('user_id', ctx.userId)
-      .eq('id', args.inventory_id)
-      .maybeSingle();
-    if (readErr) throw readErr;
-    if (!snap) {
-      throw new WriteHandlerError(
-        'INVENTORY_NOT_FOUND',
-        `Inventory row ${args.inventory_id} not found`
-      );
-    }
-    const before = snap as { quantity: number; expiry_date: string | null; location: string | null };
-
-    const { error } = await ctx.userClient
-      .from('inventory')
-      .update(update)
-      .eq('user_id', ctx.userId)
-      .eq('id', args.inventory_id);
+    if (args.quantity === undefined && args.expiry_date === undefined && args.location === undefined) throw new WriteHandlerError('EMPTY_UPDATE','Aucun champ à modifier.');
+    if (!ctx.commandId) throw new Error('Identité de commande manquante.');
+    const service = new StockCommandService(ctx.userClient);
+    let result = await service.getResult(ctx.userId,ctx.commandId);
+    const { data: snapshot, error } = await ctx.userClient.from('inventory').select('id,quantity,unit,stock_version,expiry_date,location,product:products(unit_type)')
+      .eq('user_id',ctx.userId).eq('id',args.inventory_id).maybeSingle();
     if (error) throw error;
-
-    const after = {
-      quantity: args.quantity ?? before.quantity,
-      expiry_date: args.expiry_date !== undefined ? args.expiry_date : before.expiry_date,
-      location: args.location !== undefined ? args.location : before.location,
-    };
-
-    // Quantity or expiry_date change moves the recipe cookability /
-    // expiry signals — drop the cache. Location-only edits never
-    // affect scoring, but the cost of one extra DELETE is negligible.
-    await invalidateRecoCache(ctx);
-
-    return {
-      result: { inventory_id: args.inventory_id, before, after },
-      reversibleAction: {
-        tool: '_restore_inventory_item_snapshot',
-        args: { inventory_id: args.inventory_id, snapshot: before },
-      },
-    };
+    if (!snapshot && !result) throw new WriteHandlerError('INVENTORY_NOT_FOUND','Ce lot n’est plus accessible.');
+    const row = snapshot as { quantity: number; unit: string | null; stock_version: number; expiry_date: string | null; location: string | null; product?: { unit_type: string } | { unit_type: string }[] };
+    if (!result) result = await service.execute(ctx.userId,{
+      command_id: ctx.commandId, command_type: 'adjust_inventory', payload_version: 1,
+      payload: { items: [{ id: args.inventory_id, quantity: args.quantity ?? row.quantity,
+        unit: row.unit ?? (Array.isArray(row.product) ? row.product[0]?.unit_type : row.product?.unit_type) ?? '', expected_version: Number(row.stock_version),
+        ...(args.expiry_date !== undefined ? { expiry_date: args.expiry_date } : {}),
+        ...(args.location !== undefined ? { location: args.location } : {}),
+      }] },
+    });
+    const change = result.changes?.[0];
+    return { result: { inventory_id: args.inventory_id,
+      before: { quantity: change?.before_quantity ?? row?.quantity, expiry_date: row?.expiry_date ?? null, location: row?.location ?? null },
+      after: { quantity: change?.after_quantity ?? row?.quantity, expiry_date: args.expiry_date ?? row?.expiry_date ?? null, location: args.location ?? row?.location ?? null },
+    }, reversibleAction: { tool: '_undo_stock_command', args: { original_command_id: result.command_id } } };
   }
 }
 
@@ -647,6 +535,7 @@ export function registerWriteHandlers(registry: ToolHandlerRegistry): void {
   registry.register('mark_shopping_items_bought', new MarkShoppingItemsBoughtHandler());
   registry.register('unmark_shopping_items_bought', new UnmarkShoppingItemsBoughtHandler());
   registry.register('add_recipe_to_meal_plan', new AddRecipeToMealPlanHandler());
+  registry.register('cook_recipe', new CookRecipeHandler());
   registry.register('consume_inventory_items', new ConsumeInventoryItemsHandler());
   registry.register('update_inventory_item', new UpdateInventoryItemHandler());
   registry.register('remove_shopping_items', new RemoveShoppingItemsHandler());

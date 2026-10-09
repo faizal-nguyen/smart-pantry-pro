@@ -1,0 +1,210 @@
+{
+  "results": [
+    {
+      "file": "packages/shared/src/calendar.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "packages/shared/src/cooking-adjustments.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/inventory/QuickStockCorrection.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/inventory/QuickStockDialog.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/inventory/RoutineDiscardDialog.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/navigation/RoutineHeader.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/recipes/RoutineRecipeLibrary.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/shopping/EditShoppingItemDialog.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/shopping/ShoppingStorageReview.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/components/ui/Autocomplete.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/__tests__/routine-preferences.v10.test.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useCalendarNow.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRecipeFavorites.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRoutineCatalog.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRoutineMealIdeas.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/hooks/useRoutinePreferences.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/__tests__/routine.v10.test.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/mealExclusions.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/ownedStorage.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/lib/routineRoutes.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/Inventory.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/RecipeDetail.tsx",
+      "errors": 0,
+      "warnings": 1,
+      "messages": [
+        {
+          "ruleId": "react-hooks/exhaustive-deps",
+          "severity": 1,
+          "message": "React Hook useEffect has a missing dependency: 'fetchRecipeDetails'. Either include it or remove the dependency array.",
+          "line": 192,
+          "column": 6,
+          "nodeType": "ArrayExpression",
+          "endLine": 192,
+          "endColumn": 10,
+          "suggestions": [
+            {
+              "desc": "Update the dependencies array to be: [fetchRecipeDetails, id]",
+              "fix": {
+                "range": [
+                  8756,
+                  8760
+                ],
+                "text": "[fetchRecipeDetails, id]"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "src/pages/ShareTarget.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/SmartShoppingList.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/kitchen/CookingSessionPage.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/pages/kitchen/KitchenDashboard.tsx",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/__tests__/stockDiscard.v10.test.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/cookingSessions.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/shareCaptures.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    },
+    {
+      "file": "src/services/stockDiscard.ts",
+      "errors": 0,
+      "warnings": 0,
+      "messages": []
+    }
+  ],
+  "file_count": 30,
+  "errors": 0,
+  "warnings": 1
+}

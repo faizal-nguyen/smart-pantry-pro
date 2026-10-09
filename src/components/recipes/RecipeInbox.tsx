@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
+import { importsApi } from '@/services/recipe-import/api';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -44,6 +47,15 @@ const TERMINAL_FILTERS: FilterValue[] = ['saved', 'archived'];
  */
 export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, className }) => {
   const navigate = useNavigate();
+  const user = useAuthenticatedUser();
+  const queryClient = useQueryClient();
+  const [params] = useSearchParams();
+  const sharedId = params.get('import');
+  const shared = useQuery({
+    queryKey:['routine-shared-import',user.id,sharedId],
+    enabled:!!sharedId && /^[0-9a-f-]{36}$/i.test(sharedId),
+    queryFn:() => importsApi.get(sharedId!,user.id),
+  });
   const [filter, setFilter] = useState<FilterValue>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
@@ -101,6 +113,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
     setBusyId(id);
     try {
       await action();
+      void queryClient.invalidateQueries({ queryKey:['routine-shared-import',user.id,id] });
       if (successMsg) toast.success(successMsg);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Échec';
@@ -120,6 +133,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
       // straight to the detail page instead of re-discovering the
       // recipe in the list.
       const result = await save(import_.id);
+      void queryClient.invalidateQueries({ queryKey:['routine-shared-import',user.id,import_.id] });
       const recipeId = (result as { recipe_id?: string } | undefined)?.recipe_id;
       toast.success('Recette sauvegardée dans Mes Recettes', {
         action: recipeId
@@ -163,7 +177,13 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
   };
 
   return (
-    <section className={className} aria-label="Recipe inbox">
+    <section className={className} aria-label="Imports de recettes">
+      {sharedId && <div className="mb-4 rounded-xl border-2 border-primary p-3" aria-label="Votre lien partagé">
+        <h2 className="font-semibold mb-2">Votre lien partagé</h2>
+        {shared.isLoading && <p role="status">Lecture de ce lien…</p>}
+        {shared.isError && <><p role="alert">Ce lien ne peut pas être lu. Sa source est conservée dans le partage.</p><Button className="min-h-11" variant="outline" onClick={() => void shared.refetch()}>Réessayer</Button></>}
+        {shared.data && <ImportCard import_={shared.data} busy={busyId===shared.data.id} onExtract={handleExtract} onVerify={handleVerify} onSave={handleSave} onArchive={handleArchive} onUnarchive={handleUnarchive}/>}
+      </div>}
       <RecipeImportOnboarding />
 
       <div className="mb-3">
@@ -217,7 +237,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
 
       {items.length > 0 && (
         <div className="space-y-3">
-          {items.map((import_) => (
+          {items.filter(item => item.id !== shared.data?.id).map((import_) => (
             <ImportCard
               key={import_.id}
               import_={import_}

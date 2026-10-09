@@ -512,7 +512,7 @@ export class VoiceAgentService {
           // eslint-disable-next-line no-console
           console.log(`[assistant.handler] executing ${tc.name} args=${JSON.stringify(parsedArgs).slice(0, 300)}`);
           const exec = await handler.execute(
-            { ...ctx, sessionId, conversationId, requestText: transcript },
+            { ...ctx, commandId: planned.id, sessionId, conversationId, requestText: transcript },
             parsedArgs,
           );
           await this.writer.markExecuted(planned.id, {
@@ -866,7 +866,7 @@ export class VoiceAgentService {
       try {
         const handler = this.handlerRegistry.get(row.tool);
         const exec = (await handler.execute(
-          { ...ctx, sessionId: row.session_id },
+          { ...ctx, commandId: row.id, sessionId: row.session_id },
           row.tool_args
         )) as ToolExecutionResult;
         await this.writer.markExecuted(row.id, {
@@ -949,7 +949,7 @@ export class VoiceAgentService {
           message: `tool_call.arguments not JSON: ${
             err instanceof Error ? err.message : String(err)
           }`,
-        } as any,
+        },
       ]);
     }
     return this.toolRegistry.parseArgs(tc.name, raw);
@@ -1222,4 +1222,3 @@ export function extractRecipeProposalsFromExecuted(
   }
   return buckets;
 }
-

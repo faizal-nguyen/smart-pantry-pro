@@ -39,6 +39,7 @@ export interface InventoryItemView {
   unit_type: string;
   image_url: string | null;
   quantity: number;
+  unit?: string | null;
   expiry_date: string | null;
   location: string | null;
   /** Days until expiry (negative if past). null when expiry_date is null. */
@@ -77,6 +78,7 @@ export interface MealPlanEntryView {
   day_of_week: number;
   meal_type: string;
   recipe_id: string | null;
+  recipe_reference?: { id: string } | null;
   recipe_name: string | null;
   servings: number | null;
 }
@@ -125,6 +127,7 @@ interface RawInventoryRow {
   id: string;
   product_id: string;
   quantity: number;
+  unit?: string | null;
   expiry_date: string | null;
   location: string | null;
   products: RawProduct | RawProduct[] | null;
@@ -145,7 +148,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
     let q = ctx.userClient
       .from('inventory')
       .select(
-        'id, product_id, quantity, expiry_date, location, products(id, name, category, unit_type, image_url)'
+        'id, product_id, quantity, unit, expiry_date, location, products(id, name, category, unit_type, image_url)'
       )
       .eq('user_id', ctx.userId);
 
@@ -167,7 +170,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           product_id: row.product_id,
           product_name: p.name ?? '',
           category: p.category ?? '',
-          unit_type: p.unit_type ?? '',
+          unit_type: row.unit ?? p.unit_type ?? '',
           image_url: p.image_url ?? null,
           quantity: row.quantity,
           expiry_date: row.expiry_date,
@@ -195,6 +198,7 @@ interface RawShoppingRow {
   id: string;
   product_id: string;
   quantity: number;
+  unit?: string | null;
   is_purchased: boolean;
   priority: number | null;
   estimated_price: number | null;
@@ -212,7 +216,7 @@ export class ReadShoppingListHandler
     let q = ctx.userClient
       .from('shopping_list')
       .select(
-        'id, product_id, quantity, is_purchased, priority, estimated_price, store_section, products(id, name, category, unit_type)'
+        'id, product_id, quantity, unit, is_purchased, priority, estimated_price, store_section, products(id, name, category, unit_type)'
       )
       .eq('user_id', ctx.userId);
 
@@ -231,7 +235,7 @@ export class ReadShoppingListHandler
         product_id: row.product_id,
         product_name: p.name ?? '',
         category: p.category ?? '',
-        unit_type: p.unit_type ?? '',
+        unit_type: row.unit ?? p.unit_type ?? '',
         quantity: row.quantity,
         is_purchased: row.is_purchased,
         priority: row.priority,
@@ -462,6 +466,7 @@ interface RawMealPlanEntry {
   day_of_week: number;
   meal_type: string;
   recipe_id: string | null;
+  recipe_reference?: { id: string } | null;
   recipe_name: string | null;
   servings: number | null;
 }
@@ -481,7 +486,7 @@ export class ReadMealPlanHandler
   ): Promise<ToolExecutionResult<{ entries: MealPlanEntryView[] }>> {
     const { data, error } = await ctx.userClient
       .from('weekly_meal_plans')
-      .select('id, user_id, week_start_date, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_name, servings)')
+      .select('id, user_id, week_start_date, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings)')
       .eq('user_id', ctx.userId)
       .eq('week_start_date', args.week_start)
       .maybeSingle();
@@ -498,7 +503,7 @@ export class ReadMealPlanHandler
       week_start_date: plan!.week_start_date,
       day_of_week: e.day_of_week,
       meal_type: e.meal_type,
-      recipe_id: e.recipe_id,
+      recipe_id: e.recipe_reference?.id ?? e.recipe_id,
       recipe_name: e.recipe_name,
       servings: e.servings,
     } satisfies MealPlanEntryView));
@@ -507,40 +512,6 @@ export class ReadMealPlanHandler
   }
 }
 
-interface RawRecipeWithIngs {
-  id: string;
-  name: string;
-  prep_time: number | null;
-  cook_time: number | null;
-  image_url: string | null;
-  recipe_ingredients: Array<{
-    id: string;
-    ingredient_name: string;
-    quantity: number;
-    inventory_product_id: string | null;
-    is_essential: boolean | null;
-  }> | null;
-}
-
-interface InventorySnapshotRow {
-  product_id: string;
-  quantity: number;
-}
-
-/**
- * Match recipes against the user's inventory. Two evolutions vs PRP-221 §5.1:
- *
- *  - Default `max_missing_ingredients` is 3 (was 0). Hard-zero defaulted to
- *    "user has every single ingredient at the right quantity" which almost
- *    never happens in practice, so the LLM saw `recipes: []` and refused
- *    to propose anything.
- *  - Recipes with unlinked essentials (`inventory_product_id IS NULL`) are
- *    no longer silently dropped — they are returned with `unlinked: true`
- *    and `unlinked_count`. Cookability becomes a best-effort estimate
- *    rather than a binary, and the LLM/UI can mark them as approximate.
- *    Most user-imported recipes (URL/OCR) ship without product linkage,
- *    so the strict path was excluding them en masse.
- */
 export class FindCookableRecipesHandler
   implements ToolHandler<FindCookableArgs, { recipes: CookableRecipeView[] }>
 {
@@ -548,80 +519,12 @@ export class FindCookableRecipesHandler
     ctx: ToolExecutionContext,
     args: FindCookableArgs
   ): Promise<ToolExecutionResult<{ recipes: CookableRecipeView[] }>> {
-    const maxMissing = args.max_missing_ingredients ?? 3;
-    const maxPrep = args.max_prep_time;
-
-    const recipesQuery = ctx.userClient
-      .from('recipes')
-      .select(
-        'id, name, prep_time, cook_time, image_url, recipe_ingredients(id, ingredient_name, quantity, inventory_product_id, is_essential)'
-      )
-      .eq('user_id', ctx.userId);
-
-    const [recipesRes, invRes] = await Promise.all([
-      recipesQuery,
-      ctx.userClient.from('inventory').select('product_id, quantity').eq('user_id', ctx.userId),
-    ]);
-
-    if (recipesRes.error) throw recipesRes.error;
-    if (invRes.error) throw invRes.error;
-
-    const inventory = (invRes.data ?? []) as InventorySnapshotRow[];
-    const inventoryByProduct = new Map<string, number>();
-    for (const inv of inventory) {
-      inventoryByProduct.set(inv.product_id, (inventoryByProduct.get(inv.product_id) ?? 0) + inv.quantity);
-    }
-
-    const out: CookableRecipeView[] = [];
-
-    for (const r of (recipesRes.data ?? []) as RawRecipeWithIngs[]) {
-      if (maxPrep !== undefined && r.prep_time !== null && r.prep_time > maxPrep) {
-        continue;
-      }
-
-      const ings = r.recipe_ingredients ?? [];
-      const essentials = ings.filter((i) => i.is_essential !== false);
-      if (essentials.length === 0) continue;
-
-      const linked = essentials.filter((i) => i.inventory_product_id);
-      const unlinkedCount = essentials.length - linked.length;
-
-      const missing: string[] = [];
-      for (const ing of linked) {
-        const have = inventoryByProduct.get(ing.inventory_product_id!) ?? 0;
-        if (have < ing.quantity) missing.push(ing.ingredient_name);
-      }
-
-      // Effective missing = known-missing (linked subset) + unknowns we
-      // cannot verify. Treats "unlinked" as "we don't know if you have it".
-      const effectiveMissing = missing.length + unlinkedCount;
-      if (effectiveMissing > maxMissing) continue;
-
-      out.push({
-        id: r.id,
-        name: r.name,
-        prep_time: r.prep_time,
-        cook_time: r.cook_time,
-        image_url: r.image_url,
-        total_essential: essentials.length,
-        linked_essential: linked.length,
-        missing_count: missing.length,
-        missing_ingredients: missing,
-        unlinked: unlinkedCount > 0,
-        unlinked_count: unlinkedCount,
-      });
-    }
-
-    // Fully cookable first (no missing, no unknowns), then by missing count,
-    // then alphabetical.
-    out.sort((a, b) => {
-      const aScore = a.missing_count + a.unlinked_count;
-      const bScore = b.missing_count + b.unlinked_count;
-      if (aScore !== bScore) return aScore - bScore;
-      return a.name.localeCompare(b.name);
-    });
-
-    return { result: { recipes: out.slice(0, 20) } };
+    const result = await (ctx.recommendationEngine ?? new RecommendationEngine()).suggestForUser({
+      userId: ctx.userId, userClient: ctx.userClient, memoryService: ctx.memoryService, eventWriter: ctx.eventWriter,
+    }, { almostThreshold: args.max_missing_ingredients ?? 3, limitPerBucket: 20, includeRecentFallback: false });
+    return { result: { recipes: [...result.cookable_now,...result.almost_cookable]
+      .filter(recipe => args.max_prep_time === undefined || recipe.prep_time == null || recipe.prep_time <= args.max_prep_time)
+      .slice(0,20) } };
   }
 }
 

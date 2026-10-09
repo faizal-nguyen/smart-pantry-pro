@@ -65,6 +65,10 @@ function makeAdmin(cfg: MockConfig) {
           filters[col] = val;
           return chain;
         },
+        is(col: string, val: unknown) {
+          filters[col] = val;
+          return chain;
+        },
         gt(col: string, val: unknown) {
           filters[`${col}__gt`] = val;
           return chain;
@@ -122,11 +126,12 @@ describe('CookingJournalService', () => {
       makeRow({ id: 'b', cooked_at: '2026-05-13T10:00:00Z' }),
       makeRow({ id: 'c', cooked_at: '2026-05-12T10:00:00Z' }),
     ];
-    const { client } = makeAdmin({ selectMany: rows });
+    const { client, calls } = makeAdmin({ selectMany: rows });
     const svc = new CookingJournalService(client);
     const result = await svc.list(USER, { limit: 2 });
     expect(result.items).toHaveLength(2);
     expect(result.nextCursor).not.toBeNull();
+    expect(calls.selectFilters[0]).toMatchObject({ user_id: USER, voided_at: null });
   });
 
   it('getRecent caps at the requested limit', async () => {
