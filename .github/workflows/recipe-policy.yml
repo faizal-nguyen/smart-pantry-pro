@@ -45,7 +45,8 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Run RecipePolicySanitizer + Scanner tests
-        run: npm run test:api -- --testPathPattern=recipeQuality
+        # Pure unit tests: use the same Jest transforms without starting an API bundle.
+        run: npx --no-install jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern=recipeQuality
 
   policy-audit:
     name: Seed policy audit

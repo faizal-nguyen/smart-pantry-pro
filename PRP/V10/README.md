@@ -1,6 +1,8 @@
 # V10 Routine quotidienne et application iOS
 
 > Statut : V10-01 et V10-02 implémentés et testés localement ; homologation environnement/matériel ouverte. V10-03 à V10-05 restent à réaliser.
+
+[Publication Git des deux lots : commit, PR et contrôles](../../docs/implementations/V10-publication.md).
 > Date : 2026-10-08.
 > Produit : Smart Grocery, application Smart Pantry Pro.
 > Utilisateur principal : Faizel, sur iPhone 17 Pro Max.
