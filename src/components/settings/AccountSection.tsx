@@ -4,10 +4,10 @@
  * Compte : email user, refaire l'onboarding, déconnexion. Reprend
  * exactement le wiring existant de `Settings.tsx` legacy pour ne
  * casser aucune fonctionnalité (logout via `supabase.auth.signOut`,
- * reset onboarding via `usePersonalization.resetPreferences` +
+ * reset onboarding via `usePersonalization.clearPersonalizationData` +
  * `localStorage.removeItem('skipOnboarding')`).
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { User } from '@supabase/supabase-js';
 import { LogOut, Mail, RefreshCw, User as UserIcon } from 'lucide-react';
@@ -36,33 +36,45 @@ interface AccountSectionProps {
 export default function AccountSection({ user }: AccountSectionProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { resetPreferences } = usePersonalization();
+  const { clearPersonalizationData } = usePersonalization();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
 
   const handleResetOnboarding = () => {
-    // resetPreferences clears PERSONALIZATION_STORAGE_KEY (cf.
-    // usePersonalization.ts:79). On purge aussi le skip flag pour
-    // que la gate onboarding se ré-engage.
-    resetPreferences();
-    localStorage.removeItem('skipOnboarding');
-    setShowResetDialog(false);
-    navigate('/onboarding');
+    try {
+      setAccountError(null);
+      clearPersonalizationData();
+      localStorage.removeItem(`v10-draft:${user.id}:onboarding`);
+      localStorage.removeItem('skipOnboarding');
+      setShowResetDialog(false);
+      navigate('/onboarding');
+    } catch {
+      setAccountError('Impossible de réinitialiser les préférences sur cet appareil. Réessaie.');
+    }
   };
 
   const handleLogout = async () => {
+    if (logoutPending) return;
+    setLogoutPending(true);
+    setAccountError(null);
     try {
-      await supabase.auth.signOut();
-      localStorage.clear();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      // AuthSessionProvider clears private views. Same-account drafts and
+      // uncertain commands survive; another sign-in purges their working keys.
       setShowLogoutDialog(false);
       navigate('/auth');
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+    } catch {
+      setAccountError('Impossible de se déconnecter. Réessaie.');
       toast({
         title: 'Erreur',
         description: 'Impossible de se déconnecter. Réessaie.',
         variant: 'destructive',
       });
+    } finally {
+      setLogoutPending(false);
     }
   };
 
@@ -78,6 +90,7 @@ export default function AccountSection({ user }: AccountSectionProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {accountError && !showLogoutDialog && <p role="alert" className="text-sm text-destructive">{accountError}</p>}
         <div className="flex items-start gap-3">
           <Mail className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <div className="min-w-0 flex-1">
@@ -118,15 +131,17 @@ export default function AccountSection({ user }: AccountSectionProps) {
             <AlertDialogDescription>
               Voulez-vous vraiment vous déconnecter de Smart Pantry Pro ?
             </AlertDialogDescription>
+            {accountError && <p role="alert" className="text-sm text-destructive">{accountError}</p>}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={logoutPending}>Annuler</AlertDialogCancel>
+            <Button
               onClick={handleLogout}
+              disabled={logoutPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Se déconnecter
-            </AlertDialogAction>
+              {logoutPending ? 'Déconnexion…' : 'Se déconnecter'}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

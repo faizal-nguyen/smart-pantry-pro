@@ -39,7 +39,7 @@ function makeClient(plan: {
     const orders: QueryCall['orders'] = [];
     let limitVal: number | undefined;
 
-    const buildResolvedRoute = () => plan.routes[table];
+    const buildResolvedRoute = () => plan.routes[table] ?? (table === 'stock_context_versions' ? { data: { revision: 1 } } : undefined);
 
     const finalize = (asMaybeSingle = false) => {
       const route = buildResolvedRoute();
@@ -70,6 +70,8 @@ function makeClient(plan: {
         filters.push({ kind: 'gte', col, val });
         return chain;
       },
+      in(col: string, val: unknown) { filters.push({ kind: 'in', col, val }); return chain; },
+      is(col: string, val: unknown) { filters.push({ kind: 'is', col, val }); return chain; },
       order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
         orders.push({ col, ascending: opts?.ascending });
         return chain;
@@ -407,6 +409,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i1',
                   ingredient_name: 'Tomate',
                   quantity: 2,
+                  unit: 'g',
                   inventory_product_id: 'p-tomate',
                   is_essential: true,
                 },
@@ -414,6 +417,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i2',
                   ingredient_name: 'Mozzarella',
                   quantity: 100,
+                  unit: 'g',
                   inventory_product_id: 'p-mozza',
                   is_essential: true,
                 },
@@ -430,6 +434,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i3',
                   ingredient_name: 'Truc',
                   quantity: 1,
+                  unit: 'g',
                   inventory_product_id: null,
                   is_essential: true,
                 },
@@ -439,8 +444,8 @@ describe('FindCookableRecipesHandler', () => {
         },
         inventory: {
           data: [
-            { product_id: 'p-tomate', quantity: 5 },
-            { product_id: 'p-mozza', quantity: 200 },
+            { id: 'lot-' + 'p-tomate', product_id: 'p-tomate', quantity: 5, unit: 'g', stock_version: 0 },
+            { id: 'lot-' + 'p-mozza', product_id: 'p-mozza', quantity: 200, unit: 'g', stock_version: 0 },
           ],
         },
       },
@@ -477,6 +482,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i3',
                   ingredient_name: 'Truc',
                   quantity: 1,
+                  unit: 'g',
                   inventory_product_id: null,
                   is_essential: true,
                 },
@@ -510,6 +516,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i1',
                   ingredient_name: 'Riz',
                   quantity: 200,
+                  unit: 'g',
                   inventory_product_id: 'p-riz',
                   is_essential: true,
                 },
@@ -517,6 +524,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i2',
                   ingredient_name: 'Bouillon',
                   quantity: 1,
+                  unit: 'g',
                   inventory_product_id: 'p-bouillon',
                   is_essential: true,
                 },
@@ -525,7 +533,7 @@ describe('FindCookableRecipesHandler', () => {
           ],
         },
         inventory: {
-          data: [{ product_id: 'p-riz', quantity: 500 }], // bouillon missing
+          data: [{ id: 'lot-' + 'p-riz', product_id: 'p-riz', quantity: 500, unit: 'g', stock_version: 0 }], // bouillon missing
         },
       },
     });
@@ -552,6 +560,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i1',
                   ingredient_name: 'Riz',
                   quantity: 200,
+                  unit: 'g',
                   inventory_product_id: 'p-riz',
                   is_essential: true,
                 },
@@ -559,6 +568,7 @@ describe('FindCookableRecipesHandler', () => {
                   id: 'i2',
                   ingredient_name: 'Bouillon',
                   quantity: 1,
+                  unit: 'g',
                   inventory_product_id: 'p-bouillon',
                   is_essential: true,
                 },
@@ -566,7 +576,7 @@ describe('FindCookableRecipesHandler', () => {
             },
           ],
         },
-        inventory: { data: [{ product_id: 'p-riz', quantity: 500 }] },
+        inventory: { data: [{ id: 'lot-' + 'p-riz', product_id: 'p-riz', quantity: 500, unit: 'g', stock_version: 0 }] },
       },
     });
     const r1 = await new FindCookableRecipesHandler().execute(makeCtx(client2), {});
@@ -588,7 +598,7 @@ describe('FindCookableRecipesHandler', () => {
               cook_time: 0,
               image_url: null,
               recipe_ingredients: [
-                { id: 'i', ingredient_name: 'X', quantity: 1, inventory_product_id: 'p1', is_essential: true },
+                { id: 'i', ingredient_name: 'X', quantity: 1, unit: 'g', inventory_product_id: 'p1', is_essential: true },
               ],
             },
             {
@@ -598,15 +608,15 @@ describe('FindCookableRecipesHandler', () => {
               cook_time: 0,
               image_url: null,
               recipe_ingredients: [
-                { id: 'j', ingredient_name: 'Y', quantity: 1, inventory_product_id: 'p2', is_essential: true },
+                { id: 'j', ingredient_name: 'Y', quantity: 1, unit: 'g', inventory_product_id: 'p2', is_essential: true },
               ],
             },
           ],
         },
         inventory: {
           data: [
-            { product_id: 'p1', quantity: 5 },
-            { product_id: 'p2', quantity: 5 },
+            { id: 'lot-' + 'p1', product_id: 'p1', quantity: 5, unit: 'g', stock_version: 0 },
+            { id: 'lot-' + 'p2', product_id: 'p2', quantity: 5, unit: 'g', stock_version: 0 },
           ],
         },
       },
@@ -637,8 +647,8 @@ describe('SuggestRecipesForContextHandler', () => {
           tags: null,
           created_at: '2026-05-15T18:00:00Z',
           recipe_ingredients: [
-            { id: 'i1', ingredient_name: 'Tomate', quantity: 2, inventory_product_id: 'p-tomate', is_essential: true },
-            { id: 'i2', ingredient_name: 'Mozzarella', quantity: 100, inventory_product_id: 'p-mozza', is_essential: true },
+            { id: 'i1', ingredient_name: 'Tomate', quantity: 2, unit: 'g', inventory_product_id: 'p-tomate', is_essential: true },
+            { id: 'i2', ingredient_name: 'Mozzarella', quantity: 100, unit: 'g', inventory_product_id: 'p-mozza', is_essential: true },
           ],
         },
         // r-almost: 1 missing ingredient (linked, not in stock)
@@ -655,8 +665,8 @@ describe('SuggestRecipesForContextHandler', () => {
           tags: null,
           created_at: '2026-05-14T18:00:00Z',
           recipe_ingredients: [
-            { id: 'i3', ingredient_name: 'Riz', quantity: 200, inventory_product_id: 'p-riz', is_essential: true },
-            { id: 'i4', ingredient_name: 'Bouillon', quantity: 1, inventory_product_id: 'p-bouillon', is_essential: true },
+            { id: 'i3', ingredient_name: 'Riz', quantity: 200, unit: 'g', inventory_product_id: 'p-riz', is_essential: true },
+            { id: 'i4', ingredient_name: 'Bouillon', quantity: 1, unit: 'g', inventory_product_id: 'p-bouillon', is_essential: true },
           ],
         },
         // r-legacy: unlinked essential, lands in almost (1 unknown ≤ 3)
@@ -673,7 +683,7 @@ describe('SuggestRecipesForContextHandler', () => {
           tags: null,
           created_at: '2026-05-13T18:00:00Z',
           recipe_ingredients: [
-            { id: 'i5', ingredient_name: 'Truc', quantity: 1, inventory_product_id: null, is_essential: true },
+            { id: 'i5', ingredient_name: 'Truc', quantity: 1, unit: 'g', inventory_product_id: null, is_essential: true },
           ],
         },
         // r-noing: no essentials → only in recent_suggestions
@@ -695,9 +705,9 @@ describe('SuggestRecipesForContextHandler', () => {
     },
     inventory: {
       data: [
-        { product_id: 'p-tomate', quantity: 5 },
-        { product_id: 'p-mozza', quantity: 200 },
-        { product_id: 'p-riz', quantity: 500 },
+        { id: 'lot-' + 'p-tomate', product_id: 'p-tomate', quantity: 5, unit: 'g', stock_version: 0 },
+        { id: 'lot-' + 'p-mozza', product_id: 'p-mozza', quantity: 200, unit: 'g', stock_version: 0 },
+        { id: 'lot-' + 'p-riz', product_id: 'p-riz', quantity: 500, unit: 'g', stock_version: 0 },
       ],
     },
   };
@@ -759,13 +769,13 @@ describe('SuggestRecipesForContextHandler', () => {
       tags: null,
       created_at: `2026-05-${10 + i}T00:00:00Z`,
       recipe_ingredients: [
-        { id: `i-${i}`, ingredient_name: 'Tomate', quantity: 1, inventory_product_id: 'p-tomate', is_essential: true },
+        { id: `i-${i}`, ingredient_name: 'Tomate', quantity: 1, unit: 'g', inventory_product_id: 'p-tomate', is_essential: true },
       ],
     }));
     const { client } = makeClient({
       routes: {
         recipes: { data: manyRecipes },
-        inventory: { data: [{ product_id: 'p-tomate', quantity: 100 }] },
+        inventory: { data: [{ id: 'lot-' + 'p-tomate', product_id: 'p-tomate', quantity: 100, unit: 'g', stock_version: 0 }] },
       },
     });
     const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {
@@ -848,7 +858,7 @@ describe('SuggestRecipesForContextHandler', () => {
               tags: null,
               created_at: '2026-05-13T00:00:00Z',
               recipe_ingredients: [
-                { id: 'i1', ingredient_name: 'Truc', quantity: 1, inventory_product_id: null, is_essential: true },
+                { id: 'i1', ingredient_name: 'Truc', quantity: 1, unit: 'g', inventory_product_id: null, is_essential: true },
               ],
             },
           ],

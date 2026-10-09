@@ -72,7 +72,7 @@ export async function performUndo(
   const handler = handlerRegistry.get(row.reversible_action.tool);
   let result: unknown;
   try {
-    const exec = await handler.execute(ctx, row.reversible_action.args);
+    const exec = await handler.execute({ ...ctx, commandId: row.id }, row.reversible_action.args);
     result = exec.result;
   } catch (err) {
     throw new UndoFailedError(

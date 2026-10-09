@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 
-import { useRecipeCatalog, useTrendingRecipes } from '@/hooks/useRecipeCatalog';
 import { useUserRecipes } from '@/hooks/useUserRecipes';
 import { useRecipes } from '@/hooks/useRecipes';
 import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
@@ -29,7 +28,7 @@ import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
 //   - ExtractedRecipeModal (392L) : seulement apres extraction
 //   - RecipeOnboarding (494L) : flow first-time-user seulement
 // RecipeLibraryTab reste eager — c'est le default tab.
-import RecipeLibraryTab from '@/components/recipes/tabs/RecipeLibraryTab';
+import RoutineRecipeLibrary from '@/components/recipes/RoutineRecipeLibrary';
 const RecipeImportTab = lazy(() => import('@/components/recipes/tabs/RecipeImportTab'));
 const AddRecipeDialog = lazy(() => import('@/components/recipes/AddRecipeDialog'));
 const ExtractedRecipeModal = lazy(() =>
@@ -50,7 +49,7 @@ type RecipeTab = (typeof TAB_VALUES)[number];
 const LEGACY_TAB_REDIRECTS: Record<string, RecipeTab> = {
   feed: 'library',
   explore: 'library',
-  inbox: 'library',
+  inbox: 'import',
 };
 
 const normalizeTab = (raw: string | null): RecipeTab => {
@@ -76,16 +75,6 @@ export default function Recipes() {
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   const {
-    recipes: catalogRecipes,
-    totalCount: catalogCount,
-    isLoading: catalogLoading,
-    filters: catalogFilters,
-    setFilters: setCatalogFilters,
-    hasNextPage: catalogHasNext,
-    fetchNextPage: catalogFetchNext,
-  } = useRecipeCatalog();
-
-  const {
     recipes: userRecipes,
     isLoading: libraryLoading,
     addFromCatalog,
@@ -94,7 +83,6 @@ export default function Recipes() {
 
   const { addRecipeWithIngredients, fetchRecipes } = useRecipes();
   const { pendingCount: inboxPendingCount } = useSocialRecipeImports();
-  const { data: trendingRecipes } = useTrendingRecipes();
 
   // Onboarding auto-trigger volontairement désactivé (legacy).
   useEffect(() => {}, [userRecipes, libraryLoading]);
@@ -136,7 +124,6 @@ export default function Recipes() {
           subtitle: 'Ta sélection personnelle, prête à cuisiner.',
           chips: [
             { label: 'recettes', value: fmt(userRecipes.length) },
-            { label: 'dans le catalogue', value: fmt(catalogCount) },
             ...(inboxPendingCount > 0
               ? [{ label: 'à vérifier', value: fmt(inboxPendingCount) }]
               : []),
@@ -154,7 +141,7 @@ export default function Recipes() {
           ],
         };
     }
-  }, [activeTab, catalogCount, userRecipes.length, inboxPendingCount]);
+  }, [activeTab, userRecipes.length, inboxPendingCount]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -163,7 +150,7 @@ export default function Recipes() {
         <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
-              Recettes
+              Cuisiner
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">{headerMeta.subtitle}</p>
             <div
@@ -184,7 +171,7 @@ export default function Recipes() {
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
-              size="sm"
+              className="min-h-11"
               onClick={() => setActiveTab('import')}
             >
               <Sparkles className="h-4 w-4 mr-2" />
@@ -192,7 +179,7 @@ export default function Recipes() {
             </Button>
             <Button
               variant="default"
-              size="sm"
+              className="min-h-11"
               onClick={() => setShowAddDialog(true)}
             >
               <Plus className="h-4 w-4 mr-2" />
@@ -223,15 +210,7 @@ export default function Recipes() {
           </TabsList>
 
           <TabsContent value="library" className="space-y-6">
-            <RecipeLibraryTab
-              recipes={userRecipes}
-              isLoading={libraryLoading}
-              onShowOnboarding={() => setShowOnboarding(true)}
-              trendingRecipes={trendingRecipes}
-              catalogRecipes={catalogRecipes}
-              onAddToLibrary={handleAddToLibrary}
-              isAdding={isAddingFromCatalog}
-            />
+            <RoutineRecipeLibrary library={userRecipes} onAdd={handleAddToLibrary} isAdding={isAddingFromCatalog} />
           </TabsContent>
 
           <TabsContent value="import" className="space-y-6">

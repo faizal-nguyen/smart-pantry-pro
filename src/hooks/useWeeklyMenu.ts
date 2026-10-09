@@ -11,7 +11,10 @@
  * useMutation + `queryClient.invalidateQueries` + abonnement
  * `useAgentDbInvalidation` pour re-fetch après écrit assistant.
  */
-import { useEffect, useState } from 'react';
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from '@/services/stockCommands';
+import { fetchUnifiedRecipe } from '@/lib/recipeSource';
+import type { RecipeReference } from '@smart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +28,7 @@ export interface MenuEntryView {
   day_of_week: number;
   meal_type: MenuMealType;
   recipe_id: string | null;
+  recipe_reference?: RecipeReference | null;
   recipe_name: string;
   servings: number;
   prep_time: number;
@@ -50,6 +54,7 @@ interface RawEntry {
   day_of_week: number | null;
   meal_type: string | null;
   recipe_id: string | null;
+  recipe_reference?: RecipeReference | null;
   recipe_name: string | null;
   servings: number | null;
   prep_time: number | null;
@@ -76,7 +81,8 @@ function normaliseEntries(rows: RawEntry[] | null | undefined): MenuEntryView[] 
       id: r.id,
       day_of_week: r.day_of_week,
       meal_type: r.meal_type,
-      recipe_id: r.recipe_id,
+      recipe_id: r.recipe_reference?.id ?? r.recipe_id,
+      recipe_reference: r.recipe_reference,
       recipe_name: r.recipe_name ?? '',
       servings: r.servings ?? 1,
       prep_time: r.prep_time ?? 0,
@@ -91,17 +97,8 @@ function errorMessage(err: unknown): string {
 export function useWeeklyMenu(weekStart: string) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [userId, setUserId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (active) setUserId(data.user?.id ?? null);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { user } = useAuthSessionOptional();
+  const userId = user?.id;
 
   const query = useQuery<WeeklyMenuView>({
     queryKey: [...QUERY_KEY, userId, weekStart],
@@ -111,7 +108,7 @@ export function useWeeklyMenu(weekStart: string) {
       const { data, error } = await supabase
         .from('weekly_meal_plans')
         .select(
-          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_name, servings, prep_time, cook_time)',
+          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings, prep_time, cook_time)',
         )
         .eq('user_id', userId!)
         .eq('week_start_date', weekStart)
@@ -132,69 +129,20 @@ export function useWeeklyMenu(weekStart: string) {
     mutationFn: async (input: AddEntryInput) => {
       if (!userId) throw new Error('Non authentifié');
 
-      // 1. find-or-create weekly_meal_plans for this week
-      let planId = query.data?.meal_plan_id ?? null;
-      if (!planId) {
-        const { data: created, error: createErr } = await supabase
-          .from('weekly_meal_plans')
-          .insert({ user_id: userId, week_start_date: weekStart })
-          .select('id')
-          .single();
-        if (createErr) throw createErr;
-        planId = (created as { id: string }).id;
-      }
-
-      // 2. fetch recipe denormalised fields (name + times + servings)
-      const { data: recipe, error: recErr } = await supabase
-        .from('recipes')
-        .select('name, servings, prep_time, cook_time')
-        .eq('id', input.recipe_id)
-        .maybeSingle();
-      if (recErr) throw recErr;
-      if (!recipe) throw new Error('Recette introuvable');
-      const r = recipe as {
-        name: string;
-        servings: number | null;
-        prep_time: number | null;
-        cook_time: number | null;
-      };
-
-      // 3. INSERT meal_plan_entries
-      const { data: entry, error: insertErr } = await supabase
-        .from('meal_plan_entries')
-        .insert({
-          meal_plan_id: planId,
-          day_of_week: input.day_of_week,
-          meal_type: input.meal_type,
-          recipe_id: input.recipe_id,
-          recipe_name: r.name,
-          servings: r.servings ?? 1,
-          prep_time: r.prep_time ?? 0,
-          cook_time: r.cook_time ?? 0,
-        })
-        .select('id')
-        .single();
-      if (insertErr) throw insertErr;
-
-      // PRP-234 PR4 — log `recipe_interactions.planned` pour
-      // alimenter le PreferenceScorer V1 (PRP-226 PR6) : une recette
-      // planifiée signale un intérêt utilisateur même si elle n'est
-      // pas (encore) cuisinée. Best-effort : un échec d'insert ne
-      // remonte pas — l'entrée meal_plan est déjà créée.
-      void supabase
-        .from('recipe_interactions')
-        .insert({
-          user_id: userId,
-          recipe_id: input.recipe_id,
-          interaction_type: 'planned',
-        })
-        .then(({ error: interactionErr }) => {
-          if (interactionErr) {
-            console.warn('[useWeeklyMenu] planned interaction log failed:', interactionErr.message);
-          }
-        });
-
-      return (entry as { id: string }).id;
+      const day = new Date(`${weekStart}T12:00:00`);
+      day.setDate(day.getDate() + input.day_of_week);
+      const date = `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+      const intent = `menu:${date}:${input.meal_type}:${input.recipe_id}`;
+      const pending = await pendingIntent(intent);
+      if (pending && pending.command_type !== 'plan_recipe') throw new Error('La planification précédente reste à vérifier.');
+      const recipe = pending ? null : await fetchUnifiedRecipe(input.recipe_id);
+      if (!pending && !recipe) throw new Error('Recette introuvable.');
+      const command = pending ?? await commandForIntent('plan_recipe', intent, {
+        recipe: { id: recipe!.id, source: recipe!.source }, servings: recipe!.servings, date, meal_type: input.meal_type,
+      });
+      const result = await executeStockCommand(command);
+      await finishIntent(intent);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
@@ -211,11 +159,13 @@ export function useWeeklyMenu(weekStart: string) {
 
   const removeEntry = useMutation({
     mutationFn: async (entryId: string) => {
-      const { error } = await supabase
+      if (!query.data?.entries.some(entry => entry.id === entryId)) throw new Error('Ce repas n’est plus disponible.');
+      const { error, data } = await supabase
         .from('meal_plan_entries')
         .delete()
-        .eq('id', entryId);
-      if (error) throw error;
+        .eq('meal_plan_id',query.data!.meal_plan_id!)
+        .eq('id', entryId).select('id');
+      if (error || data?.length !== 1) throw error ?? new Error('Suppression non confirmée.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });

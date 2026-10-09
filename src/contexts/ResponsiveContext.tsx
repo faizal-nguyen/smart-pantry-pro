@@ -96,7 +96,10 @@ export function ResponsiveProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return;
 
     const update = () => {
-      setViewport(readViewport());
+      const nextViewport = readViewport();
+      setViewport(nextViewport);
+      document.documentElement.style.setProperty('--routine-viewport-height',`${nextViewport.availableHeight}px`);
+      document.documentElement.style.setProperty('--routine-viewport-offset',`${window.visualViewport?.offsetTop ?? 0}px`);
       setNavHeight(readNavHeight());
     };
 

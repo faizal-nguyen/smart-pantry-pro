@@ -21,8 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InventoryItem } from "@/hooks/useInventory";
-import { format, isAfter, isBefore, addDays } from "date-fns";
-import { fr } from "date-fns/locale";
+import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
+import { useCalendarNow } from '@/hooks/useCalendarNow';
 
 interface ProductCardProps {
   item: InventoryItem;
@@ -31,6 +31,8 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
+  const now = useCalendarNow();
+  const days = calendarDaysUntil(item.expiry_date,now);
   const { extractColorFromImage, setThemeContext } = useMaterialYouTheme();
   
   // Extract theme colors from product image and set context
@@ -42,14 +44,9 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
     setThemeContext('cooking');
   }, [item.product?.image_url, extractColorFromImage, setThemeContext]);
   const getExpiryStatus = () => {
-    if (!item.expiry_date) return 'none';
-    
-    const expiryDate = new Date(item.expiry_date);
-    const today = new Date();
-    const warningDate = addDays(today, 3);
-    
-    if (isBefore(expiryDate, today)) return 'expired';
-    if (isBefore(expiryDate, warningDate)) return 'warning';
+    if (days == null) return 'none';
+    if (days < 0) return 'expired';
+    if (days <= 3) return 'warning';
     return 'good';
   };
 
@@ -86,27 +83,12 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
     return colors[category] || 'bg-muted text-muted-foreground';
   };
 
-  // Determine if item is fresh based on expiry
-  const isItemFresh = () => {
-    if (!item.expiry_date) return true; // No expiry means it's likely fresh
-    const expiryDate = new Date(item.expiry_date);
-    const today = new Date();
-    const warningDate = addDays(today, 3);
-    return isAfter(expiryDate, warningDate);
-  };
-  
-  const isItemExpired = () => {
-    if (!item.expiry_date) return false;
-    const expiryDate = new Date(item.expiry_date);
-    const today = new Date();
-    return isBefore(expiryDate, today);
-  };
 
   return (
     <FoodCard 
       foodImage={item.product?.image_url}
-      fresh={isItemFresh()}
-      expired={isItemExpired()}
+      fresh={days != null && days > 3}
+      expired={days != null && days < 0}
       interactive
     >
       <MaterialCardContent>
@@ -162,7 +144,7 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Package className="w-4 h-4" />
               <span className="font-medium text-foreground">
-                {formatQuantityCompact(item.quantity, item.product?.unit_type)}
+                {formatQuantityCompact(item.quantity, item.unit ?? item.product?.unit_type)}
               </span>
             </div>
           </div>
@@ -174,12 +156,12 @@ const ProductCard = ({ item, onEdit, onDelete }: ProductCardProps) => {
             </div>
           )}
 
-          {item.expiry_date && (
+          {(
             <div className="flex items-center gap-2">
               <Badge className={`text-xs ${getExpiryColor()}`}>
                 {getExpiryIcon()}
                 <span className="ml-1">
-                  {format(new Date(item.expiry_date), 'dd MMM yyyy', { locale: fr })}
+                  {pantryDateLabel(item.expiry_date,now)}
                 </span>
               </Badge>
             </div>

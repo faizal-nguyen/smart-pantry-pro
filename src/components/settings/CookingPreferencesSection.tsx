@@ -87,7 +87,7 @@ function ToggleCard({ selected, onClick, children, ariaPressed }: ToggleCardProp
 }
 
 export default function CookingPreferencesSection() {
-  const { personalizationData, updatePersonalizationData, isLoading } = usePersonalization();
+  const { personalizationData, updatePersonalizationData, isLoading, error: readError, hasUnassignedLegacyPreferences } = usePersonalization();
   const { toast } = useToast();
 
   // Edition locale — synchronisée avec la source quand elle charge.
@@ -96,6 +96,7 @@ export default function CookingPreferencesSection() {
   const [cookingPercent, setCookingPercent] = useState<number>(50);
   const [goals, setGoals] = useState<string[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!personalizationData) return;
@@ -132,21 +133,28 @@ export default function CookingPreferencesSection() {
   };
 
   const handleSave = () => {
-    updatePersonalizationData({
-      householdSize,
-      dietaryPreferences: dietary,
-      cookingLevel: Math.round(cookingPercent) / 100,
-      goals,
-    });
-    setDirty(false);
-    toast({
-      title: 'Préférences mises à jour',
-      description: 'Tes préférences cuisine ont été enregistrées.',
-    });
+    setSaveError(null);
+    try {
+      updatePersonalizationData({
+        householdSize,
+        dietaryPreferences: dietary,
+        cookingLevel: Math.round(cookingPercent) / 100,
+        goals,
+      });
+      setDirty(false);
+      toast({
+        title: 'Préférences mises à jour',
+        description: 'Tes préférences cuisine ont été enregistrées.',
+      });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Impossible d’enregistrer les préférences. Ta saisie est conservée.');
+    }
   };
 
   return (
     <div className="space-y-4">
+      {(saveError || readError) && <p role="alert" className="text-sm text-destructive">{saveError || readError}</p>}
+      {hasUnassignedLegacyPreferences && <p role="status" className="text-sm text-muted-foreground">Confirme tes préférences pour ce compte. Les anciennes préférences de cet appareil sont conservées, sans être attribuées automatiquement.</p>}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

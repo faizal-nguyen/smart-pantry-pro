@@ -1,0 +1,50 @@
+{
+  "audit_date": "2026-10-08",
+  "revision": "818ce526",
+  "mode": "local isolated fixtures; no real application data",
+  "function_reproductions": 5,
+  "browser_window_widths_css_px": [
+    375,
+    440,
+    1138
+  ],
+  "build": "failed before frontend compilation",
+  "api_type_errors": [
+    "apps/api/src/services/imports/SocialVideoImportQueue.ts(351,56): error TS2345: Argument of type 'CompletionResult' is not assignable to parameter of type '{ ok: false; errorCode: \"RATE_LIMITED\" | \"INTERNAL\" | \"UNSUPPORTED_URL\" | \"AUTH_REQUIRED\" | \"GEO_BLOCKED\" | \"PRIVATE_OR_REMOVED\" | \"DOWNLOAD_FAILED\" | \"TOO_LONG\" | \"TOO_LARGE\" | \"STALE\"; message: string; retryable: boolean; }'.",
+    "apps/api/src/services/imports/SocialVideoImportQueue.ts(372,42): error TS2339: Property 'mediaOrigin' does not exist on type '{ metadata: Record<string, unknown>; method: \"user_upload\" | \"yt_dlp\" | \"gallery_dl\" | \"commercial_api\"; ok: true; mediaOrigin: \"user_upload\" | \"personal_archive_upload\" | \"permitted_download\"; ... 5 more ...; sizeBytes?: number; } | { ...; }'.",
+    "apps/api/src/services/imports/SocialVideoImportQueue.ts(376,48): error TS2339: Property 'durationSeconds' does not exist on type '{ metadata: Record<string, unknown>; method: \"user_upload\" | \"yt_dlp\" | \"gallery_dl\" | \"commercial_api\"; ok: true; mediaOrigin: \"user_upload\" | \"personal_archive_upload\" | \"permitted_download\"; ... 5 more ...; sizeBytes?: number; } | { ...; }'.",
+    "apps/api/src/services/imports/SocialVideoImportQueue.ts(377,42): error TS2339: Property 'sizeBytes' does not exist on type '{ metadata: Record<string, unknown>; method: \"user_upload\" | \"yt_dlp\" | \"gallery_dl\" | \"commercial_api\"; ok: true; mediaOrigin: \"user_upload\" | \"personal_archive_upload\" | \"permitted_download\"; ... 5 more ...; sizeBytes?: number; } | { ...; }'.",
+    "apps/api/src/services/imports/SocialVideoImportQueue.ts(378,41): error TS2339: Property 'mimeType' does not exist on type '{ metadata: Record<string, unknown>; method: \"user_upload\" | \"yt_dlp\" | \"gallery_dl\" | \"commercial_api\"; ok: true; mediaOrigin: \"user_upload\" | \"personal_archive_upload\" | \"permitted_download\"; ... 5 more ...; sizeBytes?: number; } | { ...; }'."
+  ],
+  "eslint": {
+    "files": 773,
+    "errors": 1629,
+    "warnings": 118,
+    "errors_by_rule": {
+      "@typescript-eslint/no-explicit-any": 1452,
+      "@typescript-eslint/no-namespace": 1,
+      "no-useless-catch": 1,
+      "@typescript-eslint/no-empty-object-type": 4,
+      "no-empty": 7,
+      "@typescript-eslint/prefer-as-const": 1,
+      "prefer-const": 6,
+      "@typescript-eslint/no-unsafe-function-type": 7,
+      "no-useless-escape": 43,
+      "parse_error": 2,
+      "@typescript-eslint/ban-ts-comment": 9,
+      "@typescript-eslint/no-unused-expressions": 3,
+      "@next/next/no-img-element": 1,
+      "no-case-declarations": 17,
+      "react-hooks/rules-of-hooks": 1,
+      "@typescript-eslint/no-non-null-asserted-optional-chain": 2,
+      "@typescript-eslint/no-require-imports": 70,
+      "no-restricted-imports": 2
+    }
+  },
+  "jest": "inconclusive; blocked local dependency hydration",
+  "frontend_typecheck": "inconclusive; blocked local dependency hydration",
+  "vite_only_build": "inconclusive; blocked local dependency hydration",
+  "production": "not verified",
+  "ios_hardware_safari": "not verified",
+  "revision_scope": "Git HEAD plus local working files; SocialVideoImportQueue.ts and its test were untracked before this audit"
+}

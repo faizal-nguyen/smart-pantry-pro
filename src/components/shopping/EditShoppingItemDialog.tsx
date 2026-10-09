@@ -20,6 +20,8 @@ import {
 import { ShoppingItem } from "@/hooks/useShoppingList";
 import { useInventory } from "@/hooks/useInventory";
 import { Autocomplete, AutocompleteSuggestion } from "@/components/ui/Autocomplete";
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
+import { useOwnedValue,removeOwnedValue } from '@/lib/ownedStorage';
 
 interface EditShoppingItemDialogProps {
   item: ShoppingItem | null;
@@ -32,7 +34,7 @@ interface EditShoppingItemDialogProps {
     category: string;
     estimatedPrice?: number;
     storeSection?: string;
-  }) => void;
+  }) => Promise<unknown>;
 }
 
 const CATEGORIES = [
@@ -78,14 +80,18 @@ const EditShoppingItemDialog = ({
   onOpenChange, 
   onSave 
 }: EditShoppingItemDialogProps) => {
-  const [formData, setFormData] = useState({
-    productName: "",
-    quantity: 1,
-    unit: "pièce(s)",
-    category: "Autres",
-    estimatedPrice: 0,
-    storeSection: ""
+  const [saving,setSaving] = useState(false);
+  const [saveError,setSaveError] = useState<string|null>(null);
+  const user=useAuthenticatedUser();
+  const [formData,saveFormData,storageError] = useOwnedValue(user.id,`shopping-edit:${item?.id}`,{
+    productName:item?.product?.name ?? '',
+    quantity:String(item?.quantity ?? 1),
+    unit:item?.unit ?? item?.product?.unit_type ?? 'pièce(s)',
+    category:item?.product?.category ?? 'Autres',
+    estimatedPrice:item?.estimated_price ?? 0,
+    storeSection:item?.store_section ?? '',
   });
+  const setFormData=(value:typeof formData)=>{ try { saveFormData(value); } catch (failure) { setSaveError((failure as Error).message); } };
 
   const { products, loadProducts } = useInventory();
 
@@ -93,32 +99,23 @@ const EditShoppingItemDialog = ({
   // mount. L'autocomplete en a besoin a l'ouverture du dialog.
   useEffect(() => { void loadProducts(); }, [loadProducts]);
 
-  // Update form when item changes
-  useEffect(() => {
-    if (item) {
-      setFormData({
-        productName: item.product?.name || "",
-        quantity: item.quantity,
-        unit: item.product?.unit_type || "pièce(s)",
-        category: item.product?.category || "Autres",
-        estimatedPrice: item.estimated_price || 0,
-        storeSection: item.store_section || ""
-      });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!item || saving) return;
+    setSaving(true); setSaveError(null);
+    try {
+      const quantity=Number(formData.quantity.replace(',','.'));
+      if (!formData.quantity.trim() || !Number.isFinite(quantity) || quantity<=0 || quantity>1e9) throw new Error('Indiquez une quantité positive.');
+      await onSave(item.id,{ ...formData,quantity });
+      removeOwnedValue(user.id,`shopping-edit:${item.id}`);onOpenChange(false);
     }
-  }, [item]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (item && formData.productName.trim()) {
-      onSave(item.id, formData);
-      onOpenChange(false);
-    }
+    catch (failure) { setSaveError(failure instanceof Error ? failure.message : 'Modification non confirmée.'); }
+    finally { setSaving(false); }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={handleSubmit}>
+    <Dialog open={open} onOpenChange={value=>{ if (!saving) onOpenChange(value); }}>
+      <DialogContent className="routine-dialog sm:max-w-[425px]">
+        <form onSubmit={handleSubmit}>{(saveError || storageError) && <p role="alert" className="text-destructive">{saveError || storageError}</p>}
           <DialogHeader>
             <DialogTitle>Modifier l'article</DialogTitle>
             <DialogDescription>
@@ -131,6 +128,7 @@ const EditShoppingItemDialog = ({
               <Label htmlFor="productName">Nom du produit</Label>
               <div className="relative">
                 <Autocomplete
+                  inputId="productName"
                   value={formData.productName}
                   onValueChange={(val) => setFormData({ ...formData, productName: val })}
                   suggestions={(products || []).map(p => ({
@@ -155,10 +153,10 @@ const EditShoppingItemDialog = ({
                 <Input
                   id="quantity"
                   type="number"
-                  min="0.1"
-                  step="0.1"
+                  min="0"
+                  step="any"
                   value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 1 })}
+                  onChange={(e) => setFormData({ ...formData, quantity:e.target.value })}
                   required
                 />
               </div>
@@ -173,7 +171,7 @@ const EditShoppingItemDialog = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {UNITS.map((unit) => (
+                    {[...new Set([formData.unit,...UNITS])].map((unit) => (
                       <SelectItem key={unit} value={unit}>
                         {unit}
                       </SelectItem>
@@ -239,7 +237,7 @@ const EditShoppingItemDialog = ({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Annuler
             </Button>
-            <Button type="submit">
+            <Button disabled={saving || !!storageError} type="submit">
               Enregistrer
             </Button>
           </DialogFooter>

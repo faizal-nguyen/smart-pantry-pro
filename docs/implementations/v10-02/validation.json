@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-09T00:19:32.036507+02:00",
+  "base_head": "818ce526a799ef72bfde9280b5cc3e74c10e9931",
+  "implementation": "uncommitted working tree on top of V10-01; base HEAD is not the implementation SHA",
+  "checks": [
+    {
+      "command": "npm run test:v10:client",
+      "status": "passed",
+      "suites": 18,
+      "tests": 59,
+      "scope": "targeted V10; includes V10-01 regression coverage"
+    },
+    {
+      "command": "npm run test:v10:api",
+      "status": "passed",
+      "suites": 15,
+      "tests": 233,
+      "scope": "targeted V10; includes V10-01 regression coverage"
+    },
+    {
+      "command": "npm run test:v10:db",
+      "status": "passed",
+      "groups": 17,
+      "engine": "PostgreSQL 16, local socket, disposable databases, reconstructed schema, two migrations"
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "includes": [
+        "shared TypeScript",
+        "API TypeScript",
+        "Vite production build"
+      ],
+      "excludes": [
+        "complete frontend TypeScript check"
+      ]
+    },
+    {
+      "command": "targeted eslint (file list in lint.json)",
+      "status": "passed_with_existing_warning",
+      "files": 30,
+      "errors": 0,
+      "warnings": 1,
+      "warning": "existing RecipeDetail fetchRecipeDetails effect dependency"
+    },
+    {
+      "command": "npx tsc -p tsconfig.app.json --noEmit (bounded to 55 seconds)",
+      "status": "not_validated_timeout",
+      "output": "no completed result; not a successful global frontend typecheck"
+    }
+  ],
+  "remote_database_modified": false,
+  "deployed": false,
+  "hardware_tested": false,
+  "limits": [
+    "no Safari, real iPhone, VoiceOver, physical keyboard/safe area/text enlargement certification",
+    "no live JWT/Supabase project schema verification",
+    "targeted suites, not all repository tests"
+  ]
+}

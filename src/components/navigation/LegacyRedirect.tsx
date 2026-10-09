@@ -34,7 +34,7 @@ export const LegacyRedirect: React.FC = () => {
     // Rediriger les routes racines vers leurs nouvelles sections
     else if (currentPath === '/' || currentPath === '') {
       // Redirection vers insights par défaut (comme avant)
-      navigate('/insights', { replace: true });
+      navigate('/kitchen', { replace: true });
     }
     
     // Gestion des routes partielles 

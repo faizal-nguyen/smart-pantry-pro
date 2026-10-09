@@ -28,8 +28,8 @@ import type {
 const BASE = '/imports/social';
 
 export const importsApi = {
-  capture(url: string, source?: 'paste' | 'share_target' | 'bulk' | 'manual') {
-    return apiPost<CaptureResponse>(`${BASE}`, source ? { url, source } : { url });
+  capture(url: string, source?: 'paste' | 'share_target' | 'bulk' | 'manual', expectedUserId?: string) {
+    return apiPost<CaptureResponse>(`${BASE}`, source ? { url, source } : { url }, { expectedUserId });
   },
 
   bulkCapture(urls: string[]) {
@@ -46,8 +46,8 @@ export const importsApi = {
     });
   },
 
-  get(id: string) {
-    return apiGet<SocialImport>(`${BASE}/${id}`);
+  get(id: string, expectedUserId?: string) {
+    return apiGet<SocialImport>(`${BASE}/${id}`,undefined,{ expectedUserId });
   },
 
   patch(id: string, fields: PatchImportFields) {

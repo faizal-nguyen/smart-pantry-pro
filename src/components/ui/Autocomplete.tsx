@@ -6,11 +6,13 @@ export interface AutocompleteSuggestion {
   value: string;
   section?: string;
   meta?: string;
+  payload?: { category?: string | null };
   // Optional payload for caller-specific data
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AutocompleteProps {
+  inputId?: string;
   value: string;
   onValueChange: (val: string) => void;
   suggestions: AutocompleteSuggestion[];
@@ -24,6 +26,7 @@ interface AutocompleteProps {
 }
 
 export const Autocomplete: React.FC<AutocompleteProps> = ({
+  inputId,
   value,
   onValueChange,
   suggestions,
@@ -105,6 +108,7 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
   return (
     <div className={className} ref={containerRef}>
       <input
+        id={inputId}
         value={value}
         onChange={e => { onValueChange(e.target.value); setOpen(true); setActiveIndex(-1); }}
         onFocus={() => setOpen(true)}
@@ -140,4 +144,3 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
     </div>
   );
 };
-

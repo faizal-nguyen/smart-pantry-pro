@@ -1,0 +1,41 @@
+import { fireEvent,render,screen,waitFor } from '@testing-library/react';
+import QuickStockCorrection from '../QuickStockCorrection';
+import { removeOwnedValue } from '@/lib/ownedStorage';
+import { pendingIntent } from '@/services/stockCommands';
+const OWNER='00000000-0000-4000-8000-000000000001',ID='20000000-0000-4000-8000-000000000001';
+jest.mock('@/hooks/useAuthenticatedUser',()=>({ useAuthenticatedUser:()=>({ id:OWNER }) }));
+jest.mock('@/services/stockCommands',()=>({ pendingIntent:jest.fn() }));
+const item={ id:ID,product_id:ID,quantity:1,unit:'kg',expiry_date:'2026-10-09',product:{ id:ID,name:'Farine',unit_type:'kg',category:'Épicerie' } };
+beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();jest.mocked(pendingIntent).mockResolvedValue(null); });
+test('failed corrections retain quantities, units and dates across closing and reopening',async()=>{
+  const save=jest.fn().mockRejectedValue(new Error('Stock modifié'));
+  const page=render(<QuickStockCorrection item={item} open onOpenChange={jest.fn()} onSave={save}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{ name:'Confirmer la correction' })).toBeEnabled());
+  fireEvent.change(screen.getByLabelText('Quantité'),{ target:{ value:'750' } });
+  fireEvent.change(screen.getByLabelText('Unité'),{ target:{ value:'g' } });
+  fireEvent.change(screen.getByLabelText('Date utile (facultative)'),{ target:{ value:'2026-10-12' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Confirmer la correction' }));
+  await screen.findByRole('alert');
+  expect(save).toHaveBeenCalledWith(ID,expect.objectContaining({ quantity:750,unit:'g',expiry_date:'2026-10-12' }));
+  page.unmount();render(<QuickStockCorrection item={item} open onOpenChange={jest.fn()} onSave={save}/>);
+  expect(screen.getByLabelText('Quantité')).toHaveValue('750');
+  expect(screen.getByLabelText('Date utile (facultative)')).toHaveValue('2026-10-12');
+});
+test('confirmation never recreates the draft cleared after the server result',async()=>{
+  const close=jest.fn();
+  const save=jest.fn(async()=>{ removeOwnedValue(OWNER,`correction:${ID}`); });
+  render(<QuickStockCorrection item={item} open onOpenChange={close} onSave={save}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{ name:'Confirmer la correction' })).toBeEnabled());
+  fireEvent.change(screen.getByLabelText('Quantité'),{ target:{ value:'0.8' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Confirmer la correction' }));
+  await waitFor(()=>expect(close).toHaveBeenCalledWith(false));
+  expect(localStorage.getItem(`v10-routine:${OWNER}:correction:${ID}`)).toBeNull();
+});
+test('an uncertain correction restores and freezes exactly the saved command values',async()=>{
+  jest.mocked(pendingIntent).mockResolvedValue({ command_id:ID,command_type:'adjust_inventory',payload_version:1,payload:{ items:[{ id:ID,expected_version:0,quantity:.6,unit:'kg',expiry_date:null }] } });
+  render(<QuickStockCorrection item={item} open onOpenChange={jest.fn()} onSave={jest.fn()}/>);
+  await screen.findByRole('button',{ name:'Vérifier la correction' });
+  expect(screen.getByLabelText('Quantité')).toHaveValue('0.6');
+  expect(screen.getByLabelText('Quantité')).toBeDisabled();
+  expect(screen.getByLabelText('Date utile (facultative)')).toHaveValue('');
+});

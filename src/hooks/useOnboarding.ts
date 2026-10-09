@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { OnboardingState, OnboardingAnswer, OnboardingStepData } from '@/types/onboarding';
-import { ONBOARDING_STEPS, ONBOARDING_STORAGE_KEY } from '@/config/onboarding';
+import { ONBOARDING_STEPS } from '@/config/onboarding';
 import { usePersonalization } from './usePersonalization';
+import { useAuthSessionOptional } from './useAuthenticatedUser';
 
 const initialState: OnboardingState = {
   currentStepIndex: 0,
@@ -11,27 +12,31 @@ const initialState: OnboardingState = {
 };
 
 export const useOnboarding = () => {
-  const [state, setState] = useState<OnboardingState>(initialState);
+  const { user } = useAuthSessionOptional();
+  const storageKey = `v10-draft:${user?.id ?? 'anonymous'}:onboarding`;
+  const [snapshot, setSnapshot] = useState({ key: storageKey, data: initialState });
+  const state = snapshot.key === storageKey ? snapshot.data : initialState;
   const { savePersonalizationData } = usePersonalization();
 
   // Load onboarding state from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    setSnapshot({ key: storageKey, data: initialState });
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsedState = JSON.parse(saved);
-        setState(parsedState);
+        setSnapshot({ key: storageKey, data: parsedState });
       } catch (error) {
         console.error('Failed to parse onboarding state:', error);
       }
     }
-  }, []);
+  }, [storageKey]);
 
   // Save state to localStorage whenever it changes
   const saveState = useCallback((newState: OnboardingState) => {
-    setState(newState);
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(newState));
-  }, []);
+    localStorage.setItem(storageKey, JSON.stringify(newState));
+    setSnapshot({ key: storageKey, data: newState });
+  }, [storageKey]);
 
   const startOnboarding = useCallback(() => {
     const newState = {
@@ -42,7 +47,7 @@ export const useOnboarding = () => {
     saveState(newState);
   }, [saveState]);
 
-  const nextStep = useCallback((answer?: any) => {
+  const nextStep = useCallback((answer?: OnboardingAnswer['value']) => {
     const currentStep = ONBOARDING_STEPS[state.currentStepIndex];
     
     // Save answer if provided
@@ -71,10 +76,9 @@ export const useOnboarding = () => {
         answers: newAnswers,
         isCompleted: true
       };
-      saveState(newState);
-      
-      // Save personalization data
+      // Do not mark completion before preferences have actually persisted.
       savePersonalizationData(newAnswers);
+      saveState(newState);
     } else {
       // Move to next step
       const newState = {
@@ -101,9 +105,9 @@ export const useOnboarding = () => {
   }, [nextStep]);
 
   const restartOnboarding = useCallback(() => {
-    localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    localStorage.removeItem(storageKey);
     saveState(initialState);
-  }, [saveState]);
+  }, [saveState, storageKey]);
 
   const getCurrentStep = useCallback((): OnboardingStepData | null => {
     return ONBOARDING_STEPS[state.currentStepIndex] || null;

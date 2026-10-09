@@ -48,6 +48,7 @@ export function useNavCounts(userId: string | null | undefined): UseNavCountsRes
         .from('inventory')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
+        .gt('quantity', 0)
         .lte('expiry_date', threeDaysFromNow)
         .not('expiry_date', 'is', null);
       if (error) throw error;

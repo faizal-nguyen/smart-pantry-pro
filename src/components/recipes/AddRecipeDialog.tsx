@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { saveRecipeWithIngredients } from "@/services/recipePersistence";
+import { pendingIntent } from "@/services/stockCommands";
+import { useAuthSessionOptional } from "@/hooks/useAuthenticatedUser";
 import type { ImportedRecipeDraft } from "@smart/shared";
 import { useRecipeParser } from "@/hooks/useRecipeParser";
 import { useSocialRecipeParser } from "@/hooks/useSocialRecipeParser";
@@ -37,8 +40,6 @@ import {
   Plus,
   X,
   Star,
-  Clock,
-  Users,
   BookOpen,
   Mic,
   Facebook,
@@ -66,16 +67,6 @@ const CUISINE_CATEGORIES = [
   "Autres"
 ];
 
-const MEAL_TYPES = [
-  "breakfast",
-  "lunch", 
-  "dinner",
-  "snack",
-  "dessert",
-  "drink",
-  "appetizer"
-];
-
 const UNITS = [
   "g", "kg", "ml", "l", "c.à.s", "c.à.c", 
   "tasse", "verre", "pincée", "gousse", 
@@ -83,6 +74,7 @@ const UNITS = [
 ];
 
 interface Recipe {
+  id?: string;
   name: string;
   description?: string;
   image_url?: string;
@@ -119,13 +111,17 @@ interface AddRecipeDialogProps {
 
 const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: AddRecipeDialogProps) => {
   const [loading, setLoading] = useState(false);
+  const { user } = useAuthSessionOptional();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [draftReady, setDraftReady] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
   const [currentTab, setCurrentTab] = useState("manual");
   
   // URL parsing hook simplifié
-  const { extractRecipeFromURL, loading: parsing, error: parseError } = useRecipeParser();
+  const { extractRecipeFromURL, loading: parsing } = useRecipeParser();
   
   // Social media parsing hook (pattern Cipher)
-  const { parseRecipeFromSocial, loading: socialParsing, error: socialParseError } = useSocialRecipeParser();
+  const { parseRecipeFromSocial, loading: socialParsing } = useSocialRecipeParser();
   
   // Form state (pattern AddProductDialog Cipher)
   const [recipeName, setRecipeName] = useState("");
@@ -197,7 +193,54 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
 
     if (open) setCurrentTab("manual");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialDraft, open]);
+  }, [initialDraft]);
+
+  const restorePendingSave = async () => {
+    const pending = await pendingIntent('manual-recipe');
+    if (!pending || pending.command_type !== 'save_recipe') { setPendingSave(false); return; }
+    const { recipe: draft, ingredients: entered } = pending.payload;
+    setRecipeName(draft.name); setDescription(draft.description ?? '');
+    setCuisineCategory(draft.cuisine_category ?? ''); setMealType(draft.meal_type ?? '');
+    setPrepTime(String(draft.prep_time)); setCookTime(String(draft.cook_time));
+    setServings(String(draft.servings)); setDifficulty(draft.difficulty);
+    setInstructions(draft.instructions); setImageUrl(draft.image_url ?? ''); setTags(draft.tags);
+    setIngredients(entered.map(ingredient => ({ name: ingredient.ingredient_name, quantity: ingredient.quantity ?? 0,
+      unit: ingredient.unit ?? '', is_essential: ingredient.is_essential, notes: ingredient.notes ?? '' })));
+    setPendingSave(true); setCurrentTab('manual');
+  };
+
+  useEffect(() => {
+    setDraftReady(false);
+    if (!user || !open) return;
+    if (!initialDraft) {
+      try {
+        const raw = localStorage.getItem(`v10-draft:${user.id}:manual-recipe`);
+        if (raw) {
+          const draft = JSON.parse(raw) as Recipe;
+          setRecipeName(draft.name ?? ''); setDescription(draft.description ?? '');
+          setCuisineCategory(draft.cuisine_category ?? ''); setMealType(draft.meal_type ?? '');
+          setPrepTime(String(draft.prep_time ?? 15)); setCookTime(String(draft.cook_time ?? 30));
+          setServings(String(draft.servings ?? 4)); setDifficulty(draft.difficulty ?? 2);
+          setInstructions(draft.instructions ?? ''); setImageUrl(draft.image_url ?? '');
+          setTags(draft.tags ?? []); if (Array.isArray(draft.ingredients)) setIngredients(draft.ingredients);
+        }
+      } catch { setSaveError('Le brouillon sauvegardé est illisible. Vérifiez les champs avant de réessayer.'); }
+    }
+    setDraftReady(true);
+    void restorePendingSave().catch(() => undefined);
+  }, [open, user?.id, initialDraft]);
+
+  useEffect(() => {
+    if (!draftReady || !user || !open) return;
+    if (!recipeName && !instructions && !ingredients.some(ingredient => ingredient.name)) return;
+    try {
+      localStorage.setItem(`v10-draft:${user.id}:manual-recipe`, JSON.stringify({
+        name: recipeName, description, cuisine_category: cuisineCategory, meal_type: mealType,
+        prep_time: prepTime, cook_time: cookTime, servings, difficulty, instructions,
+        image_url: imageUrl, tags, ingredients,
+      }));
+    } catch { setSaveError('Le brouillon ne peut pas être conservé sur cet appareil. Gardez ce formulaire ouvert en cas d’erreur.'); }
+  }, [draftReady, user?.id, open, recipeName, description, cuisineCategory, mealType, prepTime, cookTime, servings, difficulty, instructions, imageUrl, tags, ingredients]);
 
   const resetForm = () => {
     setRecipeName("");
@@ -240,7 +283,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
     ]);
   };
 
-  const updateIngredient = (index: number, field: keyof RecipeIngredient, value: any) => {
+  const updateIngredient = <K extends keyof RecipeIngredient,>(index: number, field: K, value: RecipeIngredient[K]) => {
     const updated = ingredients.map((ingredient, i) => 
       i === index ? { ...ingredient, [field]: value } : ingredient
     );
@@ -342,33 +385,21 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
         const recipe = result.data;
         
         // Remplir le formulaire avec les données parsées
-        setRecipeName(recipe.name);
-        setDescription(recipe.description || "");
-        setCuisineCategory(recipe.cuisine_category || "");
-        setMealType(recipe.meal_type || "");
-        setPrepTime(recipe.prep_time.toString());
-        setCookTime(recipe.cook_time.toString());
-        setServings(recipe.servings.toString());
-        setDifficulty(recipe.difficulty || 2);
-        setInstructions(recipe.instructions);
-        setImageUrl(recipe.image_url || "");
-        
-        // Mapper les ingrédients
-        const mappedIngredients = recipe.ingredients.map(ing => ({
-          name: ing.name || ing,
-          quantity: ing.quantity || 1,
-          unit: ing.unit || "unité",
-          is_essential: ing.is_essential !== undefined ? ing.is_essential : true,
-          notes: ing.notes || ""
-        }));
-        setIngredients(mappedIngredients);
-        
+        setRecipeName(recipe.title);
+        setDescription(recipe.description || '');
+        setPrepTime(recipe.prepTime ?? '0'); setCookTime(recipe.cookTime ?? '0');
+        setServings(String(recipe.servings ?? 4));
+        setDifficulty(recipe.difficulty === 'hard' ? 4 : recipe.difficulty === 'easy' ? 1 : 2);
+        setInstructions(recipe.instructions.join('\n')); setImageUrl(recipe.imageUrl ?? '');
+        // Unstructured social amounts remain for manual verification, never assumed to be one unit.
+        setIngredients(recipe.ingredients.map(name => ({ name, quantity: 0, unit: '', is_essential: true, notes: 'Vérifier la quantité et l’unité extraites.' })));
+
         // Tags
         setTags(recipe.tags || []);
         
         toast({
           title: "Recette extraite !",
-          description: `${recipe.name} - ${result.platform} (${result.author || 'Auteur inconnu'})`,
+          description: `${recipe.title} - ${result.platform} (${result.author || 'Auteur inconnu'})`,
         });
         
         // Passer au mode manuel pour finaliser
@@ -397,10 +428,10 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
         
         // Mapper les ingrédients OCR
         if (recipe.ingredients && recipe.ingredients.length > 0) {
-          const mappedIngredients = recipe.ingredients.map((ing: string, index: number) => ({
+          const mappedIngredients = recipe.ingredients.map((ing: string) => ({
             name: ing,
-            quantity: 1,
-            unit: "unité",
+            quantity: 0,
+            unit: "",
             is_essential: true,
             notes: ""
           }));
@@ -521,6 +552,14 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
       return;
     }
 
+    if (loading) return;
+    if (!instructions.trim()) { setSaveError('Ajoutez les instructions de préparation.'); return; }
+    if (![prepTime, cookTime].every(value => value.trim() !== '' && Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= 10080)) {
+      setSaveError('Les temps doivent être des nombres entiers de minutes entre 0 et 10080.'); return;
+    }
+    if (!Number.isInteger(Number(servings)) || Number(servings) < 1 || Number(servings) > 100) { setSaveError('Choisissez un nombre entier de portions entre 1 et 100.'); return; }
+    if (ingredients.some(ingredient => ingredient.name.trim() && (!Number.isFinite(ingredient.quantity) || ingredient.quantity < 0))) { setSaveError('Corrigez les quantités d’ingrédients négatives ou invalides.'); return; }
+    setSaveError(null);
     setLoading(true);
     try {
       const recipe: Recipe = {
@@ -529,19 +568,24 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
         image_url: imageUrl || undefined,
         cuisine_category: cuisineCategory || undefined,
         meal_type: mealType || undefined,
-        prep_time: parseInt(prepTime),
-        cook_time: parseInt(cookTime),
-        servings: parseInt(servings),
+        prep_time: Number(prepTime),
+        cook_time: Number(cookTime),
+        servings: Number(servings),
         difficulty,
         instructions,
         tags,
         ingredients: ingredients.filter(ing => ing.name.trim())
       };
 
-      // TODO: Implémenter avec useRecipes hook
-      console.log('🍳 Adding recipe:', recipe);
-      
-      onRecipeAdded?.(recipe);
+      const { ingredients: entered, ...fields } = recipe;
+      const saved = await saveRecipeWithIngredients({ recipe: { ...fields, is_public: false }, ingredients: entered.map(ingredient => ({
+        ingredient_name: ingredient.name, quantity: ingredient.quantity === 0 ? null : ingredient.quantity,
+        unit: ingredient.unit, is_essential: ingredient.is_essential, notes: ingredient.notes,
+      })) });
+      if (user) localStorage.removeItem(`v10-draft:${user.id}:manual-recipe`);
+      setDraftReady(false);
+      setPendingSave(false);
+      onRecipeAdded?.({ ...recipe, id: saved.id, name: saved.name });
       onOpenChange(false);
       resetForm();
       
@@ -551,9 +595,12 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
       });
       
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Impossible de sauvegarder. Votre saisie est conservée.';
+      setSaveError(message);
+      await restorePendingSave().catch(() => undefined);
       toast({
-        title: "Erreur",
-        description: "Impossible d'ajouter la recette",
+        title: "Sauvegarde non confirmée",
+        description: message,
         variant: "destructive"
       });
     } finally {
@@ -562,7 +609,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={next => { if (!loading) onOpenChange(next); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -571,6 +618,12 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
           </DialogTitle>
         </DialogHeader>
         
+        {saveError && <p role="alert" className="rounded-md border border-destructive p-3 text-sm text-destructive">{saveError} Votre saisie est conservée. Réessayez après correction ou reconnexion.</p>}
+        {pendingSave && <div role="status" className="rounded-md border p-3 text-sm">
+          <p>Cette sauvegarde attend confirmation. La saisie reste conservée pendant la vérification.</p>
+          <Button className="mt-2" disabled={loading} onClick={handleSubmit}>{loading ? 'Vérification…' : 'Vérifier la sauvegarde'}</Button>
+        </div>}
+        <fieldset disabled={loading || pendingSave} className="min-w-0">
         {/* Tabs pour différents modes d'ajout (pattern Cipher) */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
           <TabsList className="grid w-full grid-cols-5 mb-4">
@@ -1022,6 +1075,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
             )}
           </Button>
         </div>
+        </fieldset>
       </DialogContent>
       
       {/* OCR Scanner Modal */}

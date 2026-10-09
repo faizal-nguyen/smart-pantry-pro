@@ -86,6 +86,7 @@ export default function AddRecipeToMenuDialog({
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 300);
   const [results, setResults] = useState<SearchableRecipe[]>([]);
+  const [searchError,setSearchError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
   // Reset state every time the dialog opens / slot changes.
@@ -104,18 +105,19 @@ export default function AddRecipeToMenuDialog({
     // hook). On laisse l'utilisateur affiner via le champ recherche
     // — c'est le slot qu'il vient de cliquer, le contexte est connu.
     void (async () => {
+      setSearchError(null);
       const raw = await searchRecipes(debouncedQuery);
       if (!active) return;
       setResults(raw.map(toSearchable).filter((r): r is SearchableRecipe => r !== null));
       setHasSearched(true);
-    })();
+    })().catch(error => { if (active) setSearchError(error instanceof Error ? error.message : 'Recherche impossible. Réessayez.'); });
     return () => {
       active = false;
     };
   }, [open, debouncedQuery, searchRecipes]);
 
   const handleSelect = async (recipeId: string) => {
-    await onSelect(recipeId);
+    try { await onSelect(recipeId); } catch (error) { setSearchError(error instanceof Error ? error.message : 'Ajout non confirmé. Réessayez.'); }
   };
 
   const handleImport = () => {
@@ -153,6 +155,7 @@ export default function AddRecipeToMenuDialog({
           />
         </div>
 
+        {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
         <ScrollArea className="h-72 rounded-md border">
           {isLoading && (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground gap-2 py-12">

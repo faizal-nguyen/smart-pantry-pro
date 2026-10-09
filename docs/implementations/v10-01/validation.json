@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-08",
+  "head": "818ce526a799ef72bfde9280b5cc3e74c10e9931",
+  "workingTreeChanges": true,
+  "commitCreated": false,
+  "remoteDeployment": false,
+  "build": {
+    "command": "npm run build",
+    "passed": true,
+    "scope": "TypeScript shared/API and Vite frontend bundle, not a full frontend typecheck"
+  },
+  "client": {
+    "command": "npm run test:v10:client",
+    "suites": 9,
+    "tests": 28,
+    "passed": true
+  },
+  "api": {
+    "command": "npm run test:v10:api",
+    "suites": 15,
+    "tests": 231,
+    "passed": true,
+    "authentication": "HTTP harness stub; real deployed JWT authentication not validated"
+  },
+  "postgresql": {
+    "command": "npm run test:v10:db",
+    "groups": 13,
+    "passed": true,
+    "realEngine": true,
+    "schema": "supabase/tests/v10-schema.sql plus V10 migration, reconstructed from repository contracts",
+    "projectRemoteSchemaVerified": false,
+    "databases": "fresh v10_test_<uuid> dropped by the test script",
+    "additionalChecks": [
+      "Unrounded 0.125 g recipe ingredient after migration from NUMERIC(10,2)",
+      "Unicode case matching Œ/œ with locale-independent ICU collation",
+      "Stock receipt quantities remain numeric for transfer and inverse; restored shopping versions reject stale selections"
+    ]
+  },
+  "lint": {
+    "files": 65,
+    "errors": 0,
+    "warnings": 32,
+    "globalLintRequalified": false
+  },
+  "openValidation": [
+    "Remote schema and policies of the Smart Grocery project",
+    "Full source types regeneration from that schema",
+    "JWT auth in deployed API",
+    "Actual reload/reconnect with Supabase",
+    "Old client bundle compatibility",
+    "Safari and real iPhone 17 Pro Max",
+    "Exact 375 CSS px, keyboard, large text, VoiceOver and hardware safe area",
+    "Full end-to-end catalog/menu/recommendations/undo loop"
+  ],
+  "evidenceDistinction": "PostgreSQL tests use a real local engine; UI screenshots use fictional in-memory API/Supabase substitutes.",
+  "diffCheck": {
+    "command": "git diff --check",
+    "passed": true
+  },
+  "localTestServersStopped": true
+}

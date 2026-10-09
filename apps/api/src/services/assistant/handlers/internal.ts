@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { StockCommandService } from '../../stock/StockCommandService.js';
 /**
  * PRP-221 J5b — Internal handlers used ONLY as reversible_action targets.
  *
@@ -18,6 +20,19 @@ import {
   type ToolExecutionResult,
 } from './types.js';
 import { invalidateRecoCache } from './write.js';
+
+export class UndoStockCommandInternalHandler implements ToolHandler<{ original_command_id: string }> {
+  async execute(ctx: ToolExecutionContext,args: { original_command_id: string }) {
+    // A separate stable UUID for the inverse; retry after a lost response returns its receipt.
+    const hex = createHash('sha256').update(`v10-undo:${ctx.userId}:${args.original_command_id}`).digest('hex');
+    const commandId = `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-8${hex.slice(17,20)}-${hex.slice(20,32)}`;
+    const result = await new StockCommandService(ctx.userClient).execute(ctx.userId,{
+      command_id: commandId, command_type: 'undo_stock', payload_version: 1,
+      payload: { original_command_id: args.original_command_id },
+    });
+    return { result };
+  }
+}
 
 // ---- _remove_inventory_items ----------------------------------------
 
@@ -115,20 +130,7 @@ export class RestoreInventoryItemSnapshotInternalHandler
     ctx: ToolExecutionContext,
     args: RestoreInventoryItemSnapshotArgs
   ): Promise<ToolExecutionResult<{ restored: boolean }>> {
-    const update: Record<string, unknown> = {};
-    if (args.snapshot.quantity !== undefined) update.quantity = args.snapshot.quantity;
-    if (args.snapshot.expiry_date !== undefined) update.expiry_date = args.snapshot.expiry_date;
-    if (args.snapshot.location !== undefined) update.location = args.snapshot.location;
-    if (Object.keys(update).length === 0) return { result: { restored: false } };
-
-    const { error } = await ctx.userClient
-      .from('inventory')
-      .update(update)
-      .eq('user_id', ctx.userId)
-      .eq('id', args.inventory_id);
-    if (error) throw error;
-    await invalidateRecoCache(ctx);
-    return { result: { restored: true } };
+    throw new Error('Cette ancienne action ne dispose pas d’une version de stock. Corrigez le lot manuellement après vérification.');
   }
 }
 
@@ -208,6 +210,7 @@ export class RemoveMealPlanEntriesInternalHandler
 // ---- registration helper --------------------------------------------
 
 export const INTERNAL_TOOL_NAMES = [
+  '_undo_stock_command',
   '_remove_inventory_items',
   '_restore_inventory_quantities',
   '_restore_inventory_item_snapshot',
@@ -216,6 +219,7 @@ export const INTERNAL_TOOL_NAMES = [
 ] as const;
 
 export function registerInternalHandlers(registry: ToolHandlerRegistry): void {
+  registry.register('_undo_stock_command',new UndoStockCommandInternalHandler());
   registry.register('_remove_inventory_items', new RemoveInventoryItemsInternalHandler());
   registry.register(
     '_restore_inventory_quantities',

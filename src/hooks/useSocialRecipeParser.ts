@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { ParsedRecipe, RecipeParsingResult } from "./useRecipeParser";
+interface ParsedRecipe {
+  title: string; description?: string; ingredients: string[]; instructions: string[];
+  prepTime?: string; cookTime?: string; servings?: number; difficulty?: 'easy' | 'medium' | 'hard';
+  tags?: string[]; imageUrl?: string; videoUrl?: string; author?: string; sourceUrl?: string;
+}
+interface RecipeParsingResult { success: boolean; data?: ParsedRecipe; error?: string; confidence: number; parsingMethod: string; }
 import { socialMediaParser } from "@/services/socialMediaParser/socialMediaRecipeParser";
 import { enhancedSocialMediaParser } from "@/services/socialMediaParser/enhancedSocialMediaParser";
 
 // Types pour parsing social media (pattern Cipher)
 export interface SocialParsingResult extends RecipeParsingResult {
-  platform?: 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'youtube';
+  platform?: 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'youtube' | 'twitter';
   author?: string;
   authorProfile?: string;
   likes?: number;
@@ -84,9 +89,9 @@ export const useSocialRecipeParser = () => {
       const parsedRecipe: ParsedRecipe = {
         title: result.recipe?.name || '',
         description: result.recipe?.description,
-        ingredients: result.recipe?.ingredients?.map((ing: any) => 
+        ingredients: result.recipe?.ingredients?.map(ing =>
           typeof ing === 'string' ? ing : 
-          `${ing.quantity} ${ing.unit} ${ing.name}`.trim()
+          `${ing.amount ?? ""} ${ing.unit ?? ""} ${ing.name}`.trim()
         ) || [],
         instructions: result.recipe?.instructions || [],
         prepTime: result.recipe?.prepTime?.toString(),
@@ -156,7 +161,7 @@ export const useSocialRecipeParser = () => {
         title: result.recipe?.name || '',
         description: result.recipe?.description,
         ingredients: result.recipe?.ingredients?.map(ing => 
-          `${ing.quantity} ${ing.unit} ${ing.name}`.trim()
+          `${ing.amount ?? ""} ${ing.unit ?? ""} ${ing.name}`.trim()
         ) || [],
         instructions: result.recipe?.instructions || [],
         prepTime: result.recipe?.prepTime?.toString(),

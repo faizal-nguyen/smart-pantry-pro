@@ -1,3 +1,4 @@
+import { StockCommandService, StockCommandError } from '../../../stock/StockCommandService.js';
 /**
  * Write-handler tests. Mocks supabase-js builder + a stub
  * ProductResolver. Goal: validate the SQL shape, the reversible_action
@@ -224,6 +225,7 @@ function makeResolver(plan: ResolverPlan = {}) {
 function makeCtx(client: any, resolverPlan: ResolverPlan = {}): ToolExecutionContext {
   return {
     userId: USER,
+    commandId: "40000000-0000-4000-8000-000000000001",
     userClient: client,
     adminClient: {} as any,
     productResolver: makeResolver(resolverPlan) as any,
@@ -270,6 +272,7 @@ describe('AddInventoryItemsHandler', () => {
         product_id: 'p-tomate',
         quantity: 2,
         expiry_date: null,
+        unit: "unit",
       },
     ]);
   });
@@ -378,274 +381,83 @@ describe('UnmarkShoppingItemsBoughtHandler', () => {
   });
 });
 
-// ---- LOW : add_recipe_to_meal_plan ----------------------------------
+// Stock handlers use the same service as explicit UI commands. Real RPC effects are tested separately.
+const receipt = {
+  command_id: '40000000-0000-4000-8000-000000000001', command_type: 'consume_inventory', status: 'confirmed' as const,
+  affected_tables: ['inventory'], meal_plan_id: 'plan-1', meal_plan_entry_id: 'entry-1',
+  changes: [{ id: 'inv-1', before_quantity: 5, after_quantity: 3, unit: 'kg', stock_version: 3 }],
+};
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.spyOn(StockCommandService.prototype,'getResult').mockResolvedValue(null);
+  jest.spyOn(StockCommandService.prototype,'preview').mockResolvedValue({
+    recipe: { id: '22222222-2222-4222-8222-222222222222', source: 'user_recipes', canonicalId: 'canonical', name: 'Pasta', servings: 4, version: 'v', ingredients: [] },
+    servings: 4, lots: [], allocations: [], missing: [],
+  });
+  jest.spyOn(StockCommandService.prototype,'execute').mockResolvedValue(receipt);
+});
 
 describe('AddRecipeToMealPlanHandler', () => {
-  it('finds-or-creates the weekly plan, inserts the entry, returns reversible', async () => {
-    const recipeId = '22222222-2222-2222-2222-222222222222';
-    let recipeFetched = false;
-    let weeklyMaybeSingleCalls = 0;
-
-    const builder: any = {
-      from(table: string) {
-        if (table === 'recipes') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => {
-                    recipeFetched = true;
-                    return {
-                      data: {
-                        id: recipeId,
-                        name: 'Pasta',
-                        servings: 4,
-                        prep_time: 10,
-                        cook_time: 15,
-                      },
-                      error: null,
-                    };
-                  },
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === 'weekly_meal_plans') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => {
-                    weeklyMaybeSingleCalls += 1;
-                    return { data: { id: 'plan-1' }, error: null };
-                  },
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === 'meal_plan_entries') {
-          return {
-            insert: (_p: any) => ({
-              select: () => ({
-                single: async () => ({ data: { id: 'entry-1' }, error: null }),
-              }),
-            }),
-          };
-        }
-        throw new Error('unexpected table ' + table);
-      },
-    };
-
-    const result = await new AddRecipeToMealPlanHandler().execute(makeCtx(builder), {
-      recipe_id: recipeId,
-      week_start: '2026-05-04',
-      day_of_week: 1,
-      meal_type: 'dinner',
+  it('plans the exact library identity and date through one server command', async () => {
+    const recipeId = '22222222-2222-4222-8222-222222222222';
+    const { client,calls } = makeClient({ routes: {} });
+    const result = await new AddRecipeToMealPlanHandler().execute(makeCtx(client),{
+      recipe_id: recipeId, week_start: '2026-05-04', day_of_week: 1, meal_type: 'dinner',
     });
-
-    expect(recipeFetched).toBe(true);
-    expect(weeklyMaybeSingleCalls).toBe(1);
-    expect(result.result).toMatchObject({
-      entry_id: 'entry-1',
-      weekly_meal_plan_id: 'plan-1',
-      recipe_name: 'Pasta',
-    });
-    expect(result.reversibleAction).toEqual({
-      tool: '_remove_meal_plan_entries',
-      args: { entry_ids: ['entry-1'] },
-    });
-  });
-
-  it('creates a weekly plan when none exists for that week', async () => {
-    let createdPlan = false;
-    const builder: any = {
-      from(table: string) {
-        if (table === 'recipes') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => ({
-                    data: { id: 'r', name: 'X', servings: 1, prep_time: 0, cook_time: 0 },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === 'weekly_meal_plans') {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  maybeSingle: async () => ({ data: null, error: null }),
-                }),
-              }),
-            }),
-            insert: () => ({
-              select: () => ({
-                single: async () => {
-                  createdPlan = true;
-                  return { data: { id: 'plan-new' }, error: null };
-                },
-              }),
-            }),
-          };
-        }
-        if (table === 'meal_plan_entries') {
-          return {
-            insert: () => ({
-              select: () => ({
-                single: async () => ({ data: { id: 'entry-2' }, error: null }),
-              }),
-            }),
-          };
-        }
-        throw new Error('unexpected ' + table);
-      },
-    };
-
-    const result = await new AddRecipeToMealPlanHandler().execute(makeCtx(builder), {
-      recipe_id: '22222222-2222-2222-2222-222222222222',
-      week_start: '2026-05-11',
-      day_of_week: 0,
-      meal_type: 'lunch',
-    });
-
-    expect(createdPlan).toBe(true);
-    expect(result.result.weekly_meal_plan_id).toBe('plan-new');
-  });
-
-  it('throws RECIPE_NOT_FOUND when the recipe id is invalid', async () => {
-    const builder: any = {
-      from() {
-        return {
-          select: () => ({
-            eq: () => ({
-              eq: () => ({
-                maybeSingle: async () => ({ data: null, error: null }),
-              }),
-            }),
-          }),
-        };
-      },
-    };
-    await expect(
-      new AddRecipeToMealPlanHandler().execute(makeCtx(builder), {
-        recipe_id: '22222222-2222-2222-2222-222222222222',
-        week_start: '2026-05-04',
-        day_of_week: 1,
-        meal_type: 'dinner',
-      })
-    ).rejects.toMatchObject({ code: 'RECIPE_NOT_FOUND' });
-  });
-});
-
-// ---- MEDIUM : consume_inventory_items -------------------------------
-
-describe('ConsumeInventoryItemsHandler', () => {
-  it('decrements quantities and produces a restore reversibleAction', async () => {
-    const { client, calls } = makeClient({
-      routes: {
-        inventory: {
-          selectRows: [{ id: 'i1', quantity: 5 }],
-        },
-      },
-    });
-    const result = await new ConsumeInventoryItemsHandler().execute(
-      makeCtx(client),
-      { items: [{ inventory_id: 'i1', quantity: 2 }] }
-    );
-    expect(result.result.consumed).toEqual([
-      { inventory_id: 'i1', new_quantity: 3, consumed_quantity: 2 },
-    ]);
-    expect(result.result.insufficient).toEqual([]);
-    expect(result.reversibleAction).toEqual({
-      tool: '_restore_inventory_quantities',
-      args: { deltas: [{ inventory_id: 'i1', quantity: 2 }] },
-    });
-    const update = calls.find((c) => c.op === 'update');
-    expect(update?.payload).toEqual({ quantity: 3 });
-  });
-
-  it('skips items with insufficient stock and reports them', async () => {
-    const { client } = makeClient({
-      routes: {
-        inventory: {
-          selectRows: [
-            { id: 'a', quantity: 1 },
-            { id: 'b', quantity: 0 },
-          ],
-        },
-      },
-    });
-    const result = await new ConsumeInventoryItemsHandler().execute(
-      makeCtx(client),
-      {
-        items: [
-          { inventory_id: 'a', quantity: 5 },
-          { inventory_id: 'b', quantity: 1 },
-          { inventory_id: 'missing', quantity: 1 },
-        ],
-      }
-    );
-    expect(result.result.consumed).toEqual([]);
-    expect(result.result.insufficient).toEqual([
-      { inventory_id: 'a', available: 1, requested: 5 },
-      { inventory_id: 'b', available: 0, requested: 1 },
-      { inventory_id: 'missing', available: 0, requested: 1 },
-    ]);
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER,expect.objectContaining({
+      command_type: 'plan_recipe', payload: { recipe: { id: recipeId, source: 'user_recipes' }, servings: 4, date: '2026-05-05', meal_type: 'dinner' },
+    }));
+    expect(result.result.entry_id).toBe('entry-1');
     expect(result.reversibleAction).toBeNull();
+    expect(calls).toEqual([]);
+  });
+  it('returns a committed receipt before resolving a recipe changed since the original request', async () => {
+    jest.mocked(StockCommandService.prototype.getResult).mockResolvedValueOnce(receipt);
+    await new AddRecipeToMealPlanHandler().execute(makeCtx({}),{ recipe_id: 'recipe', week_start: '2026-05-04', day_of_week: 0, meal_type: 'lunch' });
+    expect(StockCommandService.prototype.preview).not.toHaveBeenCalled();
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
+  });
+  it('surfaces a private or absent recipe without a fabricated menu entry', async () => {
+    jest.mocked(StockCommandService.prototype.preview).mockRejectedValueOnce(new StockCommandError('RECIPE_NOT_FOUND',404));
+    await expect(new AddRecipeToMealPlanHandler().execute(makeCtx({}),{ recipe_id: 'private', week_start: '2026-05-04', day_of_week: 0, meal_type: 'dinner' })).rejects.toMatchObject({ code: 'RECIPE_NOT_FOUND' });
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
   });
 });
-
-// ---- MEDIUM : update_inventory_item ---------------------------------
-
+describe('ConsumeInventoryItemsHandler', () => {
+  it('passes units and expected versions to the atomic command and records its inverse identity', async () => {
+    const { client,calls } = makeClient({ routes: { inventory: { selectRows: [{ id: 'inv-1', quantity: 5, unit: 'kg', stock_version: 2 }] } } });
+    const result = await new ConsumeInventoryItemsHandler().execute(makeCtx(client),{ items: [{ inventory_id: 'inv-1', quantity: 200, unit: 'g' }] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER,expect.objectContaining({
+      command_type: 'consume_inventory', payload: { items: [{ id: 'inv-1', quantity: 200, unit: 'g', expected_version: 2 }] },
+    }));
+    expect(result.result.consumed[0].new_quantity).toBe(3);
+    expect(result.reversibleAction).toEqual({ tool: '_undo_stock_command', args: { original_command_id: receipt.command_id } });
+    expect(calls.some(call => call.op === 'update')).toBe(false);
+  });
+  it('rejects the whole batch if stock is insufficient, rather than reporting partial success', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockRejectedValueOnce(new StockCommandError('INSUFFICIENT_QUANTITY'));
+    const { client } = makeClient({ routes: { inventory: { selectRows: [{ id: 'inv-1', quantity: 5, unit: 'kg', stock_version: 2 }] } } });
+    await expect(new ConsumeInventoryItemsHandler().execute(makeCtx(client),{ items: [{ inventory_id: 'inv-1', quantity: 99 }] })).rejects.toMatchObject({ code: 'INSUFFICIENT_QUANTITY' });
+  });
+  it('replays the committed result without rereading or repeating the stock decrement', async () => {
+    jest.mocked(StockCommandService.prototype.getResult).mockResolvedValueOnce(receipt);
+    const result = await new ConsumeInventoryItemsHandler().execute(makeCtx({}),{ items: [{ inventory_id: 'inv-1', quantity: 2 }] });
+    expect(result.result.consumed).toEqual([{ inventory_id: 'inv-1', new_quantity: 3, consumed_quantity: 2 }]);
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
+  });
+});
 describe('UpdateInventoryItemHandler', () => {
-  it('snapshots the row before update and reverses to restore the snapshot', async () => {
-    const before = { quantity: 10, expiry_date: '2030-01-01', location: 'frigo' };
-    const { client, calls } = makeClient({
-      routes: { inventory: { selectMaybeSingle: before } },
-    });
-    const result = await new UpdateInventoryItemHandler().execute(makeCtx(client), {
-      inventory_id: '11111111-1111-1111-1111-111111111111',
-      quantity: 5,
-    });
-    expect(result.result.before).toEqual(before);
-    expect(result.result.after).toEqual({ quantity: 5, expiry_date: '2030-01-01', location: 'frigo' });
-    expect(result.reversibleAction).toEqual({
-      tool: '_restore_inventory_item_snapshot',
-      args: {
-        inventory_id: '11111111-1111-1111-1111-111111111111',
-        snapshot: before,
-      },
-    });
-    const update = calls.find((c) => c.op === 'update');
-    expect(update?.payload).toEqual({ quantity: 5 });
+  it('corrects with an expected version and records an inverse command, never an absolute snapshot', async () => {
+    const { client,calls } = makeClient({ routes: { inventory: { selectMaybeSingle: { quantity: 5, unit: 'kg', stock_version: 2, location: 'Placard', expiry_date: null } } } });
+    const result = await new UpdateInventoryItemHandler().execute(makeCtx(client),{ inventory_id: 'inv-1', quantity: 3, location: 'Frigo' });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER,expect.objectContaining({ payload: { items: [{ id: 'inv-1', quantity: 3, unit: 'kg', expected_version: 2, location: 'Frigo' }] } }));
+    expect(result.reversibleAction?.tool).toBe('_undo_stock_command');
+    expect(calls.some(call => call.op === 'update')).toBe(false);
   });
-
-  it('throws INVENTORY_NOT_FOUND when the row is missing', async () => {
-    const { client } = makeClient({
-      routes: { inventory: { selectMaybeSingle: null } },
-    });
-    await expect(
-      new UpdateInventoryItemHandler().execute(makeCtx(client), {
-        inventory_id: '11111111-1111-1111-1111-111111111111',
-        quantity: 1,
-      })
-    ).rejects.toMatchObject({ code: 'INVENTORY_NOT_FOUND' });
-  });
-
-  it('throws EMPTY_UPDATE when no field is provided', async () => {
-    const { client } = makeClient({ routes: { inventory: {} } });
-    await expect(
-      new UpdateInventoryItemHandler().execute(makeCtx(client), {
-        inventory_id: '11111111-1111-1111-1111-111111111111',
-      })
-    ).rejects.toMatchObject({ code: 'EMPTY_UPDATE' });
+  it('rejects a missing row or an empty correction', async () => {
+    const { client } = makeClient({ routes: {} });
+    await expect(new UpdateInventoryItemHandler().execute(makeCtx(client),{ inventory_id: 'missing', quantity: 3 })).rejects.toMatchObject({ code: 'INVENTORY_NOT_FOUND' });
+    await expect(new UpdateInventoryItemHandler().execute(makeCtx(client),{ inventory_id: 'missing' })).rejects.toMatchObject({ code: 'EMPTY_UPDATE' });
   });
 });
 
@@ -747,27 +559,24 @@ describe('PRP-226 PR4 — recommendation cache invalidation', () => {
     expect(invalidations).toEqual([]);
   });
 
-  it('consume_inventory_items drops the cache after a successful decrement', async () => {
+  it('stock-command invalidation is handled inside the database transaction', async () => {
     const { client } = makeClient({
       routes: {
-        inventory: { selectRows: [{ id: 'inv-1', quantity: 5 }] },
+        inventory: { selectRows: [{ id: 'inv-1', quantity: 5, unit: 'kg', stock_version: 0 }] },
       },
     });
     const { ctx, invalidations } = makeCtxWithWriter(client);
     await new ConsumeInventoryItemsHandler().execute(ctx, {
       items: [{ inventory_id: 'inv-1', quantity: 2 }],
     });
-    expect(invalidations).toEqual([USER]);
+    expect(invalidations).toEqual([]);
   });
 
-  it('consume_inventory_items skips the cache when every line is insufficient', async () => {
-    const { client } = makeClient({
-      routes: { inventory: { selectRows: [{ id: 'inv-1', quantity: 1 }] } },
-    });
-    const { ctx, invalidations } = makeCtxWithWriter(client);
-    await new ConsumeInventoryItemsHandler().execute(ctx, {
-      items: [{ inventory_id: 'inv-1', quantity: 99 }],
-    });
+  it('refused stock commands do not advertise an invalidation or partial success', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockRejectedValueOnce(new StockCommandError('INSUFFICIENT_QUANTITY'));
+    const { client } = makeClient({ routes: { inventory: { selectRows: [{ id: 'inv-1', quantity: 1, unit: 'kg', stock_version: 0 }] } } });
+    const { ctx,invalidations } = makeCtxWithWriter(client);
+    await expect(new ConsumeInventoryItemsHandler().execute(ctx,{ items: [{ inventory_id: 'inv-1', quantity: 99 }] })).rejects.toMatchObject({ code: 'INSUFFICIENT_QUANTITY' });
     expect(invalidations).toEqual([]);
   });
 

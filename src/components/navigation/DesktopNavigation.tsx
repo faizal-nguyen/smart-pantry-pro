@@ -1,3 +1,4 @@
+import { isNavigationActive } from '@/lib/routineRoutes';
 /**
  * DesktopNavigation - Navigation Desktop sidebar persistante.
  *
@@ -142,7 +143,7 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
           )}
           
           {navigationConfig.mainNavigation.map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
+            const isActive = isNavigationActive(location.pathname,item.path);
             const IconComponent = item.icon;
             const hasSubItems = item.subItems && item.subItems.length > 0;
             const isExpanded = expandedSections.includes(item.id);
@@ -292,7 +293,7 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
             )}
             
             {navigationConfig.specialNavigation.map((item) => {
-              const isActive = location.pathname.startsWith(item.path);
+              const isActive = isNavigationActive(location.pathname,item.path);
               const IconComponent = item.icon;
               
               return (

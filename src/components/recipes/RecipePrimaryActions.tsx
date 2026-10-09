@@ -2,7 +2,7 @@
  * RecipePrimaryActions — actions principales du détail recette.
  *
  * PRP-232 PR4 — extrait de `src/pages/RecipeDetail.tsx`. Trois actions
- * "Marquer comme cuisinée", "Ajouter les manquants aux courses", "Modifier".
+ * "Commencer", "Ajouter les manquants aux courses", "Modifier".
  * Le wording évite "Décrémenter l'inventaire" (verboten §9). Le détail
  * de l'effet (décrémentation) reste documenté côté handler.
  */
@@ -40,7 +40,7 @@ export default function RecipePrimaryActions({
         ) : (
           <>
             <ChefHat className="w-4 h-4 mr-2" aria-hidden="true" />
-            Marquer comme cuisinée
+            Commencer
           </>
         )}
       </Button>

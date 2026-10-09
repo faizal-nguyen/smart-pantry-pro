@@ -1,0 +1,18 @@
+PASS 1 kg - 200 g, portions and inverse movement
+PASS incompatible/unknown units, null or negative amounts and deficits rejected
+PASS lost response replay is exact; another payload with same identity rejected
+PASS two simultaneous requests with the same command apply once
+PASS two devices cannot consume the last stock twice
+PASS injected journal refusal rolls back stock, receipt and movements
+PASS undo never overwrites a later correction; inverse is unique and replayable
+PASS RPC, RLS, privileged internal calls and legacy user spoofing boundaries
+PASS six-item transfer refusal, overlapping transfers, lost response and restoration
+PASS manual recipe/ingredients are atomic, persistent and replayable
+PASS catalogue, customized wrapper, custom recipe and menu identities
+PASS repeated ingredients reserve shared lots and cannot overdraw stock
+PASS manual/command invalidation is transactional and restricted to the account
+PASS routine introduction and favorites stay owned across devices/accounts
+PASS edited shopping quantities/units transfer atomically; undo restores original purchase
+PASS actual meal quantities apply once, unused ingredients consume zero, foreign/incorrect lots rejected
+PASS explicit replacement consumes only the chosen product and lot; inverse restores it
+17 groups passed on real PostgreSQL (local reconstructed schema).

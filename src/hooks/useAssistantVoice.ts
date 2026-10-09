@@ -14,6 +14,7 @@
  * id so the server dedupes via UNIQUE(user_id, client_request_id, step_seq).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 
 import {
   postAssistantVoice,
@@ -81,6 +82,7 @@ export function useAssistantVoice(
   options: UseAssistantVoiceOptions = {}
 ): UseAssistantVoiceReturn {
   const { language, allowedTools, maxRecordingMs = 60_000, getConversationId } = options;
+  const { user } = useAuthSessionOptional();
 
   const [status, setStatus] = useState<AssistantStatus>('idle');
   const [recordingMs, setRecordingMs] = useState(0);
@@ -95,8 +97,16 @@ export function useAssistantVoice(
   const tickerRef = useRef<number | null>(null);
   const maxStopTimerRef = useRef<number | null>(null);
   const requestIdRef = useRef<string | null>(null);
+  const activeRef = useRef(true);
+  const epochRef = useRef(0);
 
   const cleanupStream = useCallback(() => {
+    if (recorderRef.current) {
+      recorderRef.current.onstop = null;
+      recorderRef.current.ondataavailable = null;
+      recorderRef.current.onerror = null;
+      if (recorderRef.current.state === 'recording') recorderRef.current.stop();
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -115,10 +125,12 @@ export function useAssistantVoice(
 
   // Always cleanup on unmount (don't leave the mic hot).
   useEffect(() => {
-    return () => cleanupStream();
+    activeRef.current = true;
+    return () => { activeRef.current = false; epochRef.current++; cleanupStream(); };
   }, [cleanupStream]);
 
   const reset = useCallback(() => {
+    epochRef.current++;
     cleanupStream();
     requestIdRef.current = null;
     setStatus('idle');
@@ -129,6 +141,8 @@ export function useAssistantVoice(
 
   const dispatchAudio = useCallback(
     async (blob: Blob, durationSeconds: number) => {
+      if (!activeRef.current) return;
+      const epoch = epochRef.current;
       if (!requestIdRef.current) requestIdRef.current = newClientRequestId();
       setStatus('uploading');
       setError(null);
@@ -141,15 +155,18 @@ export function useAssistantVoice(
           audioDurationSeconds: durationSeconds,
           allowedTools,
           conversationId: getConversationId?.(),
+          expectedUserId: user?.id,
         });
+        if (!activeRef.current || epoch !== epochRef.current) return;
         setStatus('done');
         setResult(response);
       } catch (err) {
+        if (!activeRef.current || epoch !== epochRef.current) return;
         setStatus('error');
         setError(err instanceof Error ? err.message : 'Upload failed');
       }
     },
-    [allowedTools, language, getConversationId]
+    [allowedTools, language, getConversationId, user?.id]
   );
 
   const startRecording = useCallback(async () => {
@@ -158,10 +175,12 @@ export function useAssistantVoice(
     setResult(null);
     setRecordingMs(0);
     requestIdRef.current = newClientRequestId();
+    const epoch = ++epochRef.current;
 
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!activeRef.current || epoch !== epochRef.current) { stream.getTracks().forEach(track => track.stop()); return; }
     } catch (err) {
       setStatus('error');
       setError(
@@ -230,6 +249,7 @@ export function useAssistantVoice(
   const sendText = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
+      const epoch = ++epochRef.current;
       requestIdRef.current = newClientRequestId();
       setError(null);
       setResult(null);
@@ -241,15 +261,18 @@ export function useAssistantVoice(
           language,
           allowedTools,
           conversationId: getConversationId?.(),
+          expectedUserId: user?.id,
         });
+        if (!activeRef.current || epoch !== epochRef.current) return;
         setStatus('done');
         setResult(response);
       } catch (err) {
+        if (!activeRef.current || epoch !== epochRef.current) return;
         setStatus('error');
         setError(err instanceof Error ? err.message : 'Send failed');
       }
     },
-    [allowedTools, language, getConversationId]
+    [allowedTools, language, getConversationId, user?.id]
   );
 
   const patchResult = useCallback(

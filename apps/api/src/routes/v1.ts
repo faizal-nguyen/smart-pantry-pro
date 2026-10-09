@@ -13,6 +13,7 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
+import { createStockRouter } from './stock.routes.js';
 import {
   createInventoryRouter,
   createRecipesRouter,
@@ -33,6 +34,7 @@ const authMiddleware = createAuthMiddleware(supabaseAdmin);
 // NOTE: Routes will receive req.supabaseClient (user-scoped, RLS-enforced)
 // NOT the admin client passed here (only used for router factory)
 v1Router.use('/inventory', authMiddleware, createInventoryRouter(supabaseAdmin));
+v1Router.use('/stock', authMiddleware, createStockRouter());
 v1Router.use('/recipes', authMiddleware, createRecipesRouter(supabaseAdmin));
 v1Router.use('/shopping', authMiddleware, createShoppingRouter(supabaseAdmin));
 v1Router.use('/users', authMiddleware, createUsersRouter(supabaseAdmin));

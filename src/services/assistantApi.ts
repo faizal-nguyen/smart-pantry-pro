@@ -71,8 +71,9 @@ export interface UndoResponse {
 
 const ASSISTANT_BASE = '/assistant';
 
-async function authHeader(): Promise<Record<string, string>> {
+async function authHeader(expectedUserId?: string): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
+  if (expectedUserId && data.session?.user.id !== expectedUserId) throw new ApiError('Le compte a changé. Recommencez depuis ce compte.', { status: 401, code: 'AUTH_CHANGED' });
   const token = data.session?.access_token;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -102,6 +103,7 @@ export async function postAssistantVoice(input: {
   allowedTools?: readonly string[];
   /** PRP-233 PR3 — sticky conversation id. Optional. */
   conversationId?: string;
+  expectedUserId?: string;
 }): Promise<AssistantPlanResponse> {
   const ext = mimeToExt(input.audioMime);
   const form = new FormData();
@@ -116,7 +118,7 @@ export async function postAssistantVoice(input: {
 
   const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/voice`, {
     method: 'POST',
-    headers: { ...(await authHeader()) },
+    headers: { ...(await authHeader(input.expectedUserId)) },
     body: form,
   });
   return await unwrapAssistant<AssistantPlanResponse>(res);
@@ -129,6 +131,7 @@ export function postAssistantText(input: {
   allowedTools?: readonly string[];
   /** PRP-233 PR3 — sticky conversation id. Optional. */
   conversationId?: string;
+  expectedUserId?: string;
 }): Promise<AssistantPlanResponse> {
   return apiPost<AssistantPlanResponse>(`${ASSISTANT_BASE}/text`, {
     text: input.text,
@@ -136,7 +139,7 @@ export function postAssistantText(input: {
     language: input.language,
     allowed_tools: input.allowedTools,
     conversation_id: input.conversationId,
-  });
+  }, { expectedUserId: input.expectedUserId });
 }
 
 export function postAssistantConfirm(
@@ -325,10 +328,12 @@ export interface CreateAssistantMemoryInput {
 
 export function createAssistantMemory(
   input: CreateAssistantMemoryInput,
+  options?: { expectedUserId?: string },
 ): Promise<{ memory: AssistantMemoryItem }> {
   return apiPost<{ memory: AssistantMemoryItem }>(
     `${ASSISTANT_BASE}/memories`,
     input,
+    options,
   );
 }
 

@@ -6,7 +6,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSessionOptional } from "@/hooks/useAuthenticatedUser";
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from "@/services/stockCommands";
+import { dispatchAgentDbChanged } from "@/lib/agentEvents";
+import { fireRecipeAssistantAction } from "@/lib/recipeActions";
 import type { CatalogRecipe } from "./useRecipeCatalog";
+import type { Database } from '@/integrations/supabase/types';
 
 // Types pour les recettes utilisateur
 export interface UserRecipe {
@@ -29,7 +34,7 @@ export interface UserRecipe {
   // Personnalisations
   custom_modifications: {
     title?: string;
-    ingredients_override?: any[];
+    ingredients_override?: CatalogRecipe['ingredients_json'];
     instructions_append?: string;
     servings_multiplier?: number;
     personal_notes_inline?: string;
@@ -91,6 +96,7 @@ export interface UserRecipeFilters {
 
 // Hook principal pour les recettes utilisateur
 export function useUserRecipes() {
+  const { user } = useAuthSessionOptional();
   const [filters, setFilters] = useState<UserRecipeFilters>({});
   const [sortBy, setSortBy] = useState<'added_date' | 'last_cooked_date' | 'times_cooked' | 'personal_rating'>('added_date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -104,12 +110,13 @@ export function useUserRecipes() {
     error,
     refetch
   } = useQuery({
-    queryKey: ['user-recipes', filters, sortBy, sortDirection],
-    queryFn: () => fetchUserRecipes(filters, sortBy, sortDirection),
+    queryKey: ['user-recipes', user?.id, filters, sortBy, sortDirection],
+    queryFn: () => fetchUserRecipes(filters, sortBy, sortDirection, user!.id),
+    enabled: !!user,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Mutation pour ajouter une recette du catalogue (fallback: return mock)
+  // Catalogue links are confirmed by the atomic command and an owned readback.
   const addFromCatalog = useMutation({
     mutationFn: async ({
       catalogRecipeId,
@@ -120,12 +127,26 @@ export function useUserRecipes() {
       collections?: string[];
       personalNotes?: string;
     }) => {
-      // Temporary: just return success without database operation
-      return { id: 'temp-' + Date.now(), catalogRecipeId, collections, personalNotes };
+      const intent = `catalog-add:${catalogRecipeId}`;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!user || session?.user.id !== user.id) throw new Error('Reconnectez-vous à ce compte pour ajouter cette recette.');
+      const pending = await pendingIntent(intent);
+      if (pending && pending.command_type !== 'add_catalog_recipe') throw new Error('L’ajout précédent reste à vérifier.');
+      const command = pending ?? await commandForIntent('add_catalog_recipe', intent, {
+        catalog_recipe_id: catalogRecipeId, collections, ...(personalNotes ? { personal_notes: personalNotes } : {}),
+      });
+      const result = await executeStockCommand(command);
+      const { data, error } = await supabase.from('user_recipes').select('*, catalog_recipe:recipes_catalog(*)')
+        .eq('user_id',user!.id).eq('id', result.user_recipe_id!).single();
+      if (error || !data) throw error ?? new Error('L’ajout reste à vérifier. Réessayez.');
+      await finishIntent(intent);
+      return data;
     },
     onSuccess: () => {
+      dispatchAgentDbChanged(["user_recipes"]);
       queryClient.invalidateQueries({ queryKey: ['user-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['user-collections'] });
+      queryClient.invalidateQueries({ queryKey: ['recipe-in-library'] });
     }
   });
 
@@ -162,6 +183,7 @@ export function useUserRecipes() {
       return data;
     },
     onSuccess: () => {
+      dispatchAgentDbChanged(["user_recipes"]);
       queryClient.invalidateQueries({ queryKey: ['user-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['user-collections'] });
     }
@@ -187,6 +209,7 @@ export function useUserRecipes() {
       return data;
     },
     onSuccess: () => {
+      dispatchAgentDbChanged(["user_recipes"]);
       queryClient.invalidateQueries({ queryKey: ['user-recipes'] });
     }
   });
@@ -194,14 +217,18 @@ export function useUserRecipes() {
   // Mutation pour supprimer une recette
   const deleteRecipe = useMutation({
     mutationFn: async (recipeId: string) => {
-      const { error } = await supabase
+      if (!user) throw new Error('Reconnectez-vous pour supprimer cette recette.');
+      const { data, error } = await supabase
         .from('user_recipes')
         .delete()
-        .eq('id', recipeId);
+        .eq('id', recipeId)
+        .eq('user_id', user.id)
+        .select('id');
 
-      if (error) throw error;
+      if (error || data?.length !== 1) throw error ?? new Error('Suppression non confirmée. Actualisez la bibliothèque.');
     },
     onSuccess: () => {
+      dispatchAgentDbChanged(["user_recipes"]);
       queryClient.invalidateQueries({ queryKey: ['user-recipes'] });
       queryClient.invalidateQueries({ queryKey: ['user-collections'] });
     }
@@ -210,20 +237,10 @@ export function useUserRecipes() {
   // Mutation pour marquer comme cuite
   const markAsCooked = useMutation({
     mutationFn: async (recipeId: string) => {
-      const { data, error } = await supabase
-        .from('user_recipes')
-        .update({
-          last_cooked_date: new Date().toISOString(),
-          times_cooked: supabase.sql`times_cooked + 1`
-        })
-        .eq('id', recipeId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return fireRecipeAssistantAction({ id: recipeId, name: '' },'cooked');
     },
     onSuccess: () => {
+      dispatchAgentDbChanged(["user_recipes"]);
       queryClient.invalidateQueries({ queryKey: ['user-recipes'] });
     }
   });
@@ -265,39 +282,44 @@ export function useUserRecipes() {
 
 // Hook pour récupérer une recette utilisateur spécifique
 export function useUserRecipe(recipeId: string | null) {
+  const { user } = useAuthSessionOptional();
   return useQuery({
-    queryKey: ['user-recipe', recipeId],
-    queryFn: () => fetchUserRecipe(recipeId!),
-    enabled: !!recipeId,
+    queryKey: ['user-recipe', user?.id, recipeId],
+    queryFn: () => fetchUserRecipe(recipeId!, user!.id),
+    enabled: !!recipeId && !!user,
     staleTime: 5 * 60 * 1000,
   });
 }
 
 // Hook pour vérifier si une recette du catalogue est déjà dans la bibliothèque
 export function useIsRecipeInLibrary(catalogRecipeId: string | null) {
+  const { user } = useAuthSessionOptional();
   return useQuery({
-    queryKey: ['recipe-in-library', catalogRecipeId],
+    queryKey: ['recipe-in-library', user?.id, catalogRecipeId],
     queryFn: async () => {
       if (!catalogRecipeId) return false;
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
 
-      // Fallback: toujours retourner false (pas dans la bibliothèque)
-      return false;
+      const { data, error } = await supabase.from('user_recipes').select('id').eq('user_id',user.id).eq('recipe_id',catalogRecipeId).limit(1);
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
     },
-    enabled: !!catalogRecipeId,
+    enabled: !!catalogRecipeId && !!user,
     staleTime: 1 * 60 * 1000, // 1 minute
   });
 }
 
 // Hook pour gérer les collections d'utilisateur
 export function useUserCollections() {
+  const { user } = useAuthSessionOptional();
   const queryClient = useQueryClient();
 
   const { data: collections, isLoading } = useQuery({
-    queryKey: ['user-collections'],
-    queryFn: fetchUserCollections,
+    queryKey: ['user-collections', user?.id],
+    queryFn: () => fetchUserCollections(user!.id),
+    enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -369,11 +391,12 @@ export function useUserCollections() {
         // Remove collection from all user recipes
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.sql`
-            UPDATE user_recipes 
-            SET collections = array_remove(collections, ${collection.name})
-            WHERE user_id = ${user.id}
-          `;
+          const { data: recipes, error: readError } = await supabase.from('user_recipes').select('id,collections').eq('user_id',user.id).contains('collections',[collection.name]);
+          if (readError) throw readError;
+          for (const recipe of recipes ?? []) {
+            const { error } = await supabase.from('user_recipes').update({ collections: (recipe.collections ?? []).filter(name => name !== collection.name) }).eq('user_id',user.id).eq('id',recipe.id).select('id').single();
+            if (error) throw error;
+          }
         }
       }
 
@@ -410,10 +433,11 @@ export function useUserCollections() {
 async function fetchUserRecipes(
   filters: UserRecipeFilters,
   sortBy: string,
-  sortDirection: 'asc' | 'desc'
+  sortDirection: 'asc' | 'desc',
+  expectedUserId: string
 ) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Utilisateur non connecté');
+  if (!user || user.id !== expectedUserId) throw new Error('Le compte a changé. Rouvrez la bibliothèque.');
 
   // The library has two storage layers (PRP-031 "Spotify" architecture):
   //   1. `recipes`       — legacy/standalone recipes owned by the user
@@ -431,15 +455,11 @@ async function fetchUserRecipes(
   ]);
 
   if (legacyRes.error) throw legacyRes.error;
-  // user_recipes/catalog can be missing on environments not yet migrated;
-  // we degrade to legacy-only instead of failing the whole query.
-  if (userLibRes.error) {
-    console.warn('[useUserRecipes] user_recipes read failed, falling back to legacy only:', userLibRes.error.message);
-  }
+  if (userLibRes.error) throw userLibRes.error;
 
   const merged: UserRecipe[] = [
     ...(legacyRes.data || []).map(mapRecipeToUserRecipe),
-    ...((userLibRes.data || []) as any[]).map(mapUserRecipesRowToUserRecipe),
+    ...((userLibRes.data || []) as unknown as UserRecipe[]).map(mapUserRecipesRowToUserRecipe),
   ];
 
   // Filters and sort run in-memory across the merged set. Two reasons:
@@ -512,7 +532,8 @@ function applyUserRecipeFilters(
 function sortUserRecipes(
   rows: UserRecipe[],
   sortBy: string,
-  sortDirection: 'asc' | 'desc'
+  sortDirection: 'asc' | 'desc',
+  expectedUserId: string
 ): UserRecipe[] {
   const dir = sortDirection === 'asc' ? 1 : -1;
   const key = (r: UserRecipe): number => {
@@ -531,25 +552,19 @@ function sortUserRecipes(
   return [...rows].sort((a, b) => (key(a) - key(b)) * dir);
 }
 
-async function fetchUserRecipe(recipeId: string) {
-  // Fallback: utiliser la table recipes existante
-  const { data, error } = await supabase
-    .from('recipes')
-    .select('*')
-    .eq('id', recipeId)
-    .single();
-
-  if (error) throw error;
-  return mapRecipeToUserRecipe(data);
+async function fetchUserRecipe(recipeId: string, userId: string) {
+  const library = await supabase.from('user_recipes').select('*, catalog_recipe:recipes_catalog(*)').eq('user_id',userId).eq('id',recipeId).maybeSingle();
+  if (library.error) throw library.error;
+  if (library.data) return mapUserRecipesRowToUserRecipe(library.data);
+  const legacy = await supabase.from('recipes').select('*').eq('user_id',userId).eq('id',recipeId).single();
+  if (legacy.error) throw legacy.error;
+  return mapRecipeToUserRecipe(legacy.data);
 }
 
-async function fetchUserCollections() {
-  // Fallback: retourner des collections par défaut
-  return [
-    { id: '1', name: 'Favoris', description: 'Mes recettes préférées', color: '#ef4444', icon: 'heart' },
-    { id: '2', name: 'Rapides', description: 'Moins de 30 minutes', color: '#22c55e', icon: 'clock' },
-    { id: '3', name: 'Comfort Food', description: 'Plats réconfortants', color: '#f59e0b', icon: 'chef-hat' },
-  ];
+async function fetchUserCollections(userId: string) {
+  const { data, error } = await supabase.from('user_collections').select('*').eq('user_id',userId).order('name');
+  if (error) throw error;
+  return data ?? [];
 }
 
 // Utilitaires pour obtenir le titre/image d'une recette (catalogue ou custom)
@@ -608,7 +623,7 @@ export function getRecipeIngredients(recipe: UserRecipe) {
 // collections, cook history) doesn't exist on that table, so we leave
 // it empty rather than fabricating a `personal_rating: 4` that would
 // turn every legacy recipe into a fake favorite.
-function mapRecipeToUserRecipe(recipe: any): UserRecipe {
+function mapRecipeToUserRecipe(recipe: Database['public']['Tables']['recipes']['Row'] & { ingredients?: UserRecipe['custom_ingredients_json']; recipe_facets?: UserRecipe['recipe_facets'] }): UserRecipe {
   return {
     id: recipe.id,
     user_id: recipe.user_id,
@@ -617,10 +632,10 @@ function mapRecipeToUserRecipe(recipe: any): UserRecipe {
     custom_title: recipe.name,
     custom_ingredients_json: recipe.ingredients || [],
     custom_instructions: recipe.instructions || '',
-    custom_photo_url: recipe.image_url,
+    custom_photo_url: recipe.image_url ?? undefined,
     custom_modifications: {},
     cuisine_category: recipe.cuisine_category ?? undefined,
-    personal_notes: recipe.description,
+    personal_notes: recipe.description ?? undefined,
     personal_rating: undefined,
     personal_tags: recipe.tags || [],
     collections: [],
@@ -637,7 +652,7 @@ function mapRecipeToUserRecipe(recipe: any): UserRecipe {
 
 // Maps a `user_recipes` row (with embedded `recipes_catalog` via the
 // `catalog_recipe` alias) to the unified `UserRecipe` shape.
-function mapUserRecipesRowToUserRecipe(row: any): UserRecipe {
+function mapUserRecipesRowToUserRecipe(row: UserRecipe): UserRecipe {
   return {
     id: row.id,
     user_id: row.user_id,

@@ -1,3 +1,5 @@
+import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
+import { useCalendarNow } from '@/hooks/useCalendarNow';
 import React from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -48,14 +50,6 @@ const getEmojiForCategory = (category?: string): string => {
   return categoryEmojis[category || 'Autres'] || '📦';
 };
 
-const getDaysUntilExpiry = (expiryDate?: string): number | null => {
-  if (!expiryDate) return null;
-  const today = new Date();
-  const expiry = new Date(expiryDate);
-  const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
-};
 
 // Perf audit 2026-05-19 — sur des inventaires de 30+ items chaque keypress
 // dans la recherche reconstruisait toutes les cartes. React.memo + handlers
@@ -70,7 +64,8 @@ const SmartProductCardImpl: React.FC<SmartProductCardProps> = ({
   onDiscard,
   onSubstitute
 }) => {
-  const daysUntilExpiry = getDaysUntilExpiry(product.expiry_date);
+  const now = useCalendarNow();
+  const daysUntilExpiry = calendarDaysUntil(product.expiry_date,now);
   const { theme } = useMaterialYouTheme();
 
   return (
@@ -118,6 +113,7 @@ const SmartProductCardImpl: React.FC<SmartProductCardProps> = ({
         <h3 className="font-medium text-foreground mb-1 truncate text-xs sm:text-sm leading-tight">
           {product.product?.name || 'Produit'}
         </h3>
+        <p className="text-xs mb-2">{pantryDateLabel(product.expiry_date,now)}</p>
         
         {/* Localisation */}
         {product.location && (
@@ -128,7 +124,7 @@ const SmartProductCardImpl: React.FC<SmartProductCardProps> = ({
         <div className="mb-1 sm:mb-2" onClick={(e) => e.stopPropagation()}>
           <QuantitySelector
             value={product.quantity}
-            unit={standardizeUnit(product.unit)}
+            unit={standardizeUnit(product.unit ?? product.product?.unit_type)}
             onChange={(val) => onQuantityChange(product.id, val)}
             quick={true}
           />

@@ -8,7 +8,11 @@
   "orientation": "portrait",
   "scope": "/",
   "start_url": "/",
-  "categories": ["food", "lifestyle", "productivity"],
+  "categories": [
+    "food",
+    "lifestyle",
+    "productivity"
+  ],
   "lang": "fr",
   "icons": [
     {
@@ -79,7 +83,7 @@
       "name": "Inventaire",
       "short_name": "Inventaire",
       "description": "Voir mon inventaire",
-      "url": "/?tab=inventory",
+      "url": "/pantry/inventory",
       "icons": [
         {
           "src": "/icons/shortcut-inventory.png",
@@ -91,7 +95,7 @@
       "name": "Liste de courses",
       "short_name": "Courses",
       "description": "Ma liste de courses",
-      "url": "/?tab=shopping",
+      "url": "/shopping/list",
       "icons": [
         {
           "src": "/icons/shortcut-shopping.png",
@@ -103,7 +107,7 @@
       "name": "Assistant IA",
       "short_name": "Assistant",
       "description": "Assistant culinaire",
-      "url": "/?tab=assistant",
+      "url": "/assistant",
       "icons": [
         {
           "src": "/icons/shortcut-assistant.png",
