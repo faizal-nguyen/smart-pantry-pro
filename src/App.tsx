@@ -10,7 +10,6 @@ import { AssistantProvider } from "./components/assistant/AssistantProvider";
 import { ResponsiveProvider } from "./contexts/ResponsiveContext";
 import { AuthSessionProvider } from "./contexts/AuthSessionContext";
 import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
-import { usePersonalizationMigration } from "./hooks/usePersonalizationMigration";
 import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 
@@ -152,11 +151,8 @@ protectedRoutes.push(...Object.entries(getLegacyRedirections())
 // voice-assistant FAB + dialog. The FAB self-hides on /auth and when
 // the user is not signed in, so this is safe across the entire app.
 //
-// PRP-235 backlog 2 : `usePersonalizationMigration` est mounté ici
-// pour s'exécuter une fois par app session (no-op si déjà migré ou
-// si pas de données legacy à migrer).
+// V10-03: legacy preferences are reviewed explicitly in the versioned profile.
 const RootLayout = () => {
-  usePersonalizationMigration();
   return (
     <AssistantProvider>
       <Outlet />

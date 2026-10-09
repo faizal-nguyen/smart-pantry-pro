@@ -8,12 +8,12 @@
  *
  * Pattern miroir de `ProductEnrichmentRepository` (PRP-225 PR2) but
  * **user-scoped** — uses the per-request `userClient` so RLS enforces
- * ownership. The cache `DELETE` invalidation runs via the admin
- * client (no policy on delete = service-role only).
+ * ownership. V10-03 adds an owned DELETE policy and a version guard
+ * against late cache writes after profile changes or erasure.
  *
  * Hard rules :
  *   - Writer failures must NEVER break the engine flow ; callers
- *     swallow exceptions and `console.error` them.
+ *     handle exceptions without logging sensitive payloads or SQL errors.
  *   - Results stored in `recommendation_events.results` are capped to
  *     the top-N recipes to keep the JSONB column small.
  */
@@ -77,9 +77,8 @@ export class RecommendationEventWriter {
    * @param userClient  per-request Supabase client bound to the user's
    *                    auth context. Used for SELECT + INSERT + UPDATE
    *                    so RLS enforces ownership.
-   * @param adminClient optional service-role client, used only for
-   *                    DELETE during cache invalidation (no policy on
-   *                    delete by design).
+   * @param adminClient optional service-role client for legacy invalidation
+   *                    callers and global expiry cleanup.
    * @param now         injectable clock for tests.
    */
   constructor(
@@ -113,7 +112,7 @@ export class RecommendationEventWriter {
       user_id: input.userId,
       conversation_id: input.conversationId ?? null,
       assistant_message_id: input.assistantMessageId ?? null,
-      request_text: input.requestText ?? null,
+      request_text: null,
       context: sanitiseContext(input.context) as unknown as EventInsert['context'],
       candidate_count: candidateCount,
       results: ids as unknown as EventInsert['results'],
@@ -241,9 +240,11 @@ function toResultRow(r: RecommendedRecipeView): { id: string; score: number } {
  * consider PII beyond what they already gave the assistant.
  */
 function sanitiseContext(ctx: RecommendationContext): Record<string, unknown> {
-  const { requestText, ...rest } = ctx;
-  void requestText; // logged on the dedicated request_text column instead
-  return rest;
+  const result:Record<string,unknown>={};
+  for (const key of ['goal','mealType','servings','timeLimitMinutes','nearExpiryDays','limitPerBucket','almostThreshold','includeRecentFallback','craving'] as const) {
+    if (ctx[key]!==undefined) result[key]=ctx[key];
+  }
+  return result;
 }
 
 // ---- Cache key builder ---------------------------------------------

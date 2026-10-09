@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CookingAdjustmentsSchema } from './cooking-adjustments.js';
+import { LotDateKindSchema,LotQuantityQualitySchema } from './personalization.js';
 import type { StockAllocation, StockIngredient, StockLot, StockMissing } from './quantities.js';
 
 export const RecipeReferenceSchema = z.object({
@@ -26,6 +27,7 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
     quantity: positiveQuantity.optional(), unit: z.string().trim().min(1).max(40).optional(),
     location: z.string().max(100).nullable().optional(),
     expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    date_kind:LotDateKindSchema.optional(),quantity_quality:LotQuantityQualitySchema.optional(),
   }).strict()) }).strict()),
   command('consume_recipe', recipePayload.extend({
     recipe_version: z.string().min(1).max(64),
@@ -37,6 +39,7 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
     quantity: z.number().finite().nonnegative().max(1e9), expected_version: version,
     location: z.string().max(100).nullable().optional(),
     expiry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    date_kind:LotDateKindSchema.optional(),quantity_quality:LotQuantityQualitySchema.optional(),
   }).strict()) }).strict()),
   command('undo_stock', z.object({ original_command_id: z.string().uuid() }).strict()),
   command('save_recipe', z.object({

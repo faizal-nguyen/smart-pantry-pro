@@ -10,7 +10,7 @@ export const data: Record<string, Row[]> = {
   profiles: [{ id: OWNER, user_id: OWNER, onboarding_completed: true, display_name: 'Test local' }],
   products: ['Farine','Lait','Tomate','Pomme','Riz','Œuf'].map((name,index) => ({ id: uuid('1',index+1), name,normalized_name:name.toLowerCase(),
     category: 'Autres', unit_type: index === 0 || index === 4 ? 'kg' : index === 1 ? 'l' : 'pièce',
-    nutrition_json: { source: 'manual', per100g: { energyKcal: 200, proteinG: 8, carbsG: 30, fatG: 4 } },
+    nutrition_json: { source: 'manual', per100g: { energyKcal: 200, proteinG: 8,fiberG:3, carbsG: 30, fatG: 4 } },
   })),
   recipes: [{ id: RECIPE, user_id: OWNER, name: 'Pain maison', instructions: 'Mélanger les ingrédients.\nCuire le pain.',
     servings: 4, prep_time: 15, cook_time: 30, difficulty: 2, tags: ['Maison'], is_public: false,
@@ -18,12 +18,12 @@ export const data: Record<string, Row[]> = {
   recipe_ingredients: [{ id: uuid('4',1), recipe_id: RECIPE, ingredient_name: 'Farine', quantity: 200, unit: 'g',
     inventory_product_id: uuid('1',1), is_essential: true, order_index: 0 }],
   inventory: [{ id: uuid('2',1), user_id: OWNER, product_id: uuid('1',1), quantity: 1, unit: 'kg', stock_version: 0,
-    location: 'Placard', expiry_date: '2026-11-08', created_at: '2026-10-08T10:00:00Z' }],
+    location: 'Placard',date_kind:'best_before',quantity_quality:'measured', expiry_date: '2026-11-08', created_at: '2026-10-08T10:00:00Z' }],
   shopping_list: Array.from({ length: 6 },(_,index) => ({ id: uuid('5',index+1), user_id: OWNER,
     product_id: uuid('1',index+1), quantity: 1, unit: index === 0 || index === 4 ? 'kg' : index === 1 ? 'l' : 'pièce',
     stock_version: 0, is_purchased: false, priority: 1, created_at: '2026-10-08T10:00:00Z', updated_at: '2026-10-08T10:00:00Z' })),
   user_recipes: [], recipes_catalog: [], stock_commands: [], cooking_journal_entries: [],
-  mobile_routine_preferences: [],routine_recipe_favorites: [],user_meal_preferences: [],
+  mobile_routine_preferences: [],routine_recipe_favorites: [],user_meal_preferences: [],nutrition_profiles:[],assistant_memory_items:[],recipe_interactions:[],recommendation_events:[],
 };
 try { Object.assign(data,JSON.parse(localStorage.getItem('v10-fixture-data') ?? '{}')); } catch { /* New fixture. */ }
 if (!data.recipes_catalog.some(row=>row.id===CATALOG)) data.recipes_catalog.push({ id:CATALOG,title:'Riz express',prep_time:5,cook_time:15,servings:2,instructions:'Rincer le riz.\nCuire le riz.',ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }],tags:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });

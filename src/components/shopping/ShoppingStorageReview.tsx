@@ -1,3 +1,4 @@
+import LotQualificationFields,{ type LotDateKind,type QuantityQuality } from '../inventory/LotQualificationFields';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { StockCommand, StockCommandResult } from '@smart/shared';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 type TransferItems = Extract<StockCommand,{ command_type:'transfer_shopping' }>['payload']['items'];
-interface Row { id:string;version:number;name:string;quantity:string;unit:string;location:string;date:string;selected:boolean }
+interface Row { id:string;version:number;name:string;quantity:string;unit:string;location:string;date:string;selected:boolean;dateKind?:LotDateKind;quality?:QuantityQuality }
 export default function ShoppingStorageReview({ open,onOpenChange,items,busy,onConfirm }: { open:boolean;onOpenChange:(value:boolean)=>void;items:ShoppingItem[];busy:boolean;onConfirm:(items:TransferItems)=>Promise<StockCommandResult|undefined> }) {
   const user = useAuthenticatedUser();
   const [rows,setRows,storageError] = useOwnedValue<Row[]>(user.id,'shopping-review',[]);
@@ -32,7 +33,7 @@ export default function ShoppingStorageReview({ open,onOpenChange,items,busy,onC
       const values = selected.map(row => {
         const quantity = Number(row.quantity.replace(',','.'));
         if (!row.quantity.trim() || !Number.isFinite(quantity) || quantity <= 0 || !row.unit.trim()) throw new Error(`Vérifiez la quantité et l’unité de ${row.name}.`);
-        return { id:row.id,expected_version:row.version,quantity,unit:row.unit.trim(),location:row.location.trim() || null,expiry_date:row.date || null };
+        return { id:row.id,expected_version:row.version,quantity,unit:row.unit.trim(),location:row.location.trim() || null,expiry_date:row.date || null,date_kind:row.dateKind ?? 'unknown',quantity_quality:row.quality ?? 'unknown' };
       });
       if (!pending && !values.length) throw new Error('Sélectionnez au moins un achat à ranger.');
       const result = await onConfirm(values);
@@ -43,7 +44,7 @@ export default function ShoppingStorageReview({ open,onOpenChange,items,busy,onC
     {success ? <div className="space-y-3"><p role="status">Achats rangés. Le stock est à jour.</p><Button className="min-h-11 w-full" asChild><Link to="/pantry/inventory">Voir mon stock</Link></Button></div> : <>
       {loading && <p role="status">Lecture du rangement précédent…</p>}
       {pending && <p role="status">Un rangement envoyé reste à vérifier. Sa saisie est figée ; la même commande sera reprise.</p>}
-      {rows.map(row => <fieldset key={row.id} className="border rounded-lg p-3 space-y-3" disabled={busy || !!pending}><legend className="px-1 font-medium">{row.name}</legend><label className="min-h-11 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={row.selected} onChange={e => patch(row.id,{ selected:e.target.checked })} />Ranger ce produit</label><div className="grid grid-cols-2 gap-2"><label className="text-sm">Quantité<Input inputMode="decimal" aria-label={`Quantité de rangement de ${row.name}`} value={row.quantity} onChange={e => patch(row.id,{ quantity:e.target.value })} /></label><label className="text-sm">Unité<Input aria-label={`Unité de rangement de ${row.name}`} value={row.unit} onChange={e => patch(row.id,{ unit:e.target.value })} /></label></div><label className="block text-sm">Zone<Input list="shopping-zones" value={row.location} onChange={e => patch(row.id,{ location:e.target.value })} /></label><label className="block text-sm">Date utile (facultative)<Input type="date" value={row.date} onChange={e => patch(row.id,{ date:e.target.value })} /></label><p className="text-xs text-muted-foreground">{row.date ? `Date : ${row.date}` : 'Date inconnue, elle restera vide.'}</p></fieldset>)}
+      {rows.map(row => <fieldset key={row.id} className="border rounded-lg p-3 space-y-3" disabled={busy || !!pending}><legend className="px-1 font-medium">{row.name}</legend><label className="min-h-11 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={row.selected} onChange={e => patch(row.id,{ selected:e.target.checked })} />Ranger ce produit</label><div className="grid grid-cols-2 gap-2"><label className="text-sm">Quantité<Input inputMode="decimal" aria-label={`Quantité de rangement de ${row.name}`} value={row.quantity} onChange={e => patch(row.id,{ quantity:e.target.value })} /></label><label className="text-sm">Unité<Input aria-label={`Unité de rangement de ${row.name}`} value={row.unit} onChange={e => patch(row.id,{ unit:e.target.value })} /></label></div><label className="block text-sm">Zone<Input list="shopping-zones" value={row.location} onChange={e => patch(row.id,{ location:e.target.value })} /></label><label className="block text-sm">Date utile (facultative)<Input type="date" value={row.date} onChange={e => patch(row.id,{ date:e.target.value })} /></label><LotQualificationFields dateKind={row.dateKind ?? 'unknown'} quality={row.quality ?? 'unknown'} onDateKind={dateKind=>patch(row.id,{ dateKind })} onQuality={quality=>patch(row.id,{ quality })} /><p className="text-xs text-muted-foreground">{row.date ? `Date : ${row.date}` : 'Date inconnue, elle restera vide.'}</p></fieldset>)}
       <datalist id="shopping-zones"><option>Frigo</option><option>Congélateur</option><option>Placard</option></datalist>
       {(error || storageError) && <p role="alert" className="text-destructive">{error || storageError}</p>}
       {error && !pending && <Button className="min-h-11" variant="outline" onClick={() => { try { removeOwnedValue(user.id,'shopping-review'); setRows(items.filter(item => item.is_purchased).map(item => ({ id:item.id,version:item.stock_version ?? 0,name:item.product?.name ?? 'Produit',quantity:String(item.quantity),unit:item.unit ?? item.product?.unit_type ?? '',location:'',date:'',selected:true }))); setError(null); } catch (value) { setError((value as Error).message); } }}>Relire les achats et refaire le récapitulatif</Button>}

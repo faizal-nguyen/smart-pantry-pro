@@ -53,6 +53,7 @@ import {
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
 import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
+import { NutritionProfileService } from '../services/recommendations/NutritionProfileService.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
 import { RecipePolicySanitizer } from '../services/recipeQuality/RecipePolicySanitizer.js';
 import {
@@ -227,7 +228,8 @@ export function createAssistantAgentRouter(
   const memoryService = new MemoryService(adminClient as unknown as SupabaseClient<Database>);
   // PRP-223 PR4 — build memory context block (top memories, summary,
   // recent messages, session context) injected into the system prompt.
-  const contextBuilder = new ContextBuilder(memoryService);
+  // The id passed by VoiceAgentService is the middleware-authenticated owner.
+  const contextBuilder = new ContextBuilder(memoryService,userId=>new NutritionProfileService(adminClient).read(userId));
 
   const handlerRegistry = new ToolHandlerRegistry();
   registerReadHandlers(handlerRegistry);
@@ -355,7 +357,7 @@ export function createAssistantAgentRouter(
       return ok(res, result, 'OK', 'ASSISTANT_OK');
     } catch (err) {
       if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);
-      console.error('[assistant.voice] error:', err);
+      console.error('[assistant.voice] error:', err instanceof Error ? err.name : 'AssistantError');
       return fail(res, 'Assistant error', 500, 'ASSISTANT_FAILED');
     } finally {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
@@ -392,7 +394,7 @@ export function createAssistantAgentRouter(
       return ok(res, result, 'OK', 'ASSISTANT_OK');
     } catch (err) {
       if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);
-      console.error('[assistant.text] error:', err);
+      console.error('[assistant.text] error:', err instanceof Error ? err.name : 'AssistantError');
       return fail(res, 'Assistant error', 500, 'ASSISTANT_FAILED');
     }
   });
@@ -437,7 +439,7 @@ export function createAssistantAgentRouter(
         // Client likely disconnected — surface as a warn, the
         // background handleRequest continues to completion to avoid
         // leaving partial state in the action log.
-        console.warn('[assistant.text.stream] write failed:', err);
+        console.warn('[assistant.text.stream] write failed:', err instanceof Error ? err.name : 'StreamError');
       }
     };
 
@@ -470,7 +472,7 @@ export function createAssistantAgentRouter(
           message: err.message,
         });
       } else {
-        console.error('[assistant.text.stream] error:', err);
+        console.error('[assistant.text.stream] error:', err instanceof Error ? err.name : 'AssistantError');
         writeEvent({
           type: 'error',
           code: 'ASSISTANT_FAILED',
@@ -582,7 +584,7 @@ export function createAssistantAgentRouter(
         },
       }, 'OK', 'CHEF_IDEA_SAVED');
     } catch (err) {
-      console.error('[assistant.save-chef-idea] error:', err);
+      console.error('[assistant.save-chef-idea] error:', err instanceof Error ? err.name : 'AssistantError');
       const message = err instanceof Error ? err.message : 'Save failed';
       return fail(res, message, 500, 'CHEF_IDEA_SAVE_FAILED');
     }
@@ -613,7 +615,7 @@ export function createAssistantAgentRouter(
       if (err instanceof ToolHandlerNotFoundError) {
         return fail(res, err.message, 501, 'NO_TOOL_HANDLER');
       }
-      console.error('[assistant.execute] error:', err);
+      console.error('[assistant.execute] error:', err instanceof Error ? err.name : 'AssistantError');
       return fail(res, 'Execution error', 500, 'EXEC_FAILED');
     }
   });
@@ -640,7 +642,7 @@ export function createAssistantAgentRouter(
       return ok(res, result, 'Undone', 'ASSISTANT_UNDO_OK');
     } catch (err) {
       if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);
-      console.error('[assistant.undo] error:', err);
+      console.error('[assistant.undo] error:', err instanceof Error ? err.name : 'AssistantError');
       return fail(res, 'Undo error', 500, 'UNDO_FAILED');
     }
   });

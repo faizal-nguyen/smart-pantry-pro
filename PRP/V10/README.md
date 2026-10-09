@@ -1,6 +1,6 @@
 # V10 Routine quotidienne et application iOS
 
-> Statut : V10-01 et V10-02 implémentés et testés localement ; homologation environnement/matériel ouverte. V10-03 à V10-05 restent à réaliser.
+> Statut : V10-01, V10-02 et V10-03 implémentés et testés localement ; homologation environnement/matériel ouverte. V10-04 et V10-05 restent à réaliser.
 
 [Publication Git des deux lots : commit, PR et contrôles](../../docs/implementations/V10-publication.md).
 > Date : 2026-10-08.
@@ -12,7 +12,7 @@ V10 organise les améliorations autour de trois usages : garder l’inventaire d
 
 Le parcours directeur est **courses → rangement → stock → choix du repas → cuisine → stock actualisé**. Chaque étape doit apporter un résultat vérifiable et préserver la saisie lorsqu’elle échoue.
 
-Ce dossier contient la feuille de route et cinq PRPs. Les réalisations locales de [V10-01](../../docs/implementations/V10-01.md) et [V10-02](../../docs/implementations/V10-02.md), leurs tests et leurs captures sont documentés. Les cases de sortie restent ouvertes tant que les preuves déployées et matérielles correspondantes ne sont pas produites.
+Ce dossier contient la feuille de route et cinq PRPs. Les réalisations locales de [V10-01](../../docs/implementations/V10-01.md), [V10-02](../../docs/implementations/V10-02.md) et [V10-03](../../docs/implementations/V10-03.md), leurs tests et leurs limites sont documentés. Les cases de sortie restent ouvertes tant que les preuves déployées et matérielles correspondantes ne sont pas produites.
 
 ## 1. Documents et ordre de réalisation
 
@@ -123,4 +123,4 @@ Ces preuves datent des 7 et 8 octobre 2026 et utilisent des données fictives. L
 - [ ] Réaliser les PRs du premier lot et renseigner ses preuves de sortie.
 - [ ] Réviser les estimations et spécifications des lots suivants sur les résultats obtenus.
 
-La prochaine étape est l’homologation de V10-01 et V10-02 sur le bon environnement Supabase et l’iPhone 17 Pro Max. V10-02 réutilise les commandes et modèles livrés par V10-01 ; les PRPs suivantes restent des documents de conception jusqu’à leur réalisation et validation.
+La prochaine étape est l’homologation de V10-01 à V10-03 sur le bon environnement Supabase, avec deux comptes, deux clients et l’iPhone 17 Pro Max. V10-03 réutilise les commandes de V10-01/V10-02 et fournit le profil et le moteur commun aux futures surfaces iOS. V10-04 et V10-05 restent des documents de conception jusqu’à leur réalisation et validation.

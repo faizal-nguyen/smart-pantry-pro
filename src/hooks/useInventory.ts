@@ -52,6 +52,8 @@ export interface InventoryItem {
   quantity: number;
   unit?: string;
   stock_version?: number;
+  date_kind?: 'use_by'|'best_before'|'unknown';
+  quantity_quality?: 'measured'|'estimated'|'unknown';
   expiry_date?: string;
   location?: string;
   product?: Product;
@@ -291,13 +293,16 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       const pending = await pendingIntent(intent);
       if (pending && pending.command_type !== 'adjust_inventory') throw new Error('L’action précédente reste à vérifier.');
       if (pending && (pending.payload.items[0].quantity !== (updates.quantity ?? item.quantity) || pending.payload.items[0].unit !== (updates.unit ?? item.unit ?? item.product?.unit_type ?? '') ||
-        ('location' in updates && pending.payload.items[0].location !== updates.location) || ('expiry_date' in updates && pending.payload.items[0].expiry_date !== (updates.expiry_date || null)))) throw new Error('Réessayez la correction précédente avant de modifier sa saisie.');
+        ('location' in updates && pending.payload.items[0].location !== updates.location) || ('expiry_date' in updates && pending.payload.items[0].expiry_date !== (updates.expiry_date || null)) ||
+        ('date_kind' in updates && pending.payload.items[0].date_kind!==updates.date_kind) || ('quantity_quality' in updates && pending.payload.items[0].quantity_quality!==updates.quantity_quality))) throw new Error('Réessayez la correction précédente avant de modifier sa saisie.');
       const command = pending ?? await commandForIntent('adjust_inventory', intent, { items: [{
         id, quantity: updates.quantity ?? item.quantity,
         unit: updates.unit ?? item.unit ?? item.product?.unit_type ?? '',
         expected_version: item.stock_version ?? 0,
         ...(updates.location !== undefined ? { location: updates.location } : {}),
         ...(updates.expiry_date !== undefined ? { expiry_date: updates.expiry_date || null } : {}),
+        ...(updates.date_kind!==undefined ? { date_kind:updates.date_kind } : {}),
+        ...(updates.quantity_quality!==undefined ? { quantity_quality:updates.quantity_quality } : {}),
       }] });
       const result = await executeStockCommand(command);
       await finishIntent(intent);

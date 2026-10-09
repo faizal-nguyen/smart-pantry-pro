@@ -27,6 +27,7 @@
  *     "Previous response failed validation" hint (PRP-221 §18 Q4).
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { recommendationModelContext,recommendationProfileChanged } from '../recommendations/RecommendationModelContext.js';
 
 import type {
   AICompletionClient,
@@ -87,9 +88,9 @@ GROUND your suggestions in real state: call read_inventory / read_shopping_list 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
 - Pick the RIGHT tool based on what the user actually asked:
     A. OPEN suggestions ("qu'est-ce que je peux faire", "propose-moi", "que cuisiner ce soir", "j'ai envie de quelque chose de léger"):
-       → call suggest_recipes_for_context. It returns three buckets — cookable_now, almost_cookable (1–3 ingredients missing), recent_suggestions.
+       → call suggest_recipes_for_context. It returns cookable_now, almost_cookable, verify_suggestions and excluded_suggestions, with structured evidence. Suggest at most 3 candidates; never recommend excluded_suggestions as compatible and never certify verify_suggestions. Explain only actual reason_codes and nutrition coverage; a missing criterion is unavailable.
     B. INGREDIENT-CENTRIC questions ("quelle recette avec des cuisses de poulet", "recettes au paneer", "j'ai du gochujang, que faire", "des idées avec du saumon", "recettes utilisant X"):
-       → call find_recipes_using_ingredient with { "ingredient": "<the ingredient phrase>" }. It returns every recipe in the user catalog that uses that ingredient (substring match, so "tomate" catches "tomate Roma", "concentré de tomate", "tomates concassées" too).
+       → call suggest_recipes_for_context with { "ingredient": "<the ingredient phrase>" }. It applies the same explicit profile, original lots and personal adaptations as open suggestions.
     C. RECIPE-BY-NAME lookup ("la recette de Bibimbap", "tu as une carbonara"):
        → call search_recipes with the name as query.
 - For narrower asks on suggest_recipes_for_context pass context args to the same tool:
@@ -98,7 +99,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "anti-gaspi", "à finir bientôt" → { "goal": "anti_waste" }
     - "léger", "healthy" → { "goal": "light" } (no health claim in your reply)
     - "protéiné" → { "goal": "high_protein" }
-    - "réconfortant" → { "goal": "comfort" }
+    - "réconfortant" → { "goal": "comfort", "craving": "comfort" }
     - "batch cooking" → { "goal": "batch_cooking" }
     - "une recette italienne" → { "query": "italien" }
     - 4 personnes → { "servings": 4 }
@@ -374,8 +375,8 @@ export class VoiceAgentService {
         });
         userMessageId = userMsg.id;
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[assistant.memory] recordMessage(user) failed:', err);
+
+        console.error('[assistant.memory] recordMessage(user) failed.');
       }
     }
 
@@ -405,15 +406,19 @@ export class VoiceAgentService {
     // context). Best-effort: any ContextBuilder failure leaves the
     // prompt at its baseline.
     let systemContent = this.systemPrompt;
+    let allowedProfileVersion:number|undefined;
+    let profileSnapshotVersion:number|undefined;
     if (this.contextBuilder) {
       try {
         const block = await this.contextBuilder.build(input.userId, conversationId);
+        profileSnapshotVersion=block.profileVersion;
+        if (block.shareProfileWithModel) allowedProfileVersion=block.profileVersion;
         if (block.combinedText) {
           systemContent = `${this.systemPrompt}\n\n--- Mémoire utilisateur ---\n${block.combinedText}`;
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[assistant.context] build failed:', err);
+
+        console.error('[assistant.context] build failed.');
       }
     }
 
@@ -494,10 +499,10 @@ export class VoiceAgentService {
           llmModel: activeResponse.model || this.model,
         });
       } catch (err) {
-        // eslint-disable-next-line no-console
+
         console.error(
           `[assistant.insertPlanned] failed for tool=${tc.name}:`,
-          err instanceof Error ? err.message : err
+          err instanceof Error ? err.name : 'ActionLogError'
         );
         throw new VoiceAgentError(
           'INTERNAL',
@@ -509,8 +514,8 @@ export class VoiceAgentService {
         // Execute immediately
         try {
           const handler = this.handlerRegistry.get(tc.name);
-          // eslint-disable-next-line no-console
-          console.log(`[assistant.handler] executing ${tc.name} args=${JSON.stringify(parsedArgs).slice(0, 300)}`);
+
+          console.log(`[assistant.handler] executing ${tc.name}`);
           const exec = await handler.execute(
             { ...ctx, commandId: planned.id, sessionId, conversationId, requestText: transcript },
             parsedArgs,
@@ -552,11 +557,10 @@ export class VoiceAgentService {
             );
             throw new VoiceAgentError('NO_TOOL_HANDLER', err.message);
           }
-          // eslint-disable-next-line no-console
+
           console.error(
             `[assistant.handler] ${tc.name} failed:`,
-            err instanceof Error ? err.message : err,
-            err instanceof Error && err.stack ? `\n${err.stack.split('\n').slice(0, 3).join('\n')}` : ''
+            err instanceof Error ? err.name : 'ToolExecutionError'
           );
           await this.writer.markFailed(
             planned.id,
@@ -609,11 +613,12 @@ export class VoiceAgentService {
     if (
       executed.length > 0 &&
       pending.length === 0 &&
-      (!activeResponse.content || activeResponse.content.trim().length === 0)
+      (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>recommendationModelContext(action.result,allowedProfileVersion)!==null))
     ) {
       try {
         const summaryParts = executed.map(a => {
-          const result = typeof a.result === 'string'
+          const recommendationContext=recommendationModelContext(a.result,allowedProfileVersion);
+          const result = recommendationContext!==null ? JSON.stringify(recommendationContext) : typeof a.result === 'string'
             ? a.result
             : JSON.stringify(a.result).slice(0, 1500);
           return `• ${a.tool}(${JSON.stringify(a.args).slice(0, 200)}) → ${result}`;
@@ -627,9 +632,10 @@ export class VoiceAgentService {
         // `chefMode` is computed at the outer scope above so the
         // post-check after round-2 can use the same signal.
         const synthesisModel = chefMode ? this.fallbackModel : this.model;
+        const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? this.systemPrompt : systemContent;
         const synthesisSystem = chefMode
-          ? `${systemContent}\n\n${chefSystemPrompt()}`
-          : systemContent;
+          ? `${currentSystem}\n\n${chefSystemPrompt()}`
+          : currentSystem;
         const synthesisInstruction = chefMode
           ? CHEF_ROUND2_INSTRUCTION
           : "Maintenant rédige ta réponse finale, courte et utile, dans la langue de ma question. Appuie-toi sur les résultats ci-dessus, ne ré-invoque pas d'outil.";
@@ -665,8 +671,8 @@ export class VoiceAgentService {
             // injected AICompletionClient doesn't implement
             // completeStream), retry once on the non-streaming path so
             // we never lose the synthesis to a transient stream error.
-            // eslint-disable-next-line no-console
-            console.warn('[assistant.chef.stream] falling back to non-stream:', err);
+
+            console.warn('[assistant.chef.stream] falling back to non-stream.');
             synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
           }
         } else {
@@ -681,8 +687,8 @@ export class VoiceAgentService {
         // fires even when round-2 was skipped because round-1 already
         // returned content.
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[assistant.synthesis] round 2 failed, falling back:', err);
+
+        console.error('[assistant.synthesis] round 2 failed, falling back.');
       }
     }
 
@@ -697,7 +703,7 @@ export class VoiceAgentService {
       const guard = postcheckChefOutput(activeResponse.content);
       if (guard) {
         activeResponse = { ...activeResponse, content: guard.redacted };
-        // eslint-disable-next-line no-console
+
         console.warn(
           '[assistant.chef.policy_postcheck_blocked]',
           guard.violations.map((v) => v.ruleId),
@@ -748,8 +754,8 @@ export class VoiceAgentService {
           metadata: messageMetadata,
         });
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[assistant.memory] recordMessage(assistant) failed:', err);
+
+        console.error('[assistant.memory] recordMessage(assistant) failed.');
       }
     }
 
@@ -797,13 +803,13 @@ export class VoiceAgentService {
             );
           }
         } catch (e) {
-          // eslint-disable-next-line no-console
-          console.warn('[assistant.extractor] persist failed:', e instanceof Error ? e.message : e);
+
+          console.warn('[assistant.extractor] persist failed.');
         }
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[assistant.extractor] run failed:', err);
+
+      console.error('[assistant.extractor] run failed.');
     }
   }
 
@@ -821,8 +827,8 @@ export class VoiceAgentService {
         const existing = await this.memoryService.getConversation(input.conversationId, input.userId);
         return existing.id;
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn('[assistant.memory] getConversation failed, opening new one:', err);
+
+        console.warn('[assistant.memory] getConversation failed, opening new one.');
       }
     }
     try {
@@ -831,8 +837,8 @@ export class VoiceAgentService {
       });
       return created.id;
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[assistant.memory] createConversation failed:', err);
+
+      console.error('[assistant.memory] createConversation failed.');
       return undefined;
     }
   }
@@ -1119,6 +1125,7 @@ interface RecipeProposalsBuckets {
   cookable_now: unknown[];
   almost_cookable: unknown[];
   recent_suggestions: unknown[];
+  verify_suggestions?:unknown[];excluded_suggestions?:unknown[];pipeline_version?:number;profile_version?:number;calculated_at?:string;
   /**
    * PRP-226 PR4 — id of the `recommendation_events` row this proposal
    * was emitted from. The frontend echoes it on every interaction
@@ -1150,7 +1157,7 @@ export function extractRecipeProposalsFromExecuted(
   const buckets: RecipeProposalsBuckets = {
     cookable_now: [],
     almost_cookable: [],
-    recent_suggestions: [],
+    recent_suggestions: [],verify_suggestions:[],excluded_suggestions:[],
   };
   const seen = new Set<string>();
   let hadAnyRecipeTool = false;
@@ -1178,6 +1185,11 @@ export function extractRecipeProposalsFromExecuted(
     if (Array.isArray(result.cookable_now)) pushUnique(buckets.cookable_now, result.cookable_now);
     if (Array.isArray(result.almost_cookable)) pushUnique(buckets.almost_cookable, result.almost_cookable);
     if (Array.isArray(result.recent_suggestions)) pushUnique(buckets.recent_suggestions, result.recent_suggestions);
+    if (Array.isArray(result.verify_suggestions)) pushUnique(buckets.verify_suggestions!,result.verify_suggestions);
+    if (Array.isArray(result.excluded_suggestions)) pushUnique(buckets.excluded_suggestions!,result.excluded_suggestions);
+    if (typeof result.pipeline_version==='number') buckets.pipeline_version=result.pipeline_version;
+    if (typeof result.profile_version==='number') buckets.profile_version=result.profile_version;
+    if (typeof result.calculated_at==='string') buckets.calculated_at=result.calculated_at;
     // PRP-226 PR4 — capture the originating event id (first non-empty
     // wins, since a single turn rarely calls the tool twice).
     if (!buckets.event_id && typeof result.event_id === 'string' && result.event_id.length > 0) {

@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
 import { createStockRouter } from './stock.routes.js';
+import { createNutritionProfileRouter } from './settings.nutrition.routes.js';
 import {
   createInventoryRouter,
   createRecipesRouter,
@@ -43,5 +44,6 @@ v1Router.use('/receipts', authMiddleware, createReceiptsRouter(supabaseAdmin));
 v1Router.use('/recommendations', authMiddleware, createRecommendationsRouter(supabaseAdmin));
 // PRP-235 PR5 — privacy settings + export + delete-request, user-scoped.
 v1Router.use('/settings', authMiddleware, createSettingsPrivacyRouter(supabaseAdmin));
+v1Router.use('/settings/nutrition-profile', authMiddleware, createNutritionProfileRouter());
 
 export { v1Router };

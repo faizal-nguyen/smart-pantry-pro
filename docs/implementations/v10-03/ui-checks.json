@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-09",
+  "surface": "Chrome, dedicated test tab",
+  "origin": "http://127.0.0.1:5174/scripts/fixtures/v10/index.html",
+  "data": "Fictitious session, API, inventory, recipes and profile. External requests blocked by fixture configuration.",
+  "viewports_css_px": [
+    {
+      "width": 440,
+      "height": 956
+    },
+    {
+      "width": 375,
+      "height": 812
+    }
+  ],
+  "observations": [
+    {
+      "scenario": "Profile consent and save",
+      "observed": "Fictitious allergies lait/arachides, tastes carotte/courgette, usual 25 minutes and 2 servings saved as version 1."
+    },
+    {
+      "scenario": "Meal context",
+      "observed": "Temporary 60 minutes and warm craving did not alter usual 25 minutes and 2 servings in profile."
+    },
+    {
+      "scenario": "Explanation",
+      "observed": "Missing ingredients, 45-minute total duration and partial nutrition coverage 1/2 displayed with sources, date, 100g basis and missing criteria."
+    },
+    {
+      "scenario": "Not today",
+      "observed": "Feedback confirmed and recipe removed from primary suggestions."
+    },
+    {
+      "scenario": "Lost reply after write",
+      "observed": "Added celeri exclusion applied as version 2. Reload and identical retry confirmed version 2, without a repeated write or misleading concurrency warning."
+    },
+    {
+      "scenario": "375px form",
+      "document_width_px": 369,
+      "viewport_width_px": 375,
+      "horizontal_overflow": false,
+      "visible_text_number_inputs": 8,
+      "minimum_input_height_px": 44,
+      "input_font_size_px": 16
+    }
+  ],
+  "screenshots_saved_to_repository": false,
+  "not_validated": [
+    "Real iPhone or Safari",
+    "Physical keyboard and safe areas",
+    "VoiceOver and enlarged text on device",
+    "Supabase live authentication or Realtime",
+    "Two live clients",
+    "Real provider responses or real-catalog ranking"
+  ],
+  "cleanup": "Browser viewport reset and dedicated test tab closed."
+}

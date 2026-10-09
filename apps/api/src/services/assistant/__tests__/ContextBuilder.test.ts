@@ -4,6 +4,7 @@
  * Stubs MemoryService at the public-method level (the underlying
  * Supabase chain is already covered by MemoryService.test.ts).
  */
+import { emptyNutritionProfile } from '@smart/shared';
 import { ContextBuilder, CONTEXT_BUILDER_LIMITS } from '../ContextBuilder.js';
 import type {
   AssistantConversationSummary,
@@ -168,5 +169,22 @@ describe('ContextBuilder', () => {
     );
     const block = await builder.build(USER);
     expect(block.tokenEstimate).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxTokensEstimate);
+  });
+});
+
+
+describe('V10-03 assistant privacy and profile priority',()=>{
+  const explicit=(share:boolean)=>({ profile:{ user_id:USER,version:2,schema_version:1 as const,origin:'explicit' as const,updated_at:null,settings:{ ...emptyNutritionProfile(),consent:true,shareWithAssistant:share,allergies:['lait'] } },legacyServerPresent:false });
+  test('private profile and old health inference never enter the model context',async()=>{
+    const context=new ContextBuilder(makeStub({ topMemories:[mem({ content:'allergie lait',sensitivity:'health_sensitive' }),mem({ content:'aime beurre' })] }),async()=>explicit(false));
+    const block=await context.build(USER);
+    expect(block.combinedText).not.toContain('allergie lait');expect(block.combinedText).not.toContain('aime beurre');
+    expect(block.combinedText).toContain('reste privé');
+  });
+  test('opted-in explicit constraints receive priority over all inferred food memories',async()=>{
+    const context=new ContextBuilder(makeStub({ topMemories:[mem({ content:'pas allergique au lait' })] }),async()=>explicit(true));
+    const block=await context.build(USER);
+    expect(block.combinedText).toContain('"allergies":["lait"]');expect(block.combinedText).toContain('prime sur les inférences');
+    expect(block.combinedText).not.toContain('pas allergique');
   });
 });

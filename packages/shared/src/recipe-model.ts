@@ -7,6 +7,7 @@ export interface RecipeCatalogRow {
   servings?: number | null; difficulty?: number | null; instructions?: string | null; tags?: string[] | null;
   source?: string | null; source_url?: string | null; nutrition_json?: unknown;
   rating_avg?: number | null; rating_count?: number | null; created_at: string; updated_at: string;
+  cuisine_category?: string | null;meal_type?: string | null;required_equipment?:string[]|null;meal_style?:'warm'|'fresh'|'comfort'|null;
 }
 export interface LibraryRecipeRow {
   id: string; user_id: string; recipe_id?: string | null; is_from_catalog: boolean;
@@ -46,7 +47,7 @@ export function mapLibraryRecipe(row: LibraryRecipeRow) {
     name: edits.title ?? row.custom_title ?? catalog?.title ?? 'Recette sans titre',
     description: catalog?.description ?? row.personal_notes ?? null,
     image_url: row.custom_photo_url ?? catalog?.photo_url ?? null,
-    cuisine_category: null, meal_type: null,
+    cuisine_category: catalog?.cuisine_category ?? null, meal_type: catalog?.meal_type ?? null,
     prep_time: catalog?.prep_time ?? 0, cook_time: catalog?.cook_time ?? 0, rest_time: catalog?.rest_time ?? 0,
     servings: (catalog?.servings ?? 4) * multiplier, difficulty: catalog?.difficulty ?? 3,
     instructions: edits.instructions_append ? `${original}\n${edits.instructions_append}` : original,
@@ -55,6 +56,6 @@ export function mapLibraryRecipe(row: LibraryRecipeRow) {
     nutrition_info: catalog?.nutrition_json ?? null, is_public: false,
     rating: row.personal_rating ?? catalog?.rating_avg ?? null, rating_count: catalog?.rating_count ?? null,
     created_at: row.created_at, updated_at: row.updated_at,
-    inlineIngredients: normalizeRecipeIngredients(edits.ingredients_override ?? catalog?.ingredients_json ?? row.custom_ingredients_json,multiplier),
+    inlineIngredients: normalizeRecipeIngredients(edits.ingredients_override ?? row.custom_ingredients_json ?? catalog?.ingredients_json,multiplier),
   };
 }

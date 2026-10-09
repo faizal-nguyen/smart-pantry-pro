@@ -98,7 +98,9 @@ export async function apiPost<T = unknown>(path: string, body?: unknown, options
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return unwrap<T>(res);
+  const value = await unwrap<T>(res);
+  if (options?.expectedUserId) await authHeader(options.expectedUserId);
+  return value;
 }
 
 export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>, options?: { expectedUserId?: string }): Promise<T> {
@@ -112,19 +114,23 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
     method: 'GET',
     headers: { ...(await authHeader(options?.expectedUserId)) },
   });
-  return unwrap<T>(res);
+  const value = await unwrap<T>(res);
+  if (options?.expectedUserId) await authHeader(options.expectedUserId);
+  return value;
 }
 
-export async function apiPatch<T = unknown>(path: string, body?: unknown): Promise<T> {
+export async function apiPatch<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string }): Promise<T> {
   const res = await fetch(`${resolveBase()}${path}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeader()),
+      ...(await authHeader(options?.expectedUserId)),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return unwrap<T>(res);
+  const value = await unwrap<T>(res);
+  if (options?.expectedUserId) await authHeader(options.expectedUserId);
+  return value;
 }
 
 export async function apiDelete<T = unknown>(path: string): Promise<T> {

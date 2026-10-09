@@ -31,6 +31,10 @@ const NOW = new Date('2026-05-17T10:00:00Z');
 
 function makeRecipe(id: string, score: number): RecommendedRecipeView {
   return {
+    reference:{ id,source:'recipes' },profile_version:1,stock_version:'fixture',calculated_at:NOW.toISOString(),duration_minutes:10,
+    constraints:{ status:'compatible',findings:[],registry_version:'fixture',limitations:[] },
+    availability:{ status:'available',missing:[],allocations:[],uncertainties:[],excluded_lots:[] },
+    nutrition:{ status:'unavailable',coverage:0,known_ingredients:0,total_ingredients:2,per_serving:{ energyKcal:null,proteinG:null,fiberG:null },sources:[],limitations:[] },reason_codes:[],unavailable_criteria:['nutrition','variety'],
     id,
     name: `Recipe ${id}`,
     prep_time: 10,
@@ -53,8 +57,8 @@ function makeRecipe(id: string, score: number): RecommendedRecipeView {
       expiryUrgency: 0,
       preferenceMatch: 0,
       timeFit: 0.5,
-      novelty: 0.5,
-      nutritionFit: 0.5,
+      novelty: null,
+      nutritionFit: null,
       effortFit: 1,
       missingPenalty: 0,
     },
@@ -269,7 +273,7 @@ describe('recordEvent', () => {
       result: makeResult({ cookable: 1 }),
     });
     const insert = userState.inserts.find((i) => i.table === 'recommendation_events')!;
-    expect(insert.payload.request_text).toBe('Que puis-je cuisiner ce soir ?');
+    expect(insert.payload.request_text).toBeNull();
     const ctx = insert.payload.context as Record<string, unknown>;
     expect(ctx.requestText).toBeUndefined();
     expect(ctx.goal).toBe('tonight');

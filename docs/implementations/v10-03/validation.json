@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-09",
+  "branch": "feat/v10-03-personnalisation",
+  "base_commit": "21021a068fa7dafdfb071580c6a1c79189133689",
+  "working_tree_implementation": true,
+  "remote_changes": false,
+  "checks": [
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "coverage": "Shared and API TypeScript compilation, Vite web bundle. Not a full frontend typecheck."
+    },
+    {
+      "command": "npm run test:v10:api",
+      "status": "passed",
+      "suites": 19,
+      "tests": 270,
+      "external_providers": "mocked"
+    },
+    {
+      "command": "npm run test:v10:client",
+      "status": "passed",
+      "suites": 23,
+      "tests": 73
+    },
+    {
+      "command": "npm run test:v10:03:db",
+      "status": "passed",
+      "groups": 30,
+      "regression_groups": 17,
+      "personalization_groups": 13,
+      "runtime": "Real local PostgreSQL 16, disposable database, Unix socket only"
+    },
+    {
+      "command": "npm run test:v10:db",
+      "status": "passed",
+      "groups": 17
+    },
+    {
+      "command": "ESLint compared against HEAD by rule, message and trimmed source line",
+      "status": "no new errors",
+      "files": 63,
+      "new_errors": 0,
+      "inherited_errors": 98,
+      "warnings": 1,
+      "evidence": "lint-comparison.json"
+    },
+    {
+      "command": "npm run security:secrets",
+      "status": "passed"
+    },
+    {
+      "command": "Secret patterns on allowed new implementation and evidence files",
+      "status": "passed",
+      "evidence": "new-file-secrets.json",
+      "files": 27,
+      "patterns": 8
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "npm run security:check",
+      "status": "failed with 9 inherited findings",
+      "modified_files_related_to_findings": false,
+      "scope": "Key-like test fixture literal, environment-validator recognition, two wildcard CORS checks and five SQL heuristics in unchanged legacy files."
+    },
+    {
+      "command": "tsc --noEmit -p tsconfig.app.json",
+      "status": "not validated",
+      "reason": "Stopped after approximately seven minutes without a result."
+    }
+  ],
+  "migration": "supabase/migrations/20261009095426_v10_personalization.sql",
+  "migration_applied_remotely": false,
+  "postgresql_fixture_limit": "Reconstructs relevant baseline schemas and existing deletion worker, not the full remote migration history.",
+  "ui_evidence": "ui-checks.json",
+  "acceptance_status": "Local evidence recorded per AC01-AC12 in V10-03.md; deployed and device acceptance remains open.",
+  "not_validated": [
+    "Remote schema and RLS",
+    "Live two-client synchronization",
+    "Live Supabase Realtime",
+    "Real iPhone 17 Pro Max, Safari, VoiceOver and keyboard",
+    "Real provider answers",
+    "Real-catalog quality",
+    "Full frontend typechecking",
+    "Global lint and global security baseline"
+  ],
+  "temporary_services_cleanup": {
+    "postgresql": "stopped",
+    "vite_fixture": "stopped",
+    "browser_test_tab": "closed and viewport reset"
+  }
+}

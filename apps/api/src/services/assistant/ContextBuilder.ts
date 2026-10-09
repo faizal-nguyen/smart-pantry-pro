@@ -19,6 +19,7 @@ import type {
   AssistantSessionContext,
   MemoryService,
 } from './MemoryService.js';
+import type { NutritionProfileRead } from '@smart/shared';
 
 export const CONTEXT_BUILDER_LIMITS = {
   maxMemories: 8,
@@ -37,6 +38,8 @@ export interface MemoryContextBlock {
   /** Aggregated string ready to inject into the system prompt. */
   combinedText: string;
   tokenEstimate: number;
+  shareProfileWithModel?:boolean;
+  profileVersion?:number;
 }
 
 const EMPTY_BLOCK: MemoryContextBlock = {
@@ -50,9 +53,12 @@ const EMPTY_BLOCK: MemoryContextBlock = {
 };
 
 export class ContextBuilder {
-  constructor(private readonly memory: MemoryService) {}
+  constructor(private readonly memory: MemoryService,private readonly readProfile?:(userId:string)=>Promise<NutritionProfileRead>) {}
 
   async build(userId: string, conversationId?: string | null): Promise<MemoryContextBlock> {
+    const profile=this.readProfile ? await safe(()=>this.readProfile!(userId),null) : null;
+    const settings=profile?.profile.settings;
+    const share=!!settings?.consent && !!settings.shareWithAssistant;
     // Parallelise the reads — they don't depend on each other.
     const [responseStyleMem, topMemories, summary, recentMessages, sessionContext] =
       await Promise.all([
@@ -87,6 +93,7 @@ export class ContextBuilder {
 
     const filteredMemories = topMemories
       .filter(m => m.kind !== 'response_style') // response_style rendered separately
+      .filter(m => !this.readProfile || (m.sensitivity!=='health_sensitive' && !['constraint','diet_goal','preference','negative_preference','cooking_style','recipe_feedback'].includes(m.kind)))
       .slice(0, CONTEXT_BUILDER_LIMITS.maxMemories);
 
     const memoriesText = formatMemories(filteredMemories);
@@ -94,7 +101,10 @@ export class ContextBuilder {
     const recentMessagesText = formatRecentMessages(recentMessages);
     const sessionContextText = formatSessionContext(sessionContext);
 
+    const profileText=this.readProfile ? share ? `Profil alimentaire explicitement confirmé, version ${profile!.profile.version}. Il prime sur les inférences. Ne suggère que les résultats du moteur, respecte leurs états à vérifier et leurs raisons. Contraintes et objectifs : ${JSON.stringify({ allergies:settings!.allergies,excludedIngredients:settings!.excludedIngredients,diets:settings!.diets,goals:settings!.goals,usualTimeMinutes:settings!.usualTimeMinutes,usualServings:settings!.usualServings })}` : 'Le profil alimentaire reste privé. Utilise le moteur de recettes pour appliquer les exclusions et restitue ses raisons structurées ; ne déduis aucune allergie ou besoin de santé.' : null;
+    const boundedProfile=profileText && profileText.length>CONTEXT_BUILDER_LIMITS.maxTokensEstimate*CHARS_PER_TOKEN/2 ? 'Le profil contient des contraintes explicites appliquées par le moteur. Utilise exclusivement les résultats structurés du moteur, sans inventer de compatibilité ni déduire de besoin de santé.' : profileText;
     const combinedParts = [
+      boundedProfile,
       responseStyle,
       memoriesText || null,
       summaryText,
@@ -121,6 +131,8 @@ export class ContextBuilder {
       sessionContextText,
       combinedText,
       tokenEstimate,
+      shareProfileWithModel:share,
+      profileVersion:profile?.profile.version,
     };
   }
 }

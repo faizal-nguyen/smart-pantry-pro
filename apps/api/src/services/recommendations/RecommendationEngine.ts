@@ -1,583 +1,171 @@
-import { mapLibraryRecipe, convertQuantity, type LibraryRecipeRow, type StockLot } from '@smart/shared';
-/**
- * PRP-226 PR2 — RecommendationEngine orchestrator.
- *
- * Loads the user's recipes + inventory, runs the deterministic
- * scorers (cookability / expiry / preference / time / novelty /
- * nutrition / effort), buckets the results into the legacy 3-bucket
- * shape (`cookable_now` / `almost_cookable` / `recent_suggestions`),
- * and surfaces explainable reasons.
- *
- * The engine NEVER calls an LLM. PRP-226 §0 locks "scoring source of
- * truth = serveur déterministe ; LLM explique seulement".
- *
- * Output shape is backward compatible : `RecommendedRecipeView`
- * extends `CookableRecipeView` so the existing assistant handler +
- * frontend (PRP-224 Sprint 2) keep working unchanged.
- */
-
+import { createHash } from 'node:crypto';
+import { mapLibraryRecipe,normalizeIngredientName,normalizeRecipeIngredients,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecommendationReason } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-import type { RecipeSummaryView } from '../assistant/handlers/read.js';
-import {
-  missingPenaltyFromGap,
-  scoreCookability,
-  type CookabilityResult,
-} from './CookabilityScorer.js';
-import { scoreExpiry } from './ExpiryScorer.js';
-import {
-  scorePreference,
-  BEHAVIOUR_WINDOW_DAYS,
-  type PreferenceMemory,
-  type RecipeInteractionSummary,
-} from './PreferenceScorer.js';
-import {
-  buildRecommendationCacheKey,
-  type RecommendationEventWriter,
-} from './RecommendationEventWriter.js';
 import type { MemoryService } from '../assistant/MemoryService.js';
-import type {
-  InventorySnapshot,
-  RecipeWithIngredients,
-  RecommendationContext,
-  RecommendationResult,
-  RecommendationScore,
-  RecommendationScoreParts,
-  RecommendedRecipeView,
-  SuggestedRecipeAction,
-} from './types.js';
-
-// ---- Tuning constants ------------------------------------------------
-
-const DEFAULT_ALMOST_THRESHOLD = 3;
-const DEFAULT_LIMIT_PER_BUCKET = 6;
-const DEFAULT_NEAR_EXPIRY_DAYS = 7;
-
-/** Score formula (PRP §7.1) — sum to 100, missingPenalty subtracts up to 20. */
-const WEIGHTS = {
-  cookability: 40,
-  expiryUrgency: 18,
-  preferenceMatch: 14,
-  timeFit: 10,
-  novelty: 7,
-  effortFit: 6,
-  nutritionFit: 5,
-  missingPenalty: 20,
-} as const;
-
-// ---- Public types ---------------------------------------------------
+import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
+import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
+import { NutritionProfileService } from './NutritionProfileService.js';
+import { evaluateAvailability,evaluateConstraints,estimateNutrition,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import type { RecommendationContext,RecommendationResult,RecipeWithIngredients,RecommendedRecipeView,RecommendationScoreParts } from './types.js';
 
 export interface RecommendationExecutionContext {
-  userId: string;
-  /** User-scoped Supabase client (RLS-bound for recipe + inventory reads). */
-  userClient: SupabaseClient;
-  /** Optional admin client for engine-internal writes (events, cache) — wired in PR3. */
-  serviceClient?: SupabaseClient;
-  /** Inject for deterministic tests. Defaults to `new Date()`. */
-  now?: Date;
-  conversationId?: string;
-  assistantMessageId?: string;
-  /**
-   * PRP-226 PR3 — optional event writer for audit log + cache.
-   * When provided, the engine :
-   *   1. checks the per-user cache and short-circuits on a fresh hit ;
-   *   2. logs every call into `recommendation_events` (best-effort —
-   *      failures do not break the user flow) ;
-   *   3. populates `event_id` on the result so the assistant can
-   *      persist it in its message metadata.
-   * When absent, the engine behaves like PR2 (compute every time,
-   * no audit log).
-   */
-  eventWriter?: RecommendationEventWriter;
-  /**
-   * PRP-226 PR6 — optional MemoryService for the PreferenceScorer.
-   * When provided the engine loads the user's active preference /
-   * negative_preference / cooking_style / diet_goal / recipe_feedback
-   * memories once per call and threads them into the scorer.
-   * Best-effort : a memory load failure leaves the scorer with an
-   * empty memory list (neutral preference signal) instead of breaking
-   * the recommendation flow.
-   */
-  memoryService?: MemoryService;
+  userId:string;userClient:SupabaseClient;serviceClient?:SupabaseClient;now?:Date;
+  conversationId?:string;assistantMessageId?:string;eventWriter?:RecommendationEventWriter;memoryService?:MemoryService;
 }
+type Interaction={ recipe_id:string|null;recipe_reference?:{ id:string;source:string }|null;feedback?:string|null;interaction_type:string;created_at:string };
+type History={ recipe_id:string|null;cooked_at:string;adjustments?:{ recipe_reference?:{ id:string;source:string } };voided_at?:string|null };
+const fingerprint=(value:unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const duration=(recipe:RecipeWithIngredients) => recipe.prep_time==null || recipe.cook_time==null ? null : recipe.prep_time+recipe.cook_time+(recipe.rest_time ?? 0);
+const clamp=(value:number) => Math.max(0,Math.min(1,value));
 
-// ---- Engine ----------------------------------------------------------
-
+/** The only scoring pipeline: explicit profile first, constraints before ranking,
+ * qualified original lots, structured evidence, and no LLM or inferred-health input. */
 export class RecommendationEngine {
-  /**
-   * Main entry point used by `SuggestRecipesForContextHandler`. Loads
-   * recipes + inventory in parallel, scores every candidate, and
-   * returns the 3-bucket result.
-   */
-  async suggestForUser(
-    ctx: RecommendationExecutionContext,
-    input: RecommendationContext,
-  ): Promise<RecommendationResult> {
-    const limit = input.limitPerBucket ?? DEFAULT_LIMIT_PER_BUCKET;
-    const almostThreshold = input.almostThreshold ?? DEFAULT_ALMOST_THRESHOLD;
-    const nearExpiryDays = input.nearExpiryDays ?? DEFAULT_NEAR_EXPIRY_DAYS;
-    const includeRecent = input.includeRecentFallback ?? true;
-    const now = ctx.now ?? new Date();
-
-    // PRP-226 PR3 — cache short-circuit. The cache is user-scoped + 15
-    // min TTL ; invalidation runs from the assistant write handlers
-    // when inventory/recipes change. Cache hit returns the previous
-    // result verbatim and skips both the SQL queries + the scoring
-    // loop. We deliberately log NO new event on a cache hit ; the
-    // original event is still in `recommendation_events`.
-    const revision = ctx.eventWriter ? await ctx.userClient.from('stock_context_versions').select('revision').eq('user_id',ctx.userId).maybeSingle() : null;
-    const cacheAllowed = !!revision?.data && !revision.error;
-    const cacheKey = `v10:${revision?.data?.revision ?? 'uncached'}:${buildRecommendationCacheKey(input)}`;
-    if (ctx.eventWriter && cacheAllowed) {
-      try {
-        const cached = await ctx.eventWriter.readCache(ctx.userId, cacheKey);
-        if (cached.hit && !cached.expired) {
-          return cached.hit.result;
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[RecommendationEngine] cache read failed:', err);
-      }
-    }
-
-    // PRP-226 PR6 — fan out memories + interactions in parallel with
-    // the SQL reads. Memory loads run only when a service is wired ;
-    // tests + legacy paths get an empty snapshot (neutral preference).
-    const [recipes, inventory, memories, interactions] = await Promise.all([
-      this.loadRecipes(ctx, input),
-      this.loadInventory(ctx),
-      this.loadMemories(ctx),
-      this.loadRecentInteractions(ctx, now),
-    ]);
-
-    const cookableNow: RecommendedRecipeView[] = [];
-    const almostCookable: RecommendedRecipeView[] = [];
-    const recent: RecipeSummaryView[] = [];
-
-    for (const recipe of recipes) {
-      // Time limit is a HARD constraint — if the user said "20 min",
-      // showing a 60-min recipe even in the fallback bucket is
-      // misleading. We mirror the V0 handler behaviour and drop the
-      // recipe entirely so neither `recent_suggestions` nor the
-      // cookable buckets surface it.
-      if (!fitsTimeLimit(recipe, input.timeLimitMinutes)) {
-        continue;
-      }
-
-      // Always keep a "recent" view of every (time-eligible) recipe —
-      // used for the fallback bucket. Deduped against the cookable
-      // buckets below.
-      recent.push(toRecipeSummary(recipe));
-
-      const cookability = scoreCookability(recipe, inventory,input.servings);
-      // Recipes with zero essentials cannot land in the cookable
-      // buckets (we don't know what to check) — they still feed
-      // recent_suggestions via the loop above.
-      if (cookability.total_essential === 0) continue;
-
-      const expiry = scoreExpiry(recipe, inventory, { now, nearExpiryDays });
-      const preference = scorePreference(recipe, {
-        userId: ctx.userId,
-        memories,
-        interactions,
-        now,
-      });
-
-      const parts: RecommendationScoreParts = {
-        cookability: cookability.score,
-        expiryUrgency: applyGoalBoost(expiry.score, input.goal, 'expiry'),
-        preferenceMatch: preference.score,
-        timeFit: scoreTimeFit(recipe, input),
-        novelty: 0.5, // PR6 will populate from recipe_interactions.
-        nutritionFit: 0.5, // PR6 will populate from products.nutrition_json.
-        effortFit: scoreEffortFit(recipe),
-        missingPenalty: missingPenaltyFromGap(cookability.combined_gap, almostThreshold),
-      };
-
-      const score = computeTotalScore(parts);
-      const reasons = buildReasons({
-        cookability,
-        expiry,
-        goal: input.goal,
-        recipe,
-        preferenceReasons: preference.reasons,
-      });
-
-      const view: RecommendedRecipeView = {
-        // CookableRecipeView fields :
-        id: recipe.id,
-        name: recipe.name,
-        prep_time: recipe.prep_time,
-        cook_time: recipe.cook_time,
-        image_url: recipe.image_url,
-        total_essential: cookability.total_essential,
-        linked_essential: cookability.linked_essential,
-        missing_count: cookability.missing_count,
-        missing_ingredients: cookability.missing_ingredients,
-        unlinked: cookability.unlinked,
-        unlinked_count: cookability.unlinked_count,
-        // RecommendedRecipeView additions :
-        description: recipe.description,
-        servings: input.servings ?? recipe.servings,
-        cuisine_category: recipe.cuisine_category,
-        meal_type: recipe.meal_type,
-        tags: recipe.tags,
-        unknown_ingredients: cookability.unknown_ingredients,
-        score_total: score.total,
-        score_parts: score.parts,
-        reasons,
-        expiring_ingredients_used: expiry.expiring_ingredients,
-        suggested_actions: suggestActions(cookability),
-      };
-
-      if (cookability.combined_gap === 0) {
-        cookableNow.push(view);
-      } else if (cookability.combined_gap <= almostThreshold) {
-        almostCookable.push(view);
-      }
-    }
-
-    // Sort cookable buckets by score desc, then alpha for determinism.
-    const sortByScore = (a: RecommendedRecipeView, b: RecommendedRecipeView) => {
-      if (a.score_total !== b.score_total) return b.score_total - a.score_total;
-      return a.name.localeCompare(b.name);
-    };
-    cookableNow.sort(sortByScore);
-    almostCookable.sort(sortByScore);
-
-    // Dedupe recent vs cookable buckets and apply the limit.
-    const seen = new Set<string>([
-      ...cookableNow.map((r) => r.id),
-      ...almostCookable.map((r) => r.id),
-    ]);
-    const recentDeduped = includeRecent ? recent.filter((r) => !seen.has(r.id)) : [];
-
-    const result: RecommendationResult = {
-      cookable_now: cookableNow.slice(0, limit),
-      almost_cookable: almostCookable.slice(0, limit),
-      recent_suggestions: recentDeduped.slice(0, limit),
-      total_user_recipes: recent.length,
-    };
-
-    // PRP-226 PR3 — best-effort audit log + cache write. Both run
-    // sequentially but BOTH wrapped in try/catch so writer failures
-    // (RLS rejection, table missing in a stale env, etc.) never
-    // break the recommendation flow.
+  async suggestForUser(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecommendationResult> {
+    const { profile,legacyServerPresent }=await new NutritionProfileService(ctx.userClient).read(ctx.userId);
+    const now=ctx.now ?? new Date(),settings={ ...profile.settings,diets:[...profile.settings.diets] };
+    if (input.dietaryFlag==='vegetarien' && !settings.diets.includes('vegetarian')) settings.diets.push('vegetarian');
+    if (input.dietaryFlag==='vegan' && !settings.diets.includes('vegan')) settings.diets.push('vegan');
+    const [recipes,lots,interactions,history]=await Promise.all([this.loadRecipes(ctx,input),this.loadInventory(ctx),this.loadInteractions(ctx),this.loadHistory(ctx)]);
+    const productIds=[...new Set(recipes.flatMap(recipe=>(recipe.recipe_ingredients ?? []).map(item=>item.inventory_product_id).filter(Boolean)))];
+    const products=await this.loadProducts(ctx,productIds);
+    const stockVersion=fingerprint(lots);
+    // Read authoritative inputs before cache: profile, date, edited recipes, product
+    // provenance, feedback and cooked history all participate, even on direct writes.
+    const key='v10-03:'+fingerprint({ owner:ctx.userId,profile,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
-      try {
-        const eventId = await ctx.eventWriter.recordEvent({
-          userId: ctx.userId,
-          conversationId: ctx.conversationId ?? null,
-          assistantMessageId: ctx.assistantMessageId ?? null,
-          requestText: input.requestText ?? null,
-          context: input,
-          result,
-        });
-        result.event_id = eventId;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[RecommendationEngine] recordEvent failed:', err);
-      }
-      try {
-        if (cacheAllowed) await ctx.eventWriter.writeCache({
-          userId: ctx.userId,
-          cacheKey,
-          payload: result,
-        });
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('[RecommendationEngine] writeCache failed:', err);
-      }
+      try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) return cached.hit.result; } catch { /* Fresh computation remains authoritative. */ }
     }
-
+    const limit=Math.min(20,input.limitPerBucket ?? 3),threshold=input.almostThreshold ?? 3;
+    const effectiveTime=input.timeLimitMinutes ?? settings.usualTimeMinutes ?? (input.goal==='quick' || settings.goals.includes('quick') ? 20 : undefined);
+    const cookable:RecommendedRecipeView[]=[],almost:RecommendedRecipeView[]=[],verify:RecommendedRecipeView[]=[],excluded:RecommendedRecipeView[]=[],recent:RecommendedRecipeView[]=[];
+    for (const recipe of recipes) {
+      const servings=input.servings ?? settings.usualServings ?? (recipe.servings && recipe.servings>0 ? recipe.servings : null);
+      const minutes=duration(recipe),constraints=evaluateConstraints(recipe,settings,products);
+      // Legacy labels can be ambiguous. Keep known exclusions, but require an
+      // explicit review before treating the imported profile as compatible.
+      if (legacyServerPresent && constraints.status==='compatible') {
+        constraints.status='verify';
+        constraints.limitations.push('Confirmez les anciennes préférences dans votre profil alimentaire.');
+      }
+      const availability=evaluateAvailability(recipe,lots,servings ?? 1,now);
+      const nutrition=estimateNutrition(recipe,products),taste=scoreExplicitTaste(recipe,settings);
+      const reasons:RecommendationReason[]=[],unavailable:string[]=[];
+      const essential=(recipe.recipe_ingredients ?? []).filter(item=>item.is_essential!==false);
+      const gaps=availability.missing.filter(item=>item.is_essential),unknown=gaps.filter(item=>['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason));
+      const stockScore=essential.length ? clamp(1-gaps.length/essential.length) : 0;
+      reasons.push({ code:availability.status==='available' ? 'STOCK_AVAILABLE' : availability.status==='missing' ? 'STOCK_MISSING' : 'STOCK_UNCERTAIN',text:availability.status==='available' ? 'Quantités et lots utilisables renseignés pour les portions demandées.' : availability.status==='missing' ? `${availability.missing.length} ingrédient(s) à acheter ou vérifier.` : 'Stock présent ; dates ou quantités à vérifier.' });
+      const eligible=qualifyLots(lots,now).eligible,used=new Set(availability.allocations.map(item=>item.inventory_id));
+      const dated=eligible.filter(lot=>used.has(lot.id) && lot.date_kind && lot.date_kind!=='unknown' && calendarDaysUntil(lot.expiry_date,now)!==null);
+      const near=dated.filter(lot=>{ const days=calendarDaysUntil(lot.expiry_date,now)!;return days>=0 && days<=(input.nearExpiryDays ?? 7); });
+      const expiry=near.length ? Math.max(...near.map(lot=>{ const days=calendarDaysUntil(lot.expiry_date,now)!;return days===0 ? 1 : days<=3 ? 0.8 : 0.4; })) : 0;
+      if (near.length) reasons.push({ code:'NEAR_DATE',text:`Utilise ${near[0].product_name}, date renseignée dans ${calendarDaysUntil(near[0].expiry_date,now)} jour(s).` });
+      else if (!dated.length) unavailable.push('expiry');
+      if (minutes===null) { unavailable.push('time');reasons.push({ code:'TIME_UNKNOWN',text:'Durée totale à vérifier.' }); }
+      else if (effectiveTime && minutes<=effectiveTime) reasons.push({ code:'TIME_FITS',text:`Durée enregistrée ${minutes} min, dans les ${effectiveTime} min disponibles.` });
+      for (const text of taste.reasons) reasons.push({ code:'DECLARED_TASTE',text });
+      if (!taste.available) unavailable.push('taste');
+      const matching=(interactions ?? []).filter(item=>(item.recipe_reference ? item.recipe_reference.id===recipe.id && item.recipe_reference.source===(recipe.source ?? 'recipes') : recipe.source==='recipes' && item.recipe_id===recipe.id));
+      const latest=matching.find(item=>!!item.feedback);
+      const daysAgo=latest ? Math.max(0,(now.getTime()-new Date(latest.created_at).getTime())/86400000) : Infinity;
+      let feedbackScore=0;
+      if (latest?.feedback==='repeat') { feedbackScore=0.6;reasons.push({ code:'FEEDBACK',text:'Vous avez choisi « à refaire ».' }); }
+      if (latest?.feedback==='dislike') { feedbackScore=-1;reasons.push({ code:'FEEDBACK',text:'Vous avez indiqué ne pas aimer cette recette.' }); }
+      if (latest?.feedback==='too_long' && daysAgo<=30) { feedbackScore=effectiveTime ? -0.8 : -0.4;reasons.push({ code:'FEEDBACK',text:'Vous avez trouvé cette recette trop longue.' }); }
+      const cooked=(history ?? []).filter(item=>item.adjustments?.recipe_reference ? item.adjustments.recipe_reference.id===recipe.id && item.adjustments.recipe_reference.source===recipe.source : recipe.source==='recipes' && item.recipe_id===recipe.id);
+      const novelty=history?.length ? cooked.length ? clamp(Math.min(30,(now.getTime()-new Date(cooked[0].cooked_at).getTime())/86400000)/30) : 1 : null;
+      if (novelty===null) unavailable.push('variety');else if (settings.goals.includes('variety') && !cooked.length) reasons.push({ code:'VARIETY',text:'Pas cuisinée dans l’historique disponible.' });
+      const nutritionFit=scoreNutritionGoal(nutrition,settings,input.goal);
+      if (nutritionFit===null) unavailable.push('nutrition');
+      else reasons.push({ code:'NUTRITION_GOAL',text:`Estimation par portion : ${nutrition.per_serving.proteinG ?? '—'} g de protéines, ${nutrition.per_serving.fiberG ?? '—'} g de fibres ; objectif culinaire choisi.` });
+      if (settings.equipment.length && !recipe.required_equipment) { unavailable.push('equipment');reasons.push({ code:'EQUIPMENT_UNKNOWN',text:'Matériel de la recette non renseigné.' }); }
+      const missingEquipment=recipe.required_equipment?.filter(item=>!settings.equipment.some(value=>normalizeEquipment(value)===normalizeEquipment(item))) ?? [];
+      const craving=input.craving && input.craving!=='any' && recipe.meal_style===input.craving;
+      if (craving) reasons.push({ code:'CRAVING',text:'Style du repas renseigné correspondant à votre envie.' });
+      const effort=settings.skill && recipe.difficulty ? clamp(1-Math.max(0,recipe.difficulty-(settings.skill==='beginner' ? 2 : settings.skill==='intermediate' ? 4 : 5))/3) : 0;
+      if (!settings.skill || !recipe.difficulty) unavailable.push('skill');
+      if (input.mealType && !recipe.meal_type) unavailable.push('meal_type');
+      if (interactions===null) { unavailable.push('feedback');availability.uncertainties.push('Vos retours précédents ne peuvent pas être vérifiés.'); }
+      const vegetables=vegetableCriterion(recipe);
+      if (settings.goals.includes('vegetables')) reasons.push({ code:'KNOWN_VEGETABLES',text:vegetables.names.length ? `Contient ${vegetables.names.length} légume(s) identifié(s) dans les ingrédients : ${vegetables.names.join(', ')}.` : 'Aucun légume identifié dans la liste connue ; aucun apport végétal inventé.' });
+      const parts:RecommendationScoreParts={ cookability:stockScore,expiryUrgency:expiry,preferenceMatch:Math.max(-1,Math.min(1,taste.score+feedbackScore)),timeFit:minutes===null ? 0 : effectiveTime ? clamp(1-minutes/(effectiveTime*2)) : clamp(1-minutes/180),novelty,nutritionFit,effortFit:effort,missingPenalty:threshold>0 ? Math.min(1,gaps.length/threshold) : gaps.length ? 1 : 0 };
+      // Inactive goals remove an axis for every candidate. A missing value on an
+      // active axis contributes zero, so incomplete data cannot gain a bonus.
+      const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein';
+      const varietyActive=settings.goals.includes('variety') && !!history?.length;
+      const expiryWeight=settings.goals.includes('anti_waste') || input.goal==='anti_waste' ? 23 : 18;
+      const maxWeight=40+expiryWeight+14+10+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
+      const raw=parts.cookability*40+expiry*expiryWeight+parts.preferenceMatch*14+parts.timeFit*10+effort*6+(nutritionActive ? (nutritionFit ?? 0)*10 : 0)+(varietyActive ? (novelty ?? 0)*7 : 0)+(craving ? 4 : 0)+(settings.goals.includes('vegetables') ? vegetables.score*6 : 0)-parts.missingPenalty*20;
+      const view:RecommendedRecipeView={ id:recipe.id,name:recipe.name,prep_time:recipe.prep_time,cook_time:recipe.cook_time,image_url:recipe.image_url,
+        description:recipe.description,servings,cuisine_category:recipe.cuisine_category,meal_type:recipe.meal_type,tags:recipe.tags,
+        total_essential:essential.length,linked_essential:essential.length-unknown.length,missing_count:gaps.length-unknown.length,missing_ingredients:gaps.filter(item=>!unknown.includes(item)).map(item=>item.ingredient_name),
+        unlinked:!!unknown.length,unlinked_count:unknown.length,unknown_ingredients:unknown.map(item=>item.ingredient_name),
+        score_total:Math.round(Math.max(0,Math.min(100,raw/maxWeight*100))),score_parts:parts,reasons:reasons.map(item=>item.text),reason_codes:reasons,
+        reference:{ id:recipe.id,source:recipe.source ?? 'recipes' },profile_version:profile.version,stock_version:stockVersion,calculated_at:now.toISOString(),duration_minutes:minutes,constraints,availability,nutrition,unavailable_criteria:unavailable,
+        expiring_ingredients_used:near.map(lot=>({ product_id:lot.product_id,product_name:lot.product_name,days_to_expiry:calendarDaysUntil(lot.expiry_date,now)! })),
+        suggested_actions:['open_recipe',...(availability.missing.length ? ['add_missing_to_shopping' as const] : []),'plan_recipe'] };
+      if (input.goal==='light') view.unavailable_criteria.push('light_goal');
+      if (constraints.status==='incompatible') { excluded.push(view);continue; }
+      if (effectiveTime && minutes!==null && minutes>effectiveTime) continue;
+      if (interactions===null || constraints.status==='verify' || (effectiveTime && minutes===null) || missingEquipment.length || (latest?.feedback==='not_today' && daysAgo<1)) {
+        if (missingEquipment.length) view.availability.uncertainties.push(`Matériel manquant : ${missingEquipment.join(', ')}.`);
+        if (latest?.feedback==='not_today' && daysAgo<1) view.reason_codes.push({ code:'FEEDBACK',text:'Vous avez choisi « pas aujourd’hui » ; suggestion suspendue pendant 24 h.' });
+        verify.push(view);continue;
+      }
+      if (latest?.feedback==='dislike') { excluded.push(view);continue; }
+      if (!essential.length || availability.status==='verify') { verify.push(view);continue; }
+      if (availability.missing.length===0) cookable.push(view);
+      else if (gaps.length<=threshold) almost.push(view);else recent.push(view);
+    }
+    const sort=(a:RecommendedRecipeView,b:RecommendedRecipeView)=>b.score_total-a.score_total || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    for (const bucket of [cookable,almost,verify,excluded,recent]) bucket.sort(sort);
+    const selected=new Set([...cookable,...almost].sort(sort).slice(0,limit).map(recipe=>`${recipe.reference.source}:${recipe.id}`));
+    const result:RecommendationResult={ cookable_now:cookable.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),almost_cookable:almost.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),recent_suggestions:input.includeRecentFallback===false ? [] : recent.slice(0,limit).map(recipe=>({ ...recipe,description:recipe.description ?? null,servings:recipe.servings ?? null,cuisine_category:recipe.cuisine_category ?? null,meal_type:recipe.meal_type ?? null,tags:recipe.tags ?? null })),
+      verify_suggestions:verify.slice(0,limit),excluded_suggestions:excluded.slice(0,limit),total_user_recipes:recipes.length,pipeline_version:3,profile_version:profile.version,calculated_at:now.toISOString(),has_constraints:settings.allergies.length+settings.diets.length+settings.excludedIngredients.length>0 };
+    // No sensitive input or raw conversation goes into ordinary recommendation events.
+    if (ctx.eventWriter) {
+      try { result.event_id=await ctx.eventWriter.recordEvent({ userId:ctx.userId,conversationId:ctx.conversationId ?? null,assistantMessageId:ctx.assistantMessageId ?? null,requestText:null,context:input,result }); } catch { /* Optional event receipt; no false domain success. */ }
+      try { await ctx.eventWriter.writeCache({ userId:ctx.userId,cacheKey:key,payload:result }); } catch { /* Computed result remains valid. */ }
+    }
     return result;
   }
-
-  // ---- Data loaders -------------------------------------------------
-
-  private async loadRecipes(
-    ctx: RecommendationExecutionContext,
-    input: RecommendationContext,
-  ): Promise<RecipeWithIngredients[]> {
-    let q = ctx.userClient
-      .from('recipes')
-      .select(
-        'id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, created_at, recipe_ingredients(id, ingredient_name, quantity, unit, inventory_product_id, is_essential)'
-      )
-      .eq('user_id', ctx.userId)
-      .order('created_at', { ascending: false });
-
-    if (input.query?.trim()) {
-      q = q.ilike('name', `%${input.query.trim()}%`);
-    }
-    if (input.mealType) {
-      q = q.eq('meal_type', input.mealType);
-    }
-
-    const { data, error } = await q;
-    if (error) throw error;
-    const library = await ctx.userClient.from('user_recipes').select('*, catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId);
-    if (library.error) throw library.error;
-    const custom = ((library.data ?? []) as LibraryRecipeRow[]).map(row => {
-      const mapped = mapLibraryRecipe(row);
-      return { ...mapped, recipe_ingredients: mapped.inlineIngredients.map((ingredient,index) => ({
-        ...ingredient, id: `${mapped.id}:${index}`, inventory_product_id: ingredient.inventory_product_id ?? null,
-        quantity: ingredient.quantity ?? null,
-      })) } as RecipeWithIngredients;
-    }).filter(recipe => (!input.query?.trim() || recipe.name.toLowerCase().includes(input.query.trim().toLowerCase()))
-      && (!input.mealType || !recipe.meal_type || recipe.meal_type === input.mealType));
-    return [...(data ?? []) as RecipeWithIngredients[], ...custom];
-  }
-
-  /**
-   * PRP-226 PR6 — load the user's active preference-related memories.
-   * Best-effort : a memory load failure (RLS rejection, schema
-   * mismatch in a stale env) returns an empty list so the engine
-   * still scores recipes with neutral preference signal.
-   */
-  private async loadMemories(
-    ctx: RecommendationExecutionContext,
-  ): Promise<PreferenceMemory[]> {
-    if (!ctx.memoryService) return [];
-    try {
-      const rows = await ctx.memoryService.getTopActiveMemories(ctx.userId, 100);
-      const relevant = new Set([
-        'preference',
-        'negative_preference',
-        'cooking_style',
-        'diet_goal',
-        'recipe_feedback',
-      ]);
-      return rows
-        .filter((r) => relevant.has(r.kind))
-        .map((r) => ({
-          id: r.id,
-          kind: r.kind as PreferenceMemory['kind'],
-          content: r.content,
-          normalized_content: r.normalized_content,
-          sensitivity: r.sensitivity,
-          subject_type: r.subject_type,
-          subject_id: r.subject_id,
-        }));
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[RecommendationEngine] loadMemories failed:', err);
-      return [];
-    }
-  }
-
-  /**
-   * PRP-226 PR6 — pull the last 30 days of `recipe_interactions` so
-   * the PreferenceScorer can apply behavioural decay. We filter to the
-   * three signal-bearing types ; the rest are kept for analytics but
-   * don't move the score in V1. RLS-bound via the user client.
-   */
-  private async loadRecentInteractions(
-    ctx: RecommendationExecutionContext,
-    now: Date,
-  ): Promise<RecipeInteractionSummary[]> {
-    const windowDays = Math.max(
-      BEHAVIOUR_WINDOW_DAYS.cooked,
-      BEHAVIOUR_WINDOW_DAYS.accepted,
-      BEHAVIOUR_WINDOW_DAYS.dismissed,
-    );
-    const cutoff = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000).toISOString();
-    try {
-      const { data, error } = await ctx.userClient
-        .from('recipe_interactions')
-        .select('recipe_id, interaction_type, created_at')
-        .eq('user_id', ctx.userId)
-        .in('interaction_type', ['cooked', 'accepted', 'dismissed'])
-        .gte('created_at', cutoff)
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return ((data ?? []) as Array<{
-        recipe_id: string | null;
-        interaction_type: RecipeInteractionSummary['interaction_type'];
-        created_at: string;
-      }>);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[RecommendationEngine] loadRecentInteractions failed:', err);
-      return [];
-    }
-  }
-
-  private async loadInventory(
-    ctx: RecommendationExecutionContext,
-  ): Promise<InventorySnapshot> {
-    const { data, error } = await ctx.userClient.from('inventory')
-      .select('id,product_id,quantity,unit,stock_version,expiry_date,products(name,unit_type)').eq('user_id',ctx.userId);
-    if (error) throw error;
-    const rows = (data ?? []) as Array<{
-      id: string; product_id: string; quantity: number; unit: string | null; stock_version: number; expiry_date: string | null;
-      products?: { name: string; unit_type: string } | { name: string; unit_type: string }[] | null;
-    }>;
-    const lots: StockLot[] = rows.map(row => ({ id: row.id, product_id: row.product_id,
-      quantity: Number(row.quantity), unit: row.unit ?? (Array.isArray(row.products) ? row.products[0]?.unit_type : row.products?.unit_type) ?? null,
-      product_name: (Array.isArray(row.products) ? row.products[0]?.name : row.products?.name) ?? '', stock_version: Number(row.stock_version), expiry_date: row.expiry_date }));
-    const byProduct: InventorySnapshot['byProduct'] = new Map();
-    for (const lot of lots) {
-      const prev = byProduct.get(lot.product_id);
-      let quantity = lot.quantity;
-      if (prev) {
-        try { quantity = prev.quantity + convertQuantity(lot.quantity,lot.unit,prev.unit); }
-        catch { quantity = prev.quantity; } // Availability uses every original lot below, never this summary.
+  private async loadRecipes(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecipeWithIngredients[]> {
+    let query=ctx.userClient.from('recipes').select('id,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)').eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
+    if (input.query?.trim()) query=query.ilike('name','%'+input.query.trim().replace(/[%_]/g,'\\$&')+'%');
+    const [own,library,catalog]=await Promise.all([query,ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId).limit(200),ctx.userClient.from('recipes_catalog').select('*').order('created_at',{ ascending:false }).limit(200)]);
+    for (const row of [own,library,catalog]) if (row.error) throw new Error('RECIPE_DATA_UNAVAILABLE');
+    const libraryRows=(library.data ?? []) as LibraryRecipeRow[],catalogOwned=new Set(libraryRows.map(row=>row.recipe_id));
+    const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes' })),...libraryRows.map(row=>{ const mapped=mapLibraryRecipe(row);return { ...mapped,prep_time:row.catalog_recipe?.prep_time ?? null,cook_time:row.catalog_recipe?.cook_time ?? null,rest_time:row.catalog_recipe?.rest_time ?? 0,servings:row.catalog_recipe?.servings ? row.catalog_recipe.servings*(row.custom_modifications?.servings_multiplier ?? 1) : null,difficulty:row.catalog_recipe?.difficulty ?? null,recipe_ingredients:mapped.inlineIngredients.map((ingredient,index)=>({ ...ingredient,id:mapped.id+':'+index,is_essential:ingredient.is_essential!==false,inventory_product_id:ingredient.inventory_product_id ?? null })),required_equipment:row.catalog_recipe?.['required_equipment'] ?? null,meal_style:row.catalog_recipe?.['meal_style'] ?? null }; }),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>({ ...row,source:'recipes_catalog',name:row.title,image_url:row.photo_url,cuisine_category:row.cuisine_category ?? null,meal_type:row.meal_type ?? null,recipe_ingredients:normalizeRecipeIngredients(row.ingredients_json).map((ingredient,index)=>({ ...ingredient,id:row.id+':'+index,is_essential:ingredient.is_essential!==false })) }))] as RecipeWithIngredients[];
+    return rows.filter(recipe=>{
+      if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
+      if (input.mealType && recipe.meal_type && recipe.meal_type!==input.mealType) return false;
+      const ingredients=recipe.recipe_ingredients ?? [];
+      if (input.ingredient && !ingredients.some(item=>normalizeIngredientName(item.ingredient_name).includes(normalizeIngredientName(input.ingredient!)))) return false;
+      if (input.proteinFamily || input.proteinCut) {
+        const facets=extractRecipeFacets(ingredients.map(item=>({ name:item.ingredient_name })));
+        if (input.proteinFamily && !facets.protein_families.includes(input.proteinFamily)) return false;
+        if (input.proteinCut && !(facets.protein_cuts as string[]).includes(input.proteinCut)) return false;
       }
-      byProduct.set(lot.product_id,{ quantity, unit: prev?.unit ?? lot.unit,
-        expiryDate: pickEarlierExpiry(prev?.expiryDate ?? null,lot.expiry_date ?? null), productName: lot.product_name });
-    }
-    return { byProduct, lots };
+      return true;
+    });
   }
-}
-
-// ---- Helpers --------------------------------------------------------
-
-function fitsTimeLimit(recipe: RecipeWithIngredients, limit?: number): boolean {
-  if (!limit || limit <= 0) return true;
-  const total = (recipe.prep_time ?? 0) + (recipe.cook_time ?? 0);
-  if (total === 0) return true; // unknown time = let it through, scorer penalises
-  return total <= limit;
-}
-
-function scoreTimeFit(recipe: RecipeWithIngredients, input: RecommendationContext): number {
-  const total = (recipe.prep_time ?? 0) + (recipe.cook_time ?? 0);
-  if (total === 0) {
-    // No time info — neutral, with a small hint when caller set a limit
-    // (we couldn't verify, raison "temps à vérifier" surfaces).
-    return 0.5;
+  private async loadInventory(ctx:RecommendationExecutionContext):Promise<QualifiedLot[]> {
+    const { data,error }=await ctx.userClient.from('inventory').select('id,product_id,quantity,unit,stock_version,expiry_date,date_kind,quantity_quality,location,products(name,unit_type)').eq('user_id',ctx.userId);
+    if (error) throw new Error('STOCK_DATA_UNAVAILABLE');
+    return (data ?? []).map(row=>{ const product=Array.isArray(row.products) ? row.products[0] : row.products;return { ...row,quantity:Number(row.quantity),stock_version:Number(row.stock_version),unit:row.unit ?? product?.unit_type ?? null,product_name:product?.name ?? '' }; });
   }
-  if (input.timeLimitMinutes && input.timeLimitMinutes > 0) {
-    if (total <= input.timeLimitMinutes / 2) return 1;
-    if (total <= input.timeLimitMinutes) return 0.8;
-    return 0.2;
+  private async loadProducts(ctx:RecommendationExecutionContext,ids:string[]):Promise<Map<string,IngredientProduct>> {
+    if (!ids.length) return new Map();
+    const { data,error }=await ctx.userClient.from('products').select('id,name,nutrition_json,allergens_json,off_last_synced_at,enrichment_status,updated_at').in('id',ids);
+    if (error) throw new Error('PRODUCT_DATA_UNAVAILABLE');
+    return new Map((data ?? []).map(row=>[row.id,row]));
   }
-  // No explicit limit → reward short recipes mildly.
-  if (total <= 20) return 0.9;
-  if (total <= 40) return 0.7;
-  if (total <= 60) return 0.5;
-  return 0.3;
-}
-
-function scoreEffortFit(recipe: RecipeWithIngredients): number {
-  // Cheap heuristic : fewer essential ingredients = less effort.
-  const ings = recipe.recipe_ingredients ?? [];
-  const essentials = ings.filter((i) => i.is_essential !== false).length;
-  if (essentials === 0) return 0.5;
-  if (essentials <= 3) return 1;
-  if (essentials <= 6) return 0.8;
-  if (essentials <= 10) return 0.6;
-  return 0.4;
-}
-
-function applyGoalBoost(
-  raw: number,
-  goal: RecommendationContext['goal'],
-  axis: 'expiry',
-): number {
-  if (axis === 'expiry' && goal === 'anti_waste') {
-    // Anti-waste users want expiry to dominate ranking.
-    return Math.min(1, raw * 1.4);
+  private async loadInteractions(ctx:RecommendationExecutionContext):Promise<Interaction[]|null> {
+    const { data,error }=await ctx.userClient.from('recipe_interactions').select('recipe_id,recipe_reference,feedback,interaction_type,created_at').eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
+    return error ? null : data ?? [];
   }
-  return raw;
-}
-
-function computeTotalScore(parts: RecommendationScoreParts): RecommendationScore {
-  const raw =
-    parts.cookability * WEIGHTS.cookability +
-    parts.expiryUrgency * WEIGHTS.expiryUrgency +
-    parts.preferenceMatch * WEIGHTS.preferenceMatch +
-    parts.timeFit * WEIGHTS.timeFit +
-    parts.novelty * WEIGHTS.novelty +
-    parts.effortFit * WEIGHTS.effortFit +
-    parts.nutritionFit * WEIGHTS.nutritionFit -
-    parts.missingPenalty * WEIGHTS.missingPenalty;
-
-  const total = Math.max(0, Math.min(100, Math.round(raw)));
-  return { total, parts };
-}
-
-function buildReasons(input: {
-  cookability: CookabilityResult;
-  expiry: { expiring_ingredients: { product_name: string; days_to_expiry: number }[] };
-  goal: RecommendationContext['goal'];
-  recipe: RecipeWithIngredients;
-  /**
-   * PR6 — taste / behaviour-derived hints from the PreferenceScorer.
-   * Merged in after the cookability + expiry signals so the cooking
-   * context still leads, but always before the 4-reason cap.
-   */
-  preferenceReasons?: string[];
-}): string[] {
-  const reasons: string[] = [];
-  if (input.cookability.combined_gap === 0) {
-    reasons.push('Tu as tout en stock');
-  } else if (input.cookability.missing_count > 0) {
-    reasons.push(
-      `${input.cookability.missing_count} ingrédient${
-        input.cookability.missing_count > 1 ? 's' : ''
-      } manquant${input.cookability.missing_count > 1 ? 's' : ''}`,
-    );
+  private async loadHistory(ctx:RecommendationExecutionContext):Promise<History[]|null> {
+    const { data,error }=await ctx.userClient.from('cooking_journal_entries').select('recipe_id,cooked_at,adjustments').eq('user_id',ctx.userId).is('voided_at',null).order('cooked_at',{ ascending:false }).limit(200);
+    return error ? null : data ?? [];
   }
-  if (input.cookability.unlinked_count > 0) {
-    reasons.push(
-      `${input.cookability.unlinked_count} ingrédient${
-        input.cookability.unlinked_count > 1 ? 's' : ''
-      } à vérifier`,
-    );
-  }
-  if (input.expiry.expiring_ingredients.length > 0) {
-    const first = input.expiry.expiring_ingredients[0];
-    if (first.days_to_expiry <= 0) {
-      reasons.push(`Utilise ${first.product_name} (à finir aujourd'hui)`);
-    } else if (first.days_to_expiry <= 3) {
-      reasons.push(
-        `Utilise ${first.product_name} (J-${first.days_to_expiry})`,
-      );
-    } else {
-      reasons.push(`Utilise ${first.product_name} bientôt`);
-    }
-  }
-  const total = (input.recipe.prep_time ?? 0) + (input.recipe.cook_time ?? 0);
-  if (total > 0 && total <= 20) {
-    reasons.push(`Rapide (${total} min)`);
-  }
-  if (input.goal === 'anti_waste' && input.expiry.expiring_ingredients.length === 0) {
-    // Honest signal — anti_waste asked but the engine didn't find expiry leverage.
-    reasons.push('Aucun produit proche péremption — recette neutre côté anti-gaspi');
-  }
-  if (input.preferenceReasons?.length) {
-    for (const r of input.preferenceReasons) {
-      if (!reasons.includes(r)) reasons.push(r);
-    }
-  }
-  return reasons.slice(0, 4);
-}
-
-function suggestActions(c: CookabilityResult): SuggestedRecipeAction[] {
-  const actions: SuggestedRecipeAction[] = ['open_recipe', 'plan_recipe', 'mark_cooked'];
-  if (c.missing_count > 0) actions.splice(1, 0, 'add_missing_to_shopping');
-  return actions;
-}
-
-function toRecipeSummary(r: RecipeWithIngredients): RecipeSummaryView {
-  return {
-    id: r.id,
-    name: r.name,
-    description: r.description,
-    prep_time: r.prep_time,
-    cook_time: r.cook_time,
-    servings: r.servings,
-    image_url: r.image_url,
-    cuisine_category: r.cuisine_category,
-    meal_type: r.meal_type,
-    tags: r.tags,
-  };
-}
-
-function pickEarlierExpiry(a: string | null, b: string | null): string | null {
-  if (!a) return b;
-  if (!b) return a;
-  return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
 }

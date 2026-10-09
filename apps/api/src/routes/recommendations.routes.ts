@@ -11,10 +11,10 @@
  *   - `RecommendationEngine` (stateless, partagé) ;
  *   - `RecommendationEventWriter` (per-request, écrit cache 15-min +
  *     `recommendation_events`) ;
- *   - `MemoryService` (PreferenceScorer V1 — PRP-226 PR6).
+ *   - Explicit versioned profile; inferred preferences never override it.
  */
 import { Router } from 'express';
-import { z } from 'zod';
+import { MealContextSchema,RecommendationFeedbackSchema } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { ok, fail } from '../utils/responses.js';
@@ -22,21 +22,9 @@ import { userRateLimit } from '../middleware/userRateLimit.js';
 import type { Database } from '../types/supabase.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
-import { MemoryService } from '../services/assistant/MemoryService.js';
+import { ProfileError,profileDatabaseError } from '../services/recommendations/NutritionProfileService.js';
 
-const SuggestRequestSchema = z.object({
-  goal: z
-    .enum(['tonight', 'quick', 'anti_waste', 'light', 'high_protein', 'comfort', 'batch_cooking'])
-    .optional(),
-  mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
-  timeLimitMinutes: z.number().int().positive().max(600).optional(),
-  servings: z.number().int().positive().max(20).optional(),
-  query: z.string().max(200).optional(),
-  almostThreshold: z.number().int().min(0).max(10).optional(),
-  limitPerBucket: z.number().int().min(1).max(20).optional(),
-  nearExpiryDays: z.number().int().min(1).max(30).optional(),
-  includeRecentFallback: z.boolean().optional(),
-});
+const SuggestRequestSchema = MealContextSchema;
 
 const HOUR = 3_600_000;
 
@@ -45,10 +33,8 @@ export function createRecommendationsRouter(
 ): Router {
   const router = Router();
 
-  // Engine stateless → 1 instance partagée. Le writer + le memoryService
-  // utilisent l'admin client, ils sont sûrs à partager aussi.
+  // Stateless engine; each call uses the authenticated client's profile and RLS.
   const engine = new RecommendationEngine();
-  const memoryService = new MemoryService(adminClient);
 
   const limiter = userRateLimit({
     key: 'recommendations.suggest',
@@ -74,16 +60,26 @@ export function createRecommendationsRouter(
           userId: req.user.id,
           userClient,
           eventWriter,
-          memoryService,
         },
         parsed.data,
       );
       return ok(res, result, 'OK', 'RECOMMENDATIONS_OK');
     } catch (err) {
-      console.error('[recommendations.suggest] error:', err);
-      return fail(res, 'Internal error', 500, 'RECOMMENDATIONS_FAILED');
+      return fail(res,'Les recommandations ne peuvent pas être vérifiées. Réessayez.',err instanceof ProfileError ? err.status : 503,err instanceof ProfileError ? err.code : 'RECOMMENDATIONS_FAILED');
     }
   });
 
+  router.post('/feedback',limiter,async(req,res)=>{
+    if (!req.user?.id || !req.supabaseClient) return fail(res,'Unauthorized',401,'UNAUTHORIZED');
+    const parsed=RecommendationFeedbackSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res,'Retour invalide.',400,'INVALID_BODY');
+    try {
+      const client=req.supabaseClient as SupabaseClient;
+      const { data,error }=await client.rpc('record_recommendation_feedback',{ p_feedback:parsed.data });
+      if (error) profileDatabaseError(error);
+      if (!data?.id) throw new ProfileError('FEEDBACK_UNAVAILABLE',503);
+      return ok(res,data,'OK','FEEDBACK_SAVED');
+    } catch (error) { return fail(res,'Retour non confirmé. Réessayez.',error instanceof ProfileError ? error.status : 503,error instanceof ProfileError ? error.code : 'FEEDBACK_UNAVAILABLE'); }
+  });
   return router;
 }

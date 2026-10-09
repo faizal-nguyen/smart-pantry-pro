@@ -99,9 +99,10 @@ export class StockCommandService {
     }
     const requiresRoutine = command.command_type==='transfer_shopping' && command.payload.items.some(item => item.quantity !== undefined || item.unit !== undefined)
       || command.command_type==='consume_recipe' && (command.payload.adjustments?.length ?? 0)>0;
-    if (requiresRoutine) {
+    const requiresMetadata=(command.command_type==='transfer_shopping' || command.command_type==='adjust_inventory') && command.payload.items.some(item=>item.date_kind!==undefined || item.quantity_quality!==undefined);
+    if (requiresRoutine || requiresMetadata) {
       const capabilities = await this.client.rpc('stock_routine_capabilities');
-      if (capabilities.error || capabilities.data!==2) throw new StockCommandError('MIGRATION_REQUIRED',503);
+      if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<(requiresMetadata ? 3 : 2)) throw new StockCommandError('MIGRATION_REQUIRED',503);
     }
     let allocations: unknown[] = [];
     if (command.command_type === 'consume_recipe' || command.command_type === 'recipe_add_missing') {

@@ -36,6 +36,8 @@ export type AgentAffectedTable =
   | 'meal_plan_entries'
   | 'weekly_meal_plans'
   | 'products'
+  | 'nutrition_profiles'
+  | 'recipe_interactions'
   // PRP-233 PR4 — added so `record_recipe_feedback` (PRP-223 PR5/PR7)
   // can invalidate `useCookingJournal` consumers.
   | 'cooking_journal'

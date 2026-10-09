@@ -39,7 +39,13 @@ function makeClient(plan: {
     const orders: QueryCall['orders'] = [];
     let limitVal: number | undefined;
 
-    const buildResolvedRoute = () => plan.routes[table] ?? (table === 'stock_context_versions' ? { data: { revision: 1 } } : undefined);
+    const buildResolvedRoute = () => {
+      const route=plan.routes[table];
+      if (!Array.isArray(route?.data)) return route;
+      if (table==='recipes') return { ...route,data:route.data.map((row:Record<string,unknown>)=>({ servings:2,...row })) };
+      if (table==='inventory') return { ...route,data:route.data.map((row:Record<string,unknown>)=>({ expiry_date:'2099-01-01',date_kind:'best_before',quantity_quality:'measured',...row })) };
+      return route;
+    };
 
     const finalize = (asMaybeSingle = false) => {
       const route = buildResolvedRoute();
@@ -460,8 +466,8 @@ describe('FindCookableRecipesHandler', () => {
     expect(result.result.recipes[0].unlinked_count).toBe(0);
     // Legacy unlinked recipe surfaces with unlinked=true.
     expect(result.result.recipes[1].id).toBe('r-legacy');
-    expect(result.result.recipes[1].unlinked).toBe(true);
-    expect(result.result.recipes[1].unlinked_count).toBe(1);
+    expect(result.result.recipes[1].missing_ingredients).toContain('Truc');
+    expect(result.result.recipes[1].unlinked_count).toBe(0);
   });
 
   it('drops unlinked recipes when caller passes max_missing_ingredients=0', async () => {
@@ -726,7 +732,7 @@ describe('SuggestRecipesForContextHandler', () => {
 
     // recent_suggestions excludes anything already in the cookable buckets.
     // Only r-noing remains.
-    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-noing']);
+    expect(result.result.verify_suggestions!.map(r=>r.id)).toEqual(['r-noing']);
 
     expect(result.result.total_user_recipes).toBe(4);
   });
@@ -740,7 +746,8 @@ describe('SuggestRecipesForContextHandler', () => {
     expect(result.result.almost_cookable).toHaveLength(0);
     // r-almost and r-legacy now fall through to recent_suggestions.
     const recentIds = result.result.recent_suggestions.map((r) => r.id).sort();
-    expect(recentIds).toEqual(['r-almost', 'r-legacy', 'r-noing']);
+    expect(recentIds).toEqual(['r-almost','r-legacy']);
+    expect(result.result.verify_suggestions!.map(r=>r.id)).toEqual(['r-noing']);
   });
 
   it('respects max_prep_time filter', async () => {
@@ -751,8 +758,8 @@ describe('SuggestRecipesForContextHandler', () => {
     // Only r-now (10) and r-noing (5) survive the prep filter.
     expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
     expect(result.result.almost_cookable).toHaveLength(0);
-    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-noing']);
-    expect(result.result.total_user_recipes).toBe(2);
+    expect(result.result.verify_suggestions!.map(r=>r.id)).toEqual(['r-noing']);
+    expect(result.result.total_user_recipes).toBe(4);
   });
 
   it('limit_per_bucket caps each bucket independently', async () => {
@@ -815,7 +822,7 @@ describe('SuggestRecipesForContextHandler', () => {
     const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
     expect(result.result.cookable_now).toHaveLength(0);
     expect(result.result.almost_cookable).toHaveLength(0);
-    expect(result.result.recent_suggestions.map((r) => r.id)).toEqual(['r-orphan']);
+    expect(result.result.verify_suggestions!.map(r=>r.id)).toEqual(['r-orphan']);
     expect(result.result.total_user_recipes).toBe(1);
   });
 
@@ -868,8 +875,8 @@ describe('SuggestRecipesForContextHandler', () => {
     });
     const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), {});
     expect(result.result.almost_cookable.map((r) => r.id)).toEqual(['r-legacy']);
-    expect(result.result.almost_cookable[0].unlinked).toBe(true);
-    expect(result.result.almost_cookable[0].unlinked_count).toBe(1);
+    expect(result.result.almost_cookable[0].missing_ingredients).toContain('Truc');
+    expect(result.result.almost_cookable[0].unlinked_count).toBe(0);
   });
 
   it('PRP-226 — max_prep_time filter is honoured (engine extraction precondition)', async () => {
@@ -921,7 +928,7 @@ describe('SuggestRecipesForContextHandler', () => {
     expect(calls.writeCache).toBe(1);
   });
 
-  it('PRP-226 PR4 — cache hit short-circuits scoring and returns the cached buckets', async () => {
+  it('V10-03 rejects an older cache contract and computes a new scoped result', async () => {
     const cached = {
       cookable_now: [
         {
@@ -974,11 +981,11 @@ describe('SuggestRecipesForContextHandler', () => {
       eventWriter: eventWriter as unknown as ToolExecutionContext['eventWriter'],
     };
     const result = await new SuggestRecipesForContextHandler().execute(ctx, {});
-    expect(result.result.cookable_now.map((r) => r.id)).toEqual(['r-cached']);
-    expect(result.result.event_id).toBe('event-old');
+    expect(result.result.cookable_now).toEqual([]);
+    expect(result.result.event_id).toBe('event-new');
     // Cache hit MUST NOT emit a new event — the original one is still
     // authoritative ; double-logging would break the «event_id ↔
     // originating recommendation» linkage.
-    expect(recorded).toBe(0);
+    expect(recorded).toBe(1);
   });
 });

@@ -21,6 +21,6 @@ test('reviewed values survive rejection and reopening; unknown date remains null
   expect(screen.getByLabelText('Quantité de rangement de Farine')).toHaveValue('750');
   fireEvent.click(screen.getByRole('button',{ name:'Confirmer le rangement' }));
   await screen.findByRole('link',{ name:'Voir mon stock' });
-  expect(confirm).toHaveBeenLastCalledWith([{ id:ID,expected_version:2,quantity:750,unit:'g',location:null,expiry_date:null }]);
+  expect(confirm).toHaveBeenLastCalledWith([{ id:ID,expected_version:2,quantity:750,unit:'g',location:null,expiry_date:null,date_kind:'unknown',quantity_quality:'unknown' }]);
   expect(localStorage.getItem(`v10-routine:${OWNER}:shopping-review`)).toBeNull();
 });
