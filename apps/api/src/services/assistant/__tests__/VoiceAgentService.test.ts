@@ -6,6 +6,7 @@
  * orchestrator itself (handlers use it), so a stub is enough.
  */
 import { randomUUID } from 'node:crypto';
+import type { ContextBuilder } from '../ContextBuilder.js';
 
 import { ConfirmationTokenSigner } from '../ConfirmationTokenSigner.js';
 import { ToolRegistry } from '../ToolRegistry.js';
@@ -15,7 +16,7 @@ import {
   type ToolExecutionContext,
 } from '../handlers/types.js';
 import { VoiceAgentService, VoiceAgentError } from '../VoiceAgentService.js';
-import type { AICompletionClient } from '../../imports/RecipeExtractionService.js';
+import type { AICompletionClient,AICompletionRequest } from '../../imports/RecipeExtractionService.js';
 import type { WhisperClient } from '../../media/WhisperTranscriber.js';
 import type { ActionLogRow } from '../ActionLogWriter.js';
 
@@ -169,12 +170,14 @@ function makeService({
   writer = new MockWriter(),
   signer = new ConfirmationTokenSigner(SECRET),
   whisper = mockWhisper,
+  contextBuilder,
 }: {
   ai: AICompletionClient;
   handlers: Record<string, ToolHandler>;
   writer?: MockWriter;
   signer?: ConfirmationTokenSigner;
   whisper?: WhisperClient;
+  contextBuilder?:ContextBuilder;
 }): { service: VoiceAgentService; writer: MockWriter; signer: ConfirmationTokenSigner } {
   const handlerRegistry = new ToolHandlerRegistry();
   for (const [name, h] of Object.entries(handlers)) {
@@ -186,12 +189,32 @@ function makeService({
     new ToolRegistry(),
     handlerRegistry,
     writer as any,
-    signer
+    signer,
+    { contextBuilder }
   );
   return { service, writer, signer };
 }
 
 describe('VoiceAgentService.handleRequest (text)', () => {
+  it.each([{ share:false,version:2 },{ share:true,version:2 },{ share:true,version:1 }])('synthesizes after server scoring, sharing profile evidence only with current consent (%j)',async({ share,version })=>{
+    const requests:AICompletionRequest[]=[];
+    const recipe={ id:'recipe',name:'Riz',profile_version:2,reference:{ id:'recipe',source:'recipes' },duration_minutes:15,availability:{ status:'available',uncertainties:[] },constraints:{ status:'compatible',findings:[{ code:'DECLARED_ALLERGY',ingredient:'Beurre',message:'allergie privée au lait' }],limitations:[] },nutrition:{ status:'unavailable' },reason_codes:[] };
+    const result={ pipeline_version:3,profile_version:2,cookable_now:[recipe],almost_cookable:[],verify_suggestions:[],excluded_suggestions:[] };
+    const ai:AICompletionClient={ complete:async request=>{
+      requests.push(request);
+      const usage={ prompt_tokens:100,completion_tokens:50 };
+      return requests.length===1 ? { model:request.model,usage,content:'Choix avant vérification.',tool_calls:[{ id:'tc',name:'suggest_recipes_for_context',arguments:'{}' }] } : { model:request.model,usage,content:'Consultez les cartes pour les raisons.' };
+    } };
+    const contextBuilder={ build:async()=>({ combinedText:'Ancien contexte de test.',shareProfileWithModel:share,profileVersion:version }) } as unknown as ContextBuilder;
+    const { service }=makeService({ ai,contextBuilder,handlers:{ suggest_recipes_for_context:{ execute:async()=>({ result }) } } });
+    const response=await service.handleRequest({ userId:USER,text:'Des recettes ?',source:'text',clientRequestId:randomUUID() },makeCtx());
+    expect(requests).toHaveLength(2);
+    const synthesis=JSON.stringify(requests[1].messages);
+    if (share && version===2) expect(synthesis).toContain('allergie privée');else expect(synthesis).not.toContain('allergie privée');
+    if (version!==2) expect(synthesis).not.toContain('Ancien contexte de test');
+    expect(JSON.stringify(response.actions_executed)).toContain('allergie privée');
+    expect(response.message).toBe('Consultez les cartes pour les raisons.');
+  });
   it('executes a low-risk tool inline and returns it as actions_executed', async () => {
     const ai = makeAi([
       {

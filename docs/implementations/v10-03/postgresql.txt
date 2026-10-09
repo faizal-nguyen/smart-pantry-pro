@@ -1,0 +1,31 @@
+PASS 1 kg - 200 g, portions and inverse movement
+PASS incompatible/unknown units, null or negative amounts and deficits rejected
+PASS lost response replay is exact; another payload with same identity rejected
+PASS two simultaneous requests with the same command apply once
+PASS two devices cannot consume the last stock twice
+PASS injected journal refusal rolls back stock, receipt and movements
+PASS undo never overwrites a later correction; inverse is unique and replayable
+PASS RPC, RLS, privileged internal calls and legacy user spoofing boundaries
+PASS six-item transfer refusal, overlapping transfers, lost response and restoration
+PASS manual recipe/ingredients are atomic, persistent and replayable
+PASS catalogue, customized wrapper, custom recipe and menu identities
+PASS repeated ingredients reserve shared lots and cannot overdraw stock
+PASS manual/command invalidation is transactional and restricted to the account
+PASS routine introduction and favorites stay owned across devices/accounts
+PASS edited shopping quantities/units transfer atomically; undo restores original purchase
+PASS actual meal quantities apply once, unused ingredients consume zero, foreign/incorrect lots rejected
+PASS explicit replacement consumes only the chosen product and lot; inverse restores it
+PASS profile persists across connections, owners keep separate values
+PASS RLS blocks foreign reads/writes and anonymous access; no direct version reset
+PASS lost reply replays once; UUID reuse and stale version cannot erase constraints
+PASS two devices writing the same version: exactly one commits
+PASS direct writes validate shape, forbid clinical fields and cannot forge a version
+PASS profile edit invalidates only its owner's private cache
+PASS feedback supports every recipe origin, replays once and rejects private foreign recipes
+PASS four feedback kinds are stored distinctly, event ownership enforced
+PASS owned export includes profile/memory; verified clear removes scoped data with version tombstone
+PASS lot metadata participates in atomic correction, receipt replay and inverse
+PASS personal ingredient adaptation is used by actual consumption, not the canonical recipe
+PASS shopping transfer preserves date and quantity qualification, replays once and restores the purchase
+PASS deletion worker cannot report completed when new-data cleanup fails, then retries atomically
+30 groups passed with V10-03 on real local PostgreSQL (17 regression + 13 personalization).

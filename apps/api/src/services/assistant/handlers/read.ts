@@ -521,34 +521,15 @@ export class FindCookableRecipesHandler
   ): Promise<ToolExecutionResult<{ recipes: CookableRecipeView[] }>> {
     const result = await (ctx.recommendationEngine ?? new RecommendationEngine()).suggestForUser({
       userId: ctx.userId, userClient: ctx.userClient, memoryService: ctx.memoryService, eventWriter: ctx.eventWriter,
-    }, { almostThreshold: args.max_missing_ingredients ?? 3, limitPerBucket: 20, includeRecentFallback: false });
+    }, { almostThreshold: args.max_missing_ingredients ?? 3, timeLimitMinutes:args.max_prep_time, limitPerBucket:20, includeRecentFallback:false });
     return { result: { recipes: [...result.cookable_now,...result.almost_cookable]
-      .filter(recipe => args.max_prep_time === undefined || recipe.prep_time == null || recipe.prep_time <= args.max_prep_time)
       .slice(0,20) } };
   }
 }
 
 // ---- Suggest recipes for context (3-bucket convenience tool) --------
 
-export interface SuggestRecipesResult {
-  /** Cookable now: missing_count + unlinked_count == 0. */
-  cookable_now: CookableRecipeView[];
-  /** Almost cookable: 1..almost_threshold missing or unknown. */
-  almost_cookable: CookableRecipeView[];
-  /** Recent recipes regardless of inventory match (deduped vs the two above). */
-  recent_suggestions: RecipeSummaryView[];
-  /** Total recipes the user has, useful for the LLM to phrase fallbacks. */
-  total_user_recipes: number;
-  /**
-   * PRP-226 PR4 — id of the `recommendation_events` row this call
-   * produced. The assistant persists it in
-   * `assistant_messages.metadata.recipe_proposals.event_id` so each
-   * frontend action (« j'ai cuisiné », « ajouter les manquants », …)
-   * can attribute itself back to the originating recommendation.
-   * Absent when the writer is not wired (legacy tests).
-   */
-  event_id?: string;
-}
+export type SuggestRecipesResult = RecommendationResult;
 
 /**
  * One-shot recipe suggestion. Thin wrapper around the
@@ -567,6 +548,7 @@ export interface SuggestRecipesResult {
 import { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
 import type {
   RecommendationContext,
+  RecommendationResult,
   RecommendedRecipeView,
 } from '../../recommendations/types.js';
 
@@ -584,17 +566,15 @@ export class SuggestRecipesForContextHandler
     args: SuggestRecipesForContextArgs
   ): Promise<ToolExecutionResult<SuggestRecipesResult>> {
     const recommendationContext: RecommendationContext = {
-      query: args.query,
+      query: args.query,ingredient:args.ingredient,craving:args.craving,proteinFamily:args.protein_family,proteinCut:args.protein_cut,dietaryFlag:args.dietary_flag,
       mealType: args.meal_type,
       goal: args.goal,
       timeLimitMinutes: args.max_prep_time,
       servings: args.servings,
       almostThreshold: args.almost_threshold,
       limitPerBucket: args.limit_per_bucket,
-      // PRP-226 PR4 — forward the raw transcript so it lands in
-      // `recommendation_events.request_text`. Stripped from the JSONB
-      // `context` by the writer (PR3 sanitiseContext).
-      requestText: ctx.requestText,
+      // Free-form conversations do not enter recommendation events.
+      requestText: undefined,
     };
 
     // PRP-226 PR4 — prefer the shared engine + writer from the route
@@ -613,18 +593,7 @@ export class SuggestRecipesForContextHandler
       recommendationContext,
     );
 
-    // The engine returns `RecommendedRecipeView` which extends
-    // `CookableRecipeView` ; the legacy shape is satisfied
-    // structurally so the cast is widening only.
-    return {
-      result: {
-        cookable_now: result.cookable_now as unknown as CookableRecipeView[],
-        almost_cookable: result.almost_cookable as unknown as CookableRecipeView[],
-        recent_suggestions: result.recent_suggestions,
-        total_user_recipes: result.total_user_recipes,
-        event_id: result.event_id,
-      },
-    };
+    return { result };
   }
 }
 

@@ -1,0 +1,40 @@
+import { fireEvent,render,screen,waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { emptyNutritionProfile,type NutritionProfile } from '@smart/shared';
+import NutritionProfileEditor from '../NutritionProfileEditor';
+const A='00000000-0000-4000-8000-000000000001';
+let mockProfile:NutritionProfile;
+const mockSave=jest.fn();
+jest.mock('@/hooks/useNutritionProfile',()=>({ useNutritionProfile:()=>({ owner:A,data:{ profile:mockProfile },isLoading:false,error:null,save:mockSave,refetch:jest.fn() }) }));
+jest.mock('@/hooks/usePersonalization',()=>({ usePersonalization:()=>({ personalizationData:null }) }));
+jest.mock('@/hooks/useAssistantMemories',()=>({ useAssistantMemories:()=>({ memories:[],error:null }) }));
+jest.mock('@/lib/api',()=>({ apiGet:jest.fn(),apiPost:jest.fn(),ApiError:class extends Error {} }));
+jest.mock('@/integrations/supabase/client',()=>({ supabase:{ auth:{ getSession:jest.fn() } } }));
+beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();mockProfile={ user_id:A,version:1,schema_version:1,origin:'explicit',updated_at:null,settings:{ ...emptyNutritionProfile(),consent:true } }; });
+const page=()=> <MemoryRouter><NutritionProfileEditor /></MemoryRouter>;
+test('comma typing is retained and consented settings save at the displayed version',async()=>{
+  mockSave.mockResolvedValue({ applied_version:2,profile:{ ...mockProfile,version:2 } });
+  render(page());const input=screen.getByLabelText('Allergies déclarées, séparées par des virgules');
+  fireEvent.change(input,{ target:{ value:'lait,' } });expect(input).toHaveValue('lait,');
+  fireEvent.change(input,{ target:{ value:'lait, arachides' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Enregistrer et actualiser les idées' }));
+  await waitFor(()=>expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ allergies:['lait','arachides'],targets:{ enabled:false,dailyCaloriesKcal:null,dailyProteinG:null } }),1,'save','explicit'));
+});
+test('a fresher server exclusion cannot be overwritten until the user compares versions',()=>{
+  const rendered=render(page());
+  fireEvent.change(screen.getByLabelText('Ingrédients explicitement exclus'),{ target:{ value:'tomate' } });
+  mockProfile={ ...mockProfile,version:2,settings:{ ...mockProfile.settings,excludedIngredients:['lait'] } };rendered.rerender(page());
+  expect(screen.getByLabelText('Conflit de profil')).toHaveTextContent('lait');
+  expect(screen.getByRole('button',{ name:'Enregistrer et actualiser les idées' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox',{ name:/J’ai comparé/ }));
+  fireEvent.click(screen.getByRole('button',{ name:'Conserver ma saisie après comparaison' }));
+  expect(screen.getByRole('button',{ name:'Enregistrer et actualiser les idées' })).toBeEnabled();
+  expect(mockSave).not.toHaveBeenCalled();
+});
+test('pending save freezes original values and resumes the same intent without editing',async()=>{
+  localStorage.setItem(`v10-routine:${A}:nutrition-profile-write`,JSON.stringify({ command_id:'40000000-0000-4000-8000-000000000001',expected_version:1,operation:'save',origin:'explicit',settings:{ ...mockProfile.settings,allergies:['lait'] } }));
+  mockSave.mockRejectedValue(new Error('connexion coupée'));render(page());
+  expect(screen.getByLabelText('Allergies déclarées, séparées par des virgules')).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{ name:'Vérifier la sauvegarde' }));
+  await screen.findByRole('alert');expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ allergies:['lait'] }),1,'save','explicit');
+});

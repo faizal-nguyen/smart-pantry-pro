@@ -302,6 +302,14 @@ type WithStockFields<T extends 'inventory' | 'shopping_list'> = {
   Update: BaseDatabase['public']['Tables'][T]['Update'] & { unit?: string | null; stock_version?: number };
   Relationships: BaseDatabase['public']['Tables'][T]['Relationships'];
 };
+// Local migration contract V10-03; this is not generated from the remote database.
+type LotMetadata={ date_kind:'use_by'|'best_before'|'unknown';quantity_quality:'measured'|'estimated'|'unknown' };
+type WithLotMetadata={
+  Row:WithStockFields<'inventory'>['Row'] & LotMetadata;
+  Insert:WithStockFields<'inventory'>['Insert'] & Partial<LotMetadata>;
+  Update:WithStockFields<'inventory'>['Update'] & Partial<LotMetadata>;
+  Relationships:WithStockFields<'inventory'>['Relationships'];
+};
 type CatalogRow = RecipeCatalogRow & {
   ingredients_json: Json; nutrition_json: Json; normalized_title: string | null;
   rest_time: number; meal_type?: string | null; calories_per_serving: number | null;
@@ -321,7 +329,7 @@ type LooseTable<Row,RequiredKeys extends keyof Row = never> = {
 export type Database = Omit<BaseDatabase, 'public'> & {
   public: Omit<BaseDatabase['public'], 'Tables'> & {
     Tables: Omit<BaseDatabase['public']['Tables'],'inventory' | 'shopping_list'> & {
-      inventory: WithStockFields<'inventory'>;
+      inventory: WithLotMetadata;
       shopping_list: WithStockFields<'shopping_list'>;
       recipes_catalog: LooseTable<CatalogRow,'title' | 'ingredients_json'>;
       user_recipes: Omit<LooseTable<UserLibraryRow,'user_id'>,'Relationships'> & { Relationships: [{ foreignKeyName: 'user_recipes_recipe_id_fkey'; columns: ['recipe_id']; isOneToOne: false; referencedRelation: 'recipes_catalog'; referencedColumns: ['id'] }] };

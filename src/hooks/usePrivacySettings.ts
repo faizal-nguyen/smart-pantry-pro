@@ -16,8 +16,9 @@
  * inline. Trade-off : pas d'effet immédiat côté UI, mais
  * conformité RGPD propre + auditabilité.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useAuthSessionOptional } from './useAuthenticatedUser';
 
 import {
   getPrivacySettings,
@@ -40,23 +41,29 @@ const DEFAULT_SETTINGS: PrivacySettings = {
 };
 
 export function usePrivacySettings() {
-  const [settings, setSettings] = useState<PrivacySettings>(DEFAULT_SETTINGS);
+  const { user }=useAuthSessionOptional();
+  const owner=user?.id;
+  const ownerRef=useRef(owner);ownerRef.current=owner;
+  const [loaded,setLoaded]=useState<{ owner?:string;settings:PrivacySettings }>({ settings:DEFAULT_SETTINGS });
+  const settings=loaded.owner===owner ? loaded.settings : DEFAULT_SETTINGS;
+  const setSettings=useCallback((value:PrivacySettings)=>setLoaded({ owner,settings:value }),[owner]);
   const [isLoading, setIsLoading] = useState(true);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   // ----- Load -----
   useEffect(() => {
     let active = true;
+    setIsLoading(true);setShowConsentDialog(false);
+    applyPrivacySettings(DEFAULT_SETTINGS);
+    if (!owner) { setIsLoading(false);return; }
     (async () => {
       try {
-        const { settings: loaded } = await getPrivacySettings();
-        if (active) setSettings(loaded);
+        const { settings: loaded } = await getPrivacySettings(owner);
+        if (active) { setLoaded({ owner,settings:loaded });applyPrivacySettings(loaded); }
       } catch (err) {
         // 401/non-auth → on garde DEFAULT_SETTINGS, sans toast (peut
         // arriver pendant la phase de session loading).
-        if (active && import.meta.env.DEV) {
-          console.warn('[usePrivacySettings] load failed:', err);
-        }
+        if (active) toast.error('Vos choix de confidentialité ne peuvent pas être relus.');
       } finally {
         if (active) setIsLoading(false);
       }
@@ -64,28 +71,31 @@ export function usePrivacySettings() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [owner]);
 
   // ----- Update -----
   const updateSettings = useCallback(
     async (next: Partial<PrivacySettings>) => {
+      if (!owner) throw new Error('Connectez-vous pour enregistrer vos choix.');
       // Optimistic update — rollback si l'API échoue.
       const previous = settings;
       const optimistic = { ...settings, ...next };
       setSettings(optimistic);
       applyPrivacySettings(optimistic);
       try {
-        const { settings: confirmed } = await patchPrivacySettings(next);
+        const { settings: confirmed } = await patchPrivacySettings(next,owner);
+        if (ownerRef.current!==owner) return;
         setSettings(confirmed);
         applyPrivacySettings(confirmed);
       } catch (err) {
+        if (ownerRef.current!==owner) return;
         setSettings(previous);
         applyPrivacySettings(previous);
         const message = err instanceof Error ? err.message : 'Erreur inconnue';
         toast.error(`Sauvegarde impossible : ${message}`);
       }
     },
-    [settings],
+    [settings,owner,setSettings],
   );
 
   // ----- Consent -----
@@ -102,7 +112,8 @@ export function usePrivacySettings() {
   // ----- Export (download) -----
   const exportUserData = useCallback(async () => {
     try {
-      const data = await postPrivacyExport();
+      if (!owner) throw new Error("Connectez-vous pour exporter vos données.");
+      const data = await postPrivacyExport(owner);
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: 'application/json',
       });
@@ -117,18 +128,19 @@ export function usePrivacySettings() {
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
       toast.error(`Export impossible : ${message}`);
     }
-  }, []);
+  }, [owner]);
 
   // ----- Delete request -----
   // PR5 — plus de destruction inline. On crée une demande tracée
   // dans data_deletion_requests ; un worker backend finalise.
   const requestDataDeletion = useCallback(async () => {
     try {
-      const res = await postPrivacyDeleteRequest();
+      if (!owner) throw new Error("Connectez-vous pour demander un effacement.");
+      const res = await postPrivacyDeleteRequest(owner);
       if (res.alreadyPending) {
         toast.info('Une demande de suppression est déjà en attente.');
       } else {
-        toast.success('Demande enregistrée — tu recevras une confirmation par email.');
+        toast.success('Demande enregistrée, en attente de traitement. Vos données ne sont pas encore effacées.');
       }
       return res;
     } catch (err) {
@@ -136,7 +148,7 @@ export function usePrivacySettings() {
       toast.error(`Demande impossible : ${message}`);
       throw err;
     }
-  }, []);
+  }, [owner]);
 
   return {
     settings,

@@ -9,6 +9,7 @@
  * mirroring `read.test.ts`).
  */
 
+import { emptyNutritionProfile } from '@smart/shared';
 import { RecommendationEngine } from '../RecommendationEngine.js';
 import type { RecommendationContext } from '../types.js';
 
@@ -24,6 +25,7 @@ interface MockPlan {
   inventory: unknown[];
   library?: unknown[];
   contextRevision?: number | null;
+  profile?:unknown;
 }
 
 function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
@@ -43,6 +45,7 @@ function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
       in() {
         return chain;
       },
+      is() { return chain; },
       gte() {
         return chain;
       },
@@ -55,7 +58,7 @@ function makeClient(plan: MockPlan & { interactions?: unknown[] }) {
       limit() {
         return chain;
       },
-      maybeSingle() { return Promise.resolve({ data: table === 'stock_context_versions' && plan.contextRevision != null ? { revision: plan.contextRevision } : null, error: null }); },
+      maybeSingle() { return Promise.resolve({ data: table==='nutrition_profiles' ? plan.profile ?? null : null,error:null }); },
       then(resolve: (v: unknown) => unknown, reject?: (v: unknown) => unknown) {
         return Promise.resolve({ data, error: null }).then(resolve, reject);
       },
@@ -100,7 +103,7 @@ function makeRecipe(opts: {
 }
 
 function makeInvRow(pid: string, qty: number, expiry: string | null = null) {
-  return { id: `lot-${pid}`, product_id: pid, quantity: qty, unit: "g", stock_version: 0, expiry_date: expiry, products: null };
+  return { id: `lot-${pid}`, product_id: pid, quantity: qty, unit: "g", stock_version: 0, expiry_date: expiry ?? isoPlusDays(60), date_kind:'best_before',quantity_quality:'measured', products: null };
 }
 
 function buildEngine(plan: MockPlan) {
@@ -140,10 +143,12 @@ describe('RecommendationEngine — bucket assignment', () => {
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(1);
     plan.contextRevision = 2; plan.inventory = [makeInvRow('p',0)];
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
-    expect(writer.readCache.mock.calls.map(call => call[1])).toEqual([expect.stringContaining('v10:1:'),expect.stringContaining('v10:2:')]);
+    const keys=writer.readCache.mock.calls.map(call=>call[1]);
+    expect(keys.every(key=>key.startsWith('v10-03:'))).toBe(true);
+    expect(keys[0]).not.toBe(keys[1]);
     plan.contextRevision = null;
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
-    expect(writer.readCache).toHaveBeenCalledTimes(2);
+    expect(writer.readCache).toHaveBeenCalledTimes(3);
   });
   it('routes a fully cookable recipe into cookable_now', async () => {
     const { engine, ctx } = buildEngine({
@@ -165,7 +170,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     const result = await engine.suggestForUser(ctx, {});
     expect(result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
     expect(result.cookable_now[0].score_total).toBeGreaterThan(50);
-    expect(result.cookable_now[0].reasons).toContain('Tu as tout en stock');
+    expect(result.cookable_now[0].reasons).toContain('Quantités et lots utilisables renseignés pour les portions demandées.');
     expect(result.almost_cookable).toHaveLength(0);
   });
 
@@ -187,10 +192,10 @@ describe('RecommendationEngine — bucket assignment', () => {
     expect(result.almost_cookable.map((r) => r.id)).toEqual(['r-almost']);
     expect(result.almost_cookable[0].missing_count).toBe(1);
     expect(result.almost_cookable[0].missing_ingredients).toEqual(['Bouillon']);
-    expect(result.almost_cookable[0].reasons.some((r) => r.includes('manquant'))).toBe(true);
+    expect(result.almost_cookable[0].reasons.some((r) => r.includes('acheter'))).toBe(true);
   });
 
-  it('keeps recipes with unlinked essentials in almost_cookable as unknown', async () => {
+  it('reports quantified ingredients without a matching product as missing', async () => {
     const { engine, ctx } = buildEngine({
       recipes: [
         makeRecipe({
@@ -203,18 +208,18 @@ describe('RecommendationEngine — bucket assignment', () => {
     });
     const result = await engine.suggestForUser(ctx, {});
     expect(result.almost_cookable.map((r) => r.id)).toEqual(['r-legacy']);
-    expect(result.almost_cookable[0].unlinked).toBe(true);
-    expect(result.almost_cookable[0].unlinked_count).toBe(1);
-    expect(result.almost_cookable[0].reasons.some((r) => r.includes('à vérifier'))).toBe(true);
+    expect(result.almost_cookable[0].availability.missing[0]).toMatchObject({ reason:'NOT_IN_STOCK',ingredient_name:'Truc' });
+    expect(result.almost_cookable[0].unlinked_count).toBe(0);
+    expect(result.almost_cookable[0].reasons.some((r) => r.includes('vérifier'))).toBe(true);
   });
 
-  it('surfaces recipes without essentials only in recent_suggestions', async () => {
+  it('surfaces recipes without essentials only as requiring verification', async () => {
     const recipe = makeRecipe({ id: 'r-noing', name: 'Pas d ingredients', ings: [] });
     const { engine, ctx } = buildEngine({ recipes: [recipe], inventory: [] });
     const result = await engine.suggestForUser(ctx, {});
     expect(result.cookable_now).toHaveLength(0);
     expect(result.almost_cookable).toHaveLength(0);
-    expect(result.recent_suggestions.map((r) => r.id)).toEqual(['r-noing']);
+    expect(result.verify_suggestions!.map(r=>r.id)).toEqual(['r-noing']);
   });
 });
 
@@ -353,7 +358,7 @@ describe('RecommendationEngine — suggested_actions', () => {
 
 // ---- PRP-226 PR6 — PreferenceScorer V1 wiring ----------------------
 
-describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
+describe('RecommendationEngine — explicit preference and feedback wiring', () => {
   function buildEngineWithMemories(opts: {
     recipes: unknown[];
     inventory: unknown[];
@@ -372,6 +377,7 @@ describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
       recipes: opts.recipes,
       inventory: opts.inventory,
       interactions: opts.interactions,
+      profile:{ user_id:USER,version:1,schema_version:1,settings:{ ...emptyNutritionProfile(),consent:true,likedIngredients:(opts.memories ?? []).filter(item=>item.kind==='preference').map(item=>item.content),avoidedIngredients:(opts.memories ?? []).filter(item=>item.kind==='negative_preference').map(item=>item.content) },updated_at:NOW.toISOString(),origin:'explicit' },
     });
     const memoryService = {
       async getTopActiveMemories() {
@@ -398,7 +404,7 @@ describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
   it('positive preference re-ranks the matching recipe ahead of a neutral one', async () => {
     const { engine, ctx } = buildEngineWithMemories({
       recipes: [
-        makeRecipe({ id: 'r-pasta', name: 'Pasta carbonara', ings: [{ pid: 'p-pates' }] }),
+        makeRecipe({ id: 'r-pasta', name: 'Pasta carbonara', ings: [{ pid:'p-pates',name:'Pasta' }] }),
         makeRecipe({ id: 'r-quinoa', name: 'Quinoa bowl', ings: [{ pid: 'p-quinoa' }] }),
       ],
       inventory: [makeInvRow('p-pates', 5), makeInvRow('p-quinoa', 5)],
@@ -417,7 +423,7 @@ describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
   it('negative_preference flips the ranking even when the recipe is cookable', async () => {
     const { engine, ctx } = buildEngineWithMemories({
       recipes: [
-        makeRecipe({ id: 'r-fish', name: 'Saumon grillé', ings: [{ pid: 'p-saumon' }] }),
+        makeRecipe({ id: 'r-fish', name: 'Saumon grillé', ings: [{ pid:'p-saumon',name:'Saumon' }] }),
         makeRecipe({ id: 'r-veg', name: 'Légumes rôtis', ings: [{ pid: 'p-leg' }] }),
       ],
       inventory: [makeInvRow('p-saumon', 5), makeInvRow('p-leg', 5)],
@@ -442,7 +448,7 @@ describe('RecommendationEngine — PR6 PreferenceScorer wiring', () => {
       interactions: [
         {
           recipe_id: 'r-a',
-          interaction_type: 'dismissed',
+          interaction_type: 'dismissed',feedback:'too_long',
           created_at: new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
         },
       ],

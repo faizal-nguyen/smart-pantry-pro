@@ -1,11 +1,13 @@
 # PRP V10-03 — Personnalisation et recommandations
 
-> Statut : proposition cadrée, contrats à confirmer après V10-01.
+> Statut : implémenté et testé localement le 2026-10-09 ; homologation Supabase distant et iPhone ouverte.
 > Date : 2026-10-08.
 > Priorité : P1.
 > Dépendances : [Fiabilité](PRP-V10-01-Fiabilite.md), surfaces de [Routine mobile](PRP-V10-02-Routine-Mobile.md), disponibilité des données produit.
 > Références : [feuille de route](README.md), [audit](../../docs/AUDIT-PRODUIT-MOBILE-IOS-2026-10-08.md), PRP-223, PRP-225, PRP-226, PRP-227, PRP-235 et PRP-239.
 > Estimation indicative : 2 à 3 semaines, selon l’état réel des profils et données nutritionnelles.
+
+[Rapport d’implémentation, preuves locales et limites](../../docs/implementations/V10-03.md). La réalisation utilise un profil serveur versionné, un moteur commun et des commandes récupérables. Les critères de sortie ci-dessous restent ouverts jusqu’aux validations déployées et matérielles correspondantes.
 
 ## 1. Problème et objectif
 
@@ -196,3 +198,15 @@ Les tests sont complétés par une revue de quelques recommandations et de leurs
 | Import produit incomplet | Classement dégradé explicite ; enrichissement ciblé des produits utilisés |
 
 Le lot est terminé lorsque les critères disposent de preuves et que les suggestions sont compréhensibles dans la boucle quotidienne. Le [pilote iOS](PRP-V10-05-Pilote-iOS.md) réutilise ces contrats et ne crée pas un second moteur de recommandations.
+
+## 14. Réalisation et preuves locales — 2026-10-09
+
+La réalisation est disponible sur `feat/v10-03-personnalisation`, depuis `main` à `21021a068fa7dafdfb071580c6a1c79189133689`. La migration `20261009095426_v10_personalization.sql` n’a pas été appliquée à un projet distant pendant ce travail.
+
+- Profil par compte, consentement et provenance ; concurrence par version, commandes idempotentes et reprise après réponse perdue.
+- Convergence d’Aujourd’hui, de la bibliothèque et de l’assistant vers le moteur serveur, avec contraintes avant classement, ingrédients adaptés, qualification des lots et incertitudes visibles.
+- Nutrition documentée par sa couverture et ses sources, quatre retours distincts, export et effacement vérifiés localement ; partage du profil au modèle contrôlé par consentement et version.
+- Build réussi ; 270 tests API, 73 tests interface et 30 groupes PostgreSQL réussis. Aucune nouvelle erreur de lint sur les 63 fichiers TS/TSX comparés à `HEAD` ; les défauts hérités des contrôles globaux sont consignés.
+- Parcours Chrome à 375 et 440 px avec données fictives. La reconnexion réelle, un second client, Supabase Realtime et l’essai sur iPhone 17 Pro Max restent à homologuer.
+
+Le [rapport](../../docs/implementations/V10-03.md#8-critères-de-sortie-et-livraison) associe chaque critère AC01–AC12 à ses preuves locales et aux validations restantes. Les preuves structurées sont conservées dans [validation.json](../../docs/implementations/v10-03/validation.json), [ui-checks.json](../../docs/implementations/v10-03/ui-checks.json) et le [journal PostgreSQL](../../docs/implementations/v10-03/postgresql.txt).

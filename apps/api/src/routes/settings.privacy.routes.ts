@@ -198,7 +198,9 @@ export function createSettingsPrivacyRouter(
         p_user_id: req.user.id,
       });
       if (error) throw error;
-      return ok(res, data ?? null, 'OK', 'PRIVACY_EXPORT_OK');
+      const personalization=await userClient.rpc('export_nutrition_personalization');
+      if (personalization.error || !personalization.data) throw new Error('PERSONALIZATION_EXPORT_UNAVAILABLE');
+      return ok(res,{ ...(data ?? {}),personalization:personalization.data },'OK','PRIVACY_EXPORT_OK');
     } catch (err) {
       console.error('[settings.privacy.export] error:', err);
       return fail(res, 'Internal error', 500, 'PRIVACY_EXPORT_FAILED');

@@ -101,7 +101,7 @@ def assert_equal(actual, expected):
     assert actual == expected, (actual, expected)
 
 
-def tests():
+def tests(cache_table_is_complete=False):
     def units_and_servings():
         assert_equal(run("SELECT public.stock_normalize_name(" + literal("\tJalapeño  café\t") + ");"), "jalapeno cafe")
         assert_equal(run("SELECT public.stock_normalize_name('ŒUF');"), "œuf")
@@ -288,7 +288,11 @@ def tests():
     check("repeated ingredients reserve shared lots and cannot overdraw stock", repeated_ingredients)
 
     def cache_invalidation():
-        run("INSERT INTO recipe_recommendation_cache VALUES(" + literal(A) + ",'a','{}'),(" + literal(B) + ",'b','{}');")
+        if cache_table_is_complete:
+            payload=literal(json.dumps({'pipeline_version':3,'profile_version':0}))+'::jsonb'
+            run("INSERT INTO recipe_recommendation_cache(user_id,cache_key,result_json,expires_at) VALUES(" + literal(A) + ",'a',"+payload+",now()+interval '15 minutes'),(" + literal(B) + ",'b',"+payload+",now()+interval '15 minutes');")
+        else:
+            run("INSERT INTO recipe_recommendation_cache VALUES(" + literal(A) + ",'a','{}'),(" + literal(B) + ",'b','{}');")
         previous = int(run("SELECT revision FROM stock_context_versions WHERE user_id=" + literal(A) + ";"))
         reset_stock()
         assert_equal(run("SELECT count(*) FROM recipe_recommendation_cache WHERE user_id=" + literal(A) + ";"), "0")
@@ -298,9 +302,9 @@ def tests():
     check("manual/command invalidation is transactional and restricted to the account", cache_invalidation)
 
 
-def routine_tests():
+def routine_tests(capability=2):
     def routine_ownership():
-        assert_equal(run("SELECT stock_routine_capabilities();",owner=A),"2")
+        assert_equal(run("SELECT stock_routine_capabilities();",owner=A),str(capability))
         run("SELECT stock_routine_capabilities();",role="anon",error="permission denied")
         run("INSERT INTO mobile_routine_preferences(user_id,introduction) VALUES(" + literal(A) + ",'skipped');", owner=A)
         assert_equal(run("SELECT introduction FROM mobile_routine_preferences;", owner=A), "skipped")

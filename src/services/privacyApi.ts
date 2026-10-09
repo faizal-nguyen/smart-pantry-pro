@@ -49,20 +49,21 @@ export interface ExportedUserData {
   privacy_settings?: unknown | null;
 }
 
-export function getPrivacySettings(): Promise<PrivacySettingsResponse> {
-  return apiGet<PrivacySettingsResponse>('/api/v1/settings/privacy');
+export function getPrivacySettings(owner?:string): Promise<PrivacySettingsResponse> {
+  return apiGet<PrivacySettingsResponse>('/v1/settings/privacy',undefined,{ expectedUserId:owner });
 }
 
 export function patchPrivacySettings(
   patch: Partial<PrivacySettings>,
+  owner?:string,
 ): Promise<PrivacySettingsResponse> {
-  return apiPatch<PrivacySettingsResponse>('/api/v1/settings/privacy', patch);
+  return apiPatch<PrivacySettingsResponse>('/v1/settings/privacy', patch,{ expectedUserId:owner });
 }
 
-export function postPrivacyExport(): Promise<ExportedUserData> {
-  return apiPost<ExportedUserData>('/api/v1/settings/export');
+export function postPrivacyExport(owner?:string): Promise<ExportedUserData> {
+  return apiPost<ExportedUserData>('/v1/settings/export',undefined,{ expectedUserId:owner });
 }
 
-export function postPrivacyDeleteRequest(): Promise<DeleteRequestResponse> {
-  return apiPost<DeleteRequestResponse>('/api/v1/settings/delete-request');
+export function postPrivacyDeleteRequest(owner?:string): Promise<DeleteRequestResponse> {
+  return apiPost<DeleteRequestResponse>('/v1/settings/delete-request',undefined,{ expectedUserId:owner });
 }

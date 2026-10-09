@@ -44,7 +44,7 @@ export interface InsightsData {
   /** Null until a real waste-event log is wired (see useInsightsData). */
   wasteReductionDays: number | null;
   totalSavings: number;
-  nutritionScore: number;
+  nutritionScore: null;
 }
 
 const CATEGORY_COLORS = {
@@ -120,17 +120,8 @@ export const useInsightsData = () => {
     };
   }, [inventory]);
 
-  // Calculate nutrition score based on recipes
-  const calculateNutritionScore = useMemo(() => {
-    if (recipes.length === 0) return 7.5; // Default score
-
-    // Simple scoring based on meal variety and ratings
-    const avgRating = recipes.reduce((sum, recipe) => sum + (recipe.rating || 7), 0) / recipes.length;
-    const varietyBonus = Math.min(recipes.length / 10, 1) * 2; // Bonus for having more recipes
-    
-    const score = Math.min(10, avgRating + varietyBonus);
-    return score;
-  }, [recipes]);
+  // No nutrition score without a verified, serving-weighted nutrition aggregation.
+  const calculateNutritionScore = null;
 
   // Calculate category breakdown
   const calculateCategoryBreakdown = useMemo(() => {
@@ -167,7 +158,6 @@ export const useInsightsData = () => {
   const keyMetrics = useMemo((): KeyMetric[] => {
     const savings = calculateSavings;
     const wasteReduction = calculateWasteReduction;
-    const nutritionScore = calculateNutritionScore;
 
     return [
       {
@@ -193,12 +183,11 @@ export const useInsightsData = () => {
       },
       {
         id: 'nutrition-score',
-        title: 'Score nutrition',
-        value: `${nutritionScore.toFixed(1)}/10`,
-        progress: nutritionScore * 10,
+        title: 'Données nutritionnelles',
+        value: 'Non calculées',
         icon: '🥗',
         color: 'purple',
-        detail: 'Basé sur vos recettes'
+        detail: 'Consultez la couverture des estimations par recette'
       },
       {
         id: 'inventory-value',
@@ -209,7 +198,7 @@ export const useInsightsData = () => {
         detail: 'En stock'
       }
     ];
-  }, [calculateSavings, calculateWasteReduction, calculateNutritionScore, inventory.length]);
+  }, [calculateSavings, calculateWasteReduction, inventory.length]);
 
   // Generate insights data
   const insightsData = useMemo((): InsightsData => ({

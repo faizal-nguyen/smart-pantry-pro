@@ -102,7 +102,7 @@ export type ReadMealPlanArgs = z.infer<typeof readMealPlanArgs>;
 
 const findCookableArgs = z.object({
   max_missing_ingredients: z.number().int().min(0).max(10).optional(),
-  max_prep_time: z.number().int().min(0).max(600).optional(),
+  max_prep_time: z.number().int().min(1).max(600).optional(),
 });
 export type FindCookableArgs = z.infer<typeof findCookableArgs>;
 
@@ -157,9 +157,11 @@ const findRecipesUsingIngredientArgs = z.object({
 export type FindRecipesUsingIngredientArgs = z.infer<typeof findRecipesUsingIngredientArgs>;
 
 const suggestRecipesForContextArgs = z.object({
+  ingredient:z.string().min(1).max(200).optional(),
+  craving:z.enum(['warm','fresh','comfort','any']).optional(),
   /** Optional free-text narrowing applied via ilike on recipe.name. */
   query: z.string().max(200).optional(),
-  max_prep_time: z.number().int().min(0).max(600).optional(),
+  max_prep_time: z.number().int().min(1).max(600).optional(),
   /** Per-bucket limit (default 6). Each bucket capped independently. */
   limit_per_bucket: z.number().int().min(1).max(20).optional(),
   /** Cap for almost_cookable bucket (default 3). */
@@ -464,7 +466,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       type: 'object',
       properties: {
         max_missing_ingredients: { type: 'integer', minimum: 0, maximum: 10 },
-        max_prep_time: { type: 'integer', minimum: 0, maximum: 600, description: 'minutes' },
+        max_prep_time: { type: 'integer', minimum: 1, maximum: 600, description: 'total minutes including preparation, cooking and recorded rest' },
       },
       additionalProperties: false,
     },
@@ -521,13 +523,15 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {
     name: 'suggest_recipes_for_context',
     description:
-      'One-shot recipe suggestion: returns 3 buckets — cookable_now (everything in stock), almost_cookable (1..N missing/unknown ingredients), recent_suggestions (recent recipes regardless of stock). Use this for open questions like "what can I cook tonight?" instead of chaining find_cookable_recipes + read_recent_recipes.',
+      'Personalized server recipe suggestions with effective ingredients, exclusions before scoring, qualified lots, duration, missing quantities, nutrition coverage and structured reasons. cookable_now and almost_cookable are candidates; verify_suggestions need checks; excluded_suggestions must not be recommended. Use for open and ingredient-centric requests.',
     schema: suggestRecipesForContextArgs,
     jsonSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', maxLength: 200, description: 'optional ilike narrowing on recipe name' },
-        max_prep_time: { type: 'integer', minimum: 0, maximum: 600, description: 'minutes' },
+        query: { type: 'string', maxLength: 200, description: 'optional narrowing on recipe name' },
+        ingredient:{ type:'string',minLength:1,maxLength:200,description:'Ingredient in the effective personal recipe, not the title' },
+        craving:{ type:'string',enum:['warm','fresh','comfort','any'],description:'Transient meal style' },
+        max_prep_time: { type: 'integer', minimum: 1, maximum: 600, description: 'total minutes including preparation, cooking and recorded rest' },
         limit_per_bucket: { type: 'integer', minimum: 1, maximum: 20, description: 'default 6' },
         almost_threshold: { type: 'integer', minimum: 0, maximum: 10, description: 'max missing+unknown for almost bucket, default 3' },
         meal_type: {

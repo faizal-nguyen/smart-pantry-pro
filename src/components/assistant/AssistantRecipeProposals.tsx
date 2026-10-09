@@ -21,7 +21,11 @@
  *    (mémoire + action_log + undo) comme single source of truth.
  */
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import type { RecommendationEvidence } from '@smart/shared';
+import { RecommendationEvidenceDetails } from '@/components/recipes/PersonalizedRecipeSuggestions';
+import type { RecommendedRecipeView } from '@/services/recommendationsApi';
+import { useNutritionProfile } from '@/hooks/useNutritionProfile';
+import { Link,useNavigate } from 'react-router-dom';
 import { ChefHat, Clock, Users, Plus, CalendarPlus, Check } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -34,7 +38,7 @@ import {
   type RecipeAction,
 } from '@/lib/recipeActions';
 
-interface RecipeView {
+interface RecipeView extends Partial<RecommendationEvidence> {
   id: string;
   name: string;
   prep_time?: number | null;
@@ -55,7 +59,7 @@ interface RecipeView {
 interface RecipeBuckets {
   cookable_now: RecipeView[];
   almost_cookable: RecipeView[];
-  recent_suggestions: RecipeView[];
+  recent_suggestions: RecipeView[];verify_suggestions:RecipeView[];excluded_suggestions:RecipeView[];
   /** PRP-226 PR4 — id of the originating `recommendation_events` row. */
   event_id?: string;
 }
@@ -85,7 +89,7 @@ function dedupe(list: RecipeView[], seen: Set<string>): RecipeView[] {
 
 function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
   const seen = new Set<string>();
-  const buckets: RecipeBuckets = { cookable_now: [], almost_cookable: [], recent_suggestions: [] };
+  const buckets: RecipeBuckets = { cookable_now: [], almost_cookable: [], recent_suggestions: [],verify_suggestions:[],excluded_suggestions:[] };
 
   // Primary: suggest_recipes_for_context returns the 3 buckets directly.
   for (const a of actions) {
@@ -94,7 +98,7 @@ function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
       | (Partial<RecipeBuckets> & { event_id?: unknown })
       | undefined;
     if (!result || typeof result !== 'object') continue;
-    for (const key of ['cookable_now', 'almost_cookable', 'recent_suggestions'] as const) {
+    for (const key of ['cookable_now','almost_cookable','recent_suggestions','verify_suggestions','excluded_suggestions'] as const) {
       const arr = (result as Record<string, unknown>)[key];
       if (!Array.isArray(arr)) continue;
       buckets[key].push(...dedupe(arr.filter(isRecipeView), seen));
@@ -107,7 +111,7 @@ function extractBuckets(actions: ExecutedAction[]): RecipeBuckets {
   if (
     buckets.cookable_now.length ||
     buckets.almost_cookable.length ||
-    buckets.recent_suggestions.length
+    buckets.recent_suggestions.length || buckets.verify_suggestions.length || buckets.excluded_suggestions.length
   ) {
     return buckets;
   }
@@ -152,7 +156,10 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
-  const totalTime = (r.prep_time ?? 0) + (r.cook_time ?? 0);
+  const totalTime=r.duration_minutes ?? (r.prep_time ?? 0)+(r.cook_time ?? 0);
+  const profile=useNutritionProfile();
+  const stale=r.profile_version!==undefined && (profile.error || profile.isLoading || profile.data?.profile.version!==r.profile_version);
+  const evidence=!!r.reference && !!r.constraints && !!r.availability && !!r.nutrition && !!r.reason_codes;
   const open = () => navigate(`/kitchen/recipes/${r.id}`);
 
   const handleAction = async (action: RecipeAction) => {
@@ -201,7 +208,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2">
               <h4 className="font-medium text-sm line-clamp-2 flex-1">{r.name}</h4>
-              {score !== null && score >= 70 && (
+              {showCookabilityBadge && !stale && r.constraints?.status==='compatible' && score !== null && score >= 70 && (
                 <Badge
                   variant="outline"
                   className="text-[10px] bg-saffron/10 text-saffron border-saffron/40 flex-shrink-0"
@@ -239,16 +246,17 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
             {showCookabilityBadge && (() => {
               const unknown = r.unlinked_count ?? 0;
               const total = missing + unknown;
-              if (total === 0) {
+              if (total===0 && !stale && r.availability?.status==='available' && r.constraints?.status==='compatible') {
                 return (
                   <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
-                    Tu as tout
+                    Stock renseigné au calcul
                   </Badge>
                 );
               }
               const parts: string[] = [];
               if (missing > 0) parts.push(`${missing} manquant${missing > 1 ? 's' : ''}`);
               if (unknown > 0) parts.push(`${unknown} à vérifier`);
+              if (!parts.length) parts.push(stale ? 'À recalculer' : 'Disponibilité à vérifier');
               return (
                 <Badge variant="outline" className="mt-1 text-[10px]">
                   {parts.join(' · ')}
@@ -258,7 +266,10 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
           </div>
         </CardContent>
       </button>
-      {showActions && (
+      {stale && <p className="px-3 pb-2 text-sm">Le profil a changé ou doit être relu. Recalculez ces idées avant de choisir.</p>}
+      {evidence && <div className="px-3"><RecommendationEvidenceDetails recipe={r as RecommendedRecipeView}/></div>}
+      <Button className="min-h-11 mx-3 mb-2" variant="ghost" asChild><Link to="/settings?section=cooking">Corriger mon profil</Link></Button>
+      {showActions && !stale && evidence && r.constraints?.status==='compatible' && r.availability?.status!=='verify' && (
         <div
           className="flex flex-wrap gap-1 px-3 pb-3 -mt-1"
           role="group"
@@ -269,7 +280,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-[11px] gap-1"
+              className="min-h-11 px-2 text-[11px] gap-1"
               disabled={pendingAction !== null}
               onClick={(e) => {
                 e.stopPropagation();
@@ -284,7 +295,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-[11px] gap-1"
+            className="min-h-11 px-2 text-[11px] gap-1"
             disabled={pendingAction !== null}
             onClick={(e) => {
               e.stopPropagation();
@@ -298,7 +309,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-[11px] gap-1"
+            className="min-h-11 px-2 text-[11px] gap-1"
             disabled={pendingAction !== null}
             onClick={(e) => {
               e.stopPropagation();
@@ -348,8 +359,8 @@ function bucketsFromMetadata(metadata: Record<string, unknown> | undefined | nul
   if (!metadata) return null;
   const proposals = metadata.recipe_proposals;
   if (!proposals || typeof proposals !== 'object') return null;
-  const out: RecipeBuckets = { cookable_now: [], almost_cookable: [], recent_suggestions: [] };
-  for (const key of ['cookable_now', 'almost_cookable', 'recent_suggestions'] as const) {
+  const out: RecipeBuckets = { cookable_now: [], almost_cookable: [], recent_suggestions: [],verify_suggestions:[],excluded_suggestions:[] };
+  for (const key of ['cookable_now','almost_cookable','recent_suggestions','verify_suggestions','excluded_suggestions'] as const) {
     const arr = (proposals as Record<string, unknown>)[key];
     if (Array.isArray(arr)) out[key] = arr.filter(isRecipeView);
   }
@@ -370,7 +381,7 @@ interface AssistantRecipeProposalsProps {
 export default function AssistantRecipeProposals({
   response,
   metadata,
-  limit = 4,
+  limit = 3,
 }: AssistantRecipeProposalsProps) {
   // metadata path takes precedence (it's the persisted form, survives reloads).
   const buckets = metadata
@@ -383,13 +394,13 @@ export default function AssistantRecipeProposals({
   const total =
     buckets.cookable_now.length +
     buckets.almost_cookable.length +
-    buckets.recent_suggestions.length;
+    buckets.recent_suggestions.length+buckets.verify_suggestions.length+buckets.excluded_suggestions.length;
   if (total === 0) return null;
 
   return (
     <div className="space-y-4 my-3" role="region" aria-label="Recettes suggérées">
       <BucketSection
-        title="Tu as tout en stock"
+        title="Quantités et lots renseignés"
         recipes={buckets.cookable_now}
         limit={limit}
         showCookabilityBadge
@@ -402,6 +413,8 @@ export default function AssistantRecipeProposals({
         showCookabilityBadge
         showActions
       />
+      <BucketSection title="À vérifier" recipes={buckets.verify_suggestions} limit={limit} showCookabilityBadge={false} showActions={false}/>
+      <BucketSection title="Écartées : raisons" recipes={buckets.excluded_suggestions} limit={limit} showCookabilityBadge={false} showActions={false}/>
       <BucketSection
         title="Idées de ta base"
         recipes={buckets.recent_suggestions}

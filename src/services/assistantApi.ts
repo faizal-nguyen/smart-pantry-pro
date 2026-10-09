@@ -13,7 +13,7 @@
  */
 import { supabase } from '@/integrations/supabase/client';
 
-import { apiGet, apiPost, ApiError } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, ApiError } from '@/lib/api';
 
 // ---- Response shapes (mirror VoiceAgentService) ---------------------
 
@@ -339,6 +339,7 @@ export function createAssistantMemory(
 
 export function getAssistantMemories(
   opts: ListMemoriesOpts = {},
+  options?: { expectedUserId?: string },
 ): Promise<CursorPage<AssistantMemoryItem>> {
   const q = buildQuery({
     cursor: opts.cursor,
@@ -346,35 +347,38 @@ export function getAssistantMemories(
     status: opts.status,
     kind: opts.kind,
   });
-  return apiGet<CursorPage<AssistantMemoryItem>>(`${ASSISTANT_BASE}/memories${q}`);
+  return apiGet<CursorPage<AssistantMemoryItem>>(`${ASSISTANT_BASE}/memories${q}`,undefined,options);
 }
 
 export function patchAssistantMemory(
   id: string,
   patch: { content?: string; status?: AssistantMemoryStatus; sensitivity?: AssistantMemorySensitivity; normalized_content?: string },
+  options?: { expectedUserId?: string },
 ): Promise<{ memory: AssistantMemoryItem }> {
-  // apiPost is JSON-only, but apiPatch isn't exported in this codebase;
-  // we fall back to a manual fetch here.
-  return jsonRequest<{ memory: AssistantMemoryItem }>(
+  return apiPatch<{ memory: AssistantMemoryItem }>(
     `${ASSISTANT_BASE}/memories/${id}`,
-    'PATCH',
     patch,
+    options,
   );
 }
 
 export function forgetAssistantMemory(
   id: string,
+  options?: { expectedUserId?: string },
 ): Promise<{ memory: AssistantMemoryItem }> {
   return apiPost<{ memory: AssistantMemoryItem }>(
     `${ASSISTANT_BASE}/memories/${id}/forget`,
+    undefined,options,
   );
 }
 
 export function promoteAssistantMemory(
   id: string,
+  options?: { expectedUserId?: string },
 ): Promise<{ memory: AssistantMemoryItem }> {
   return apiPost<{ memory: AssistantMemoryItem }>(
     `${ASSISTANT_BASE}/memories/${id}/promote`,
+    undefined,options,
   );
 }
 
