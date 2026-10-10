@@ -20,40 +20,47 @@ export function invalidateUnifiedRecipeCache(id?: string): void {
 }
 
 /** Cache and ownership use the same account; an old response cannot repopulate a new session. */
-export async function fetchUnifiedRecipe(id: string): Promise<UnifiedRecipe | null> {
+export async function fetchUnifiedRecipe(id: string, source: RecipeReference['source'] = 'auto', expectedOwner?: string): Promise<UnifiedRecipe | null> {
   const { data: { session } } = await supabase.auth.getSession();
   const owner = session?.user.id ?? null;
-  const key = `${owner ?? 'public'}:${id}`;
+  if (expectedOwner && owner !== expectedOwner) throw new Error('Le compte a changé. Rouvre cette recette.');
+  const key = `${owner ?? 'public'}:${source}:${id}`;
   const saved = cache.get(key);
   if (saved && 'inflight' in saved) return saved.inflight;
   if (saved && 'value' in saved && Date.now() - saved.at < 30_000) return saved.value;
   const started = generation;
-  const inflight = resolveRecipe(id,owner);
+  const inflight = resolveRecipe(id,owner,source);
   cache.set(key,{ inflight });
   try {
     const value = await inflight;
     const current = await supabase.auth.getSession();
     if ((current.data.session?.user.id ?? null) !== owner) throw new Error('Le compte a changé. Rouvrez cette recette.');
+    const entry = cache.get(key);
     if (generation === started && value) cache.set(key,{ value, at: Date.now() });
-    else if (generation === started) cache.delete(key);
+    else if (entry && 'inflight' in entry && entry.inflight === inflight) cache.delete(key);
     return value;
   } catch (error) {
-    if (generation === started) cache.delete(key);
+    const entry = cache.get(key);
+    if (entry && 'inflight' in entry && entry.inflight === inflight) cache.delete(key);
     throw error;
   }
 }
 
-async function resolveRecipe(id: string, owner: string | null): Promise<UnifiedRecipe | null> {
-  const legacy = await supabase.from('recipes').select('*').eq('id',id)
-    .or(owner ? `user_id.eq.${owner},is_public.eq.true` : 'is_public.eq.true').maybeSingle();
-  if (legacy.error) throw legacy.error;
-  if (legacy.data) return { ...legacy.data, source: 'recipes', canonicalId: id } as UnifiedRecipe;
-  if (owner) {
+async function resolveRecipe(id: string, owner: string | null, source: RecipeReference['source']): Promise<UnifiedRecipe | null> {
+  if (source === 'auto' || source === 'recipes') {
+    const legacy = await supabase.from('recipes').select('*').eq('id',id)
+      .or(owner ? `user_id.eq.${owner},is_public.eq.true` : 'is_public.eq.true').maybeSingle();
+    if (legacy.error) throw legacy.error;
+    if (legacy.data) return { ...legacy.data, source: 'recipes', canonicalId: id } as UnifiedRecipe;
+    if (source === 'recipes') return null;
+  }
+  if (owner && (source === 'auto' || source === 'user_recipes')) {
     const library = await supabase.from('user_recipes').select('*, catalog_recipe:recipes_catalog(*)')
       .eq('id',id).eq('user_id',owner).maybeSingle();
     if (library.error) throw library.error;
     if (library.data) return mapLibraryRecipe(library.data as LibraryRecipeRow) as UnifiedRecipe;
   }
+  if (source === 'user_recipes') return null;
   const catalog = await supabase.from('recipes_catalog').select('*').eq('id',id).maybeSingle();
   if (catalog.error) throw catalog.error;
   if (!catalog.data) return null;

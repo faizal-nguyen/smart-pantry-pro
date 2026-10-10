@@ -40,7 +40,7 @@ export default function ShoppingStorageReview({ open,onOpenChange,items,busy,onC
       if (result) { removeOwnedValue(user.id,'shopping-review'); setPending(null); setSuccess(true); }
     } catch (value) { setError((value as Error).message); setPending(await pendingIntent('shopping-transfer').catch(() => null)); }
   };
-  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Ranger mes achats</DialogTitle><DialogDescription>Vérifiez ce que vous avez acheté. La zone et la date sont facultatives. Le stock et les courses changent ensemble après confirmation.</DialogDescription></DialogHeader>
+  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Ranger mes achats</DialogTitle><DialogDescription>Vérifie tes achats. La zone et la date sont facultatives. Le stock et les courses changent ensemble après confirmation.</DialogDescription></DialogHeader>
     {success ? <div className="space-y-3"><p role="status">Achats rangés. Le stock est à jour.</p><Button className="min-h-11 w-full" asChild><Link to="/pantry/inventory">Voir mon stock</Link></Button></div> : <>
       {loading && <p role="status">Lecture du rangement précédent…</p>}
       {pending && <p role="status">Un rangement envoyé reste à vérifier. Sa saisie est figée ; la même commande sera reprise.</p>}

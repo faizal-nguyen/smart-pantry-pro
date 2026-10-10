@@ -17,9 +17,9 @@ const SettingsPage: React.FC = () => {
   const user = useAuthenticatedUser();
 
   return (
-    <div className="container mx-auto max-w-5xl p-4 md:p-6 app-content">
+    <div className="culinary-page container mx-auto max-w-5xl p-4 md:p-6 app-content">
       <header className="mb-6 flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-2xl font-bold md:text-3xl">
+        <h1 className="culinary-title flex items-center gap-2">
           <SettingsIcon className="h-6 w-6" aria-hidden="true" />
           Paramètres
         </h1>

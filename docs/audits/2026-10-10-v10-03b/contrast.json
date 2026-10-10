@@ -1,0 +1,139 @@
+{
+  "method": "Raw OKLCH tokens converted to linear sRGB, clipped to 0..1, relative luminance ratio. Local palette check, not complete accessibility certification.",
+  "light": [
+    {
+      "foreground": "foreground",
+      "background": "background",
+      "ratio": 18.02
+    },
+    {
+      "foreground": "card-foreground",
+      "background": "card",
+      "ratio": 18.81
+    },
+    {
+      "foreground": "muted-foreground",
+      "background": "background",
+      "ratio": 6.54
+    },
+    {
+      "foreground": "muted-foreground",
+      "background": "muted",
+      "ratio": 5.81
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary",
+      "ratio": 6.64
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary-hover",
+      "ratio": 7.89
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary-active",
+      "ratio": 8.97
+    },
+    {
+      "foreground": "secondary-foreground",
+      "background": "secondary",
+      "ratio": 14.78
+    },
+    {
+      "foreground": "accent-foreground",
+      "background": "accent",
+      "ratio": 14.78
+    },
+    {
+      "foreground": "sidebar-foreground",
+      "background": "sidebar-background",
+      "ratio": 14.46
+    },
+    {
+      "foreground": "sidebar-primary-foreground",
+      "background": "sidebar-primary",
+      "ratio": 6.64
+    },
+    {
+      "foreground": "ring",
+      "background": "background",
+      "ratio": 6.55
+    }
+  ],
+  "dark": [
+    {
+      "foreground": "foreground",
+      "background": "background",
+      "ratio": 16.7
+    },
+    {
+      "foreground": "card-foreground",
+      "background": "card",
+      "ratio": 15.77
+    },
+    {
+      "foreground": "muted-foreground",
+      "background": "background",
+      "ratio": 8.02
+    },
+    {
+      "foreground": "muted-foreground",
+      "background": "muted",
+      "ratio": 6.45
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary",
+      "ratio": 8.08
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary-hover",
+      "ratio": 9.33
+    },
+    {
+      "foreground": "primary-foreground",
+      "background": "primary-active",
+      "ratio": 6.96
+    },
+    {
+      "foreground": "secondary-foreground",
+      "background": "secondary",
+      "ratio": 11.87
+    },
+    {
+      "foreground": "accent-foreground",
+      "background": "accent",
+      "ratio": 13.45
+    },
+    {
+      "foreground": "sidebar-foreground",
+      "background": "sidebar-background",
+      "ratio": 14.4
+    },
+    {
+      "foreground": "sidebar-primary-foreground",
+      "background": "sidebar-primary",
+      "ratio": 8.08
+    },
+    {
+      "foreground": "ring",
+      "background": "background",
+      "ratio": 8.28
+    }
+  ],
+  "darkFooter": {
+    "background": "oklch(0.14 0.01 80)",
+    "bottom": 738,
+    "top": 618,
+    "viewport": 812
+  },
+  "lightFooter": {
+    "background": "oklch(0.985 0.004 80)",
+    "bottom": 716,
+    "top": 596,
+    "viewport": 956
+  }
+}

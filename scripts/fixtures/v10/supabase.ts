@@ -28,8 +28,18 @@ export const data: Record<string, Row[]> = {
 try { Object.assign(data,JSON.parse(localStorage.getItem('v10-fixture-data') ?? '{}')); } catch { /* New fixture. */ }
 if (!data.recipes_catalog.some(row=>row.id===CATALOG)) data.recipes_catalog.push({ id:CATALOG,title:'Riz express',prep_time:5,cook_time:15,servings:2,instructions:'Rincer le riz.\nCuire le riz.',ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }],tags:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });
 if (!data.user_recipes.some(row=>row.id===WRAPPER)) data.user_recipes.push({ id:WRAPPER,user_id:OWNER,is_from_catalog:false,custom_title:'Soupe personnelle',custom_instructions:'Couper les tomates.\nFaire cuire.',custom_ingredients_json:[{ name:'Tomate',amount:'2',unit:'pièce' }],custom_modifications:{},personal_tags:[],collections:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });
+// SVGs are explicitly labelled test images, never production recipe photos.
+const recipe=data.recipes.find(row=>row.id===RECIPE);
+if (recipe && !recipe.image_url) recipe.image_url='/scripts/fixtures/v10/assets/pain.svg';
+const catalogue=data.recipes_catalog.find(row=>row.id===CATALOG)!;
+if (!catalogue.photo_url) catalogue.photo_url='/scripts/fixtures/v10/assets/riz.svg';
+const personal=data.user_recipes.find(row=>row.id===WRAPPER)!;
+if (!personal.custom_photo_url) personal.custom_photo_url='/scripts/fixtures/v10/assets/soupe.svg';
+const broken='30000000-0000-4000-8000-000000000002',absent='30000000-0000-4000-8000-000000000003';
+if (!data.recipes.some(row=>row.id===broken)) data.recipes.push({ ...recipe,id:broken,name:'Recette de test avec une image cassée et un titre assez long pour vérifier la lecture sur petit écran',image_url:'/scripts/fixtures/v10/assets/missing-image.jpg' });
+if (!data.recipes.some(row=>row.id===absent)) data.recipes.push({ ...recipe,id:absent,name:'Recette de test sans photo',image_url:null,prep_time:null });
 export function persistFixtureData() { localStorage.setItem('v10-fixture-data',JSON.stringify(data)); }
-export const failures = { nextCommand: false,nextReplyLost:false };
+export const failures = { nextCommand: false,nextReplyLost:false,evaluationOffline:false };
 const session = { user: { id: OWNER, email: 'test@example.invalid' }, access_token: 'local-test-only' };
 class Query implements PromiseLike<{ data: unknown; error: null; count: number }> {
   private filters: Array<(row: Row) => boolean> = [];
@@ -80,6 +90,7 @@ class Query implements PromiseLike<{ data: unknown; error: null; count: number }
     const mapped = rows.slice(this.offset,this.offset+this.maximum).map(row => ({ ...row,
       ...(row.product_id ? { product: data.products.find(product => product.id === row.product_id), products: data.products.find(product => product.id === row.product_id) } : {}),
       ...(this.table === 'recipes' ? { recipe_ingredients: data.recipe_ingredients.filter(ingredient => ingredient.recipe_id === row.id) } : {}),
+      ...(this.table === 'user_recipes' && row.recipe_id ? { catalog_recipe: data.recipes_catalog.find(catalog=>catalog.id===row.recipe_id) } : {}),
     }));
     return Promise.resolve({ data: this.singleResult ? mapped[0] ?? null : mapped, error: null, count }).then(resolve,reject);
   }

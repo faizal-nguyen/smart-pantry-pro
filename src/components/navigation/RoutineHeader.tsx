@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bot, Settings } from 'lucide-react';
+import { MessageCircle, Settings } from 'lucide-react';
 import { useFamilyMode } from '@/hooks/useFamilyMode';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
@@ -29,23 +29,24 @@ export default function RoutineHeader() {
         allowedTools:['read_inventory','read_shopping_list','search_recipes','suggest_recipes_for_context','read_user_memories','ask_clarification'] });
       if ((await supabase.auth.getSession()).data.session?.user.id !== user.id) throw new Error('Le compte a changé. Reprenez avec le compte précédent.');
       setAnswer(result.message);
-    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Assistant indisponible. Votre question reste conservée.'); }
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Aide indisponible. Ta question reste conservée.'); }
     finally { setBusy(false); }
   };
   return <>
     <header className="flex items-center justify-between gap-2 border-b px-4 py-2 safe-area-inset-top">
       <Link to="/kitchen" className="flex min-h-11 items-center font-semibold text-sm">Smart Pantry</Link>
       <div className="flex gap-1">
-        {(!isFamilyModeActive || canAccessSection('assistant')) && <Button variant="ghost" className="min-h-11 gap-2" onClick={() => setOpen(true)}><Bot className="w-4 h-4" aria-hidden="true" />Aide</Button>}
+        {(!isFamilyModeActive || canAccessSection('assistant')) && <Button variant="ghost" className="min-h-11 gap-2" onClick={() => setOpen(true)}><MessageCircle className="w-4 h-4" aria-hidden="true" />Aide</Button>}
         {(!isFamilyModeActive || canAccessSection('settings')) && <Button variant="ghost" size="icon" className="h-11 w-11" asChild><Link to="/settings" aria-label="Profil et paramètres"><Settings className="w-5 h-5" aria-hidden="true" /></Link></Button>}
       </div>
     </header>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Aide pour cette tâche</DialogTitle><DialogDescription>{recipe ? 'Cette recette accompagne votre question.' : product ? 'Ce lot accompagne votre question.' : 'L’assistant connaît la page ouverte.'}</DialogDescription></DialogHeader>
-      <label className="space-y-2">Votre question<Textarea value={question} onChange={e => { try { setQuestion(e.target.value); } catch (failure) { setError((failure as Error).message); } }} placeholder="Par quoi remplacer cet ingrédient ?" /></label>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Aide pour cette tâche</DialogTitle><DialogDescription>{recipe ? 'Cette recette accompagne ta question.' : product ? 'Ce lot accompagne ta question.' : 'Ta question sera accompagnée de la page ouverte.'}</DialogDescription></DialogHeader>
+      <label className="space-y-2">Ta question<Textarea value={question} onChange={e => { try { setQuestion(e.target.value); } catch (failure) { setError((failure as Error).message); } }} placeholder="Par quoi remplacer cet ingrédient ?" /></label>
       {(error || storageError) && <p role="alert" className="text-destructive">{error || storageError}</p>}
       <Button className="min-h-11" disabled={busy || !question.trim() || !!storageError} onClick={() => void ask()}>{busy ? 'Recherche…' : 'Demander'}</Button>
       {answer && <p role="status" className="whitespace-pre-wrap text-sm">{answer}</p>}
       <Button variant="outline" className="min-h-11" asChild><Link to="/assistant" onClick={() => setOpen(false)}>Ouvrir les conversations</Link></Button>
+      <Button variant="ghost" className="min-h-11" asChild><Link to="/settings?section=assistant-memory" onClick={()=>setOpen(false)}>Mémoire de l’assistant</Link></Button>
     </DialogContent></Dialog>
   </>;
 }

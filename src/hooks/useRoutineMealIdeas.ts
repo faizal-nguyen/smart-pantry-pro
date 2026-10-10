@@ -16,7 +16,7 @@ export function useRoutineMealIdeas(input:SuggestRecommendationsInput) {
     queryFn:async()=>{
       if (profile.error) throw new Error('Le profil alimentaire doit être relu avant les idées.');
       if (profile.data?.profile.version===0 && (local.error || local.personalizationData?.dietaryPreferences.length)) {
-        throw new Error('Confirmez la reprise de vos contraintes enregistrées sur cet appareil dans votre profil alimentaire.');
+        throw new Error('Confirme les contraintes enregistrées sur cet appareil dans ton profil alimentaire.');
       }
       return postRecommendationSuggest({ ...input,limitPerBucket:3 },user!.id);
     },

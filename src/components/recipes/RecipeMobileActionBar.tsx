@@ -13,7 +13,6 @@
  * Desktop conserve `<RecipePrimaryActions>` inline.
  */
 import { Button } from '@/components/ui/button';
-import { ChefHat, Edit, ShoppingCart } from 'lucide-react';
 
 interface RecipeMobileActionBarProps {
   onCook: () => void;
@@ -24,6 +23,7 @@ interface RecipeMobileActionBarProps {
   canCook?: boolean;
   canAddMissing?: boolean;
   missingCount?: number;
+  canEdit?: boolean;
 }
 
 export default function RecipeMobileActionBar({
@@ -35,6 +35,7 @@ export default function RecipeMobileActionBar({
   canCook = true,
   canAddMissing = true,
   missingCount,
+  canEdit = true,
 }: RecipeMobileActionBarProps) {
   return (
     <div
@@ -44,7 +45,7 @@ export default function RecipeMobileActionBar({
       <div className="grid grid-cols-3 gap-2 p-2">
         <Button
           size="lg"
-          className="min-h-12 h-auto px-2 py-2 text-sm"
+          className="min-h-12 h-auto min-w-0 whitespace-normal break-words px-2 py-2 text-sm"
           onClick={onCook}
           disabled={cooking || !canCook}
           data-testid="primary-action"
@@ -54,8 +55,7 @@ export default function RecipeMobileActionBar({
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <>
-              <ChefHat className="w-4 h-4 mr-1" aria-hidden="true" />
-              <span className="truncate">Commencer</span>
+              <span>Commencer</span>
             </>
           )}
         </Button>
@@ -63,22 +63,21 @@ export default function RecipeMobileActionBar({
         <Button
           size="lg"
           variant="secondary"
-          className="h-12 px-2 text-xs relative"
+          className="min-h-12 h-auto min-w-0 whitespace-normal break-words px-2 py-2 text-sm relative"
           onClick={onAddMissingToShoppingList}
           disabled={addingToCart || !canAddMissing}
           data-testid="primary-action"
           aria-label={
             missingCount
-              ? `Ajouter ${missingCount} ingredients manquants aux courses`
-              : 'Ajouter les ingredients manquants aux courses'
+              ? `Ajouter ${missingCount} ingrédients manquants aux courses`
+              : 'Ajouter les ingrédients manquants aux courses'
           }
         >
           {addingToCart ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
           ) : (
             <>
-              <ShoppingCart className="w-4 h-4 mr-1" aria-hidden="true" />
-              <span className="truncate">Manquants</span>
+              <span>Manquants</span>
               {missingCount && missingCount > 0 ? (
                 <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-semibold rounded-full min-w-5 h-5 flex items-center justify-center px-1">
                   {missingCount}
@@ -91,12 +90,12 @@ export default function RecipeMobileActionBar({
         <Button
           size="lg"
           variant="outline"
-          className="min-h-12 h-auto px-2 py-2 text-sm"
+          className="min-h-12 h-auto min-w-0 whitespace-normal break-words px-2 py-2 text-sm"
           onClick={onEdit}
+          disabled={!canEdit}
           aria-label="Modifier cette recette"
         >
-          <Edit className="w-4 h-4 mr-1" aria-hidden="true" />
-          <span className="truncate">Modifier</span>
+          <span>Modifier</span>
         </Button>
       </div>
     </div>

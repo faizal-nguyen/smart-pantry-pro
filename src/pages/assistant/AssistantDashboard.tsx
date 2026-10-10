@@ -9,8 +9,7 @@
  *  toute modification met à jour l'URL + persiste côté backend.
  */
 import React, { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Bot } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
@@ -64,31 +63,22 @@ const AssistantDashboard: React.FC = () => {
   return (
     <div
       className={cn(
-        'container mx-auto p-4 sm:p-6 space-y-6',
+        'culinary-page container mx-auto p-4 sm:p-6 space-y-4',
         getStyleClasses(),
         adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
       )}
     >
         <header className="flex flex-col space-y-2">
-          <div className="flex items-center gap-3">
-            {/* PRP-237 PR3 — Bot icon en accent-ai (electric blue) au
-                lieu de primary saffron : signe la presence IA dans le
-                header de la surface. */}
-            <Bot
-              className={cn(
-                'text-accent-ai',
-                adaptiveInterface.iconSize === 'large' ? 'w-8 h-8' : 'w-6 h-6',
-              )}
-              aria-hidden="true"
-            />
+          <div className="flex items-center justify-between gap-3">
             <h1
               className={cn(
-                'font-bold text-foreground',
+                'font-semibold text-foreground',
                 adaptiveInterface.largerText ? 'text-3xl' : 'text-2xl',
               )}
             >
               Assistant
             </h1>
+            <Link to="/settings?section=assistant-memory" className="inline-flex min-h-11 items-center text-sm underline">Mémoire</Link>
           </div>
           <p className="text-sm text-muted-foreground">
             Pose ta question ci-dessous ou utilise le bouton micro.
@@ -109,10 +99,7 @@ const AssistantDashboard: React.FC = () => {
         </div>
 
       {/* Mobile : memory + history sous le fil */}
-      <div className="lg:hidden space-y-6">
-        <MemoryPanel />
-        <ConversationHistoryList />
-      </div>
+      <details className="lg:hidden"><summary className="min-h-11 cursor-pointer text-sm">Retrouver une conversation</summary><ConversationHistoryList /></details>
     </div>
   );
 };

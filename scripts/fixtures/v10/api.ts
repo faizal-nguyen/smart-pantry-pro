@@ -1,14 +1,27 @@
-import { emptyNutritionProfile,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
+import { emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 
 export class ApiError extends Error {
   status: number; code?: string;
   constructor(message: string, opts: { status: number; code?: string }) { super(message); this.status = opts.status; this.code = opts.code; }
 }
-function preview(id: string, requested?: number): RecipeStockPreview {
-  const row = data.recipes.find(recipe => recipe.id === id)!;
+function fixtureRecipe(id:string,source='auto') {
+  const legacy=(source==='auto' || source==='recipes') && data.recipes.find(row=>row.id===id);
+  if (legacy) return { ...legacy,id,source:'recipes',inlineIngredients:data.recipe_ingredients.filter(row=>row.recipe_id===id) };
+  if (source==='auto' || source==='user_recipes') {
+    const row=data.user_recipes.find(row=>row.id===id);
+    if (row) return mapLibraryRecipe({ ...row,catalog_recipe:data.recipes_catalog.find(catalog=>catalog.id===row.recipe_id) } as unknown as LibraryRecipeRow);
+  }
+  if (source==='auto' || source==='recipes_catalog') {
+    const row=data.recipes_catalog.find(row=>row.id===id);
+    if (row) return { ...mapLibraryRecipe({ id,user_id:OWNER,is_from_catalog:true,catalog_recipe:row as unknown as RecipeCatalogRow,created_at:String(row.created_at),updated_at:String(row.updated_at) }),source:'recipes_catalog' };
+  }
+  throw new ApiError('Recette absente du jeu de test.',{ status:404,code:'RECIPE_NOT_FOUND' });
+}
+function preview(id: string, requested?: number,source='auto'): RecipeStockPreview {
+  const row = fixtureRecipe(id,source) as Record<string,unknown>;
   if (!row) throw new Error('Recette introuvable dans le jeu de test.');
-  const ingredients: StockIngredient[] = data.recipe_ingredients.filter(ingredient => ingredient.recipe_id === id).map(ingredient => ({
+  const ingredients: StockIngredient[] = (row.inlineIngredients as Array<Record<string,unknown>>).map(ingredient => ({
     ingredient_name: String(ingredient.ingredient_name), quantity: ingredient.quantity == null ? null : Number(ingredient.quantity),
     unit: ingredient.unit == null ? null : String(ingredient.unit), inventory_product_id: ingredient.inventory_product_id == null ? null : String(ingredient.inventory_product_id),
     is_essential: ingredient.is_essential !== false,
@@ -17,7 +30,8 @@ function preview(id: string, requested?: number): RecipeStockPreview {
     unit: String(lot.unit), stock_version: Number(lot.stock_version), expiry_date: lot.expiry_date == null ? null : String(lot.expiry_date),
     product_name: String(data.products.find(product => product.id === lot.product_id)?.name ?? ''),
   }));
-  const recipe = { id, source: 'recipes', canonicalId: id, name: row.name, servings: row.servings, version: 'local-fixture', ingredients } as RecipeStockPreview['recipe'];
+  if (!Number.isFinite(row.servings) || !(Number(row.servings)>0)) throw new ApiError('Portions de base inconnues dans le test.',{ status:409 });
+  const recipe = { id, source: row.source, canonicalId: row.canonicalId ?? id, name: row.name, servings: row.servings, version: 'local-fixture', ingredients } as RecipeStockPreview['recipe'];
   const servings = requested ?? Number(row.servings);
   return { recipe, servings, lots, ...allocateRecipeStock(ingredients,lots,Number(row.servings),servings) } as RecipeStockPreview;
 }
@@ -25,8 +39,22 @@ function fixtureProfile():NutritionProfile { return (data.nutrition_profiles?.[0
 const results = new Map<string,StockCommandResult>(JSON.parse(localStorage.getItem('v10-fixture-results') ?? '[]'));
 const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  const request = body as { recipe: { id: string }; servings?: number };
-  if (path === '/v1/stock/preview') return preview(request.recipe.id,request.servings) as T;
+  const request = body as { recipe: { id: string;source?:string }; servings?: number };
+  if (path === '/v1/stock/preview') return preview(request.recipe.id,request.servings,request.recipe.source) as T;
+  if (path==='/v1/recommendations/evaluate') {
+    if (failures.evaluationOffline) throw new ApiError('Vérification indisponible dans le test local. Réessaie.',{ status:503 });
+    // Presentation contract only. The actual common evaluator is exercised in API tests.
+    const input=body as RecipeEvaluationInput,row=fixtureRecipe(input.recipe.id,input.recipe.source) as Record<string,unknown>;
+    const base=Number(row.servings)>0 ? Number(row.servings) : null;
+    const computed=base ? preview(input.recipe.id,input.servings,input.recipe.source) : null;
+    const result:RecipeEvaluation={ reference:input.recipe,servings:input.servings,base_servings:base,recipe_version:'visual-fixture',profile_version:fixtureProfile().version,
+      stock_version:'visual-fixture',calculated_at:new Date().toISOString(),duration_minutes:recipeDurationMinutes(row),
+      constraints:{ status:base ? 'compatible':'verify',findings:[],registry_version:'visual-fixture',limitations:['Présentation fictive ; aucun résultat médical.'] },
+      availability:{ status:!base || !computed?.recipe.ingredients.length ? 'verify' : computed.missing.length ? 'missing':'available',missing:computed?.missing ?? [],allocations:computed?.allocations ?? [],excluded_lots:[],uncertainties:base ? [] : ['Portions de base inconnues ; quantités à vérifier.'] },
+      nutrition:{ status:base ? 'partial':'unavailable',coverage:base ? 1:0,known_ingredients:base ? 1:0,total_ingredients:1,
+        per_serving:{ energyKcal:base ? 100:null,proteinG:null,fiberG:base ? 0:null },sources:base ? [{ product_id:'visual-fixture',source:'manual',updated_at:'2026-10-08T12:00:00Z',base:'100g' }] : [],limitations:['Valeurs fictives pour vérifier la présentation de zéro et des inconnues.'] } };
+    return result as T;
+  }
   if (path==='/v1/settings/nutrition-profile') {
     const command=body as ProfileWrite,current=fixtureProfile();
     const receipt=localStorage.getItem(`v10-fixture-profile:${command.command_id}`);
@@ -48,28 +76,29 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     // Contract fixtures for visual QA only; server scoring is verified by the API tests.
     const profile=fixtureProfile(),input=body as Record<string,unknown>,settings=profile.settings;
     const cookable:unknown[]=[],almost:unknown[]=[],verify:unknown[]=[],excluded:unknown[]=[];
-    for (const row of data.recipes) {
+    const rows=[...data.recipes.map(row=>fixtureRecipe(String(row.id),'recipes')),...data.user_recipes.map(row=>fixtureRecipe(String(row.id),'user_recipes')),...data.recipes_catalog.map(row=>fixtureRecipe(String(row.id),'recipes_catalog'))] as Array<Record<string,unknown>>;
+    for (const row of rows) {
       if (input.query && !String(row.name).toLowerCase().includes(String(input.query).toLowerCase())) continue;
-      const servings=Number(input.servings ?? settings.usualServings ?? row.servings),computed=preview(String(row.id),servings);
-      const incompatible=settings.allergies.some(value=>['lait','milk'].includes(value.toLowerCase())) && computed.recipe.ingredients.some(item=>['lait','beurre'].includes(item.ingredient_name.toLowerCase()));
-      const minutes=Number(row.prep_time)+Number(row.cook_time)+Number(row.rest_time ?? 0),limit=Number(input.timeLimitMinutes ?? settings.usualTimeMinutes ?? 600);
-      if (minutes>limit) continue;
-      const reasons=[{ code:computed.missing.length ? 'STOCK_MISSING':'STOCK_AVAILABLE',text:computed.missing.length ? `${computed.missing.length} ingrédient(s) à acheter ou vérifier.` : 'Quantités et lots utilisables renseignés pour les portions demandées.' },{ code:'TIME_FITS',text:`Durée enregistrée ${minutes} min.` }];
-      const candidate={ ...row,reference:{ id:row.id,source:'recipes' },servings,score_total:80,profile_version:profile.version,stock_version:'visual-fixture',calculated_at:new Date().toISOString(),duration_minutes:minutes,
-        constraints:{ status:incompatible ? 'incompatible':'compatible',findings:incompatible ? [{ code:'DECLARED_ALLERGY',ingredient:'Lait',message:'Un ingrédient signalé est exclu par votre profil.' }] : [],registry_version:'visual-fixture',limitations:['Les traces non renseignées ne sont pas certifiées.'] },
-        availability:{ status:computed.missing.length ? 'missing':'available',missing:computed.missing,allocations:computed.allocations,uncertainties:[],excluded_lots:[] },
-        nutrition:{ status:'partial',coverage:.5,known_ingredients:1,total_ingredients:2,per_serving:{ energyKcal:null,proteinG:null,fiberG:null },sources:[{ product_id:'visual-fixture',source:'manual',base:'100g',updated_at:'2026-10-08' }],limitations:['Estimation partielle de test ; différences cru/cuit non documentées.'] },reason_codes:reasons,reasons:reasons.map(item=>item.text),unavailable_criteria:['nutrition','variety'] };
+      const servings=Number(input.servings ?? settings.usualServings ?? row.servings ?? 2);
+      const evaluation=await apiPost<RecipeEvaluation>('/v1/recommendations/evaluate',{ recipe:{ id:row.id,source:row.source },servings });
+      const incompatible=settings.allergies.some(value=>['lait','milk'].includes(value.toLowerCase())) && (row.inlineIngredients as StockIngredient[]).some(item=>['lait','beurre'].includes(item.ingredient_name.toLowerCase()));
+      const minutes=evaluation.duration_minutes,limit=Number(input.timeLimitMinutes ?? settings.usualTimeMinutes ?? 600);
+      if (minutes!=null && minutes>limit) continue;
+      const reasons=[{ code:evaluation.availability.status==='available' ? 'STOCK_AVAILABLE':'STOCK_UNCERTAIN',text:evaluation.availability.status==='available' ? 'Quantités et lots utilisables renseignés pour les portions demandées.' : 'Des quantités ou des ingrédients sont à vérifier.' },{ code:minutes==null ? 'TIME_UNKNOWN':'TIME_FITS',text:minutes==null ? 'Durée à vérifier.' : `Durée enregistrée ${minutes} min.` }];
+      const candidate={ ...row,...evaluation,score_total:80,
+        constraints:incompatible ? { ...evaluation.constraints,status:'incompatible',findings:[{ code:'DECLARED_ALLERGY',ingredient:'Lait',message:'Un ingrédient signalé est exclu par votre profil.' }] } : evaluation.constraints,
+        reason_codes:reasons,reasons:reasons.map(item=>item.text),unavailable_criteria:['nutrition','variety'] };
       const feedback=data.recipe_interactions.filter(item=>(item.recipe_reference as { id:string })?.id===row.id).at(-1)?.feedback;
-      if (incompatible || feedback==='dislike') excluded.push(candidate);else if (feedback==='not_today') verify.push(candidate);else if (computed.missing.length) almost.push(candidate);else cookable.push(candidate);
+      if (incompatible || feedback==='dislike') excluded.push(candidate);else if (feedback==='not_today' || evaluation.availability.status==='verify') verify.push(candidate);else if (evaluation.availability.missing.length) almost.push(candidate);else cookable.push(candidate);
     }
-    return { cookable_now:cookable,almost_cookable:almost,verify_suggestions:verify,excluded_suggestions:excluded,recent_suggestions:[],total_user_recipes:data.recipes.length,pipeline_version:3,profile_version:profile.version,calculated_at:new Date().toISOString(),has_constraints:settings.allergies.length+settings.diets.length>0 } as T;
+    return { cookable_now:cookable,almost_cookable:almost,verify_suggestions:verify,excluded_suggestions:excluded,recent_suggestions:[],total_user_recipes:rows.length,pipeline_version:3,profile_version:profile.version,calculated_at:new Date().toISOString(),has_constraints:settings.allergies.length+settings.diets.length>0 } as T;
   }
   if (path==='/v1/settings/export') return { nutrition_profile:fixtureProfile(),assistant_memory:data.assistant_memory_items } as T;
   if (path==='/v1/settings/delete-request') return { id:crypto.randomUUID(),status:'pending',requestedAt:new Date().toISOString(),alreadyPending:false } as T;
   if (path === '/v1/stock/commands') {
     const command = body as StockCommand;
     if (results.has(command.command_id)) return results.get(command.command_id) as T;
-    if (failures.nextCommand) { failures.nextCommand = false; throw new ApiError('Connexion interrompue : résultat à vérifier. Réessayez la même action.',{ status: 503, code: 'STOCK_WRITE_FAILED' }); }
+    if (failures.nextCommand) { failures.nextCommand = false; throw new ApiError('Connexion interrompue : résultat à vérifier. Réessaie la même action.',{ status: 503, code: 'STOCK_WRITE_FAILED' }); }
     const result: StockCommandResult = { command_id: command.command_id, command_type: command.command_type, status: 'confirmed', affected_tables: [] };
     snapshots.set(command.command_id,structuredClone({ inventory:data.inventory,shopping:data.shopping_list }));
     if (command.command_type === 'transfer_shopping') {
@@ -112,14 +141,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     results.set(command.command_id,result);persistFixtureData();
     localStorage.setItem('v10-fixture-results',JSON.stringify([...results]));
     localStorage.setItem('v10-fixture-snapshots',JSON.stringify([...snapshots]));
-    if (failures.nextReplyLost) { failures.nextReplyLost=false;throw new ApiError('Réponse perdue après écriture. Vérifiez la confirmation.',{ status:503 }); }
+    if (failures.nextReplyLost) { failures.nextReplyLost=false;throw new ApiError('Réponse perdue après écriture. Vérifie la confirmation.',{ status:503 }); }
     return result as T;
   }
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
   if (path==='/v1/settings/nutrition-profile') return { profile:fixtureProfile(),legacyServerPresent:false } as T;
-  if (path.startsWith('/assistant/memories')) return { items:data.assistant_memory_items,next_cursor:null } as T;
+  if (path.startsWith('/assistant/memories')) return { items:data.assistant_memory_items,nextCursor:null } as T;
+  if (path==='/assistant/conversations' || path.startsWith('/assistant/conversations?')) return { items:[],nextCursor:null } as T;
   if (path==='/v1/settings/privacy') return { settings:{ hasConsent:false,allowAnalytics:false,saveHistory:true,allowImageProcessing:false,shareAnonymizedData:false,batterySaver:false,dataRetention:'standard' } } as T;
   if (path.startsWith('/v1/stock/commands/')) {
     const result=results.get(path.split('/').pop()!);

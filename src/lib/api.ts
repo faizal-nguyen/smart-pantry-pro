@@ -22,7 +22,7 @@ async function authHeader(expectedUserId?: string): Promise<Record<string, strin
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (expectedUserId && data.session?.user.id !== expectedUserId) {
-    throw new ApiError('Reconnectez-vous au compte qui a commencé cette action.', { status: 401, code: 'AUTH_CHANGED' });
+    throw new ApiError('Reconnecte-toi au compte qui a commencé cette action.', { status: 401, code: 'AUTH_CHANGED' });
   }
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -89,9 +89,10 @@ async function unwrap<T>(res: Response): Promise<T> {
   return body as T;
 }
 
-export async function apiPost<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string }): Promise<T> {
+export async function apiPost<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
   const res = await fetch(`${resolveBase()}${path}`, {
     method: 'POST',
+    signal: options?.signal,
     headers: {
       'Content-Type': 'application/json',
       ...(await authHeader(options?.expectedUserId)),

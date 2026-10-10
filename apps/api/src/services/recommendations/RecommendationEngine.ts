@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { mapLibraryRecipe,normalizeIngredientName,normalizeRecipeIngredients,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecommendationReason } from '@smart/shared';
+import { mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
 import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
-import { NutritionProfileService } from './NutritionProfileService.js';
-import { evaluateAvailability,evaluateConstraints,estimateNutrition,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
+import { qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { evaluateRecipe } from './RecipeEvaluation.js';
 import type { RecommendationContext,RecommendationResult,RecipeWithIngredients,RecommendedRecipeView,RecommendationScoreParts } from './types.js';
 
 export interface RecommendationExecutionContext {
@@ -15,12 +16,22 @@ export interface RecommendationExecutionContext {
 type Interaction={ recipe_id:string|null;recipe_reference?:{ id:string;source:string }|null;feedback?:string|null;interaction_type:string;created_at:string };
 type History={ recipe_id:string|null;cooked_at:string;adjustments?:{ recipe_reference?:{ id:string;source:string } };voided_at?:string|null };
 const fingerprint=(value:unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const duration=(recipe:RecipeWithIngredients) => recipe.prep_time==null || recipe.cook_time==null ? null : recipe.prep_time+recipe.cook_time+(recipe.rest_time ?? 0);
+const recipeColumns='id,user_id,is_public,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,updated_at,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)';
+const stockFingerprint=(lots:QualifiedLot[]) => fingerprint([...lots].sort((a,b)=>a.id.localeCompare(b.id)));
 const clamp=(value:number) => Math.max(0,Math.min(1,value));
 
 /** The only scoring pipeline: explicit profile first, constraints before ranking,
  * qualified original lots, structured evidence, and no LLM or inferred-health input. */
 export class RecommendationEngine {
+  async evaluateForUser(ctx:RecommendationExecutionContext,input:RecipeEvaluationInput):Promise<RecipeEvaluation> {
+    const [recipe,{ profile,legacyServerPresent },lots]=await Promise.all([
+      this.loadRecipe(ctx,input.recipe),new NutritionProfileService(ctx.userClient).read(ctx.userId),this.loadInventory(ctx),
+    ]);
+    const ids=[...new Set((recipe.recipe_ingredients ?? []).map(item=>item.inventory_product_id).filter((id):id is string=>!!id))];
+    const products=await this.loadProducts(ctx,ids);
+    return evaluateRecipe(recipe,{ profile,settings:profile.settings,legacyServerPresent,lots,products,servings:input.servings,stockVersion:stockFingerprint(lots),now:ctx.now ?? new Date() });
+  }
+
   async suggestForUser(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecommendationResult> {
     const { profile,legacyServerPresent }=await new NutritionProfileService(ctx.userClient).read(ctx.userId);
     const now=ctx.now ?? new Date(),settings={ ...profile.settings,diets:[...profile.settings.diets] };
@@ -29,10 +40,10 @@ export class RecommendationEngine {
     const [recipes,lots,interactions,history]=await Promise.all([this.loadRecipes(ctx,input),this.loadInventory(ctx),this.loadInteractions(ctx),this.loadHistory(ctx)]);
     const productIds=[...new Set(recipes.flatMap(recipe=>(recipe.recipe_ingredients ?? []).map(item=>item.inventory_product_id).filter(Boolean)))];
     const products=await this.loadProducts(ctx,productIds);
-    const stockVersion=fingerprint(lots);
+    const stockVersion=stockFingerprint(lots);
     // Read authoritative inputs before cache: profile, date, edited recipes, product
     // provenance, feedback and cooked history all participate, even on direct writes.
-    const key='v10-03:'+fingerprint({ owner:ctx.userId,profile,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
+    const key='v10-03a:'+fingerprint({ owner:ctx.userId,profile,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
       try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) return cached.hit.result; } catch { /* Fresh computation remains authoritative. */ }
     }
@@ -41,15 +52,9 @@ export class RecommendationEngine {
     const cookable:RecommendedRecipeView[]=[],almost:RecommendedRecipeView[]=[],verify:RecommendedRecipeView[]=[],excluded:RecommendedRecipeView[]=[],recent:RecommendedRecipeView[]=[];
     for (const recipe of recipes) {
       const servings=input.servings ?? settings.usualServings ?? (recipe.servings && recipe.servings>0 ? recipe.servings : null);
-      const minutes=duration(recipe),constraints=evaluateConstraints(recipe,settings,products);
-      // Legacy labels can be ambiguous. Keep known exclusions, but require an
-      // explicit review before treating the imported profile as compatible.
-      if (legacyServerPresent && constraints.status==='compatible') {
-        constraints.status='verify';
-        constraints.limitations.push('Confirmez les anciennes préférences dans votre profil alimentaire.');
-      }
-      const availability=evaluateAvailability(recipe,lots,servings ?? 1,now);
-      const nutrition=estimateNutrition(recipe,products),taste=scoreExplicitTaste(recipe,settings);
+      const evaluation=evaluateRecipe(recipe,{ profile,settings,legacyServerPresent,lots,products,servings,stockVersion,now });
+      const { duration_minutes:minutes,constraints,availability,nutrition }=evaluation;
+      const taste=scoreExplicitTaste(recipe,settings);
       const reasons:RecommendationReason[]=[],unavailable:string[]=[];
       const essential=(recipe.recipe_ingredients ?? []).filter(item=>item.is_essential!==false);
       const gaps=availability.missing.filter(item=>item.is_essential),unknown=gaps.filter(item=>['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason));
@@ -96,12 +101,12 @@ export class RecommendationEngine {
       const expiryWeight=settings.goals.includes('anti_waste') || input.goal==='anti_waste' ? 23 : 18;
       const maxWeight=40+expiryWeight+14+10+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
       const raw=parts.cookability*40+expiry*expiryWeight+parts.preferenceMatch*14+parts.timeFit*10+effort*6+(nutritionActive ? (nutritionFit ?? 0)*10 : 0)+(varietyActive ? (novelty ?? 0)*7 : 0)+(craving ? 4 : 0)+(settings.goals.includes('vegetables') ? vegetables.score*6 : 0)-parts.missingPenalty*20;
-      const view:RecommendedRecipeView={ id:recipe.id,name:recipe.name,prep_time:recipe.prep_time,cook_time:recipe.cook_time,image_url:recipe.image_url,
+      const view:RecommendedRecipeView={ id:recipe.id,name:recipe.name,prep_time:recipe.prep_time,cook_time:recipe.cook_time,image_url:recipe.image_url,image_origin:recipe.image_origin,
         description:recipe.description,servings,cuisine_category:recipe.cuisine_category,meal_type:recipe.meal_type,tags:recipe.tags,
         total_essential:essential.length,linked_essential:essential.length-unknown.length,missing_count:gaps.length-unknown.length,missing_ingredients:gaps.filter(item=>!unknown.includes(item)).map(item=>item.ingredient_name),
         unlinked:!!unknown.length,unlinked_count:unknown.length,unknown_ingredients:unknown.map(item=>item.ingredient_name),
         score_total:Math.round(Math.max(0,Math.min(100,raw/maxWeight*100))),score_parts:parts,reasons:reasons.map(item=>item.text),reason_codes:reasons,
-        reference:{ id:recipe.id,source:recipe.source ?? 'recipes' },profile_version:profile.version,stock_version:stockVersion,calculated_at:now.toISOString(),duration_minutes:minutes,constraints,availability,nutrition,unavailable_criteria:unavailable,
+        ...evaluation,unavailable_criteria:unavailable,
         expiring_ingredients_used:near.map(lot=>({ product_id:lot.product_id,product_name:lot.product_name,days_to_expiry:calendarDaysUntil(lot.expiry_date,now)! })),
         suggested_actions:['open_recipe',...(availability.missing.length ? ['add_missing_to_shopping' as const] : []),'plan_recipe'] };
       if (input.goal==='light') view.unavailable_criteria.push('light_goal');
@@ -129,13 +134,42 @@ export class RecommendationEngine {
     }
     return result;
   }
+  private libraryRecipe(row:LibraryRecipeRow):RecipeWithIngredients {
+    const mapped=mapLibraryRecipe(row);
+    return { ...mapped,recipe_ingredients:mapped.inlineIngredients.map((ingredient,index)=>({
+      ...ingredient,id:mapped.id+':'+index,quantity:ingredient.quantity ?? null,is_essential:ingredient.is_essential!==false,inventory_product_id:ingredient.inventory_product_id ?? null,
+    })),required_equipment:row.catalog_recipe?.required_equipment ?? null,meal_style:row.catalog_recipe?.meal_style ?? null } as RecipeWithIngredients;
+  }
+  private catalogRecipe(row:RecipeCatalogRow & { ingredients_json?:unknown }):RecipeWithIngredients {
+    return { ...this.libraryRecipe({ id:row.id,user_id:'',is_from_catalog:true,catalog_recipe:row,created_at:row.created_at,updated_at:row.updated_at }),source:'recipes_catalog' };
+  }
+  private async loadRecipe(ctx:RecommendationExecutionContext,reference:RecipeEvaluationInput['recipe']):Promise<RecipeWithIngredients> {
+    if (reference.source==='recipes') {
+      const { data,error }=await ctx.userClient.from('recipes').select(recipeColumns).eq('id',reference.id)
+        .or('user_id.eq.'+ctx.userId+',is_public.eq.true').maybeSingle();
+      if (error) throw new Error('RECIPE_DATA_UNAVAILABLE');
+      if (!data) throw new ProfileError('RECIPE_NOT_FOUND',404);
+      return { ...data,source:'recipes',image_url:resolveRecipeImageUrl(data.image_url) } as RecipeWithIngredients;
+    }
+    if (reference.source==='user_recipes') {
+      const { data,error }=await ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)')
+        .eq('user_id',ctx.userId).eq('id',reference.id).maybeSingle();
+      if (error) throw new Error('RECIPE_DATA_UNAVAILABLE');
+      if (!data) throw new ProfileError('RECIPE_NOT_FOUND',404);
+      return this.libraryRecipe(data as LibraryRecipeRow);
+    }
+    const { data,error }=await ctx.userClient.from('recipes_catalog').select('*').eq('id',reference.id).maybeSingle();
+    if (error) throw new Error('RECIPE_DATA_UNAVAILABLE');
+    if (!data) throw new ProfileError('RECIPE_NOT_FOUND',404);
+    return this.catalogRecipe(data as RecipeCatalogRow & { ingredients_json?:unknown });
+  }
   private async loadRecipes(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecipeWithIngredients[]> {
-    let query=ctx.userClient.from('recipes').select('id,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)').eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
+    let query=ctx.userClient.from('recipes').select(recipeColumns).eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
     if (input.query?.trim()) query=query.ilike('name','%'+input.query.trim().replace(/[%_]/g,'\\$&')+'%');
     const [own,library,catalog]=await Promise.all([query,ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId).limit(200),ctx.userClient.from('recipes_catalog').select('*').order('created_at',{ ascending:false }).limit(200)]);
     for (const row of [own,library,catalog]) if (row.error) throw new Error('RECIPE_DATA_UNAVAILABLE');
     const libraryRows=(library.data ?? []) as LibraryRecipeRow[],catalogOwned=new Set(libraryRows.map(row=>row.recipe_id));
-    const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes' })),...libraryRows.map(row=>{ const mapped=mapLibraryRecipe(row);return { ...mapped,prep_time:row.catalog_recipe?.prep_time ?? null,cook_time:row.catalog_recipe?.cook_time ?? null,rest_time:row.catalog_recipe?.rest_time ?? 0,servings:row.catalog_recipe?.servings ? row.catalog_recipe.servings*(row.custom_modifications?.servings_multiplier ?? 1) : null,difficulty:row.catalog_recipe?.difficulty ?? null,recipe_ingredients:mapped.inlineIngredients.map((ingredient,index)=>({ ...ingredient,id:mapped.id+':'+index,is_essential:ingredient.is_essential!==false,inventory_product_id:ingredient.inventory_product_id ?? null })),required_equipment:row.catalog_recipe?.['required_equipment'] ?? null,meal_style:row.catalog_recipe?.['meal_style'] ?? null }; }),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>({ ...row,source:'recipes_catalog',name:row.title,image_url:row.photo_url,cuisine_category:row.cuisine_category ?? null,meal_type:row.meal_type ?? null,recipe_ingredients:normalizeRecipeIngredients(row.ingredients_json).map((ingredient,index)=>({ ...ingredient,id:row.id+':'+index,is_essential:ingredient.is_essential!==false })) }))] as RecipeWithIngredients[];
+    const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) })),...libraryRows.map(row=>this.libraryRecipe(row)),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>this.catalogRecipe(row as RecipeCatalogRow & { ingredients_json?:unknown }))] as RecipeWithIngredients[];
     return rows.filter(recipe=>{
       if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
       if (input.mealType && recipe.meal_type && recipe.meal_type!==input.mealType) return false;

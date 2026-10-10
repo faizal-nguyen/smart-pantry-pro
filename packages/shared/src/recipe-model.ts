@@ -18,6 +18,30 @@ export interface LibraryRecipeRow {
   custom_modifications?: { title?: string; ingredients_override?: unknown; instructions_append?: string; servings_multiplier?: number } | null;
 }
 
+/** The same media precedence is used by cards, the detail and the server. */
+export function resolveRecipeImageUrl(...values: unknown[]): string | null {
+  for (const value of values) if (typeof value === 'string' && value.trim()) return value.trim();
+  return null;
+}
+
+/** Missing preparation/cooking times stay unknown; recorded zero is valid. */
+export function recipeDurationMinutes(recipe: { prep_time?: number | null; cook_time?: number | null; rest_time?: number | null }): number | null {
+  const { prep_time: prep, cook_time: cook, rest_time: rest } = recipe;
+  if (typeof prep !== 'number' || typeof cook !== 'number' || !Number.isFinite(prep) || !Number.isFinite(cook) || prep < 0 || cook < 0) return null;
+  if (rest != null && (!Number.isFinite(rest) || rest < 0)) return null;
+  return prep + cook + (rest ?? 0);
+}
+
+export function normalizeRecipeInstructions(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((line): line is string => typeof line === 'string').map(line => line.trim()).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed)) return normalizeRecipeInstructions(parsed);
+  } catch { /* Plain text instructions are supported. */ }
+  return value.split(/\n+/).map(line => line.trim().replace(/^\d+\.\s*/, '')).filter(Boolean);
+}
+
 export function normalizeRecipeIngredients(value: unknown, multiplier = 1): InlineRecipeIngredient[] {
   if (!Array.isArray(value)) return [];
   return value.map(raw => {
@@ -46,11 +70,12 @@ export function mapLibraryRecipe(row: LibraryRecipeRow) {
     id: row.id, source: 'user_recipes' as const, canonicalId: catalog?.id ?? row.id, user_id: row.user_id,
     name: edits.title ?? row.custom_title ?? catalog?.title ?? 'Recette sans titre',
     description: catalog?.description ?? row.personal_notes ?? null,
-    image_url: row.custom_photo_url ?? catalog?.photo_url ?? null,
+    image_url: resolveRecipeImageUrl(row.custom_photo_url, catalog?.photo_url),
+    image_origin: resolveRecipeImageUrl(row.custom_photo_url) ? 'personal' as const : resolveRecipeImageUrl(catalog?.photo_url) ? 'catalog' as const : null,
     cuisine_category: catalog?.cuisine_category ?? null, meal_type: catalog?.meal_type ?? null,
-    prep_time: catalog?.prep_time ?? 0, cook_time: catalog?.cook_time ?? 0, rest_time: catalog?.rest_time ?? 0,
-    servings: (catalog?.servings ?? 4) * multiplier, difficulty: catalog?.difficulty ?? 3,
-    instructions: edits.instructions_append ? `${original}\n${edits.instructions_append}` : original,
+    prep_time: catalog?.prep_time ?? null, cook_time: catalog?.cook_time ?? null, rest_time: catalog?.rest_time ?? null,
+    servings: catalog?.servings && Number.isFinite(catalog.servings * multiplier) && catalog.servings > 0 ? catalog.servings * multiplier : null, difficulty: catalog?.difficulty ?? null,
+    instructions: edits.instructions_append ? [...normalizeRecipeInstructions(original),...normalizeRecipeInstructions(edits.instructions_append)].join('\n') : original,
     tags: [...new Set([...(catalog?.tags ?? []),...(row.personal_tags ?? [])])],
     source_type: catalog?.source ?? null, source_url: catalog?.source_url ?? null,
     nutrition_info: catalog?.nutrition_json ?? null, is_public: false,

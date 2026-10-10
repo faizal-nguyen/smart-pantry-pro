@@ -6,10 +6,10 @@
  * (toggleable) + ConversationListItem (chacun avec rename/archive/
  * delete via dropdown menu).
  */
-import React from 'react';
 import { MessageCircle } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useAssistantConversations } from '@/hooks/useAssistantConversations';
 
@@ -27,10 +27,13 @@ export default function ConversationHistoryList({
   showSearch = true,
   limit = 8,
 }: ConversationHistoryListProps) {
-  const { conversations, isLoading } = useAssistantConversations({
+  const { conversations, isLoading, error, refetch } = useAssistantConversations({
     status: 'active',
     limit,
   });
+  if (error) {
+    return <div role="alert" className="space-y-3 rounded-lg border p-4"><p>Impossible de lire les conversations pour le moment.</p><Button variant="outline" className="min-h-11" onClick={()=>void refetch()}>Réessayer la lecture des conversations</Button></div>;
+  }
 
   if (isLoading) {
     return (

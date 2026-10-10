@@ -11,6 +11,7 @@ test('failed corrections retain quantities, units and dates across closing and r
   const save=jest.fn().mockRejectedValue(new Error('Stock modifié'));
   const page=render(<QuickStockCorrection item={item} open onOpenChange={jest.fn()} onSave={save}/>);
   await waitFor(()=>expect(screen.getByRole('button',{ name:'Confirmer la correction' })).toBeEnabled());
+  expect(screen.getByLabelText('Quantité')).toHaveFocus();
   fireEvent.change(screen.getByLabelText('Quantité'),{ target:{ value:'750' } });
   fireEvent.change(screen.getByLabelText('Unité'),{ target:{ value:'g' } });
   fireEvent.change(screen.getByLabelText('Date utile (facultative)'),{ target:{ value:'2026-10-12' } });
