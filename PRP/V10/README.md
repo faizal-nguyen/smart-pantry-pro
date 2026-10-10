@@ -2,7 +2,7 @@
 
 > Statut : V10-01, V10-02, V10-03, V10-03A et V10-03B implémentés et testés localement ; homologation environnement/matériel ouverte. Cuisine personnelle, avec grandes photos, est la direction 03B choisie par l'utilisateur ; les essais sur iPhone restent ouverts. V10-03C à V10-03E sont rédigés, sans réalisation. V10-04 et V10-05 restent à réaliser.
 
-[Publication Git V10 : commits, PRs et contrôles](../../docs/implementations/V10-publication.md).
+[Publication Git V10-01/02](../../docs/implementations/V10-publication.md) · [Publication Git V10-03A/03B](../../docs/implementations/V10-03AB-publication.md).
 > Création : 2026-10-08. Mise à jour : 2026-10-10.
 > Produit : Smart Grocery, application Smart Pantry Pro.
 > Utilisateur principal : Faizel, sur iPhone 17 Pro Max.
