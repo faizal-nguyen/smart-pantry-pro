@@ -82,7 +82,7 @@
     "recipe:policy:check": "tsx scripts/audit-recipe-policy.ts --seeds supabase/seeds --check",
     "postinstall": "npm run shared:build || true",
     "test:v10:client": "jest --runInBand --testPathPattern \"\\.v10\\.test\" --no-coverage",
-    "test:v10:api": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"recommendations/__tests__|handlers/__tests__/(read|write|internal).test|services/stock/__tests__|VoiceAgentService|RiskClassifier|CookingJournal|SocialVideoImportQueue|routes/__tests__/(stock|nutrition-profile).routes|ContextBuilder\" --no-coverage",
+    "test:v10:api": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"recommendations/__tests__|handlers/__tests__/(read|write|internal).test|services/stock/__tests__|VoiceAgentService|RiskClassifier|CookingJournal|SocialVideoImportQueue|routes/__tests__/(stock|nutrition-profile|recommendations).routes|ContextBuilder\" --no-coverage",
     "test:v10": "npm run shared:build && npm run test:v10:client && npm run test:v10:api",
     "test:v10:db": "python3 scripts/test-v10-stock-db.py",
     "test:v10:03:db": "python3 scripts/test-v10-personalization-db.py",

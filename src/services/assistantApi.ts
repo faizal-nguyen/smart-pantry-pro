@@ -41,6 +41,8 @@ export interface PendingAction {
 
 export interface AssistantPlanResponse {
   session_id: string;
+  /** Returned by the existing conversation-aware text and voice endpoints. */
+  conversation_id?: string;
   transcript: string;
   detected_language?: string;
   message: string;

@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+<rect width="800" height="600" fill="#dfc5a7"/><ellipse cx="400" cy="285" rx="270" ry="190" fill="#faf4ea"/><ellipse cx="400" cy="280" rx="180" ry="120" fill="#a96636"/>
+<path d="M300 205l55 135m20-160 55 155m20-150 55 125" stroke="#f3ca89" stroke-width="20" stroke-linecap="round"/>
+<text x="400" y="550" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#493325">IMAGE DE TEST — PAIN</text></svg>

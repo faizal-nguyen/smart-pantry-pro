@@ -13,14 +13,16 @@
  *     feedback visuel.
  */
 import React, { useRef, useState } from 'react';
-import { Camera, ChefHat, Loader2 } from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import RecipePreview from './RecipePreview';
 
 interface RecipeMediaFrameProps {
   imageUrl?: string | null;
   alt: string;
   editable?: boolean;
   onUpload?: (file: File) => Promise<void>;
+  imageCaption?: string;
 }
 
 export default function RecipeMediaFrame({
@@ -28,6 +30,7 @@ export default function RecipeMediaFrame({
   alt,
   editable = false,
   onUpload,
+  imageCaption,
 }: RecipeMediaFrameProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,23 +54,9 @@ export default function RecipeMediaFrame({
   };
 
   return (
-    <div className="mb-6 flex justify-center">
+    <div className="mb-4 flex justify-center">
       <div className="relative w-full md:max-w-[420px] group">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={alt}
-            className="w-full max-h-[72vh] md:max-h-[560px] object-cover rounded-lg border border-border shadow-sm"
-          />
-        ) : (
-          <div
-            className="w-full h-64 md:h-[420px] bg-muted rounded-lg border border-border flex items-center justify-center"
-            role="img"
-            aria-label={`Aperçu indisponible pour ${alt}`}
-          >
-            <ChefHat className="h-16 w-16 text-muted-foreground" aria-hidden="true" />
-          </div>
-        )}
+        <RecipePreview imageUrl={imageUrl} title={alt} caption={imageCaption} variant="detail" priority className={imageUrl ? 'aspect-[16/9] md:aspect-[4/3]' : undefined} />
 
         {editable && (
           <>
@@ -91,7 +80,7 @@ export default function RecipeMediaFrame({
                   size="sm"
                   onClick={handlePick}
                   disabled={uploading}
-                  className="bg-background/90 backdrop-blur-sm shadow-md"
+                  className="min-h-11 bg-background/90 backdrop-blur-sm shadow-md"
                 >
                   {uploading ? (
                     <>
@@ -107,10 +96,11 @@ export default function RecipeMediaFrame({
                 </Button>
               </div>
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="mt-2 flex justify-center">
                 <Button
                   variant="default"
                   size="sm"
+                  className="min-h-11"
                   onClick={handlePick}
                   disabled={uploading}
                 >

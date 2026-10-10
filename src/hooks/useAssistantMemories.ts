@@ -75,6 +75,7 @@ export function useAssistantMemories(opts: UseAssistantMemoriesOpts = {}) {
   const items = query.data?.items ?? [];
 
   return {
+    owner,
     memories: items,
     candidates: items.filter(m => m.status === 'candidate'),
     actives: items.filter(m => m.status === 'active'),

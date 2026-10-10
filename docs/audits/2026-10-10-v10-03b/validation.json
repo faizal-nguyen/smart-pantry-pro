@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-10",
+  "branch": "codex/v10-03b-design-culinaire",
+  "baseCommit": "dda2602e450066309e5cf99525a8fa1b5bbad392",
+  "workspace": "Local V10-03A preserved plus V10-03B implementation; no commit created",
+  "checks": {
+    "client": {
+      "command": "npm run test:v10:client",
+      "status": "passed",
+      "passedSuites": 36,
+      "totalSuites": 36,
+      "passedTests": 119,
+      "totalTests": 119
+    },
+    "api": {
+      "command": "npm run test:v10:api",
+      "status": "passed",
+      "passedSuites": 21,
+      "totalSuites": 21,
+      "passedTests": 284,
+      "totalTests": 284
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "passed",
+      "evidence": true,
+      "coverage": [
+        "shared TypeScript",
+        "API TypeScript",
+        "Vite client bundle"
+      ]
+    },
+    "lint": {
+      "status": "partial",
+      "newModules": "No reported error in the targeted new modules",
+      "remaining": [
+        "Recipes.tsx:74,100 two pre-existing explicit any",
+        "AssistantModePicker.tsx:103 pre-existing Fast Refresh export warning"
+      ],
+      "finalAdditionalModules": "DesktopNavigation, MemoryPanel, ConversationHistoryList, useAssistantMemories and changed tests: exit 0"
+    },
+    "frontendGlobalTypecheck": {
+      "status": "unvalidated",
+      "note": "Vite build does not run the global frontend typecheck"
+    },
+    "diffWhitespace": {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  },
+  "ui": {
+    "environment": "Chrome loopback synthetic V10 fixture",
+    "mobileViewports": [
+      [
+        375,
+        812
+      ],
+      [
+        440,
+        956
+      ]
+    ],
+    "desktopViewport": [
+      1366,
+      900
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "variantDecision": "personal, large photos; notebook retained in the fixture",
+    "variantDecisionStatus": "user-confirmed",
+    "variantDecisionDate": "2026-10-10",
+    "variantDecisionBasis": "Explicit user preference after presentation of the two variants; real-device validation remains open",
+    "realDevice": false,
+    "production": false
+  },
+  "externalChanges": {
+    "databaseMigration": false,
+    "remoteData": false,
+    "openAIModel": false,
+    "voiceTransport": false,
+    "commit": false,
+    "push": false,
+    "merge": false,
+    "deployment": false
+  },
+  "openValidation": [
+    "Safari iPhone 17 Pro Max",
+    "VoiceOver",
+    "Real keyboard and safe areas",
+    "Text enlargement and zoom",
+    "Human task times / taps / abandonment",
+    "Production photos and data"
+  ]
+}

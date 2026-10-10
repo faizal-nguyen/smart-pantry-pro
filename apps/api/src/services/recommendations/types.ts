@@ -104,6 +104,7 @@ export type SuggestedRecipeAction =
  * Backward compatible : existing consumers can ignore the new fields.
  */
 export interface RecommendedRecipeView extends CookableRecipeView, RecommendationEvidence {
+  image_origin?: 'personal' | 'catalog' | null;
   /** Optional richer description (from `recipes.description`). */
   description?: string | null;
   servings?: number | null;
@@ -162,6 +163,7 @@ export interface RecipeWithIngredients {
   cook_time: number | null;
   servings: number | null;
   image_url: string | null;
+  image_origin?: 'personal' | 'catalog' | null;
   cuisine_category: string | null;
   meal_type: string | null;
   tags: string[] | null;
@@ -170,7 +172,7 @@ export interface RecipeWithIngredients {
     | Array<{
         id: string;
         ingredient_name: string;
-        quantity: number;
+        quantity: number | null;
         unit?: string | null;
         inventory_product_id: string | null;
         is_essential: boolean | null;

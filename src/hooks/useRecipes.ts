@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { mapLibraryRecipe, type LibraryRecipeRow, type StockIngredient } from "@smart/shared";
+import { mapLibraryRecipe, type LibraryRecipeRow, type StockIngredient, type RecipeReference } from "@smart/shared";
 import { fetchUnifiedRecipe, invalidateUnifiedRecipeCache } from "@/lib/recipeSource";
 import { saveRecipeWithIngredients } from "@/services/recipePersistence";
 import { dispatchAgentDbChanged, useAgentDbInvalidation } from "@/lib/agentEvents";
@@ -10,14 +10,17 @@ export interface Recipe {
   id: string;
   name: string;
   description?: string;
-  image_url?: string;
+  image_url?: string | null;
+  image_origin?: 'personal' | 'catalog' | null;
   cuisine_category?: string;
   meal_type?: string;
-  prep_time: number;
-  cook_time: number;
-  rest_time?: number;
-  servings: number;
-  difficulty: number; // 1-5
+  prep_time: number | null;
+  cook_time: number | null;
+  rest_time?: number | null;
+  servings: number | null;
+  difficulty: number | null; // 1-5 when known
+  source?: 'recipes' | 'user_recipes' | 'recipes_catalog';
+  canonicalId?: string;
   instructions: string;
   tags?: string[];
   source_type?: string;
@@ -99,7 +102,7 @@ export const useRecipes = () => {
       if (userLib.error) throw userLib.error;
 
       const merged: Recipe[] = [
-        ...((legacy.data as Recipe[] | null) ?? []),
+        ...((legacy.data as Recipe[] | null) ?? []).map(row => ({ ...row, source: 'recipes' as const, canonicalId: row.id })),
         ...((userLib.data as LibraryRecipeRow[] | null) ?? [])
           .map(mapUserRecipeRowToRecipe)
           .filter((r): r is Recipe => r !== null),
@@ -229,15 +232,15 @@ export const useRecipes = () => {
   };
 
   // Supprimer recette (pattern deleteInventory Cipher)
-  const deleteRecipe = async (id: string) => {
+  const deleteRecipe = async (id: string, source: RecipeReference['source'] = 'auto') => {
     try {
-      const recipe = await fetchUnifiedRecipe(id);
+      const recipe = await fetchUnifiedRecipe(id, source);
       const { data: { user } } = await supabase.auth.getUser();
       if (!recipe || !user || recipe.user_id !== user.id || recipe.source === 'recipes_catalog') throw new Error('Cette recette ne peut pas être supprimée de votre bibliothèque.');
       const { data, error } = await supabase.from(recipe.source === 'user_recipes' ? 'user_recipes' : 'recipes')
         .delete().eq('user_id',user.id).eq('id',id).select('id');
       if (error || data?.length !== 1) throw error ?? new Error('Suppression non confirmée.');
-      setRecipes(prev => prev.filter(recipe => recipe.id !== id));
+      setRecipes(prev => prev.filter(row => row.id !== id || (row.source ?? 'recipes') !== recipe.source));
       invalidateUnifiedRecipeCache(id); dispatchAgentDbChanged(['recipes','recipe_ingredients','user_recipes']);
     } catch (error) {
       console.error('Error deleting recipe:', error);

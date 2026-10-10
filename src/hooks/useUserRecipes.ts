@@ -12,6 +12,7 @@ import { dispatchAgentDbChanged } from "@/lib/agentEvents";
 import { fireRecipeAssistantAction } from "@/lib/recipeActions";
 import type { CatalogRecipe } from "./useRecipeCatalog";
 import type { Database } from '@/integrations/supabase/types';
+import { resolveRecipeImageUrl } from '@smart/shared';
 
 // Types pour les recettes utilisateur
 export interface UserRecipe {
@@ -579,10 +580,7 @@ export function getRecipeTitle(recipe: UserRecipe): string {
 }
 
 export function getRecipeImage(recipe: UserRecipe): string | undefined {
-  if (recipe.is_from_catalog && recipe.catalog_recipe) {
-    return recipe.catalog_recipe.photo_url;
-  }
-  return recipe.custom_photo_url;
+  return resolveRecipeImageUrl(recipe.custom_photo_url, recipe.is_from_catalog ? recipe.catalog_recipe?.photo_url : null) ?? undefined;
 }
 
 /**

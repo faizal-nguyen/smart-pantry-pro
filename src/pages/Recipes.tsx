@@ -11,7 +11,7 @@
  */
 import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, Plus, Sparkles } from 'lucide-react';
+import { BookOpen, Plus } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -91,7 +91,7 @@ export default function Recipes() {
     addFromCatalog({ catalogRecipeId: recipeId }, {
       onSuccess: () => toast({
         title: 'Recette ajoutée !',
-        description: `"${recipeName}" a été ajoutée à votre bibliothèque.`,
+        description: `« ${recipeName} » est dans tes recettes.`,
       }),
       onError: error => toast({ title: 'Erreur', description: error.message, variant: 'destructive' }),
     });
@@ -105,7 +105,7 @@ export default function Recipes() {
       setActiveTab('library');
       toast({
         title: 'Recette ajoutée !',
-        description: `"${editedRecipe.name}" a été ajoutée à votre bibliothèque.`,
+        description: `« ${editedRecipe.name} » est dans tes recettes.`,
       });
       try { await fetchRecipes?.(); } catch { /* fetchRecipes optionnel */ }
     } catch {
@@ -113,94 +113,38 @@ export default function Recipes() {
     }
   };
 
-  // PRP-237 PR4 — dynamic header subtitle reflects the active tab.
-  // Surfaces real counts up-front so the user gets a "where am I" cue
-  // without scanning the tabs.
-  const headerMeta = useMemo<{ subtitle: string; chips: Array<{ label: string; value: string }> }>(() => {
-    const fmt = (n: number) => n.toLocaleString('fr-FR');
-    switch (activeTab) {
-      case 'library':
-        return {
-          subtitle: 'Ta sélection personnelle, prête à cuisiner.',
-          chips: [
-            { label: 'recettes', value: fmt(userRecipes.length) },
-            ...(inboxPendingCount > 0
-              ? [{ label: 'à vérifier', value: fmt(inboxPendingCount) }]
-              : []),
-          ],
-        };
-      case 'import':
-      default:
-        return {
-          subtitle: 'Capture une URL, importe une vidéo, ou crée une recette à la main.',
-          chips: [
-            ...(inboxPendingCount > 0
-              ? [{ label: 'à vérifier', value: fmt(inboxPendingCount) }]
-              : []),
-            { label: 'bibliothèque', value: fmt(userRecipes.length) },
-          ],
-        };
-    }
-  }, [activeTab, userRecipes.length, inboxPendingCount]);
-
   return (
-    <div className="min-h-screen bg-background">
-      <div className="page-container">
-        {/* PRP-237 PR4 — premium utility header, no hero gradient. */}
-        <header className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="min-h-screen bg-background culinary-page">
+      <div className="mx-auto max-w-5xl p-4 md:p-6">
+        <header className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="culinary-title">
               Cuisiner
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{headerMeta.subtitle}</p>
-            <div
-              className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
-              aria-label="Compteurs de recettes"
-            >
-              {headerMeta.chips.map((chip, idx) => (
-                <React.Fragment key={chip.label}>
-                  {idx > 0 && <span aria-hidden="true" className="text-border">·</span>}
-                  <span>
-                    <span className="font-medium text-foreground tabular-nums">{chip.value}</span>{' '}
-                    <span>{chip.label.toLowerCase()}</span>
-                  </span>
-                </React.Fragment>
-              ))}
-            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{activeTab==='library' ? 'Trouve le plat qui te fait envie.' : 'Garde une recette pour plus tard.'}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
               className="min-h-11"
-              onClick={() => setActiveTab('import')}
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              Importer
-            </Button>
-            <Button
-              variant="default"
-              className="min-h-11"
               onClick={() => setShowAddDialog(true)}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Nouvelle recette
+              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
+              Écrire
             </Button>
           </div>
         </header>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-6 h-12 w-full justify-start overflow-x-auto">
+          <TabsList className="mb-3 min-h-11 h-auto flex flex-wrap w-full justify-start gap-1">
             <TabsTrigger value="library" className="gap-2 min-h-11 text-sm">
-              <BookOpen className="h-4 w-4" />
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
               Bibliothèque
-              <Badge variant="secondary" className="ml-1 font-normal">
-                {userRecipes.length}
-              </Badge>
             </TabsTrigger>
 
             <TabsTrigger value="import" className="gap-2 min-h-11 text-sm">
-              <Plus className="h-4 w-4" />
-              Ajouter
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Importer
               {inboxPendingCount > 0 && (
                 <Badge variant="secondary" className="ml-1 font-normal">
                   {inboxPendingCount}
@@ -253,8 +197,8 @@ export default function Recipes() {
                 setShowOnboarding(false);
                 setActiveTab('library');
                 toast({
-                  title: '🎉 Bienvenue !',
-                  description: 'Votre bibliothèque de recettes est prête !',
+                  title: 'Recettes enregistrées',
+                  description: 'Ta bibliothèque est prête à être parcourue.',
                 });
               }}
               onSkip={() => {

@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-09",
+  "branch": "codex/v10-03a-recipes-preview",
+  "base_commit": "dda2602e450066309e5cf99525a8fa1b5bbad392",
+  "code_state": "uncommitted local implementation",
+  "checks": {
+    "client_v10": { "suites": 30, "tests": 101, "exit_code": 0 },
+    "api_v10": { "suites": 21, "tests": 284, "exit_code": 0, "database": "mock clients", "http": "temporary local Supertest servers" },
+    "build": { "shared_types": "passed", "api_typescript": "passed", "vite": "passed", "exit_code": 0 },
+    "targeted_active_modules_eslint": { "errors": 0, "warnings": 0 },
+    "legacy_recipe_hooks_eslint": { "errors": 0, "existing_useRecipes_effect_warnings": 2 },
+    "git_diff_check": "passed",
+    "global_frontend_typescript": "interrupted before diagnostics; not validated"
+  },
+  "visual_environment": {
+    "browser": "Chrome",
+    "fixture": "scripts/fixtures/v10/index.html",
+    "origin": "http://127.0.0.1:5174",
+    "viewports": [{ "width": 375, "height": 812 }, { "width": 440, "height": 956 }],
+    "themes": ["light", "dark"],
+    "data": "fictitious",
+    "media": "explicit test SVG assets",
+    "evaluation": "presentation fixtures; production evaluator verified separately in API unit tests",
+    "horizontal_overflow_observed": false
+  },
+  "mutations": { "new_database_migrations": 0, "remote_database_changes": false, "deployment": false, "commit_push_merge": false },
+  "remaining_validation": ["production SHA and route", "previous V10 migrations applied", "real recipe URLs and Storage access", "Safari on iPhone 17 Pro Max", "mobile network and cold load"]
+}

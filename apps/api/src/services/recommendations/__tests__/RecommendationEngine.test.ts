@@ -144,7 +144,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     plan.contextRevision = 2; plan.inventory = [makeInvRow('p',0)];
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
     const keys=writer.readCache.mock.calls.map(call=>call[1]);
-    expect(keys.every(key=>key.startsWith('v10-03:'))).toBe(true);
+    expect(keys.every(key=>key.startsWith('v10-03a:'))).toBe(true);
     expect(keys[0]).not.toBe(keys[1]);
     plan.contextRevision = null;
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);

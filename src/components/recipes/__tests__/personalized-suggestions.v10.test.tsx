@@ -6,17 +6,19 @@ import AssistantRecipeProposals from '@/components/assistant/AssistantRecipeProp
 import type { RecommendationResultView,RecommendedRecipeView } from '@/services/recommendationsApi';
 let mockResult:RecommendationResultView;
 let mockProfileVersion=1;
+const mockPostFeedback=jest.fn();
+jest.mock('@/services/recommendationsApi',()=>({ ...jest.requireActual('@/services/recommendationsApi'),postRecipeFeedback:(...args:unknown[])=>mockPostFeedback(...args) }));
 const owner='00000000-0000-4000-8000-000000000001';
 jest.mock('@/hooks/useRoutineMealIdeas',()=>({ useRoutineMealIdeas:()=>({ owner,data:mockResult,isLoading:false,isError:false,refetch:jest.fn() }) }));
 jest.mock('@/hooks/useNutritionProfile',()=>({ useNutritionProfile:()=>({ data:{ profile:{ version:mockProfileVersion } },isLoading:false,error:null }) }));
 jest.mock('@/lib/api',()=>({ apiPost:jest.fn(),apiGet:jest.fn(),apiPatch:jest.fn(),ApiError:class extends Error {} }));
 jest.mock('@/integrations/supabase/client',()=>({ supabase:{ auth:{ getSession:jest.fn() } } }));
-function candidate(id:string):RecommendedRecipeView { return { id,name:`Recette ${id}`,servings:2,score_total:70,reasons:['Durée enregistrée 15 min.'],reference:{ id,source:'recipes' },duration_minutes:15,profile_version:1,stock_version:'fixture',calculated_at:'2026-10-09T12:00:00Z',
+function candidate(id:string):RecommendedRecipeView { return { id,name:`Recette ${id}`,image_url:`/${id}.jpg`,servings:2,score_total:70,reasons:['Durée enregistrée 15 min.'],reference:{ id,source:'recipes' },duration_minutes:15,profile_version:1,stock_version:'fixture',calculated_at:'2026-10-09T12:00:00Z',
   constraints:{ status:'compatible',findings:[],registry_version:'fixture',limitations:[] },
   availability:{ status:'available',missing:[],allocations:[],uncertainties:[],excluded_lots:[] },
   nutrition:{ status:'unavailable',coverage:0,known_ingredients:0,total_ingredients:1,per_serving:{ energyKcal:null,proteinG:null,fiberG:null },sources:[],limitations:['Données absentes, aucune estimation inventée.'] },
   reason_codes:[{ code:'TIME_FITS',text:'Durée enregistrée 15 min.' }],unavailable_criteria:['nutrition','variety'] }; }
-beforeEach(()=>{ localStorage.clear();mockProfileVersion=1;mockResult={ cookable_now:[candidate('a'),candidate('b'),candidate('c'),candidate('d')],almost_cookable:[],recent_suggestions:[],verify_suggestions:[],excluded_suggestions:[],total_user_recipes:4,pipeline_version:3,profile_version:1,calculated_at:'2026-10-09T12:00:00Z',has_constraints:false }; });
+beforeEach(()=>{ jest.restoreAllMocks();localStorage.clear();mockProfileVersion=1;mockResult={ cookable_now:[candidate('a'),candidate('b'),candidate('c'),candidate('d')],almost_cookable:[],recent_suggestions:[],verify_suggestions:[],excluded_suggestions:[],total_user_recipes:4,pipeline_version:3,profile_version:1,calculated_at:'2026-10-09T12:00:00Z',has_constraints:false }; });
 function wrap(element:React.ReactNode) { return <QueryClientProvider client={new QueryClient()}><MemoryRouter>{element}</MemoryRouter></QueryClientProvider>; }
 test('at most three ideas show calculated reasons, unavailable nutrition and an editable profile link',()=>{
   render(wrap(<PersonalizedRecipeSuggestions/>));
@@ -39,4 +41,23 @@ test('an older profile or historical card without evidence cannot offer personal
   expect(screen.getByText(/Le profil a changé/)).toBeInTheDocument();
   expect(screen.queryByText('Stock renseigné au calcul')).not.toBeInTheDocument();
   expect(screen.queryByRole('group',{ name:/Actions pour/ })).not.toBeInTheDocument();
+});
+test('photos remain available for ideas, verification and exclusions with the source and chosen portions',()=>{
+  mockResult={ ...mockResult,cookable_now:[candidate('a')],verify_suggestions:[{ ...candidate('b'),reference:{ id:'b',source:'user_recipes' } }],excluded_suggestions:[{ ...candidate('c'),reference:{ id:'c',source:'recipes_catalog' } }] };
+  const { container }=render(wrap(<PersonalizedRecipeSuggestions/>));
+  for (const [id,source] of [['a','recipes'],['b','user_recipes'],['c','recipes_catalog']]) {
+    const image=container.querySelector(`img[src="/${id}.jpg"]`)!;
+    expect(image).toBeInTheDocument();
+    expect(image.closest('a')).toHaveAttribute('href',`/kitchen/recipes/${id}?source=${source}&servings=2`);
+  }
+});
+test('before choosing, dismissal is temporary and durable feedback requires opening its dedicated entry',async()=>{
+  const post=mockPostFeedback.mockResolvedValue({ id:'confirmed' });
+  render(wrap(<PersonalizedRecipeSuggestions/>));
+  for (const control of screen.getAllByRole('button',{ name:'À refaire',hidden:true })) expect(control).not.toBeVisible();
+  fireEvent.click(screen.getAllByRole('button',{ name:'Pas ce soir' })[0]);
+  await screen.findByText(/Ce choix concerne seulement ce repas/);
+  expect(post).toHaveBeenCalledWith(owner,expect.objectContaining({ recipe:{ id:'a',source:'recipes' },feedback:'not_today' }));
+  fireEvent.click(screen.getAllByText('Donner un retour sur cette recette')[0]);
+  expect(screen.getAllByRole('button',{ name:'À refaire',hidden:true })[0]).toBeVisible();
 });

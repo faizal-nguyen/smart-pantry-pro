@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Bot, User as UserIcon, Cog, Sparkles, BookmarkPlus } from 'lucide-react';
+import { MessageCircle, User as UserIcon, Cog, BookmarkPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { AssistantMessage } from '@/services/assistantApi';
@@ -55,7 +55,6 @@ function ChefContent({
       <p className="whitespace-pre-wrap text-sm">{db}</p>
       <div className="mt-3 pt-3 border-t border-border/60 space-y-2">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Sparkles className="h-3 w-3" aria-hidden="true" />
           Idées chef hors bibliothèque
         </p>
         <p className="whitespace-pre-wrap text-sm opacity-90">{offDb}</p>
@@ -63,7 +62,7 @@ function ChefContent({
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 text-xs"
+          className="min-h-11 text-sm"
           onClick={() => setDialogOpen(true)}
         >
           <BookmarkPlus className="h-3 w-3 mr-1" />
@@ -113,17 +112,14 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
           isUser ? 'justify-end' : 'justify-start',
         )}
       >
-        {/* PRP-237 PR3 — assistant avatar circle in accent-ai (electric
-            blue) to mark the IA presence, while the user message bubble
-            keeps the saffron primary for the user voice. */}
         {isAssistant && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-ai/10 flex items-center justify-center">
-            <Bot className="h-4 w-4 text-accent-ai" aria-hidden="true" />
+          <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+            <MessageCircle className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
         )}
         <div
           className={cn(
-            'max-w-[80%] rounded-2xl px-4 py-2',
+            'min-w-0 max-w-[80%] break-words rounded-lg px-4 py-2',
             isUser
               ? 'bg-primary text-primary-foreground rounded-tr-sm'
               : 'bg-muted text-foreground rounded-tl-sm',
@@ -190,7 +186,6 @@ export default function AssistantMessageThread({
   if (messages.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <Bot className="h-8 w-8 mx-auto mb-2 opacity-50" aria-hidden="true" />
         <p className="text-sm">Démarre la conversation ci-dessous.</p>
       </div>
     );

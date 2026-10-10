@@ -119,7 +119,7 @@ const EditShoppingItemDialog = ({
           <DialogHeader>
             <DialogTitle>Modifier l'article</DialogTitle>
             <DialogDescription>
-              Modifiez les informations de l'article dans votre liste de courses
+              Corrige les informations de ce produit dans tes courses.
             </DialogDescription>
           </DialogHeader>
           

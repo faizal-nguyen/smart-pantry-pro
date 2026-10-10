@@ -1,5 +1,5 @@
 import LotQualificationFields,{ type LotDateKind,type QuantityQuality } from './LotQualificationFields';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { StockCommand } from '@smart/shared';
 import { pendingIntent } from '@/services/stockCommands';
 import { InventoryItem } from '@/hooks/useInventory';
@@ -15,6 +15,8 @@ export default function QuickStockCorrection({ item,open,onOpenChange,onSave }: 
   const [fields,setFields,storageError] = useOwnedValue(user.id,`correction:${item.id}`,defaults);
   const [busy,setBusy] = useState(false), [error,setError] = useState<string|null>(null);
   const [pending,setPending] = useState<StockCommand|null>(null), [loading,setLoading] = useState(true);
+  const quantityInput=useRef<HTMLInputElement>(null);
+  useEffect(()=>{ if (open && !loading && !pending) quantityInput.current?.focus(); },[open,loading,pending]);
   useEffect(() => {
     let active=true;
     void pendingIntent(`inventory-adjust:${item.id}`).then(command => {
@@ -30,7 +32,7 @@ export default function QuickStockCorrection({ item,open,onOpenChange,onSave }: 
   const patch = (value:Partial<Fields>) => { try { setFields({ ...fields,...value }); } catch (failure) { setError((failure as Error).message); } };
   const save = async () => {
     if (busy) return; const quantity = Number(fields.quantity.replace(',','.'));
-    if (!fields.quantity.trim() || !Number.isFinite(quantity) || quantity<0 || !fields.unit.trim()) { setError('Indiquez une quantité positive ou nulle et son unité.'); return; }
+    if (!fields.quantity.trim() || !Number.isFinite(quantity) || quantity<0 || !fields.unit.trim()) { setError('Indique une quantité positive ou nulle et son unité.'); return; }
     setBusy(true); setError(null);
     try { await onSave(item.id,{ quantity,unit:fields.unit,location:fields.location,expiry_date:fields.date,...(!pending || pending.command_type==='adjust_inventory' && pending.payload.items[0].date_kind!==undefined ? { date_kind:fields.dateKind ?? 'unknown' } : {}),...(!pending || pending.command_type==='adjust_inventory' && pending.payload.items[0].quantity_quality!==undefined ? { quantity_quality:fields.quality ?? 'unknown' } : {}) }); onOpenChange(false); }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Correction non confirmée.'); setPending(await pendingIntent(`inventory-adjust:${item.id}`).catch(()=>null)); }
@@ -40,12 +42,14 @@ export default function QuickStockCorrection({ item,open,onOpenChange,onSave }: 
     <form className="space-y-4" onSubmit={e => { e.preventDefault(); void save(); }}>
       {pending && <p role="status">Une correction envoyée reste à vérifier. Les valeurs envoyées sont conservées et figées jusqu’au résultat.</p>}
       <fieldset className="space-y-4" disabled={busy || loading || !!pending}>
-      <label className="block space-y-1">Quantité<Input autoFocus inputMode="decimal" value={fields.quantity} onChange={e => patch({ quantity:e.target.value })} /></label>
+      <label className="block space-y-1">Quantité<Input ref={quantityInput} inputMode="decimal" value={fields.quantity} onChange={e => patch({ quantity:e.target.value })} /></label>
       <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => patch({ quantity:String(Math.max(0,Number(fields.quantity.replace(',','.'))-1)) })}>− 1</Button><Button type="button" variant="outline" onClick={() => patch({ quantity:String(Number(fields.quantity.replace(',','.'))+1) })}>+ 1</Button><Button type="button" variant="outline" onClick={() => patch({ quantity:'0' })}>Il n’en reste plus</Button></div>
       <label className="block space-y-1">Unité<Input value={fields.unit} onChange={e => patch({ unit:e.target.value })} /></label>
+      <details><summary className="min-h-11 flex items-center cursor-pointer text-sm">Zone, date et précision</summary><div className="space-y-4 pt-2">
       <label className="block space-y-1">Zone<Input list="stock-zones" value={fields.location} onChange={e => patch({ location:e.target.value })} /><datalist id="stock-zones"><option>Frigo</option><option>Congélateur</option><option>Placard</option></datalist></label>
       <label className="block space-y-1">Date utile (facultative)<Input type="date" value={fields.date} onChange={e => patch({ date:e.target.value })} /></label>
       <LotQualificationFields dateKind={fields.dateKind ?? 'unknown'} quality={fields.quality ?? 'unknown'} onDateKind={dateKind=>patch({ dateKind })} onQuality={quality=>patch({ quality })} />
+      </div></details>
       </fieldset>
       {(error || storageError) && <p role="alert" className="text-destructive">{error || storageError}</p>}
       <div className="routine-dialog-footer space-y-2"><Button className="min-h-11 w-full" type="submit" disabled={busy || loading || !!storageError}>{busy ? 'Vérification…' : pending ? 'Vérifier la correction' : 'Confirmer la correction'}</Button><Button className="min-h-11 w-full" type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>Reprendre plus tard</Button></div>

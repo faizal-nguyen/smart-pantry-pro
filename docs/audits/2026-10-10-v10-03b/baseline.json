@@ -1,0 +1,19 @@
+{
+  "library": {
+    "band": 172,
+    "firstLibraryTitleY": 1502.5,
+    "pageWidth": 369,
+    "searchY": 1130.25,
+    "width": 375
+  },
+  "today": {
+    "firstDishTitleY": 991.25,
+    "firstImageY": 756,
+    "width": 375
+  },
+  "detail": {
+    "ingredientsY": 1034.75,
+    "width": 375
+  },
+  "kind": "Chrome local, données fictives, bandeau exclu"
+}

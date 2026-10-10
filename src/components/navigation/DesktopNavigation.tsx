@@ -23,7 +23,7 @@ interface DesktopNavigationProps {
     specialNavigation: NavigationItem[];
   };
   currentProfile: FamilyProfile | null;
-  onNavigate: (section: NavigationSection, path?: string, options?: any) => void;
+  onNavigate: (section: NavigationSection, path?: string) => void;
 }
 
 const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
@@ -93,12 +93,12 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
             </div>
             
             <div className="flex-1 min-w-0">
-              <h1 className={cn(
-                "font-bold text-primary truncate",
-                isChildMode ? "text-xl" : "text-lg"
+              <p className={cn(
+                "font-semibold text-foreground leading-tight",
+                isChildMode ? "text-xl" : "text-base"
               )}>
                 Smart Pantry Pro
-              </h1>
+              </p>
               {currentProfile && (
                 <p className={cn(
                   "text-sm text-muted-foreground truncate",
@@ -113,8 +113,10 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
         
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Développer la navigation' : 'Réduire la navigation'}
+          aria-expanded={!isCollapsed}
           className={cn(
-            "p-2 hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0",
+            "min-h-11 min-w-11 p-2 hover:bg-primary/10 rounded-lg transition-colors flex-shrink-0",
             isCollapsed && "w-12 h-12 flex items-center justify-center"
           )}
         >
@@ -189,7 +191,8 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                         </p>
                         {!adaptiveInterface.simplifiedNavigation && (
                           <p className={cn(
-                            "text-xs text-muted-foreground/70 truncate",
+                            "text-xs leading-snug",
+                            isActive ? 'text-primary-foreground' : 'text-muted-foreground',
                             isChildMode && "text-sm"
                           )}>
                             {item.description}
@@ -214,9 +217,10 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                   {!isCollapsed && hasSubItems && (
                     <button
                       onClick={() => toggleSection(item.id)}
+                      aria-label={`${isExpanded ? 'Masquer' : 'Afficher'} les raccourcis de ${item.label}`}
+                      aria-expanded={isExpanded}
                       className={cn(
-                        "p-2 hover:bg-primary/10 rounded-lg transition-colors ml-1",
-                        isActive && "text-primary-foreground"
+                        "min-h-11 min-w-11 p-2 hover:bg-primary/10 text-muted-foreground rounded-lg transition-colors ml-1"
                       )}
                     >
                       <ChevronDown 
@@ -240,7 +244,7 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                         key={subItem.id}
                         onClick={() => navigate(subItem.path)}
                         className={cn(
-                          "w-full flex items-center gap-3 p-2 rounded-md text-left text-sm transition-all group",
+                          "w-full min-h-11 flex items-center gap-3 p-2 rounded-md text-left text-sm transition-all group",
                           location.pathname === subItem.path 
                             ? "bg-primary/20 text-primary font-medium" 
                             : "hover:bg-primary/5 hover:text-primary text-muted-foreground",

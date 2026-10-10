@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+<rect width="800" height="600" fill="#c9d4b4"/><ellipse cx="400" cy="285" rx="270" ry="190" fill="#f9f7ec"/><ellipse cx="400" cy="280" rx="180" ry="120" fill="#e0d5aa"/>
+<path d="M300 230h70m30 80h75m-110 45h50m30-140h55" stroke="#f6f1d8" stroke-width="15" stroke-linecap="round"/>
+<text x="400" y="550" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#344030">IMAGE DE TEST — RIZ</text></svg>

@@ -15,8 +15,6 @@ import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
-import { Bot } from 'lucide-react';
 
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
@@ -74,11 +72,7 @@ export default function AssistantConversationSurface({
     >
       <CardContent className="flex-1 overflow-y-auto p-4">
         {!conversationId ? (
-          <EmptyState
-            icon={Bot}
-            title="Démarre une nouvelle conversation"
-            description="Tape une question ou utilise le bouton micro ci-dessous."
-          />
+          <div className="space-y-3 py-6"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ta question ci-dessous.</p></div>
         ) : (
           <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
         )}

@@ -1,0 +1,300 @@
+{
+  "date": "2026-10-10",
+  "environment": "Chrome local, synthetic V10 fixture, loopback only",
+  "production": false,
+  "device": false,
+  "unit": "CSS pixels, test band excluded, document coordinates",
+  "normalScenario": "No active cooking, no purchased items, no close date. Profile 25 minutes / 2 people. Rice idea and same library recipes in both variants.",
+  "measurements": [
+    {
+      "label": "final-personal-today-440-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 565.5
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 301.5,
+        "top": 252
+      },
+      "search": null,
+      "width": 440
+    },
+    {
+      "label": "final-personal-today-375-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 516.75
+      },
+      "height": 812,
+      "ingredients": null,
+      "pageWidth": 369,
+      "photo": {
+        "height": 252.75,
+        "top": 252
+      },
+      "search": null,
+      "width": 375
+    },
+    {
+      "label": "final-personal-library-375-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 611.75
+      },
+      "height": 812,
+      "ingredients": null,
+      "pageWidth": 369,
+      "photo": {
+        "height": 252.75,
+        "top": 347
+      },
+      "search": {
+        "height": 44,
+        "top": 227
+      },
+      "width": 375
+    },
+    {
+      "label": "final-notebook-library-375-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 347
+      },
+      "height": 812,
+      "ingredients": null,
+      "pageWidth": 369,
+      "photo": {
+        "height": 80,
+        "top": 347
+      },
+      "search": {
+        "height": 44,
+        "top": 227
+      },
+      "width": 375
+    },
+    {
+      "label": "final-notebook-today-375-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 252
+      },
+      "height": 812,
+      "ingredients": null,
+      "pageWidth": 369,
+      "photo": {
+        "height": 80,
+        "top": 252
+      },
+      "search": null,
+      "width": 375
+    },
+    {
+      "label": "final-detail-375-dark",
+      "dishTitle": null,
+      "height": 812,
+      "ingredients": {
+        "height": 28,
+        "top": 682.5625
+      },
+      "pageWidth": 369,
+      "photo": null,
+      "search": null,
+      "width": 375
+    },
+    {
+      "label": "final-personal-library-440-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 660.5
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 301.5,
+        "top": 347
+      },
+      "search": {
+        "height": 44,
+        "top": 227
+      },
+      "width": 440
+    },
+    {
+      "label": "final-detail-440-light",
+      "dishTitle": null,
+      "height": 956,
+      "ingredients": {
+        "height": 28,
+        "top": 719.125
+      },
+      "pageWidth": 434,
+      "photo": null,
+      "search": null,
+      "width": 440
+    },
+    {
+      "label": "final-detail-375-light",
+      "dishTitle": null,
+      "height": 812,
+      "ingredients": {
+        "height": 28,
+        "top": 682.5625
+      },
+      "pageWidth": 369,
+      "photo": null,
+      "search": null,
+      "width": 375
+    },
+    {
+      "label": "final-personal-library-440-dark",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 660.5
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 301.5,
+        "top": 347
+      },
+      "search": {
+        "height": 44,
+        "top": 227
+      },
+      "width": 440
+    },
+    {
+      "label": "final-personal-today-440-dark",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 565.5
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 301.5,
+        "top": 252
+      },
+      "search": null,
+      "width": 440
+    },
+    {
+      "label": "final-personal-today-1366-dark",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 475.9921875
+      },
+      "height": 900,
+      "ingredients": null,
+      "pageWidth": 1360,
+      "photo": {
+        "height": 205.9921875,
+        "top": 258
+      },
+      "search": null,
+      "width": 1366
+    },
+    {
+      "label": "final-personal-library-1366-dark",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 607
+      },
+      "height": 900,
+      "ingredients": null,
+      "pageWidth": 1360,
+      "photo": {
+        "height": 234,
+        "top": 361
+      },
+      "search": {
+        "height": 44,
+        "top": 241
+      },
+      "width": 1366
+    },
+    {
+      "label": "final-personal-today-1366-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 475.9921875
+      },
+      "height": 900,
+      "ingredients": null,
+      "pageWidth": 1366,
+      "photo": {
+        "height": 205.9921875,
+        "top": 258
+      },
+      "search": null,
+      "width": 1366
+    },
+    {
+      "label": "final-notebook-library-440-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 347
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 80,
+        "top": 347
+      },
+      "search": {
+        "height": 44,
+        "top": 227
+      },
+      "width": 440
+    },
+    {
+      "label": "final-notebook-today-440-light",
+      "dishTitle": {
+        "height": 24.75,
+        "top": 252
+      },
+      "height": 956,
+      "ingredients": null,
+      "pageWidth": 434,
+      "photo": {
+        "height": 80,
+        "top": 252
+      },
+      "search": null,
+      "width": 440
+    }
+  ],
+  "stock100": {
+    "height": 812,
+    "horizontalOverflow": [],
+    "pageWidth": 369,
+    "smallControls": [],
+    "stockHeadings": 100,
+    "title": "Mon stock",
+    "visibleInput": null,
+    "width": 375
+  },
+  "assistantFailure": {
+    "error": "Service absent du jeu de test visuel.",
+    "focus": "Message à envoyer à l'assistant",
+    "pageWidth": 369,
+    "text": "Avec quoi remplacer la farine ?",
+    "width": 375
+  },
+  "unvalidated": [
+    "Safari iPhone 17 Pro Max",
+    "VoiceOver",
+    "Native keyboard / safe areas on real phone",
+    "Real text enlargement / zoom",
+    "Human task timing, taps, abandonment",
+    "Production URLs and data"
+  ]
+}

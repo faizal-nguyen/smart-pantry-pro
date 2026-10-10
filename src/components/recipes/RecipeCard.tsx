@@ -1,4 +1,5 @@
 import React from "react";
+import { recipeDurationMinutes } from '@smart/shared';
 import { MaterialCard, MaterialCardContent, MaterialCardActions } from "@/components/ui/material/Card";
 import { MaterialButton } from "@/components/ui/material/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,7 +138,7 @@ const RecipeCard = ({
     return colors[category] || 'bg-muted text-muted-foreground';
   };
 
-  const totalTime = recipe.prep_time + recipe.cook_time;
+  const totalTime = recipeDurationMinutes(recipe);
 
   return (
     <MaterialCard 
@@ -207,12 +208,12 @@ const RecipeCard = ({
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
-              <span>{totalTime}min</span>
+              <span>{totalTime==null ? 'Durée à vérifier' : `${totalTime} min`}</span>
             </div>
             
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              <span>{recipe.servings} pers.</span>
+              <span>{recipe.servings ? `${recipe.servings} pers.` : 'Portions à vérifier'}</span>
             </div>
             
             <div className="flex items-center gap-1">
@@ -220,7 +221,7 @@ const RecipeCard = ({
                 <Star
                   key={i}
                   className={`w-3 h-3 ${
-                    i < recipe.difficulty
+                    recipe.difficulty != null && i < recipe.difficulty
                       ? 'fill-warning text-warning'
                       : 'text-muted-foreground/30'
                   }`}

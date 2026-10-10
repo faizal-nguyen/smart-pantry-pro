@@ -9,7 +9,7 @@
  * Accessibilité : aria-label, aria-pressed (mic), tap target ≥ 44 px,
  * order tab textarea → mode → mic → send.
  */
-import React, { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Mic, Send, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -46,18 +46,27 @@ export default function AssistantComposer({
   onModeChange,
   onResponse,
   onError,
-  autoFocus = true,
+  autoFocus = false,
   disabled,
 }: AssistantComposerProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [error,setError]=useState<string|null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const focusAfterSend = useRef(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const voice = useAssistantVoice({
     getConversationId: () => conversationId ?? undefined,
   });
+  const deliveredVoiceResult = useRef<AssistantPlanResponse | null>(null);
+  useEffect(() => {
+    if (voice.result && voice.result !== deliveredVoiceResult.current) {
+      deliveredVoiceResult.current = voice.result;
+      onResponse?.(voice.result);
+    }
+  }, [voice.result, onResponse]);
 
   // PRP-224 PR3 — keep the textarea auto-sizing to its content but
   // capped so it doesn't push the thread off-screen.
@@ -67,12 +76,18 @@ export default function AssistantComposer({
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [text]);
+  useEffect(() => {
+    if (!sending && focusAfterSend.current) {
+      focusAfterSend.current = false;
+      textareaRef.current?.focus();
+    }
+  }, [sending]);
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
-    setSending(true);
+    if (!trimmed || disabled || sending || ['recording', 'uploading', 'processing'].includes(voice.status)) return;
+    setSending(true);setError(null);
     try {
       const response = await postAssistantText({
         text: trimmed,
@@ -82,10 +97,11 @@ export default function AssistantComposer({
       setText('');
       onResponse?.(response);
     } catch (err) {
+      setError(err instanceof Error ? err.message : 'Réponse non confirmée. Ta question est conservée ; tu peux réessayer.');
       onError?.(err instanceof Error ? err : new Error(String(err)));
     } finally {
+      focusAfterSend.current = true;
       setSending(false);
-      textareaRef.current?.focus();
     }
   };
 
@@ -118,11 +134,8 @@ export default function AssistantComposer({
   const isProcessing = voice.status === 'uploading' || voice.status === 'processing';
 
   const handleMicClick = () => {
-    if (isRecording) {
-      void voice.stopRecording();
-    } else {
-      void voice.startRecording();
-    }
+    setError(null);
+    void voice.toggleRecording();
   };
 
   return (
@@ -130,7 +143,9 @@ export default function AssistantComposer({
       onSubmit={handleSubmit}
       className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-3 z-20"
     >
-      <div className="flex gap-2 items-end">
+      {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
+      {voice.error && <p role="alert" className="mb-2 text-sm text-destructive">{voice.error}</p>}
+      <div className="flex gap-2 items-end min-w-0">
         <AssistantModePicker
           value={mode}
           onChange={handleModeChange}
@@ -147,12 +162,12 @@ export default function AssistantComposer({
               ? "J'écoute…"
               : isProcessing
                 ? 'Transcription…'
-                : "Demande à l'assistant… (Maj+Entrée = nouvelle ligne)"
+                : 'Ta question sur le repas, le stock…'
           }
           autoFocus={autoFocus}
           disabled={disabled || sending || isRecording || isProcessing}
           rows={1}
-          className="flex-1 resize-none min-h-[44px] py-2"
+          className="min-w-0 flex-1 resize-none min-h-[44px] py-2 text-base"
           aria-label="Message à envoyer à l'assistant"
         />
         <Button
@@ -171,14 +186,11 @@ export default function AssistantComposer({
             <Mic className="h-4 w-4" aria-hidden="true" />
           )}
         </Button>
-        {/* PRP-237 PR3 — Send adopte le variant `ai` (electric blue) :
-            c'est l'action qui invoque l'assistant, donc accent-ai
-            renforce la presence IA dans le composer. */}
         <Button
           type="submit"
           size="icon"
-          variant="ai"
-          disabled={disabled || sending || !text.trim() || isRecording}
+          variant="default"
+          disabled={disabled || sending || !text.trim() || isRecording || isProcessing}
           aria-label="Envoyer"
           className="min-w-[44px] min-h-[44px]"
         >

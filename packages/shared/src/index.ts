@@ -8,3 +8,4 @@ export * from './recipe-model.js';
 export * from './calendar.js';
 export * from './cooking-adjustments.js';
 export * from './personalization.js';
+export * from './recipe-evaluation.js';

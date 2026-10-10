@@ -143,7 +143,7 @@ export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<stri
   for (const ingredient of ingredients) {
     const product=ingredient.inventory_product_id ? products.get(ingredient.inventory_product_id) : undefined;
     const envelope=product?.nutrition_json;
-    if (!product || !envelope?.per100g || !['manual','openfoodfacts','estimated'].includes(envelope.source ?? '') || !(ingredient.quantity>0)) { limitations.push(`Données nutritionnelles absentes pour ${ingredient.ingredient_name}.`);continue; }
+    if (!product || !envelope?.per100g || !['manual','openfoodfacts','estimated'].includes(envelope.source ?? '') || !(typeof ingredient.quantity==='number' && Number.isFinite(ingredient.quantity) && ingredient.quantity>0)) { limitations.push(`Données nutritionnelles absentes pour ${ingredient.ingredient_name}.`);continue; }
     let grams:number;
     try { grams=convertQuantity(ingredient.quantity,ingredient.unit,'g'); } catch { limitations.push(`Poids inconnu pour ${ingredient.ingredient_name} ; aucune conversion pièces/volume en grammes inventée.`);continue; }
     let contributed=false;
@@ -153,11 +153,11 @@ export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<stri
     }
     if (contributed) {
       count++;estimated ||= envelope.source==='estimated';
-      sources.push({ product_id:product.id,source:envelope.source,updated_at:product.off_last_synced_at ?? product.updated_at ?? null,base:'100g' });
+      sources.push({ product_id:product.id,source:envelope.source,updated_at:envelope.source==='openfoodfacts' ? product.off_last_synced_at ?? product.updated_at ?? null : product.updated_at ?? null,base:'100g' });
     }
   }
-  const base=recipe.servings && recipe.servings>0 ? recipe.servings : null;
-  const complete=ingredients.length>0 && count===ingredients.length && base!==null;
+  const base=recipe.servings && Number.isFinite(recipe.servings) && recipe.servings>0 ? recipe.servings : null;
+  const complete=ingredients.length>0 && Object.values(known).every(value=>value===ingredients.length) && base!==null;
   if (!base) limitations.push('Portions de base inconnues ; estimation par portion indisponible.');
   limitations.push('Base déclarée pour 100 g ; rendement et différences cru/cuit non documentés. Les cibles quotidiennes ne sont pas comparées à un repas isolé.');
   return { status:!count ? 'unavailable' : !complete ? 'partial' : estimated ? 'estimated' : 'known',coverage:ingredients.length ? count/ingredients.length : 0,

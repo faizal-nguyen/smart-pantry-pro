@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { recipeDurationMinutes } from '@smart/shared';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Mic, Camera, Package, FolderOpen, ChefHat } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -91,7 +92,7 @@ export const IntelligentSearch: React.FC<IntelligentSearchProps> = ({
         name: recipe.name,
         type: 'recipe',
         icon: <ChefHat className="w-4 h-4" />,
-        meta: `${recipe.prep_time + recipe.cook_time} min`
+        meta: recipeDurationMinutes(recipe)==null ? 'Durée à vérifier' : `${recipeDurationMinutes(recipe)} min`
       }));
 
     setSearchGroups([

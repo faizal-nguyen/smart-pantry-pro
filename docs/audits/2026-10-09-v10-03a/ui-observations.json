@@ -1,0 +1,285 @@
+{
+  "environment": "isolated localhost fixture",
+  "date": "2026-10-09",
+  "realDevice": false,
+  "realSupabase": false,
+  "images": "explicit test SVG assets",
+  "observations": [
+    {
+      "label": "library-375-light-after-scroll",
+      "actions": [],
+      "documentWidth": 369,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        }
+      ],
+      "title": "Cuisiner",
+      "width": 375
+    },
+    {
+      "label": "library-375-light-bottom",
+      "actions": [],
+      "documentWidth": 369,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        }
+      ],
+      "title": "Cuisiner",
+      "width": 375
+    },
+    {
+      "label": "library-440-dark",
+      "actions": [],
+      "documentWidth": 434,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        }
+      ],
+      "title": "Cuisiner",
+      "width": 440
+    },
+    {
+      "label": "personal-detail-375-light-unknown-base",
+      "actions": [
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Commencer cette recette",
+          "width": 112.328125
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Ajouter les ingredients manquants aux courses",
+          "width": 112.3359375
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Modifier cette recette",
+          "width": 112.3359375
+        }
+      ],
+      "documentWidth": 369,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        }
+      ],
+      "title": "Soupe personnelle",
+      "width": 375
+    },
+    {
+      "label": "legacy-detail-440-dark-eight-servings",
+      "actions": [
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Commencer cette recette",
+          "width": 134
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Ajouter les ingredients manquants aux courses",
+          "width": 134
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Modifier cette recette",
+          "width": 134
+        }
+      ],
+      "documentWidth": 434,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        }
+      ],
+      "title": "Pain maison",
+      "width": 440
+    },
+    {
+      "label": "evaluation-error-440-dark",
+      "actions": [
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Commencer cette recette",
+          "width": 134
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Ajouter les ingredients manquants aux courses",
+          "width": 134
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Modifier cette recette",
+          "width": 134
+        }
+      ],
+      "documentWidth": 434,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        }
+      ],
+      "title": "Pain maison",
+      "width": 440
+    },
+    {
+      "label": "evaluation-retry-440-dark",
+      "actions": [
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Commencer cette recette",
+          "width": 134
+        },
+        {
+          "disabled": true,
+          "height": 48,
+          "name": "Ajouter les ingredients manquants aux courses",
+          "width": 134
+        },
+        {
+          "disabled": false,
+          "height": 48,
+          "name": "Modifier cette recette",
+          "width": 134
+        }
+      ],
+      "documentWidth": 434,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        }
+      ],
+      "title": "Pain maison",
+      "width": 440
+    },
+    {
+      "label": "library-375-light-images-decoded",
+      "actions": [],
+      "documentWidth": 369,
+      "horizontalOverflow": false,
+      "images": [
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        },
+        {
+          "loaded": false,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "eager",
+          "src": "/scripts/fixtures/v10/assets/pain.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/soupe.svg"
+        },
+        {
+          "loaded": true,
+          "loading": "lazy",
+          "src": "/scripts/fixtures/v10/assets/riz.svg"
+        }
+      ],
+      "title": "Cuisiner",
+      "width": 375
+    }
+  ]
+}

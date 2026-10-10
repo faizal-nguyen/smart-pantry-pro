@@ -1,9 +1,9 @@
 # PRP V10-05 — Pilote iOS et usage quotidien
 
 > Statut : proposition cadrée, réalisation après validation du prototype.
-> Date : 2026-10-08.
+> Création : 2026-10-08. Dépendances actualisées : 2026-10-09.
 > Priorité : P1.
-> Dépendances : sorties de [V10-01](PRP-V10-01-Fiabilite.md), [V10-02](PRP-V10-02-Routine-Mobile.md), [V10-03](PRP-V10-03-Personnalisation.md) et [V10-04](PRP-V10-04-Prototype-iOS.md).
+> Dépendances : sorties de [V10-01](PRP-V10-01-Fiabilite.md), [V10-02](PRP-V10-02-Routine-Mobile.md), [V10-03](PRP-V10-03-Personnalisation.md), consolidation [03A](PRP-V10-03A-Recettes-Apercus.md), [03B](PRP-V10-03B-Design-Culinaire.md), [03C](PRP-V10-03C-Memoire-Fiable.md), [03D](PRP-V10-03D-Agent-Modeles.md), [03E](PRP-V10-03E-Voix-Cuisine.md) et décision [V10-04](PRP-V10-04-Prototype-iOS.md).
 > Références : [feuille de route](README.md), [audit](../../docs/AUDIT-PRODUIT-MOBILE-IOS-2026-10-08.md), décision de stack à produire dans V10-04.
 > Estimation indicative : 4 à 8 semaines de réalisation, puis 14 jours d’usage réel.
 
@@ -20,6 +20,9 @@ Le pilote est une étape vers l’application iOS complète. Son succès permet 
 - Les commandes de stock, références de recettes et droits d’accès ont leurs preuves V10-01.
 - Les parcours quotidiens et la session de cuisine ont été éprouvés dans V10-02.
 - Le profil et le moteur de recommandations ont leurs critères V10-03 vérifiés.
+- Les aperçus et l'évaluation de fiche sont cohérents selon V10-03A ; la hiérarchie et le langage de V10-03B ont leurs preuves d'usage.
+- Mémoire, partage, correction/oubli et continuité suivent V10-03C ; modèles et coûts suivent la configuration retenue dans V10-03D.
+- La dictée de V10-03E est éprouvée ; V10-04 établit ses limites natives. La voix continue n'est incluse que si son bénéfice et ses capacités matérielles ont été retenus.
 - V10-04 fournit une stack retenue, un build matériel, les règles de synchronisation et une estimation mise à jour.
 - L’environnement de test appartient à la bonne application ; l’environnement de production et ses migrations sont identifiés séparément.
 - Les accès nécessaires à la signature, au compte développeur et à la distribution sont disponibles avant de fixer une date de livraison.
@@ -32,10 +35,10 @@ La documentation actuelle ne crée ni projet natif ni compte de distribution. La
 | --- | --- |
 | Aujourd’hui | Prochaine action, produits à vérifier, suggestions justifiées et contexte du repas |
 | Stock | Liste compacte, recherche, quantités et unités, corrections, zones, dates et scan |
-| Cuisiner | Bibliothèque de toutes les origines, favoris, recette, création simple et session pas à pas |
+| Cuisiner | Bibliothèque de toutes les origines avec aperçus, favoris, fiche cohérente avec le moteur, création simple et session pas à pas |
 | Courses | Achats, cases à cocher, ajout rapide et rangement confirmé au stock |
-| Profil | Préférences, exclusions, consentements, confidentialité et statut du compte |
-| Assistant contextuel | Expliquer, rechercher ou adapter ; commandes partagées pour les actions connues |
+| Profil | Préférences, exclusions, consentements, mémoire consultable/corrigeable/effaçable, confidentialité et statut du compte |
+| Assistant contextuel | Expliquer, rechercher ou adapter ; texte et dictée au premier plan, contexte/mémoire et commandes partagés |
 | Capture | Réception d’un lien, brouillon durable et reprise d’import |
 | Synchronisation | File durable, états lisibles, reconnexion et résolution des conflits |
 | Rappels | Notifications choisies et minuteurs selon les capacités réellement validées |
@@ -43,6 +46,8 @@ La documentation actuelle ne crée ni projet natif ni compte de distribution. La
 Les surfaces principales sont réalisées avec des composants natifs adaptés aux parcours validés. Le web et iOS utilisent la même base de vérité et les mêmes règles métier. Les anciennes pages de statistiques ou fonctions secondaires peuvent rester accessibles sur le web si leur intérêt ne justifie pas encore un portage.
 
 Hors pilote : HealthKit, Apple Watch, widgets, Live Activities, OCR des dates, reconnaissance d’aliments par photo, communauté et gamification. Les évolutions vidéo de PRP-240 et menus complexes ne conditionnent pas le pilote.
+
+La conversation vocale continue reste facultative. Son absence ne bloque pas le pilote ; sa présence exige les preuves V10-03E/V10-04, des limites de coût et un comportement réel documenté lors du verrouillage.
 
 ## 4. Expérience iPhone
 
@@ -135,8 +140,8 @@ Pour une régression critique, suspendre les écritures concernées en conservan
 | --- | --- | --- |
 | 1 | Fondation native retenue, shell, session et stockage | Installation reproductible, comptes isolés et migrations locales |
 | 2 | Stock, scan et file durable | Ajout, correction, refus caméra, réponse perdue et reprise |
-| 3 | Recettes, session de cuisine et bibliothèque | Toutes les origines, brouillons, portions et confirmation unique |
-| 4 | Aujourd’hui, courses, profil et assistant contextuel | Boucle complète et recommandations cohérentes avec le backend |
+| 3 | Recettes, session de cuisine et bibliothèque | Toutes les origines, aperçus, fiche commune, brouillons, portions et confirmation unique |
+| 4 | Aujourd’hui, courses, profil, mémoire et assistant contextuel | Boucle complète, recommandations cohérentes, correction/oubli et dictée avec repli texte |
 | 5 | Partage, rappels, accessibilité et mises à jour | Permissions, liens, minuteurs, VoiceOver et conservation des intentions |
 | 6 | Qualification, distribution et préparation de l’observation | Version identifiée, scénarios réels et journal du pilote |
 
@@ -193,6 +198,9 @@ La décision est **GO extension**, **corrections puis nouvel essai**, ou **NO-GO
 - [ ] AC11 — La compatibilité API, la mise à jour et les intentions anciennes ont une stratégie testée ; aucun rollback dangereux n’est prévu.
 - [ ] AC12 — Les 14 jours d’usage ont un rapport avec données de départ, mesures finales, incidents et décision.
 - [ ] AC13 — Aucun incident critique de perte, répétition, accès croisé ou faux succès ne reste ouvert.
+- [ ] AC14 — Aperçus, portions, contraintes et nutrition de fiche conservent les contrats V10-03A et la hiérarchie validée V10-03B.
+- [ ] AC15 — Mémoire, correction, oubli et consentements produisent le même effet entre web et iOS ; aucun fait supprimé ne réapparaît par un résumé.
+- [ ] AC16 — Dictée, refus du micro et interruptions sont éprouvés ; toute voix continue incluse respecte la décision matérielle et les budgets retenus.
 
 ## 14. Risques et définition de terminé
 

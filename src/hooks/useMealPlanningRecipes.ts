@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { recipeDurationMinutes } from '@smart/shared';
 import { useRecipes } from './useRecipes';
 import { useAuthSessionOptional } from './useAuthenticatedUser';
 import { fetchUnifiedRecipe } from '@/lib/recipeSource';
@@ -16,7 +17,7 @@ export function useMealPlanningRecipes() {
     return recipes.filter(recipe => recipe.user_id === user?.id)
       .filter(recipe => !needle || `${recipe.name} ${recipe.description ?? ''}`.toLocaleLowerCase().includes(needle))
       .filter(recipe => !filters?.difficulty || recipe.difficulty === filters.difficulty)
-      .filter(recipe => !filters?.maxTime || recipe.prep_time + recipe.cook_time <= filters.maxTime)
+      .filter(recipe => { const duration=recipeDurationMinutes(recipe);return !filters?.maxTime || (duration!=null && duration<=filters.maxTime); })
       .filter(recipe => !filters?.tags?.length || filters.tags.every(tag => recipe.tags?.includes(tag)))
       .filter(recipe => !filters?.mealType || !recipe.meal_type || recipe.meal_type === filters.mealType)
       .slice(0,50) as unknown as RecipeWithDetails[];

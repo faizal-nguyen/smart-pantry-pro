@@ -1,0 +1,38 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import SmartShoppingList from '../SmartShoppingList';
+const owner='00000000-0000-4000-8000-000000000001';
+const mockAdd=jest.fn(),mockToggle=jest.fn();
+let mockPending=false;
+jest.mock('@/hooks/useAuthenticatedUser',()=>({ useAuthenticatedUser:()=>({ id:owner }) }));
+jest.mock('@/hooks/useShoppingList',()=>({ useShoppingList:()=>({ shoppingList:[{ id:'line',product:{ name:'Farine' },quantity:1,unit:'kg',is_purchased:false }],addToShoppingList:mockAdd,togglePurchased:mockToggle,getPurchasedCount:()=>0,pendingTransfer:mockPending,refetch:jest.fn() }) }));
+jest.mock('@/components/shopping/ShoppingStorageReview',()=>({ __esModule:true,default:()=>null }));
+jest.mock('@/components/shopping/EditShoppingItemDialog',()=>({ __esModule:true,default:()=>null }));
+beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();mockPending=false; });
+test('adding is progressive, an error preserves the draft, and closing restores access to the list',async()=>{
+  mockAdd.mockRejectedValueOnce(new Error('Ajout non confirmé.'));
+  render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  expect(screen.getByRole('checkbox',{ name:'Marquer acheté : Farine' })).toBeVisible();
+  expect(screen.queryByRole('textbox',{ name:'Ajouter un produit' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter' }));
+  fireEvent.change(screen.getByRole('textbox',{ name:'Ajouter un produit' }),{ target:{ value:'Riz' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Préciser la quantité' }));
+  fireEvent.change(screen.getByRole('textbox',{ name:'Quantité' }),{ target:{ value:'2' } });
+  fireEvent.change(screen.getByRole('textbox',{ name:'Unité' }),{ target:{ value:'' } });fireEvent.change(screen.getByRole('textbox',{ name:'Unité' }),{ target:{ value:'kg' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter aux courses' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Ajout non confirmé.');
+  fireEvent.click(screen.getByRole('button',{ name:'Fermer' }));
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter' }));
+  expect(screen.getByRole('textbox',{ name:'Ajouter un produit' })).toHaveValue('Riz');
+  expect(screen.getByRole('textbox',{ name:'Quantité' })).toHaveValue('2');
+  expect(mockAdd).toHaveBeenCalledTimes(1);
+});
+test('checking a purchase sends its explicit state; a pending transfer freezes edits and keeps recovery visible',async()=>{
+  mockToggle.mockResolvedValue(undefined);
+  const page=render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('checkbox',{ name:'Marquer acheté : Farine' }));
+  expect(mockToggle).toHaveBeenCalledWith('line',true);
+  mockPending=true;page.rerender(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  expect(screen.getByRole('checkbox',{ name:'Marquer acheté : Farine' })).toBeDisabled();
+  await waitFor(()=>expect(screen.getByRole('button',{ name:'Vérifier le rangement' })).toBeEnabled());
+});

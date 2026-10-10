@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import {
-  Bot,
+  MessageCircle,
   ChefHat,
   ChevronDown,
   CookingPot,
@@ -40,13 +40,13 @@ interface ModeDef {
 // Shopping / Insights / Assistant — but applied as conversation
 // scopes). General first, Cooking last (specialised mode).
 const MODES: readonly ModeDef[] = [
-  { value: 'general', label: 'Général', icon: Bot },
+  { value: 'general', label: 'Général', icon: MessageCircle },
   { value: 'kitchen', label: 'Cuisine', icon: ChefHat },
   { value: 'recipes', label: 'Recettes', icon: UtensilsCrossed },
   { value: 'inventory', label: 'Inventaire', icon: Package },
   { value: 'shopping', label: 'Courses', icon: ShoppingCart },
   { value: 'nutrition', label: 'Nutrition', icon: Heart },
-  { value: 'cooking', label: 'Cooking', icon: CookingPot },
+  { value: 'cooking', label: 'Pas à pas', icon: CookingPot },
 ] as const;
 
 interface AssistantModePickerProps {
@@ -88,7 +88,7 @@ export default function AssistantModePicker({
             <DropdownMenuItem
               key={m.value}
               onSelect={() => onChange(m.value)}
-              className={cn(m.value === value && 'bg-muted')}
+              className={cn('min-h-[44px]', m.value === value && 'bg-muted')}
             >
               <Mi className="h-4 w-4 mr-2" aria-hidden="true" />
               {m.label}

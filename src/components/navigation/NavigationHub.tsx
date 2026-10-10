@@ -19,7 +19,7 @@ import {
   Package,
   ChefHat,
   ShoppingCart,
-  Bot,
+  MessageCircle,
   BarChart3,
   Settings,
   Home,
@@ -75,18 +75,18 @@ export interface NavigationSubItem {
 // PRP-237 PR2 — order is Assistant first (PRP-224/233 done, see §9),
 // then Recettes → Inventaire → Courses → Anti-gaspi.
 export const NAVIGATION_CONFIG: NavigationItem[] = [
-  { id:'today',label:'Aujourd’hui',icon:Home,path:'/kitchen',section:'kitchen',description:'La prochaine action pour votre repas',isMainSection:true },
+  { id:'today',label:'Aujourd’hui',icon:Home,path:'/kitchen',section:'kitchen',description:'La prochaine action pour ton repas',isMainSection:true },
   { id:'pantry',label:'Stock',icon:Package,path:'/pantry/inventory',section:'pantry',description:'Les ingrédients disponibles',isMainSection:true },
-  { id:'kitchen',label:'Cuisiner',icon:ChefHat,path:'/kitchen/recipes',section:'kitchen',description:'Toutes vos recettes',isMainSection:true,subItems:[
+  { id:'kitchen',label:'Cuisiner',icon:ChefHat,path:'/kitchen/recipes',section:'kitchen',description:'Toutes tes recettes',isMainSection:true,subItems:[
     { id:'kitchen-favorites',label:'Favoris',path:'/kitchen/recipes?tab=library&filter=favorites',icon:Heart,description:'Recettes favorites' },
     { id:'kitchen-meal-planning',label:'Menus',path:'/kitchen/meal-planning',icon:CalendarDays,description:'Menus de la semaine' },
   ] },
   { id:'shopping',label:'Courses',icon:ShoppingCart,path:'/shopping/list',section:'shopping',description:'Acheter puis ranger',isMainSection:true },
 ];
 export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
-  { id:'assistant',label:'Assistant',icon:Bot,path:'/assistant',section:'assistant',description:'Conversations avec l’assistant',isMainSection:false },
+  { id:'assistant',label:'Assistant',icon:MessageCircle,path:'/assistant',section:'assistant',description:'Conversations avec l’assistant',isMainSection:false },
   { id:'insights',label:'Analyses',icon:BarChart3,path:'/insights',section:'insights',description:'Statistiques et anti-gaspillage',isMainSection:false },
-  { id:'settings',label:'Profil et paramètres',icon:Settings,path:'/settings',section:'settings',description:'Vos préférences',isMainSection:false },
+  { id:'settings',label:'Profil et paramètres',icon:Settings,path:'/settings',section:'settings',description:'Tes préférences',isMainSection:false },
 ];
 
 /**

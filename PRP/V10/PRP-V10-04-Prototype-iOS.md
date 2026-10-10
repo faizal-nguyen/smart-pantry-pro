@@ -1,15 +1,17 @@
 # PRP V10-04 — Prototype iOS et décision technique
 
 > Statut : prototype à réaliser ; stack native non arrêtée.
-> Date : 2026-10-08.
+> Création : 2026-10-08. Dépendances actualisées : 2026-10-09.
 > Priorité : P1, validation préalable au pilote.
-> Dépendances : contrats de [V10-01](PRP-V10-01-Fiabilite.md) et parcours de [V10-02](PRP-V10-02-Routine-Mobile.md).
+> Dépendances : contrats de [V10-01](PRP-V10-01-Fiabilite.md), parcours de [V10-02](PRP-V10-02-Routine-Mobile.md), moteur de [V10-03](PRP-V10-03-Personnalisation.md) et sorties de consolidation [03A](PRP-V10-03A-Recettes-Apercus.md), [03B](PRP-V10-03B-Design-Culinaire.md), [03C](PRP-V10-03C-Memoire-Fiable.md), [03D](PRP-V10-03D-Agent-Modeles.md) et [03E](PRP-V10-03E-Voix-Cuisine.md).
 > Références : [feuille de route](README.md), [audit](../../docs/AUDIT-PRODUIT-MOBILE-IOS-2026-10-08.md), contrats partagés existants.
-> Estimation indicative : environ une semaine ; accès et difficulté des intégrations peuvent imposer une révision.
+> Estimation indicative : environ une semaine ; accès, intégrations et questions audio transmises par V10-03E peuvent imposer une révision.
 
 ## 1. Objectif et décision à produire
 
 Valider une application iOS sur les contraintes qui comptent au quotidien : scan d’un produit, connexion fiable, action hors ligne, synchronisation après interruption et cuisine avec reprise. Le résultat est une décision technique appuyée sur des essais matériels et une estimation du pilote.
+
+Le prototype reprend les aperçus et l'évaluation de fiche V10-03A, la hiérarchie V10-03B, la politique mémoire V10-03C et le backend V10-03D. V10-03E fournit une dictée web homologuée et une décision sur la voix continue. Les questions natives encore ouvertes sont des essais de ce prototype ; elles ne sont pas exigées à l'avance pour terminer le lot web.
 
 React Native avec Expo est l’hypothèse de départ, notamment pour les types et règles TypeScript réutilisables. SwiftUI reste une alternative. Aucun choix n’est réputé validé par la rédaction de cette PRP.
 
@@ -24,10 +26,14 @@ L’audit M02 montre que la file web existante ne constitue pas un moteur hors l
 | Hors ligne | Commande conservée, statut visible, reprise après fermeture de l’application |
 | Retour réseau | Une seule exécution, même après réponse perdue ou envoi répété |
 | Cuisine | Portions, progression sauvegardée et confirmation via le contrat commun |
+| Voix au premier plan | Dictée corrigible, contexte et mêmes commandes que le texte, avec repli manuel |
+| Cycle de vie audio | Verrouillage, suspension, Bluetooth et reprise ; conversation continue uniquement si retenue après V10-03E |
 | Capture de partage | Faisabilité de réception d’une URL, conservation et reprise après connexion |
 | Permissions et cycle de vie | Refus utilisable, verrouillage, suspension et relance testés |
 
 Le prototype ne livre pas tout le design final, l’App Store, un nouveau moteur de recommandations, HealthKit ou une refonte du backend. Les notifications sont éprouvées sur leur capacité nécessaire aux minuteurs ; le produit complet des rappels appartient à V10-05.
+
+La décision audio peut retenir seulement la dictée au premier plan. Si la voix continue est différée, documenter ce choix et les capacités manquantes ; ne pas construire les trois transports de V10-03E dans le prototype natif.
 
 ## 3. Comparaison technique
 
@@ -129,7 +135,7 @@ Le fichier ADR est un livrable futur. Il ne doit pas être rempli aujourd’hui 
 | --- | --- | --- |
 | 1 | Projet natif minimal, authentification et contrats | Build installé, lecture du bon compte, configuration reproductible |
 | 2 | Stock local, commande hors ligne et réconciliation | Arrêt forcé et réponse perdue sans perte ni double effet |
-| 3 | Scan, session de cuisine et partage ciblé | Essais matériels, permissions et reprise |
+| 3 | Scan, session de cuisine, dictée et partage ciblé | Essais matériels, permissions, reprise et limites audio |
 | 4 | Rapport et décision de stack | GO ou NO-GO motivé, écarts et estimation du pilote |
 
 Ces PRs restent expérimentales tant que la décision n’est pas produite. Le code retenu est nettoyé avant de servir de fondation au pilote.
@@ -148,6 +154,8 @@ Ces PRs restent expérimentales tant que la décision n’est pas produite. Le c
 | Stock modifié par un autre client | Conflit explicite ou résultat valide sur l’état actuel |
 | Recette personnelle et portions modifiées | Même recette et mêmes quantités lors de la reprise |
 | Verrouillage pendant la cuisine | Progression retrouvée ; minuteur conforme à la capacité annoncée |
+| Micro refusé ou transcription interrompue | Texte disponible, aucune exécution avant envoi de la demande corrigée |
+| Bluetooth, verrouillage ou suspension pendant l'audio | État et reprise conformes à la capacité retenue ; aucune double commande |
 | URL partagée avant connexion | Brouillon repris après connexion sans perte de source |
 
 - [ ] AC01 — Les fonctions natives déterminantes sont essayées dans un binaire sur l’appareil cible.
@@ -159,6 +167,7 @@ Ces PRs restent expérimentales tant que la décision n’est pas produite. Le c
 - [ ] AC07 — La faisabilité du partage et des minuteurs est établie, avec les limites relevées.
 - [ ] AC08 — Le rapport identifie les fonctions testées, les échecs et les contrôles encore bloqués.
 - [ ] AC09 — Une stack est retenue dans l’ADR sur les preuves ; l’estimation du pilote est recalibrée.
+- [ ] AC10 — Les questions audio de V10-03E ont une réponse matérielle : dictée, refus, interruption, Bluetooth et comportement au verrouillage ; le statut de la voix continue est explicite.
 
 Un accès matériel, de signature ou de backend manquant reste une validation bloquée. Un prototype uniquement simulé ne suffit pas à prononcer le GO du pilote natif.
 

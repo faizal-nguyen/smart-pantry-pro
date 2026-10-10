@@ -32,6 +32,7 @@ export type AgentAffectedTable =
   | 'inventory'
   | 'recipes'
   | 'user_recipes'
+  | 'recipes_catalog'
   | 'recipe_ingredients'
   | 'meal_plan_entries'
   | 'weekly_meal_plans'

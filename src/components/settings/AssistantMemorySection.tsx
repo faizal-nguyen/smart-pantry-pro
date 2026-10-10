@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Brain, MessageCircle, MessageSquare } from 'lucide-react';
+import { BookOpen, MessageCircle, MessageSquare } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -36,11 +36,11 @@ export default function AssistantMemorySection() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" aria-hidden="true" />
-            Assistant &amp; mémoire
+            <BookOpen className="h-5 w-5" aria-hidden="true" />
+            Ce que l’assistant retient
           </CardTitle>
           <CardDescription>
-            Confirmer, oublier ou corriger ce que l&apos;assistant retient de toi.
+            Voir et confirmer les souvenirs enregistrés, ou demander leur oubli.
             Les souvenirs sensibles (allergies, santé) gardent un encart dédié.
           </CardDescription>
         </CardHeader>
@@ -49,11 +49,12 @@ export default function AssistantMemorySection() {
             type="button"
             variant="outline"
             onClick={() => navigate('/assistant')}
-            className="gap-2"
+            className="gap-2 min-h-11"
           >
             <MessageSquare className="h-4 w-4" aria-hidden="true" />
             Ouvrir l&apos;assistant
           </Button>
+          <Button type="button" variant="ghost" className="min-h-11" onClick={()=>navigate('/settings?section=cooking')}>Voir mon profil alimentaire</Button>
         </CardContent>
       </Card>
 
@@ -72,7 +73,7 @@ export default function AssistantMemorySection() {
             Conversations récentes
           </CardTitle>
           <CardDescription>
-            Aperçu — la liste complète vit dans la page Assistant.
+            Retrouve un échange ou ouvre la liste complète dans l’assistant.
           </CardDescription>
         </CardHeader>
         <CardContent>

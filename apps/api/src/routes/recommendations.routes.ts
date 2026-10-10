@@ -14,7 +14,7 @@
  *   - Explicit versioned profile; inferred preferences never override it.
  */
 import { Router } from 'express';
-import { MealContextSchema,RecommendationFeedbackSchema } from '@smart/shared';
+import { MealContextSchema,RecommendationFeedbackSchema,RecipeEvaluationInputSchema,RecipeEvaluationSchema } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { ok, fail } from '../utils/responses.js';
@@ -80,6 +80,20 @@ export function createRecommendationsRouter(
       if (!data?.id) throw new ProfileError('FEEDBACK_UNAVAILABLE',503);
       return ok(res,data,'OK','FEEDBACK_SAVED');
     } catch (error) { return fail(res,'Retour non confirmé. Réessayez.',error instanceof ProfileError ? error.status : 503,error instanceof ProfileError ? error.code : 'FEEDBACK_UNAVAILABLE'); }
+  });
+  router.post('/evaluate',userRateLimit({ key:'recommendations.evaluate',freeMax:60,premiumMax:600,windowMs:HOUR }),async(req,res)=>{
+    if (!req.user?.id || !req.supabaseClient) return fail(res,'Unauthorized',401,'UNAUTHORIZED');
+    const parsed=RecipeEvaluationInputSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res,'Recette ou portions invalides.',400,'INVALID_BODY');
+    try {
+      const result=await engine.evaluateForUser({ userId:req.user.id,userClient:req.supabaseClient },parsed.data);
+      const checked=RecipeEvaluationSchema.safeParse(result);
+      if (!checked.success) return fail(res,'Les informations de cette recette ne peuvent pas être vérifiées.',503,'RECIPE_EVALUATION_FAILED');
+      return ok(res,checked.data,'OK','RECIPE_EVALUATION_OK');
+    } catch (error) {
+      return fail(res,error instanceof ProfileError && error.status===404 ? 'Cette recette est absente ou inaccessible.' : 'Les informations de cette recette ne peuvent pas être vérifiées. Réessayez.',
+        error instanceof ProfileError ? error.status : 503,error instanceof ProfileError ? error.code : 'RECIPE_EVALUATION_FAILED');
+    }
   });
   return router;
 }

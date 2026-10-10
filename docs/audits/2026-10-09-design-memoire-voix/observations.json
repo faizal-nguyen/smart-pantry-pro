@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-09",
+  "commit": "dda2602e450066309e5cf99525a8fa1b5bbad392",
+  "scope": "Code actuel, banc UI local avec donnees fictives et documentation officielle OpenAI",
+  "product_code_changed": false,
+  "openai_paid_requests": 0,
+  "live_database_verified": false,
+  "real_iphone_verified": false,
+  "new_screenshots_saved": false,
+  "ui": [
+    {
+      "surface": "Aujourd'hui",
+      "viewport": { "width": 440, "height": 956 },
+      "fixture_banner_height": 88,
+      "intro": "dismissed in fixture only",
+      "always_visible_selects_before_ideas": 5,
+      "main_image_count": 0,
+      "ideas_heading_top": 419,
+      "ideas_heading_top_without_fixture_banner": 331,
+      "state": "No suggestions in observed fixture"
+    },
+    {
+      "surface": "Bibliotheque",
+      "viewport": { "width": 440, "height": 956 },
+      "fixture_banner_height": 88,
+      "main_recipe_image_count": 0,
+      "search_top": 771,
+      "search_top_without_fixture_banner": 683,
+      "first_recipe_title_top": 908,
+      "first_recipe_title_top_without_fixture_banner": 820,
+      "horizontal_document_overflow": false,
+      "empty_state_action_points_to_current_route": true,
+      "state": "Three library/catalog cards; recommendations section empty"
+    },
+    {
+      "surface": "Stock",
+      "viewport": { "width": 375, "height": 812 },
+      "fixture_banner_height": 116,
+      "first_ingredient_heading_top": 726,
+      "first_ingredient_heading_top_without_fixture_banner": 610,
+      "horizontal_document_overflow": false,
+      "state": "One fictitious ingredient"
+    },
+    {
+      "surface": "Recipe detail",
+      "state": "Fictitious recipe with no photo; media frame still rendered",
+      "nutrition_display_observed": {
+        "badge": "Nutri-Score A",
+        "unknown_sugar_display": "0g",
+        "unknown_salt_display": "0g",
+        "source_caption": "OpenFoodFacts",
+        "fixture_product_source": "manual"
+      }
+    },
+    {
+      "surface": "Assistant memory settings",
+      "viewports": [{ "width": 440, "height": 956 }, { "width": 375, "height": 812 }],
+      "state": "Empty fictitious memory",
+      "seven_settings_tabs_scroll_horizontally": true,
+      "copy_promises_memory_correction": true,
+      "correction_action_missing_in_memory_rows": "Verified from current renderer source"
+    },
+    {
+      "surface": "QuickStockDialog",
+      "viewport": { "width": 375, "height": 812 },
+      "theme": "dark",
+      "background_token": "14% 0.010 260",
+      "css_supports_background_as_hsl": false,
+      "css_supports_background_as_oklch": true,
+      "dialog_computed_background": "oklch(0.14 0.01 260)",
+      "footer_computed_background": "rgba(0, 0, 0, 0)",
+      "footer_position": "sticky",
+      "placeholder_observed": "Literal backslash n between Tomates and Riz",
+      "stock_command_submitted": false
+    }
+  ],
+  "memory_reproductions": [
+    {
+      "fictitious": true,
+      "input": "Souviens-toi que je préfère les plats épicés.",
+      "output": [
+        { "kind": "preference", "sensitivity": "normal", "status": "active", "content": "je préfère les plats épicés" },
+        { "kind": "preference", "sensitivity": "normal", "status": "candidate", "content": "les plats épicés" }
+      ]
+    },
+    {
+      "fictitious": true,
+      "input": "Souviens-toi que je suis allergique aux cacahuètes.",
+      "output": [
+        { "kind": "preference", "sensitivity": "normal", "status": "active", "content": "je suis allergique aux cacahuètes" },
+        { "kind": "constraint", "sensitivity": "health_sensitive", "status": "candidate", "content": "allergie : cacahuètes" }
+      ]
+    },
+    {
+      "fictitious": true,
+      "test": "ContextBuilder with a canonical profile reader and one active normal culinary preference",
+      "profile_version": 1,
+      "stored_memory_count": 1,
+      "memories_text": "",
+      "preference_in_model_context": false,
+      "share_profile_with_model": false,
+      "note": "Code filters this kind whenever the profile reader is provided; explicit memory tools remain a separate path."
+    }
+  ],
+  "source_checks": {
+    "summary_writer_callers": "recordSummary appears only at its MemoryService definition in the repository search",
+    "recipe_library_commits": ["5ffaf392", "e7407794"],
+    "default_agent_model": "gpt-4o-mini",
+    "quality_and_fallback_agent_model": "gpt-4o",
+    "transcription_model": "whisper-1",
+    "openai_sdk_installed": "4.104.0",
+    "api_transport": "Chat Completions",
+    "assistant_primary_audio_output": "No speech output caller found in primary conversation surface",
+    "inventory_audio_output": "Browser speechSynthesis when optional voice feedback is enabled"
+  },
+  "live_check_limits": [
+    "Supabase connector get_project denied permission",
+    "Supabase CLI migration list --linked: no project ref found",
+    "No live migrations or stored memories read",
+    "No actual production photo URLs checked",
+    "No provider latency or model-account availability test"
+  ]
+}

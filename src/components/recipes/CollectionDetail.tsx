@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useRecipeCollections } from "@/hooks/useRecipeCollections";
 import { useRecipes } from "@/hooks/useRecipes";
+import { recipeDurationMinutes } from '@smart/shared';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -201,18 +202,18 @@ const CollectionDetail = () => {
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                <span>{recipe.prep_time + recipe.cook_time} min</span>
+                <span>{recipeDurationMinutes(recipe)==null ? 'Durée à vérifier' : `${recipeDurationMinutes(recipe)} min`}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Users className="h-3 w-3" />
-                <span>{recipe.servings} pers.</span>
+                <span>{recipe.servings ? `${recipe.servings} pers.` : 'Portions à vérifier'}</span>
               </div>
               <div className="flex items-center gap-1">
                 {[...Array(5)].map((_, i) => (
                   <Star
                     key={i}
                     className={`h-3 w-3 ${
-                      i < recipe.difficulty
+                      recipe.difficulty != null && i < recipe.difficulty
                         ? 'fill-yellow-400 text-yellow-400'
                         : 'text-gray-300'
                     }`}
@@ -425,7 +426,7 @@ const CollectionDetail = () => {
                       )}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <span>{recipe.prep_time + recipe.cook_time} min</span>
+                      <span>{recipeDurationMinutes(recipe)==null ? 'Durée à vérifier' : `${recipeDurationMinutes(recipe)} min`}</span>
                     </div>
                   </div>
                 ))

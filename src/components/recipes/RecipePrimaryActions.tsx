@@ -6,7 +6,6 @@
  * Le wording évite "Décrémenter l'inventaire" (verboten §9). Le détail
  * de l'effet (décrémentation) reste documenté côté handler.
  */
-import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ChefHat, Edit, ShoppingCart } from 'lucide-react';
 
@@ -18,6 +17,7 @@ interface RecipePrimaryActionsProps {
   addingToCart?: boolean;
   canCook?: boolean;
   canAddMissing?: boolean;
+  canEdit?: boolean;
 }
 
 export default function RecipePrimaryActions({
@@ -28,6 +28,7 @@ export default function RecipePrimaryActions({
   addingToCart = false,
   canCook = true,
   canAddMissing = true,
+  canEdit = true,
 }: RecipePrimaryActionsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -35,7 +36,7 @@ export default function RecipePrimaryActions({
         {cooking ? (
           <>
             <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            Mise à jour…
+            Ouverture…
           </>
         ) : (
           <>
@@ -59,7 +60,7 @@ export default function RecipePrimaryActions({
         )}
       </Button>
 
-      <Button variant="outline" onClick={onEdit}>
+      <Button variant="outline" onClick={onEdit} disabled={!canEdit}>
         <Edit className="w-4 h-4 mr-2" aria-hidden="true" />
         Modifier
       </Button>

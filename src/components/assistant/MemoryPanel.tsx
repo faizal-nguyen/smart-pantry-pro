@@ -8,9 +8,9 @@
  *
  * Empty states are honest — no fake history when zero memories.
  */
-import React from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Check, Heart, ShieldAlert, X } from 'lucide-react';
+import { BookOpen, Check, ShieldAlert, X } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ const KIND_LABELS: Record<AssistantMemoryKind, string> = {
   negative_preference: 'À éviter',
   habit: 'Habitude',
   cooking_style: 'Cuisine',
-  diet_goal: 'Objectif diet',
+  diet_goal: 'Objectif alimentaire',
   constraint: 'Contrainte',
   recipe_feedback: 'Retour recette',
   shopping_pattern: 'Courses',
@@ -70,7 +70,7 @@ function MemoryRow({
             </Badge>
           )}
         </div>
-        <p className="text-sm text-foreground line-clamp-3">{memory.content}</p>
+        <p className="text-sm text-foreground break-words">{memory.content}</p>
         {isCandidate && isHealthSensitive && (
           <p className="text-xs text-muted-foreground mt-1 italic">
             Cette information sera utilisée pour adapter mes suggestions. Pour un diagnostic ou un
@@ -82,6 +82,7 @@ function MemoryRow({
         {isCandidate && onPromote && (
           <Button
             size="sm"
+            className="min-h-11"
             variant="secondary"
             onClick={() => onPromote(memory.id)}
             disabled={isPromoting}
@@ -94,6 +95,7 @@ function MemoryRow({
         {onForget && (
           <Button
             size="sm"
+            className="min-h-11"
             variant="ghost"
             onClick={() => onForget(memory.id)}
             disabled={isForgetting}
@@ -109,8 +111,20 @@ function MemoryRow({
 }
 
 export default function MemoryPanel() {
-  const { memories, candidates, actives, isLoading, promote, forget, isPromoting, isForgetting } =
+  const { owner, memories, candidates, actives, isLoading, error, refetch, promote, forget, isPromoting, isForgetting } =
     useAssistantMemories();
+  const [actionError,setActionError]=useState<{ owner:string|undefined;message:string }|null>(null);
+  const activeOwner=useRef(owner);
+  activeOwner.current=owner;
+  const act = async (action:(id:string)=>Promise<unknown>,id:string) => {
+    setActionError(null);
+    try { await action(id); }
+    catch (failure) { if (activeOwner.current===owner) setActionError({ owner,message:failure instanceof Error ? failure.message : 'Modification non confirmée. Tu peux réessayer.' }); }
+  };
+
+  if (error) {
+    return <div role="alert" className="space-y-3 rounded-lg border p-4"><p>Impossible de lire les souvenirs pour le moment.</p><Button variant="outline" className="min-h-11" onClick={()=>void refetch()}>Réessayer la lecture de la mémoire</Button></div>;
+  }
 
   if (isLoading) {
     return (
@@ -129,15 +143,16 @@ export default function MemoryPanel() {
   if (memories.length === 0) {
     return (
       <EmptyState
-        icon={Brain}
+        icon={BookOpen}
         title="Pas encore de mémoire"
-        description="Quand tu dis « souviens-toi que… », je garde ça ici. Tu peux toujours corriger ou oublier."
+        description="Les souvenirs enregistrés apparaîtront ici. Tu pourras les consulter, confirmer une proposition ou demander son oubli."
       />
     );
   }
 
   return (
     <div className="space-y-6">
+      {actionError?.owner===owner && actionError && <p role="alert" className="text-sm text-destructive">{actionError.message}</p>}
       {candidates.length > 0 && (
         <Card>
           <CardContent className="p-6">
@@ -145,15 +160,15 @@ export default function MemoryPanel() {
               <ShieldAlert className="h-4 w-4 text-amber-600" />À confirmer ({candidates.length})
             </h3>
             <p className="text-sm text-muted-foreground mb-3">
-              J'ai capté ces infos mais elles sont sensibles ou ambiguës. À toi de valider.
+              Ces souvenirs attendent ta confirmation. Vérifie leur contenu avant de les conserver.
             </p>
             <div className="divide-y divide-border">
               {candidates.map(m => (
                 <MemoryRow
                   key={m.id}
                   memory={m}
-                  onForget={forget}
-                  onPromote={promote}
+                  onForget={id=>void act(forget,id)}
+                  onPromote={id=>void act(promote,id)}
                   isForgetting={isForgetting}
                   isPromoting={isPromoting}
                 />
@@ -167,15 +182,15 @@ export default function MemoryPanel() {
         <Card>
           <CardContent className="p-6">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Heart className="h-4 w-4 text-primary" />
-              Ce que je sais de toi ({actives.length})
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              Souvenirs enregistrés ({actives.length})
             </h3>
             <div className="divide-y divide-border">
               {actives.map(m => (
                 <MemoryRow
                   key={m.id}
                   memory={m}
-                  onForget={forget}
+                  onForget={id=>void act(forget,id)}
                   isForgetting={isForgetting}
                 />
               ))}
