@@ -48,6 +48,7 @@ const PrivacySettingsSchema = z.object({
   consentDate: z.string().datetime().optional(),
   allowAnalytics: z.boolean(),
   saveHistory: z.boolean(),
+  assistantMemoryEnabled: z.boolean(),
   allowImageProcessing: z.boolean(),
   shareAnonymizedData: z.boolean(),
   batterySaver: z.boolean(),
@@ -57,12 +58,13 @@ const PrivacySettingsSchema = z.object({
 
 type PrivacySettings = z.infer<typeof PrivacySettingsSchema>;
 
-const PrivacySettingsPatchSchema = PrivacySettingsSchema.partial();
+const PrivacySettingsPatchSchema = PrivacySettingsSchema.partial().strict();
 
 const DEFAULT_SETTINGS: PrivacySettings = {
   hasConsent: false,
   allowAnalytics: false,
-  saveHistory: true,
+  saveHistory: false,
+  assistantMemoryEnabled: false,
   allowImageProcessing: true,
   shareAnonymizedData: false,
   batterySaver: false,
@@ -119,15 +121,12 @@ export function createSettingsPrivacyRouter(
       // Pas de row encore → renvoyer DEFAULT_SETTINGS. PATCH créera
       // la row via upsert lors du premier toggle.
       const row = data as { settings: unknown; consent_date: string | null } | null;
-      const settings: PrivacySettings = {
-        ...DEFAULT_SETTINGS,
-        ...((row?.settings as Partial<PrivacySettings>) ?? {}),
-      };
+      const settings = PrivacySettingsSchema.parse({ ...DEFAULT_SETTINGS, ...((row?.settings as Partial<PrivacySettings>) ?? {}) });
       if (row?.consent_date) settings.consentDate = row.consent_date;
 
       return ok(res, { settings }, 'OK', 'PRIVACY_SETTINGS_OK');
     } catch (err) {
-      console.error('[settings.privacy.GET] error:', err);
+      console.error('[settings.privacy.GET] failed');
       return fail(res, 'Internal error', 500, 'PRIVACY_READ_FAILED');
     }
   });
@@ -146,42 +145,14 @@ export function createSettingsPrivacyRouter(
       // Cast `any` : voir commentaire GET /privacy plus haut.
       const userClient = req.supabaseClient as unknown as LooseClient;
 
-      // Charge l'existant pour merge partiel (sinon le PATCH écrase
-      // tout via les defaults).
-      const { data: current, error: readErr } = await userClient
-        .from('user_privacy_settings')
-        .select('settings')
-        .eq('user_id', req.user.id)
-        .maybeSingle();
-      if (readErr) throw readErr;
-
-      const currentRow = current as { settings: Partial<PrivacySettings> | null } | null;
-      const merged: PrivacySettings = {
-        ...DEFAULT_SETTINGS,
-        ...(currentRow?.settings ?? {}),
-        ...parsed.data,
-      };
-
-      // Si hasConsent passe à true et c'est la première fois, stamper consent_date.
-      const shouldStampConsent =
-        parsed.data.hasConsent === true && !currentRow?.settings;
-
-      const { error: upsertErr } = await userClient
-        .from('user_privacy_settings')
-        .upsert(
-          {
-            user_id: req.user.id,
-            settings: merged,
-            ...(shouldStampConsent ? { consent_date: new Date().toISOString() } : {}),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' },
-        );
-      if (upsertErr) throw upsertErr;
+      const { data, error } = await userClient.rpc('patch_assistant_privacy_settings', { p_patch: parsed.data });
+      if (error) throw error;
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('PRIVACY_RECEIPT_UNAVAILABLE');
+      const merged = PrivacySettingsSchema.parse({ ...DEFAULT_SETTINGS, ...(data ?? {}) });
 
       return ok(res, { settings: merged }, 'OK', 'PRIVACY_PATCH_OK');
     } catch (err) {
-      console.error('[settings.privacy.PATCH] error:', err);
+      console.error('[settings.privacy.PATCH] failed');
       return fail(res, 'Internal error', 500, 'PRIVACY_PATCH_FAILED');
     }
   });
@@ -200,9 +171,11 @@ export function createSettingsPrivacyRouter(
       if (error) throw error;
       const personalization=await userClient.rpc('export_nutrition_personalization');
       if (personalization.error || !personalization.data) throw new Error('PERSONALIZATION_EXPORT_UNAVAILABLE');
-      return ok(res,{ ...(data ?? {}),personalization:personalization.data },'OK','PRIVACY_EXPORT_OK');
+      const memory = await userClient.rpc('export_assistant_memory');
+      if (memory.error || !memory.data) throw new Error('MEMORY_EXPORT_UNAVAILABLE');
+      return ok(res,{ ...(data ?? {}),personalization:personalization.data,assistant_memory:memory.data },'OK','PRIVACY_EXPORT_OK');
     } catch (err) {
-      console.error('[settings.privacy.export] error:', err);
+      console.error('[settings.privacy.export] failed');
       return fail(res, 'Internal error', 500, 'PRIVACY_EXPORT_FAILED');
     }
   });
@@ -249,7 +222,7 @@ export function createSettingsPrivacyRouter(
         'PRIVACY_DELETE_REQUESTED',
       );
     } catch (err) {
-      console.error('[settings.privacy.delete-request] error:', err);
+      console.error('[settings.privacy.delete-request] failed');
       return fail(res, 'Internal error', 500, 'PRIVACY_DELETE_FAILED');
     }
   });

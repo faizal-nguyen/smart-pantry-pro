@@ -20,6 +20,7 @@ export interface PrivacySettings {
   consentDate?: string;
   allowAnalytics: boolean;
   saveHistory: boolean;
+  assistantMemoryEnabled: boolean;
   allowImageProcessing: boolean;
   shareAnonymizedData: boolean;
   batterySaver: boolean;

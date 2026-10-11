@@ -521,7 +521,7 @@ export class FindCookableRecipesHandler
   ): Promise<ToolExecutionResult<{ recipes: CookableRecipeView[] }>> {
     const result = await (ctx.recommendationEngine ?? new RecommendationEngine()).suggestForUser({
       userId: ctx.userId, userClient: ctx.userClient, memoryService: ctx.memoryService, eventWriter: ctx.eventWriter,
-    }, { almostThreshold: args.max_missing_ingredients ?? 3, timeLimitMinutes:args.max_prep_time, limitPerBucket:20, includeRecentFallback:false });
+    }, { almostThreshold: args.max_missing_ingredients ?? 3, timeLimitMinutes:args.max_prep_time, limitPerBucket:20, includeRecentFallback:false,requestText:ctx.requestText });
     return { result: { recipes: [...result.cookable_now,...result.almost_cookable]
       .slice(0,20) } };
   }
@@ -573,8 +573,8 @@ export class SuggestRecipesForContextHandler
       servings: args.servings,
       almostThreshold: args.almost_threshold,
       limitPerBucket: args.limit_per_bucket,
-      // Free-form conversations do not enter recommendation events.
-      requestText: undefined,
+      // Used for this meal; the writer never stores the raw conversation.
+      requestText: ctx.requestText,
     };
 
     // PRP-226 PR4 — prefer the shared engine + writer from the route

@@ -9,6 +9,7 @@
  *   - searchMessages (ilike escape, ordering, user scoping)
  *   - recordMessage auto-titre on first user turn
  */
+import { clientFixture, policy } from '../__fixtures__/memory.js';
 import { MemoryService, type AssistantConversation } from '../MemoryService.js';
 
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -87,6 +88,7 @@ function makeAdmin(perTable: Record<string, MockConfig>) {
         select(_cols: string) {
           return chain;
         },
+        or(_filter: string) { return chain; },
         eq(col: string, val: unknown) {
           filters[col] = val;
           return chain;
@@ -197,51 +199,17 @@ describe('MemoryService search & conversation patch (PRP-224 PR1)', () => {
     });
   });
 
-  describe('recordMessage auto-title', () => {
-    it('sets title from first user message when conversation has none', async () => {
-      const conv = makeConv({ title: null });
-      // Returns conv on getConversation lookup; the underlying update is captured.
-      const { client, calls } = makeAdmin({
-        assistant_conversations: { selectMaybeSingle: conv, updateResult: { ...conv, title: 'des pâtes ce soir' } },
-        assistant_messages: { insertResult: { id: 'msg-1', conversation_id: CONV, user_id: USER, role: 'user', content: 'des pâtes ce soir', content_format: 'text', audio_transcript: null, tool_calls: [], action_log_ids: [], metadata: {}, created_at: '2026-05-14T10:00:00Z' } },
-      });
-      const svc = new MemoryService(client);
-      await svc.recordMessage(CONV, USER, { role: 'user', content: 'des pâtes ce soir' });
-
-      const titleUpdate = calls.updates.find(
-        u => u.table === 'assistant_conversations' && u.payload.title === 'des pâtes ce soir',
-      );
-      expect(titleUpdate).toBeDefined();
+  describe('guarded message recording', () => {
+    test('history disabled performs no durable message or title write', async () => {
+      const f=clientFixture();const service=new MemoryService(f.client);
+      await expect(service.recordMessage(CONV, USER, { role:'user',content:'Souviens-toi de cette allergie',policy:policy({ userId:USER,saveHistory:false }) })).rejects.toMatchObject({ code:'DISABLED' });
+      expect(f.rpc).not.toHaveBeenCalled();expect(f.calls).toEqual([]);
     });
-
-    it('does NOT override an existing title', async () => {
-      const conv = makeConv({ title: 'Existing title' });
-      const { client, calls } = makeAdmin({
-        assistant_conversations: { selectMaybeSingle: conv },
-        assistant_messages: { insertResult: { id: 'msg-1', conversation_id: CONV, user_id: USER, role: 'user', content: 'second message', content_format: 'text', audio_transcript: null, tool_calls: [], action_log_ids: [], metadata: {}, created_at: '2026-05-14T10:00:00Z' } },
-      });
-      const svc = new MemoryService(client);
-      await svc.recordMessage(CONV, USER, { role: 'user', content: 'second message' });
-
-      const titleUpdate = calls.updates.find(
-        u => u.table === 'assistant_conversations' && 'title' in u.payload,
-      );
-      expect(titleUpdate).toBeUndefined();
-    });
-
-    it('does NOT set title for assistant messages', async () => {
-      const conv = makeConv({ title: null });
-      const { client, calls } = makeAdmin({
-        assistant_conversations: { selectMaybeSingle: conv },
-        assistant_messages: { insertResult: { id: 'msg-1', conversation_id: CONV, user_id: USER, role: 'assistant', content: 'response', content_format: 'text', audio_transcript: null, tool_calls: [], action_log_ids: [], metadata: {}, created_at: '2026-05-14T10:00:00Z' } },
-      });
-      const svc = new MemoryService(client);
-      await svc.recordMessage(CONV, USER, { role: 'assistant', content: 'response' });
-
-      const titleUpdate = calls.updates.find(
-        u => u.table === 'assistant_conversations' && 'title' in u.payload,
-      );
-      expect(titleUpdate).toBeUndefined();
+    test('a recorded message carries the frozen owner/revision without copying its content into a title', async()=>{
+      const f=clientFixture();f.rpc.mockResolvedValueOnce({ data:{ id:CONV,created_at:'2026-10-11T10:00:00Z',role:'user',content:'allergie fictive' },error:null });
+      await new MemoryService(f.client).recordMessage(CONV,USER,{ role:'user',content:'allergie fictive',policy:policy({ userId:USER }) });
+      expect(f.rpc).toHaveBeenCalledWith('persist_assistant_memory_artifact',expect.objectContaining({ p_user_id:USER,p_revision:4,p_kind:'message' }));
+      expect(f.calls.filter(c=>c.method==='update')).toEqual([{ table:'assistant_conversations',method:'update',args:[{last_message_at:'2026-10-11T10:00:00Z'}] }]);
     });
   });
 });

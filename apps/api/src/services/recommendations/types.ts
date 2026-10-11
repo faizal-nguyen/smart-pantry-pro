@@ -139,6 +139,7 @@ export interface RecommendationResult {
   excluded_suggestions?:RecommendedRecipeView[];
   pipeline_version?:number;
   profile_version?:number;
+  memory_revision?:number;
   calculated_at?:string;
   has_constraints?:boolean;
 }

@@ -16,6 +16,7 @@
 import { Router, type Request, type Response } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { MemoryCommandSchema } from '@smart/shared';
 
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
 import { ok, fail } from '../utils/responses.js';
@@ -27,12 +28,10 @@ import {
 import type { Database } from '../types/supabase.js';
 import {
   CreateConversationSchema,
-  CreateMemorySchema,
   ListConversationsQuerySchema,
   ListMemoriesQuerySchema,
   ListMessagesQuerySchema,
   PatchConversationSchema,
-  PatchMemorySchema,
   SearchQuerySchema,
 } from '../services/assistant/schemas/memory.js';
 
@@ -43,7 +42,7 @@ function mapMemoryError(res: Response, err: MemoryServiceError): Response {
       FORBIDDEN: 403,
       QUOTA_EXCEEDED: 409,
       HEALTH_SENSITIVE_REQUIRES_CONFIRMATION: 409,
-      DB_ERROR: 500,
+      DB_ERROR: 500, COMMAND_REQUIRED: 426, VERSION_CONFLICT: 409, IDEMPOTENCY_CONFLICT: 409, DISABLED: 409,
     } as Record<MemoryServiceError['code'], number>
   )[err.code] ?? 500;
   return fail(res, err.message, status, err.code);
@@ -178,65 +177,35 @@ export function createAssistantMemoryRouter(
     }
   });
 
-  router.post('/memories', async (req: Request, res: Response) => {
-    try {
-      const body = CreateMemorySchema.parse(req.body ?? {});
-      const memory = await service.createMemory(req.user.id, {
-        kind: body.kind,
-        content: body.content,
-        normalized_content: body.normalized_content,
-        scope: body.scope,
-        sensitivity: body.sensitivity,
-        source: body.source ?? 'user_explicit',
-        subject_type: body.subject_type ?? null,
-        subject_id: body.subject_id ?? null,
-        confidence: body.confidence,
-        evidence: body.evidence,
-      });
-      return ok(res, { memory }, 'Created', 'ASSISTANT_MEMORY_CREATED', 201);
-    } catch (err) {
-      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
-      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
-      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
-    }
+  router.get('/memory-policy', async (req, res) => {
+    try { return ok(res, { policy: await service.readPolicy(req.user.id) }, 'OK', 'MEMORY_POLICY'); }
+    catch { return fail(res, 'Les autorisations mémoire sont indisponibles.', 503, 'MEMORY_POLICY_UNAVAILABLE'); }
   });
-
-  router.patch('/memories/:id', async (req: Request, res: Response) => {
+  router.get('/memory-commands/:id', async (req, res) => {
     try {
       const { id } = UuidParamsSchema.parse(req.params);
-      const body = PatchMemorySchema.parse(req.body ?? {});
-      const memory = await service.patchMemory(id, req.user.id, body);
-      return ok(res, { memory }, 'Updated', 'ASSISTANT_MEMORY_UPDATED');
+      const receipt = await service.getCommandReceipt(req.user.id, id);
+      return ok(res, { receipt }, 'OK', 'MEMORY_COMMAND_RECEIPT');
     } catch (err) {
-      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
       if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
-      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+      return fail(res, 'Vérification indisponible.', 503, 'MEMORY_VERIFICATION_UNAVAILABLE');
     }
   });
-
-  router.post('/memories/:id/forget', async (req: Request, res: Response) => {
+  router.post('/memory-commands', async (req, res) => {
     try {
-      const { id } = UuidParamsSchema.parse(req.params);
-      const memory = await service.forgetMemory(id, req.user.id);
-      return ok(res, { memory }, 'Forgotten', 'ASSISTANT_MEMORY_FORGOTTEN');
+      const command = MemoryCommandSchema.parse(req.body);
+      const receipt = await service.executeCommand(req.user.id, command, req.supabaseClient as SupabaseClient<Database>);
+      return ok(res, { receipt }, 'OK', 'MEMORY_COMMAND_RESULT');
     } catch (err) {
       if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
       if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
-      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
+      return fail(res, 'Modification indisponible.', 503, 'MEMORY_WRITE_UNAVAILABLE');
     }
   });
-
-  router.post('/memories/:id/promote', async (req: Request, res: Response) => {
-    try {
-      const { id } = UuidParamsSchema.parse(req.params);
-      const memory = await service.promoteCandidate(id, req.user.id);
-      return ok(res, { memory }, 'Promoted', 'ASSISTANT_MEMORY_PROMOTED');
-    } catch (err) {
-      if (err instanceof MemoryServiceError) return mapMemoryError(res, err);
-      if (err instanceof z.ZodError) return fail(res, err.issues, 400, 'VALIDATION');
-      return fail(res, (err as Error).message ?? 'Internal error', 500, 'INTERNAL');
-    }
-  });
+  for (const path of ['/memories', '/memories/:id/forget', '/memories/:id/promote']) {
+    router.post(path, (_req, res) => fail(res, 'Mettez l’application à jour pour modifier la mémoire.', 426, 'COMMAND_REQUIRED'));
+  }
+  router.patch('/memories/:id', (_req, res) => fail(res, 'Une commande versionnée est nécessaire.', 426, 'COMMAND_REQUIRED'));
 
   // ----- PRP-223 PR7 — Cooking journal ----------------------------------
 

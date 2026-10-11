@@ -1,0 +1,12 @@
+{
+  "fictitious": true,
+  "profiles": [{"user_id":"11111111-1111-4111-8111-111111111111","allergies":["cacahuètes"]}],
+  "memories": [
+    {"id":"00000000-0000-4000-8000-000000000001","user_id":"11111111-1111-4111-8111-111111111111","content":"Souviens-toi que je suis allergique aux cacahuètes","kind":"preference","source":"user_explicit","status":"active","version":0},
+    {"id":"00000000-0000-4000-8000-000000000002","user_id":"11111111-1111-4111-8111-111111111111","content":"Souviens-toi que je préfère les plats épicés","kind":"preference","source":"user_explicit","status":"active","version":0},
+    {"id":"00000000-0000-4000-8000-000000000003","user_id":"11111111-1111-4111-8111-111111111111","content":"Je préfère les plats épicés","kind":"preference","source":"assistant_inferred","status":"candidate","version":0},
+    {"id":"00000000-0000-4000-8000-000000000004","user_id":"11111111-1111-4111-8111-111111111111","content":"Finalement je préfère les plats doux","kind":"preference","source":"user_explicit","status":"active","version":0},
+    {"id":"00000000-0000-4000-8000-000000000005","user_id":"11111111-1111-4111-8111-111111111111","content":"J’aime les cacahuètes","kind":"preference","source":"assistant_inferred","status":"candidate","version":0},
+    {"id":"00000000-0000-4000-8000-000000000006","user_id":"22222222-2222-4222-8222-222222222222","content":"Souviens-toi que je préfère les plats épicés","kind":"preference","source":"user_explicit","status":"active","version":0}
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-11",
+  "environment": "Local Chrome, fictitious fixtures; no provider calls",
+  "route": "/settings?section=assistant-memory",
+  "checks": [
+    {
+      "viewport": 375,
+      "theme": "dark",
+      "scenarios": [
+        "Search and correction",
+        "Concurrent edit preserves draft and requires explicit reload",
+        "Lost forgetting reply, verification by durable receipt"
+      ],
+      "dialogBounds": {
+        "left": 16,
+        "right": 353,
+        "width": 337
+      },
+      "horizontalOverflow": false
+    },
+    {
+      "viewport": 440,
+      "theme": "light",
+      "scenarios": [
+        "Distinct rejection",
+        "Disabled memory keeps consultation and forgetting; correction disabled",
+        "History remains enabled independently",
+        "Failed read exposes error and retry, not empty state"
+      ],
+      "scrollWidth": 440,
+      "horizontalOverflow": false
+    }
+  ],
+  "latestConsoleErrors": [],
+  "limits": [
+    "No physical iPhone, Safari or VoiceOver validation",
+    "UI fixture does not prove remote SQL; separate real local PostgreSQL tests cover it"
+  ]
+}

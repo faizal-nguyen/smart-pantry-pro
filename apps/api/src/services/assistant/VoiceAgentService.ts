@@ -27,6 +27,12 @@
  *     "Previous response failed validation" hint (PRP-221 §18 Q4).
  */
 import { createHash, randomUUID } from 'node:crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../../types/supabase.js';
+import { MemoryWriteResultSchema, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
+import { sameMemoryPolicy } from './MemoryPolicy.js';
+import { memoryModelToolResult } from './MemoryModelOutput.js';
+import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
 import { recommendationModelContext,recommendationProfileChanged } from '../recommendations/RecommendationModelContext.js';
 
 import type {
@@ -141,6 +147,8 @@ export interface VoiceAgentRequestInput {
    * that ignore this field simply get a fresh conversation each call.
    */
   conversationId?: string;
+  sessionMessages?: AssistantSessionMessage[];
+  sessionRevision?: number;
 }
 
 export interface ExecutedActionDescriptor {
@@ -187,6 +195,10 @@ export interface AssistantPlanResponse {
    * service (legacy/test paths).
    */
   conversation_id?: string;
+  memory_results?: MemoryWriteResult[];
+  memory_revision?: number;
+  summary_status?: SummaryResult['status'];
+  summary_cost_unknown?: boolean;
 }
 
 export interface ConfirmationInput {
@@ -222,7 +234,7 @@ export interface VoiceAgentOptions {
   contextBuilder?: import('./ContextBuilder.js').ContextBuilder;
   /**
    * PRP-223 PR5 — optional MemoryExtractor (rules V1). When present,
-   * each user turn is scanned async best-effort for memory candidates
+   * each user turn is classified and its necessary writes are awaited
    * and session_context. Failures are logged and never block the
    * assistant response.
    */
@@ -309,9 +321,7 @@ export class VoiceAgentService {
     // the memory layer only when a MemoryService was injected; legacy
     // tests/setups stay untouched.
     let conversationId: string | undefined;
-    if (this.memoryService) {
-      conversationId = await this.resolveConversationId(input);
-    }
+    let requestPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
 
     // 1. Transcript: from Whisper for voice, raw text otherwise.
     let transcript = '';
@@ -360,42 +370,20 @@ export class VoiceAgentService {
       return this.emptyResponse(start, sessionId, transcript, detectedLanguage, conversationId);
     }
 
-    // PRP-223 PR3 — record the user/transcript turn before tool dispatch.
-    // Best-effort: a memory write failure must not break the response
-    // path. Errors are logged and we continue.
-    let userMessageId: string | null = null;
-    if (this.memoryService && conversationId) {
+    if (requestPolicy?.saveHistory) conversationId = await this.resolveConversationId(input);
+
+    // Wait for the exact current-input commands before any claim of saving.
+    const memoryResults = await this.runExtraction({ userId: input.userId, conversationId,
+      text: transcript, source: input.source }, input.clientRequestId, ctx);
+    requestPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
+    if (this.memoryService && conversationId && requestPolicy?.saveHistory) {
       try {
-        const userMsg = await this.memoryService.recordMessage(conversationId, input.userId, {
-          role: 'user',
-          content: transcript,
-          content_format: input.source === 'voice' ? 'transcript' : 'text',
-          audio_transcript: input.source === 'voice' ? transcript : null,
-          metadata: { source: input.source, language: detectedLanguage ?? null },
+        await this.memoryService.recordMessage(conversationId, input.userId, {
+          id: memoryCommandId(input.userId + ':' + conversationId + ':' + input.clientRequestId + ':user'),
+          role: 'user', content: transcript, content_format: input.source === 'voice' ? 'transcript' : 'text',
+          metadata: { source: input.source, language: detectedLanguage ?? null }, policy: requestPolicy,
         });
-        userMessageId = userMsg.id;
-      } catch (err) {
-
-        console.error('[assistant.memory] recordMessage(user) failed.');
-      }
-    }
-
-    // PRP-223 PR5 — async best-effort memory extraction (rules V1).
-    // We schedule the work as a microtask so the LLM round 1 can start
-    // immediately. Failures don't propagate — the assistant response
-    // remains correct even if extraction blows up.
-    if (this.memoryExtractor && this.memoryService) {
-      const extractorInput = {
-        userId: input.userId,
-        conversationId: conversationId ?? null,
-        messageId: userMessageId,
-        text: transcript,
-        source: (input.source === 'voice' ? 'voice' : 'text') as 'voice' | 'text',
-      };
-      // queueMicrotask isn't awaitable, but in tests the call site can
-      // await `service.handleRequest`; extraction will race the
-      // response. That's fine — extraction is non-blocking.
-      void this.runExtractionInBackground(extractorInput);
+      } catch { console.warn('[assistant.memory] user history not saved'); }
     }
 
     // 2. LLM round 1 with tool catalog
@@ -408,9 +396,12 @@ export class VoiceAgentService {
     let systemContent = this.systemPrompt;
     let allowedProfileVersion:number|undefined;
     let profileSnapshotVersion:number|undefined;
+    let contextPolicy: MemoryPolicy | null = null;
+    let lastProviderPolicy: MemoryPolicy | null = null;
     if (this.contextBuilder) {
       try {
         const block = await this.contextBuilder.build(input.userId, conversationId);
+        contextPolicy = block.policy ?? null;
         profileSnapshotVersion=block.profileVersion;
         if (block.shareProfileWithModel) allowedProfileVersion=block.profileVersion;
         if (block.combinedText) {
@@ -422,12 +413,27 @@ export class VoiceAgentService {
       }
     }
 
+    const providerGuard = this.memoryService ? async (messages: AICompletionRequest['messages']) => {
+      const current = await this.memoryService!.readPolicySafe(input.userId);
+      lastProviderPolicy = current;
+      if (sameMemoryPolicy(contextPolicy, current)) return messages;
+      // No old tool result, summary, profile detail or context survives a changed
+      // revision. The current voluntary question can still be answered.
+      allowedProfileVersion = undefined;
+      systemContent = this.systemPrompt;
+      return [{ role: 'system' as const, content: this.systemPrompt }, { role: 'user' as const, content: transcript }];
+    } : undefined;
+
     const aiMessages: AICompletionRequest['messages'] = [
       { role: 'system', content: systemContent },
+      ...(requestPolicy && input.sessionRevision === requestPolicy.revision && !requestPolicy.saveHistory
+        ? (input.sessionMessages ?? []).slice(-8).map(m => ({ role: m.role, content: m.content.slice(0,500) })) : []),
       { role: 'user', content: transcript },
     ];
 
-    const ai1 = await this.callLLMSafe(this.model, aiMessages, tools);
+    let ai1 = await this.callLLMSafe(this.model, aiMessages, tools, providerGuard);
+    if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId)))
+      ai1 = { ...ai1, content: "Vos réglages ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.", tool_calls: [] };
     let llmUsd = this.usdFromUsage(ai1.model || this.model, ai1.usage);
     let activeResponse = ai1;
 
@@ -461,8 +467,12 @@ export class VoiceAgentService {
                 '. Please reformat the call carefully.',
             },
           ];
-          const ai2 = await this.callLLMSafe(this.fallbackModel, retryMessages, tools);
+          const ai2 = await this.callLLMSafe(this.fallbackModel, retryMessages, tools, providerGuard);
           llmUsd += this.usdFromUsage(ai2.model || this.fallbackModel, ai2.usage);
+          if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId))) {
+            activeResponse = { ...ai2, content: 'Vos réglages ont changé pendant cet échange. Relancez votre demande.', tool_calls: [] };
+            break;
+          }
           activeResponse = ai2;
           // Restart the loop with the retried tool_calls (only the failed
           // step; previously executed steps stay).
@@ -493,7 +503,8 @@ export class VoiceAgentService {
           stepSeq,
           audioSha256: input.audioSha256 ?? null,
           tool: tc.name,
-          toolArgs: parsedArgs as Record<string, unknown>,
+          toolArgs: ['remember_preference','update_response_style','read_user_memories','search_conversation_history'].includes(tc.name)
+            ? { memory_command: true } : parsedArgs as Record<string, unknown>,
           riskTier: risk.tier,
           reversible: spec.reversible,
           llmModel: activeResponse.model || this.model,
@@ -521,7 +532,9 @@ export class VoiceAgentService {
             parsedArgs,
           );
           await this.writer.markExecuted(planned.id, {
-            result: exec.result as Record<string, unknown>,
+            result: ['read_user_memories','search_conversation_history'].includes(tc.name)
+              ? { status: 'read', count: Array.isArray((exec.result as Record<string, unknown>)?.memories) ? ((exec.result as Record<string, unknown>).memories as unknown[]).length : 0 }
+              : exec.result as Record<string, unknown>,
             reversibleAction: spec.reversible
               ? exec.reversibleAction ?? null
               : undefined,
@@ -616,12 +629,13 @@ export class VoiceAgentService {
       (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>recommendationModelContext(action.result,allowedProfileVersion)!==null))
     ) {
       try {
+        const currentPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const summaryParts = executed.map(a => {
-          const recommendationContext=recommendationModelContext(a.result,allowedProfileVersion);
-          const result = recommendationContext!==null ? JSON.stringify(recommendationContext) : typeof a.result === 'string'
-            ? a.result
-            : JSON.stringify(a.result).slice(0, 1500);
-          return `• ${a.tool}(${JSON.stringify(a.args).slice(0, 200)}) → ${result}`;
+          const result = this.memoryService ? memoryModelToolResult(a.tool, a.result,
+            sameMemoryPolicy(contextPolicy, currentPolicy) ? currentPolicy : null)
+            : recommendationModelContext(a.result, allowedProfileVersion) ?? a.result;
+          // Tool arguments can contain private preferences. Results are enough.
+          return '• ' + a.tool + ' → ' + JSON.stringify(result).slice(0, 1500);
         });
 
         // PRP-239 PR4 §10.3 — escalate to the quality model when a
@@ -665,6 +679,7 @@ export class VoiceAgentService {
               synthesisModel,
               synthesisMessages,
               (delta) => onProgress?.({ type: 'delta', text: delta }),
+              providerGuard,
             );
           } catch (err) {
             // Graceful degradation — if streaming throws (e.g. the
@@ -673,10 +688,10 @@ export class VoiceAgentService {
             // we never lose the synthesis to a transient stream error.
 
             console.warn('[assistant.chef.stream] falling back to non-stream.');
-            synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+            synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, [], providerGuard);
           }
         } else {
-          synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, []);
+          synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, [], providerGuard);
         }
         llmUsd += this.usdFromUsage(synthesis.model || synthesisModel, synthesis.usage);
         if (synthesis.content && synthesis.content.trim()) {
@@ -718,10 +733,20 @@ export class VoiceAgentService {
     }
 
     // 5. Build user-facing message
-    const message =
+    let message =
       activeResponse.content && activeResponse.content.trim().length > 0
         ? activeResponse.content.trim()
         : synthesizeMessage(executed, pending);
+
+    for (const action of executed) {
+      const result = MemoryWriteResultSchema.safeParse(action.result);
+      if (result.success && !memoryResults.some(r => r.command_id === result.data.command_id)) memoryResults.push(result.data);
+    }
+    const memoryOnly = memoryResults.length > 0 && executed.every(a => ['remember_preference','forget_memory','update_response_style'].includes(a.tool)) && pending.length === 0;
+    if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
+    const currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
+    const canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
+    if (!canRecordResponse && !memoryOnly) message = 'Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
 
     // PRP-223 PR3 — record the assistant turn. Aggregate the action_log
     // ids on the assistant message so the chat history can link back to
@@ -732,7 +757,7 @@ export class VoiceAgentService {
     // proposals into metadata.recipe_proposals so reload of historical
     // conversations re-renders the clickable cards instead of losing
     // them when the live response goes out of scope.
-    if (this.memoryService && conversationId) {
+    if (this.memoryService && conversationId && canRecordResponse && lastProviderPolicy?.saveHistory) {
       try {
         const actionLogIds = [
           ...executed.map(e => e.action_id),
@@ -746,8 +771,10 @@ export class VoiceAgentService {
           messageMetadata.recipe_proposals = recipeProposals;
         }
         await this.memoryService.recordMessage(conversationId, input.userId, {
+          id: memoryCommandId(input.userId + ':' + conversationId + ':' + input.clientRequestId + ':assistant'),
           role: 'assistant',
           content: message,
+          policy: lastProviderPolicy!,
           content_format: 'text',
           tool_calls: toolCalls.map(tc => ({ name: tc.name })),
           action_log_ids: actionLogIds,
@@ -759,6 +786,12 @@ export class VoiceAgentService {
       }
     }
 
+    let summaryResult: SummaryResult = { status: 'disabled', costUsd: 0 };
+    if (this.memoryService && conversationId && canRecordResponse && lastProviderPolicy?.saveHistory) {
+      summaryResult = await new ConversationSummaryService(this.memoryService, this.ai)
+        .maintain(input.userId, conversationId, lastProviderPolicy);
+      llmUsd += summaryResult.costUsd;
+    }
     return {
       session_id: sessionId,
       transcript,
@@ -775,6 +808,7 @@ export class VoiceAgentService {
       model_used: activeResponse.model || this.model,
       duration_ms: Date.now() - start,
       conversation_id: conversationId,
+      memory_results: memoryResults, memory_revision: currentAfterProvider?.revision, summary_status: summaryResult.status, summary_cost_unknown: summaryResult.costUnknown,
     };
   }
 
@@ -783,34 +817,29 @@ export class VoiceAgentService {
    * candidates via MemoryService. Always best-effort: nothing here can
    * propagate up to the assistant response.
    */
-  private async runExtractionInBackground(
-    input: import('./MemoryExtractor.js').MemoryExtractionInput,
-  ): Promise<void> {
-    if (!this.memoryExtractor || !this.memoryService) return;
-    try {
-      const results = this.memoryExtractor.extract(input);
-      for (const r of results) {
-        try {
-          if (r.kind === 'memory') {
-            await this.memoryService.createMemory(input.userId, r.candidate);
-          } else if (r.kind === 'session') {
-            await this.memoryService.setSessionContext(
-              input.userId,
-              r.candidate.key,
-              r.candidate.value,
-              new Date(Date.now() + r.candidate.ttlMs),
-              { conversationId: input.conversationId ?? undefined },
-            );
-          }
-        } catch (e) {
-
-          console.warn('[assistant.extractor] persist failed.');
-        }
+  private async runExtraction(input: import('./MemoryExtractor.js').MemoryExtractionInput,
+    requestId: string, ctx: ToolExecutionContext): Promise<MemoryWriteResult[]> {
+    if (!this.memoryExtractor || !this.memoryService) return [];
+    const receipts: MemoryWriteResult[] = [];
+    for (const result of this.memoryExtractor.extract(input)) {
+      if (result.kind === 'session') {
+        if (input.conversationId) try {
+          await this.memoryService.setSessionContext(input.userId, result.candidate.key, result.candidate.value,
+            new Date(Date.now() + result.candidate.ttlMs), { conversationId: input.conversationId });
+        } catch { /* the current utterance still supplies the temporary request */ }
+        continue;
       }
-    } catch (err) {
-
-      console.error('[assistant.extractor] run failed.');
+      const candidate = result.candidate;
+      const commandId = memoryCommandId(input.userId + ':' + requestId + ':' + candidate.fact.semanticSubject);
+      try {
+        receipts.push(await this.memoryService.saveExtractedFact(input.userId, commandId, candidate.content,
+          candidate.kind, candidate.source, ctx.userClient as SupabaseClient<Database>, input.source === 'voice' ? 'voice' : 'text'));
+      } catch {
+        receipts.push({ command_id: commandId, operation: 'save', status: 'not_saved', memory_id: null,
+          version: null, destination: candidate.fact.destination, policy_revision: 0, profile_version: null, reason: 'permissions_or_write_unavailable' });
+      }
     }
+    return receipts;
   }
 
   /**
@@ -825,7 +854,7 @@ export class VoiceAgentService {
     if (input.conversationId) {
       try {
         const existing = await this.memoryService.getConversation(input.conversationId, input.userId);
-        return existing.id;
+        if (existing.status !== 'deleted') return existing.id;
       } catch (err) {
 
         console.warn('[assistant.memory] getConversation failed, opening new one.');
@@ -964,12 +993,13 @@ export class VoiceAgentService {
   private async callLLMSafe(
     model: string,
     messages: AICompletionRequest['messages'],
-    tools: AICompletionRequest['tools']
+    tools: AICompletionRequest['tools'],
+    guard?: (messages: AICompletionRequest['messages']) => Promise<AICompletionRequest['messages']>
   ): Promise<AICompletionResponse> {
     try {
       return await this.ai.complete({
         model,
-        messages,
+        messages: guard ? await guard(messages) : messages,
         temperature: 0.2,
         max_tokens: 1500,
         tools,
@@ -997,6 +1027,7 @@ export class VoiceAgentService {
     model: string,
     messages: AICompletionRequest['messages'],
     onDelta: (text: string) => void,
+    guard?: (messages: AICompletionRequest['messages']) => Promise<AICompletionRequest['messages']>,
   ): Promise<AICompletionResponse> {
     if (!this.ai.completeStream) {
       throw new Error('STREAM_NOT_SUPPORTED');
@@ -1004,7 +1035,7 @@ export class VoiceAgentService {
     try {
       const stream = this.ai.completeStream({
         model,
-        messages,
+        messages: guard ? await guard(messages) : messages,
         temperature: 0.2,
         max_tokens: 1500,
       });
@@ -1233,4 +1264,21 @@ export function extractRecipeProposalsFromExecuted(
     return null;
   }
   return buckets;
+}
+
+function memoryCommandId(value: string): string {
+  const hex = createHash('sha256').update(value).digest('hex').slice(0, 32);
+  return hex.slice(0,8) + '-' + hex.slice(8,12) + '-4' + hex.slice(13,16) + '-8' + hex.slice(17,20) + '-' + hex.slice(20);
+}
+function memoryResultNotice(result: MemoryWriteResult): string {
+  if (result.status === 'verification_required') return 'Enregistrement à vérifier dans Ma mémoire. Réessayez avec la même commande après vérification.';
+  if (result.status === 'disabled') return 'La mémoire est désactivée. Vous pouvez l’activer dans Réglages → Ma mémoire.';
+  if (result.status === 'awaiting_confirmation') return result.destination === 'profile'
+    ? 'Proposition enregistrée. Confirmez le changement dans Ma mémoire ou dans votre profil alimentaire.'
+    : 'Préférence proposée dans Ma mémoire, à confirmer.';
+  if (result.status === 'not_saved') return 'La préférence n’a pas été enregistrée. Votre demande reste utilisable pour cet échange.';
+  if (result.operation === 'forget') return result.destination === 'profile'
+    ? 'Référence oubliée. Le réglage confirmé reste dans votre profil alimentaire.' : 'Souvenir oublié.';
+  if (result.operation === 'reject') return 'Proposition rejetée.';
+  return result.destination === 'profile' ? 'Profil alimentaire mis à jour.' : result.operation === 'correct' ? 'Souvenir corrigé.' : 'Préférence retenue.';
 }

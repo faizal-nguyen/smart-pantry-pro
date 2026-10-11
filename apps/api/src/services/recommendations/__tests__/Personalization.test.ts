@@ -58,7 +58,7 @@ describe('V10-03 hard constraints on ingredients and provenance',()=>{
     expect(legacyServerProfile({ dietary_restrictions:['Végétarien','sans gluten'] }).diets).toEqual(['vegetarian','gluten_free']);
   });
   test('an old assistant inference is not consulted to relax an explicit allergy',async()=>{
-    const memory={ getPreferenceSignals:jest.fn().mockResolvedValue({ likes:['Beurre'] }),getTopActiveMemories:jest.fn() };
+    const memory={ readPolicySafe:jest.fn().mockResolvedValue(null),getPreferenceSignals:jest.fn().mockResolvedValue({ likes:['Beurre'] }),getTopActiveMemories:jest.fn() };
     const result=await suggest({ nutrition_profiles:stored(profile({ allergies:['lait'] })),recipes:[recipe('r','Sans lait','Beurre')],inventory:[lot('r')] },{}, { memoryService:memory as unknown as MemoryService });
     expect(result.cookable_now).toEqual([]);expect(result.excluded_suggestions![0].constraints.status).toBe('incompatible');
     expect(memory.getPreferenceSignals).not.toHaveBeenCalled();

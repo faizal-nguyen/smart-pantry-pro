@@ -7,6 +7,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { ContextBuilder } from '../ContextBuilder.js';
+import { MemoryExtractor } from '../MemoryExtractor.js';
+import type { MemoryService } from '../MemoryService.js';
+import { policy as memoryPolicy,receipt as memoryReceipt,message as memoryMessage,CONV } from '../__fixtures__/memory.js';
 
 import { ConfirmationTokenSigner } from '../ConfirmationTokenSigner.js';
 import { ToolRegistry } from '../ToolRegistry.js';
@@ -18,7 +21,7 @@ import {
 import { VoiceAgentService, VoiceAgentError } from '../VoiceAgentService.js';
 import type { AICompletionClient,AICompletionRequest } from '../../imports/RecipeExtractionService.js';
 import type { WhisperClient } from '../../media/WhisperTranscriber.js';
-import type { ActionLogRow } from '../ActionLogWriter.js';
+import type { ActionLogRow, ActionLogWriter } from '../ActionLogWriter.js';
 
 const SECRET = 'a'.repeat(64);
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -723,6 +726,8 @@ class StubMemoryService {
   createCalls = 0;
   failNext = false;
 
+  async readPolicySafe(userId: string) { return { userId, revision:0, memoryEnabled:false, saveHistory:true, shareProfile:false, profileVersion:0 }; }
+  async modelArtifacts() { return { messages:[],summary:null,session:[],privateTerms:[] }; }
   async createConversation(userId: string) {
     this.createCalls += 1;
     if (this.failNext) {
@@ -900,5 +905,52 @@ describe('VoiceAgentService memory integration (PRP-223 PR3)', () => {
     expect(assistantMsg).toBeDefined();
     expect(assistantMsg!.action_log_ids.length).toBeGreaterThan(0);
     expect(assistantMsg!.action_log_ids[0]).toBe(res.actions_executed[0]?.action_id);
+  });
+});
+
+describe('V10-03C provider and write boundaries',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Souviens-toi que je préfère les plats épicés'};
+  function serviceFor(memory:unknown,ai:AICompletionClient,context:ContextBuilder,handlers:Record<string,ToolHandler>={}) {
+    const registry=new ToolHandlerRegistry();for(const [name,handler] of Object.entries(handlers)) registry.register(name,handler);
+    return new VoiceAgentService(ai,mockWhisper,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
+      {memoryService:memory as MemoryService,memoryExtractor:new MemoryExtractor(),contextBuilder:context});
+  }
+  it('waits for the memory write before dispatch, and qualifies an uncertain result instead of claiming saved',async()=>{
+    let finish:(v:ReturnType<typeof memoryReceipt>)=>void=()=>{};
+    const write=jest.fn(()=>new Promise<ReturnType<typeof memoryReceipt>>(resolve=>{finish=resolve;}));
+    const p=memoryPolicy({userId:USER,saveHistory:false});
+    const memory={readPolicySafe:async()=>p,saveExtractedFact:write};
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>({content:'Bien retenu.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}}))};
+    const context={build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder;
+    const pending=serviceFor(memory,ai,context).handleRequest(input,makeCtx());
+    await new Promise(resolve=>setTimeout(resolve,0));expect(write).toHaveBeenCalledTimes(1);expect(ai.complete).not.toHaveBeenCalled();
+    finish(memoryReceipt({status:'verification_required'}));const result=await pending;
+    expect(result.memory_results?.[0].status).toBe('verification_required');expect(result.message).not.toContain('Bien retenu');expect(result.message).toMatch(/vérifi/i);
+  });
+  it('revocation before dispatch removes old stored context but keeps the voluntary current question',async()=>{
+    const old=memoryPolicy({userId:USER,saveHistory:false});let current=old;
+    const memory={readPolicySafe:async()=>current};
+    const context={build:async()=>{current={...old,revision:5,memoryEnabled:false};return {policy:old,combinedText:'SECRET_STORED_PREFERENCE'};}} as unknown as ContextBuilder;
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>({content:'Une réponse',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}}))};
+    await serviceFor(memory,ai,context).handleRequest({...input,text:'Comment cuire une soupe ?'},makeCtx());
+    expect(JSON.stringify(ai.complete.mock.calls[0][0].messages)).not.toContain('SECRET_STORED');expect(ai.complete.mock.calls[0][0].messages.slice(-1)[0]?.content).toBe('Comment cuire une soupe ?');
+  });
+  it('revocation during a provider call discards old tool requests before any execution',async()=>{
+    const old=memoryPolicy({userId:USER,saveHistory:false});let current=old;const handler={execute:jest.fn(async()=>({result:{items:[]}}))};
+    const ai={complete:async(req:AICompletionRequest)=>{current={...old,revision:5,memoryEnabled:false};return {content:'',model:req.model,usage:{prompt_tokens:10,completion_tokens:10},tool_calls:[{id:'tool-one',name:'read_inventory',arguments:'{}'}]};}};
+    const memory={readPolicySafe:async()=>current};const context={build:async()=>({policy:old,combinedText:''})} as unknown as ContextBuilder;
+    const result=await serviceFor(memory,ai,context,{read_inventory:handler}).handleRequest({...input,text:'Que reste-t-il ?'},makeCtx());
+    expect(handler.execute).not.toHaveBeenCalled();expect(result.message).toMatch(/réglages.*ont changé/);
+  });
+  it('the live orchestrator actually awaits summary generation and persistence at the threshold',async()=>{
+    const p=memoryPolicy({userId:USER,revision:0});const memory=new StubMemoryService();memory.conversations.set(CONV,{id:CONV,user_id:USER});
+    memory.readPolicySafe=async()=>p;
+    memory.modelArtifacts=async()=>({messages:Array.from({length:20},(_,i)=>memoryMessage({id:`00000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`,user_id:USER,conversation_id:CONV,policy_revision:0})),summary:null,session:[],privateTerms:[]});
+    const persist=jest.fn(async()=>({claimed:true}));const record=jest.fn(async()=>({id:'summary-saved'}));
+    const serviceMemory=Object.assign(memory,{persistArtifact:persist,recordSummary:record});
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>({content:req.max_tokens===320 ? 'Une soupe choisie. Cuisson à vérifier.' : 'Cuire la soupe doucement.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}}))};
+    const context={build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder;
+    const result=await serviceFor(serviceMemory,ai,context).handleRequest({...input,text:'Comment cuire la soupe ?',conversationId:CONV},makeCtx());
+    expect(ai.complete).toHaveBeenCalledTimes(2);expect(persist).toHaveBeenCalled();expect(record).toHaveBeenCalled();expect(result.summary_status).toBe('saved');
   });
 });

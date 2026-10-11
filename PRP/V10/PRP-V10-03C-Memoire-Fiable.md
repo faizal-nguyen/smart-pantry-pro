@@ -1,12 +1,13 @@
 # PRP V10-03C — Mémoire fiable de l'assistant
 
-> Statut : spécification rédigée ; réalisation non commencée.
+> Statut : C0–C4 implémentés et validés localement le 2026-10-11 ; C5 local réalisé, homologation distante et iPhone à faire.
 > Date : 2026-10-09.
 > Priorité : P1 pour classification, partage et gestion ; P2 pour les résumés entretenus.
 > Dépendances : profil et feedback de [V10-03](PRP-V10-03-Personnalisation.md), commandes de [V10-01](PRP-V10-01-Fiabilite.md), interfaces de [V10-02](PRP-V10-02-Routine-Mobile.md).
 > Coordination : vocabulaire et accès de [V10-03B](PRP-V10-03B-Design-Culinaire.md) ; politique utilisée par [V10-03D](PRP-V10-03D-Agent-Modeles.md) et [V10-03E](PRP-V10-03E-Voix-Cuisine.md).
 > Source : [audit du 9 octobre](../../docs/AUDIT-DESIGN-MEMOIRE-VOIX-2026-10-09.md), M01 à M05 ; référence locale `dda2602`.
 > Estimation indicative : 6 à 10 jours, à réviser après inventaire des droits, données historiques et réglages actifs.
+> Livraison locale : [rapport d'implémentation, preuves et limites](../../docs/audits/2026-10-11-v10-03c/IMPLEMENTATION.md), [contrats](../../docs/audits/2026-10-11-v10-03c/CONTRATS.md).
 
 ## 1. Besoin confirmé et résultat attendu
 
@@ -199,16 +200,16 @@ npm run build
 
 Étendre les sélections de tests avec les nouveaux modules. Les tests de résumé utilisent un fournisseur simulé ; les essais facturés éventuels sont séparés, bornés et consignés.
 
-- [ ] Une préférence explicite a une destination et un effet démontrable.
-- [ ] Les deux phrases de reproduction M02 ne produisent ni doublon actif ni contrainte sensible ordinaire.
-- [ ] Profil, souvenirs, contexte temporaire et feedback restent distincts et cohérents.
-- [ ] Contexte, tools, historique, résumés et synthèse appliquent la même politique.
-- [ ] Désactivation, révocation et panne de réglages ont les effets documentés.
-- [ ] « Retenu », « corrigé » et « oublié » correspondent à des résultats persistés vérifiables.
-- [ ] Correction, conflit, erreur et oubli sont utilisables sur deux clients.
-- [ ] Une longue conversation utilise un résumé réellement entretenu, avec couverture et budget.
-- [ ] Un fait oublié ne réapparaît pas par un ancien résumé ou une nouvelle extraction de l'historique.
-- [ ] Isolation, grants, concurrence, export/suppression et migration sont éprouvés sur un environnement identifié.
+- [x] Une préférence explicite a une destination et un effet démontrable dans le pipeline local testé.
+- [x] Les deux phrases de reproduction M02 ne produisent ni doublon actif ni contrainte sensible ordinaire.
+- [x] Profil, souvenirs, contexte temporaire et feedback restent distincts et cohérents.
+- [x] Contexte, tools, historique, résumés et synthèse appliquent la même politique.
+- [x] Désactivation, révocation et panne de réglages ont les effets documentés et testés localement.
+- [x] « Retenu », « corrigé » et « oublié » correspondent à des résultats persistés vérifiables dans le harnais SQL réel.
+- [x] Correction, conflit, erreur et oubli : commandes concurrentes SQL et parcours navigateur local vérifiés ; deux clients distants restent à homologuer.
+- [x] Une longue conversation utilise un résumé réellement appelé et attendu, avec couverture et budget ; fournisseur simulé dans les tests.
+- [x] Un fait oublié ne réapparaît pas par un ancien résumé ou une nouvelle extraction de l'historique dans les scénarios testés.
+- [x] Isolation, grants, concurrence, export/suppression et migration sont éprouvés sur PostgreSQL 16 local jetable avec deux propriétaires fictifs.
 - [ ] SHA, tests, migrations appliquées et essai matériel sont consignés séparément.
 
 ## 13. Retour arrière et références

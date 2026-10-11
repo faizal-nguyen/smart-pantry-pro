@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
+import { classifyMemoryFact,mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
@@ -7,6 +7,8 @@ import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
 import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
 import { qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
 import { evaluateRecipe } from './RecipeEvaluation.js';
+import { scoreMemoryTaste } from './MemoryTasteScoring.js';
+import { sameMemoryPolicy } from '../assistant/MemoryPolicy.js';
 import type { RecommendationContext,RecommendationResult,RecipeWithIngredients,RecommendedRecipeView,RecommendationScoreParts } from './types.js';
 
 export interface RecommendationExecutionContext {
@@ -34,7 +36,31 @@ export class RecommendationEngine {
 
   async suggestForUser(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecommendationResult> {
     const { profile,legacyServerPresent }=await new NutritionProfileService(ctx.userClient).read(ctx.userId);
+    const memoryPolicy = ctx.memoryService ? await ctx.memoryService.readPolicySafe(ctx.userId) : null;
+    let memoryTaste: 'spicy' | 'mild' | null = null;
+    let memoryBasis: unknown[] = [];
+    if (memoryPolicy?.memoryEnabled && ctx.memoryService) try {
+      const rows = await ctx.memoryService.modelMemories(ctx.userId, memoryPolicy, 200, 'deterministic');
+      const taste = rows.find(m => (m.payload as { type?: string })?.type === 'taste');
+      if (taste?.payload && 'value' in taste.payload && (taste.payload.value === 'spicy' || taste.payload.value === 'mild')) memoryTaste = taste.payload.value;
+      memoryBasis = rows.map(m => ({ id: m.id, version: m.version, payload: m.payload }));
+    } catch { /* Unknown authorization/data stays neutral. */ }
+    const temporary = input.requestText ?? input.query ?? '';
+    const temporaryTaste = /ce soir|ce midi|pour ce repas|aujourd/iu.test(temporary) && /pas [eé]pic|doux|pas piquant/iu.test(temporary);
+    if (temporaryTaste) {
+      memoryTaste = 'mild'; memoryBasis = [{ temporary: 'mild' }];
+    }
     const now=ctx.now ?? new Date(),settings={ ...profile.settings,diets:[...profile.settings.diets] };
+    const currentFact = classifyMemoryFact(temporary);
+    const requestConstraint = currentFact?.payload.type === 'profile' &&
+      ['allergies','excludedIngredients','diets'].includes(currentFact.payload.field ?? '') && Array.isArray(currentFact.payload.value)
+      ? currentFact.payload : null;
+    if (requestConstraint) {
+      const field = requestConstraint.field as 'allergies' | 'excludedIngredients' | 'diets';
+      const values = [...new Set([...settings[field], ...(requestConstraint.value as string[])])];
+      if (field === 'diets') settings.diets = values as typeof settings.diets;
+      else settings[field] = values;
+    }
     if (input.dietaryFlag==='vegetarien' && !settings.diets.includes('vegetarian')) settings.diets.push('vegetarian');
     if (input.dietaryFlag==='vegan' && !settings.diets.includes('vegan')) settings.diets.push('vegan');
     const [recipes,lots,interactions,history]=await Promise.all([this.loadRecipes(ctx,input),this.loadInventory(ctx),this.loadInteractions(ctx),this.loadHistory(ctx)]);
@@ -43,9 +69,12 @@ export class RecommendationEngine {
     const stockVersion=stockFingerprint(lots);
     // Read authoritative inputs before cache: profile, date, edited recipes, product
     // provenance, feedback and cooked history all participate, even on direct writes.
-    const key='v10-03a:'+fingerprint({ owner:ctx.userId,profile,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
+    const key='v10-03c:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
-      try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) return cached.hit.result; } catch { /* Fresh computation remains authoritative. */ }
+      try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) {
+        if (!ctx.memoryService || sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId))) return cached.hit.result;
+        return this.suggestForUser({ ...ctx, memoryService: undefined }, input);
+      } } catch { /* Fresh computation remains authoritative. */ }
     }
     const limit=Math.min(20,input.limitPerBucket ?? 3),threshold=input.almostThreshold ?? 3;
     const effectiveTime=input.timeLimitMinutes ?? settings.usualTimeMinutes ?? (input.goal==='quick' || settings.goals.includes('quick') ? 20 : undefined);
@@ -55,6 +84,7 @@ export class RecommendationEngine {
       const evaluation=evaluateRecipe(recipe,{ profile,settings,legacyServerPresent,lots,products,servings,stockVersion,now });
       const { duration_minutes:minutes,constraints,availability,nutrition }=evaluation;
       const taste=scoreExplicitTaste(recipe,settings);
+      const rememberedTaste = scoreMemoryTaste(recipe, memoryTaste, temporaryTaste);
       const reasons:RecommendationReason[]=[],unavailable:string[]=[];
       const essential=(recipe.recipe_ingredients ?? []).filter(item=>item.is_essential!==false);
       const gaps=availability.missing.filter(item=>item.is_essential),unknown=gaps.filter(item=>['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason));
@@ -69,7 +99,8 @@ export class RecommendationEngine {
       if (minutes===null) { unavailable.push('time');reasons.push({ code:'TIME_UNKNOWN',text:'Durée totale à vérifier.' }); }
       else if (effectiveTime && minutes<=effectiveTime) reasons.push({ code:'TIME_FITS',text:`Durée enregistrée ${minutes} min, dans les ${effectiveTime} min disponibles.` });
       for (const text of taste.reasons) reasons.push({ code:'DECLARED_TASTE',text });
-      if (!taste.available) unavailable.push('taste');
+      if (rememberedTaste.reason) reasons.push({ code:'DECLARED_TASTE',text:rememberedTaste.reason });
+      if (!taste.available && !rememberedTaste.available) unavailable.push('taste');
       const matching=(interactions ?? []).filter(item=>(item.recipe_reference ? item.recipe_reference.id===recipe.id && item.recipe_reference.source===(recipe.source ?? 'recipes') : recipe.source==='recipes' && item.recipe_id===recipe.id));
       const latest=matching.find(item=>!!item.feedback);
       const daysAgo=latest ? Math.max(0,(now.getTime()-new Date(latest.created_at).getTime())/86400000) : Infinity;
@@ -93,7 +124,7 @@ export class RecommendationEngine {
       if (interactions===null) { unavailable.push('feedback');availability.uncertainties.push('Vos retours précédents ne peuvent pas être vérifiés.'); }
       const vegetables=vegetableCriterion(recipe);
       if (settings.goals.includes('vegetables')) reasons.push({ code:'KNOWN_VEGETABLES',text:vegetables.names.length ? `Contient ${vegetables.names.length} légume(s) identifié(s) dans les ingrédients : ${vegetables.names.join(', ')}.` : 'Aucun légume identifié dans la liste connue ; aucun apport végétal inventé.' });
-      const parts:RecommendationScoreParts={ cookability:stockScore,expiryUrgency:expiry,preferenceMatch:Math.max(-1,Math.min(1,taste.score+feedbackScore)),timeFit:minutes===null ? 0 : effectiveTime ? clamp(1-minutes/(effectiveTime*2)) : clamp(1-minutes/180),novelty,nutritionFit,effortFit:effort,missingPenalty:threshold>0 ? Math.min(1,gaps.length/threshold) : gaps.length ? 1 : 0 };
+      const parts:RecommendationScoreParts={ cookability:stockScore,expiryUrgency:expiry,preferenceMatch:Math.max(-1,Math.min(1,taste.score+rememberedTaste.score+feedbackScore)),timeFit:minutes===null ? 0 : effectiveTime ? clamp(1-minutes/(effectiveTime*2)) : clamp(1-minutes/180),novelty,nutritionFit,effortFit:effort,missingPenalty:threshold>0 ? Math.min(1,gaps.length/threshold) : gaps.length ? 1 : 0 };
       // Inactive goals remove an axis for every candidate. A missing value on an
       // active axis contributes zero, so incomplete data cannot gain a bonus.
       const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein';
@@ -126,11 +157,13 @@ export class RecommendationEngine {
     for (const bucket of [cookable,almost,verify,excluded,recent]) bucket.sort(sort);
     const selected=new Set([...cookable,...almost].sort(sort).slice(0,limit).map(recipe=>`${recipe.reference.source}:${recipe.id}`));
     const result:RecommendationResult={ cookable_now:cookable.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),almost_cookable:almost.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),recent_suggestions:input.includeRecentFallback===false ? [] : recent.slice(0,limit).map(recipe=>({ ...recipe,description:recipe.description ?? null,servings:recipe.servings ?? null,cuisine_category:recipe.cuisine_category ?? null,meal_type:recipe.meal_type ?? null,tags:recipe.tags ?? null })),
-      verify_suggestions:verify.slice(0,limit),excluded_suggestions:excluded.slice(0,limit),total_user_recipes:recipes.length,pipeline_version:3,profile_version:profile.version,calculated_at:now.toISOString(),has_constraints:settings.allergies.length+settings.diets.length+settings.excludedIngredients.length>0 };
+      verify_suggestions:verify.slice(0,limit),excluded_suggestions:excluded.slice(0,limit),total_user_recipes:recipes.length,pipeline_version:3,profile_version:profile.version,memory_revision:memoryPolicy?.revision,calculated_at:now.toISOString(),has_constraints:settings.allergies.length+settings.diets.length+settings.excludedIngredients.length>0 };
+    if (ctx.memoryService && !sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId)))
+      return this.suggestForUser({ ...ctx, memoryService: undefined }, input);
     // No sensitive input or raw conversation goes into ordinary recommendation events.
     if (ctx.eventWriter) {
       try { result.event_id=await ctx.eventWriter.recordEvent({ userId:ctx.userId,conversationId:ctx.conversationId ?? null,assistantMessageId:ctx.assistantMessageId ?? null,requestText:null,context:input,result }); } catch { /* Optional event receipt; no false domain success. */ }
-      try { await ctx.eventWriter.writeCache({ userId:ctx.userId,cacheKey:key,payload:result }); } catch { /* Computed result remains valid. */ }
+      if (!requestConstraint && !temporaryTaste) try { await ctx.eventWriter.writeCache({ userId:ctx.userId,cacheKey:key,payload:result }); } catch { /* Computed result remains valid. */ }
     }
     return result;
   }

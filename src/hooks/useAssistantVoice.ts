@@ -44,6 +44,7 @@ export interface UseAssistantVoiceOptions {
    * paths. Return `undefined` to start a fresh conversation server-side.
    */
   getConversationId?: () => string | undefined;
+  getSessionContext?: () => { sessionMessages?: import('@smart/shared').AssistantSessionMessage[]; sessionRevision?: number };
 }
 
 export interface UseAssistantVoiceReturn {
@@ -81,7 +82,7 @@ function pickSupportedMime(): string | null {
 export function useAssistantVoice(
   options: UseAssistantVoiceOptions = {}
 ): UseAssistantVoiceReturn {
-  const { language, allowedTools, maxRecordingMs = 60_000, getConversationId } = options;
+  const { language, allowedTools, maxRecordingMs = 60_000, getConversationId, getSessionContext } = options;
   const { user } = useAuthSessionOptional();
 
   const [status, setStatus] = useState<AssistantStatus>('idle');
@@ -155,6 +156,7 @@ export function useAssistantVoice(
           audioDurationSeconds: durationSeconds,
           allowedTools,
           conversationId: getConversationId?.(),
+          ...getSessionContext?.(),
           expectedUserId: user?.id,
         });
         if (!activeRef.current || epoch !== epochRef.current) return;
@@ -166,7 +168,7 @@ export function useAssistantVoice(
         setError(err instanceof Error ? err.message : 'Upload failed');
       }
     },
-    [allowedTools, language, getConversationId, user?.id]
+    [allowedTools, language, getConversationId, getSessionContext, user?.id]
   );
 
   const startRecording = useCallback(async () => {
@@ -261,6 +263,7 @@ export function useAssistantVoice(
           language,
           allowedTools,
           conversationId: getConversationId?.(),
+          ...getSessionContext?.(),
           expectedUserId: user?.id,
         });
         if (!activeRef.current || epoch !== epochRef.current) return;
@@ -272,7 +275,7 @@ export function useAssistantVoice(
         setError(err instanceof Error ? err.message : 'Send failed');
       }
     },
-    [allowedTools, language, getConversationId, user?.id]
+    [allowedTools, language, getConversationId, getSessionContext, user?.id]
   );
 
   const patchResult = useCallback(

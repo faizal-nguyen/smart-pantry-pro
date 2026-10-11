@@ -1,3 +1,4 @@
+import { AssistantSessionMessagesSchema } from '@smart/shared';
 /**
  * PRP-221 J5 — Assistant agent routes.
  *
@@ -130,6 +131,8 @@ const TextRequestSchema = z.object({
   // PRP-223 PR3 — optional conversation handle. Unknown/cross-user ids
   // fall back to a fresh conversation in the service.
   conversation_id: z.string().uuid().optional(),
+  session_messages: AssistantSessionMessagesSchema.optional(),
+  session_revision: z.number().int().nonnegative().optional(),
 });
 
 const VoiceFormFieldsSchema = z.object({
@@ -138,6 +141,8 @@ const VoiceFormFieldsSchema = z.object({
   audio_duration_seconds: z.coerce.number().nonnegative().optional(),
   allowed_tools: z.string().optional(), // comma-separated in form data
   conversation_id: z.string().uuid().optional(), // PRP-223 PR3
+  session_messages: z.preprocess(value => { if (typeof value !== 'string') return value; try { return JSON.parse(value); } catch { return null; } }, AssistantSessionMessagesSchema.optional()),
+  session_revision: z.coerce.number().int().nonnegative().optional(),
 });
 
 const ConfirmRequestSchema = z.object({
@@ -343,7 +348,7 @@ export function createAssistantAgentRouter(
         clientRequestId: fields.data.client_request_id,
         language: fields.data.language,
         allowedTools: allowedTools as readonly any[] | undefined,
-        conversationId: fields.data.conversation_id,
+        conversationId: fields.data.conversation_id, sessionMessages: fields.data.session_messages, sessionRevision: fields.data.session_revision,
       };
       const ctx = {
         userId: req.user.id,
@@ -387,7 +392,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
-          conversationId: parsed.data.conversation_id,
+          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision,
         },
         ctx
       );
@@ -458,7 +463,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
-          conversationId: parsed.data.conversation_id,
+          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision,
         },
         ctx,
         writeEvent,

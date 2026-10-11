@@ -38,6 +38,9 @@ interface AssistantComposerProps {
   onError?: (err: Error) => void;
   autoFocus?: boolean;
   disabled?: boolean;
+  expectedUserId?: string;
+  sessionMessages?: import('@smart/shared').AssistantSessionMessage[];
+  sessionRevision?: number;
 }
 
 export default function AssistantComposer({
@@ -47,18 +50,20 @@ export default function AssistantComposer({
   onResponse,
   onError,
   autoFocus = false,
-  disabled,
+  disabled, sessionMessages, sessionRevision, expectedUserId,
 }: AssistantComposerProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error,setError]=useState<string|null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const focusAfterSend = useRef(false);
+  const request = useRef<{ id: string; text: string; conversationId?: string | null } | null>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const voice = useAssistantVoice({
     getConversationId: () => conversationId ?? undefined,
+    getSessionContext: () => ({ sessionMessages, sessionRevision }),
   });
   const deliveredVoiceResult = useRef<AssistantPlanResponse | null>(null);
   useEffect(() => {
@@ -88,13 +93,15 @@ export default function AssistantComposer({
     const trimmed = text.trim();
     if (!trimmed || disabled || sending || ['recording', 'uploading', 'processing'].includes(voice.status)) return;
     setSending(true);setError(null);
+    if (!request.current || request.current.text !== trimmed || request.current.conversationId !== conversationId)
+      request.current = { id: newClientRequestId(), text: trimmed, conversationId };
     try {
       const response = await postAssistantText({
         text: trimmed,
-        clientRequestId: newClientRequestId(),
-        conversationId: conversationId ?? undefined,
+        clientRequestId: request.current.id, expectedUserId,
+        conversationId: conversationId ?? undefined, sessionMessages, sessionRevision,
       });
-      setText('');
+      if (!response.memory_results?.some(r => r.status === 'verification_required')) { setText(''); request.current = null; }
       onResponse?.(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Réponse non confirmée. Ta question est conservée ; tu peux réessayer.');
@@ -118,7 +125,7 @@ export default function AssistantComposer({
     if (conversationId) {
       try {
         await patchAssistantConversation(conversationId, { mode: next });
-        await queryClient.invalidateQueries({ queryKey: ['assistant-conversation', conversationId] });
+        await queryClient.invalidateQueries({ queryKey: ['assistant-conversation'] });
         await queryClient.invalidateQueries({ queryKey: ['assistant-conversations'] });
       } catch (err) {
         toast({

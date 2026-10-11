@@ -4,7 +4,7 @@
  * Surface 4 zones :
  *   1. Consentement (master switch)
  *   2. Toggles fonctionnels (analytics, save history, image, anonyme,
- *      battery saver) — toutes disabled tant que hasConsent = false
+ *      battery saver) — analyse soumise à hasConsent ; historique indépendant
  *   3. Data retention (dropdown)
  *   4. Export + Demande de suppression (CTAs)
  *
@@ -82,15 +82,15 @@ function ToggleRow({ id, label, description, checked, onCheckedChange, disabled 
 }
 
 const RETENTION_LABELS: Record<PrivacyDataRetention, string> = {
-  minimal: 'Minimale — données effacées sous 7 jours',
-  standard: 'Standard — données effacées sous 30 jours',
+  minimal: 'Minimale — 7 jours',
+  standard: 'Standard — 30 jours',
   full: 'Complète — pas d’effacement automatique',
 };
 
 export default function DataPrivacySection() {
   const {
     settings,
-    isLoading,
+    isLoading, error, isUpdating,
     updateSettings,
     exportUserData,
     requestDataDeletion,
@@ -146,11 +146,11 @@ export default function DataPrivacySection() {
         <CardContent>
           <ToggleRow
             id="privacy-consent"
-            label="J’accepte de partager mes données pour personnaliser l’expérience"
-            description="Active les fonctionnalités personnalisées ci-dessous. Tu peux le désactiver à tout moment."
+            label="Autoriser l’analyse des scans et les statistiques"
+            description="Autorise les options d’analyse et de données anonymisées. La mémoire, l’historique et le profil ont leurs propres choix."
             checked={consentGiven}
             onCheckedChange={(v) => updateSettings({ hasConsent: v })}
-            disabled={isLoading}
+            disabled={!!error || isUpdating || isLoading}
           />
         </CardContent>
       </Card>
@@ -161,8 +161,8 @@ export default function DataPrivacySection() {
           <CardTitle className="text-base">Fonctionnalités</CardTitle>
           <CardDescription>
             {consentGiven
-              ? 'Active ou désactive les fonctionnalités qui utilisent tes données.'
-              : 'Accepte le partage des données ci-dessus pour activer ces options.'}
+              ? 'Choisis les options d’analyse. L’historique reste un choix indépendant.'
+              : 'Autorise l’analyse ci-dessus pour ces options. L’historique reste un choix indépendant.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -177,11 +177,11 @@ export default function DataPrivacySection() {
           <Separator />
           <ToggleRow
             id="privacy-history"
-            label="Sauvegarder mon historique de scans"
-            description="Conserve les scans pour les retrouver et améliorer les suggestions."
+            label="Sauvegarder mon historique de scans et de conversations"
+            description="Conserve les scans et les échanges avec l’assistant. Ce choix est indépendant de la mémoire."
             checked={settings.saveHistory}
             onCheckedChange={(v) => updateSettings({ saveHistory: v })}
-            disabled={!consentGiven || isLoading}
+            disabled={!!error || isUpdating || isLoading}
           />
           <Separator />
           <ToggleRow
@@ -208,7 +208,7 @@ export default function DataPrivacySection() {
             description="Réduit les animations et les requêtes en arrière-plan."
             checked={settings.batterySaver}
             onCheckedChange={(v) => updateSettings({ batterySaver: v })}
-            disabled={isLoading}
+            disabled={!!error || isUpdating || isLoading}
           />
         </CardContent>
       </Card>
@@ -218,7 +218,8 @@ export default function DataPrivacySection() {
         <CardHeader>
           <CardTitle className="text-base">Conservation des données</CardTitle>
           <CardDescription>
-            Combien de temps Smart Pantry garde tes données (scans, événements).
+            Durée des nouveaux souvenirs et échanges de l’assistant. Les données expirées sont exclues,
+            puis nettoyées à la prochaine utilisation. Le profil confirmé, le stock et les recettes ont leurs propres règles de conservation.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -227,7 +228,7 @@ export default function DataPrivacySection() {
             onValueChange={(v) =>
               updateSettings({ dataRetention: v as PrivacyDataRetention })
             }
-            disabled={isLoading}
+            disabled={!!error || isUpdating || isLoading}
           >
             <SelectTrigger className="w-full" aria-label="Conservation des données">
               <SelectValue placeholder="Choisir" />

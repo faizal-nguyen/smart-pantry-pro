@@ -14,6 +14,8 @@
 import { supabase } from '@/integrations/supabase/client';
 
 import { apiGet, apiPost, apiPatch, ApiError } from '@/lib/api';
+import { MemoryPolicySchema, MemoryCommandSchema, MemoryWriteResultSchema,
+  type MemoryPolicy, type MemoryCommand, type MemoryWriteResult, type ReliableMemoryMetadata, type AssistantSessionMessage } from '@smart/shared';
 
 // ---- Response shapes (mirror VoiceAgentService) ---------------------
 
@@ -43,6 +45,9 @@ export interface AssistantPlanResponse {
   session_id: string;
   /** Returned by the existing conversation-aware text and voice endpoints. */
   conversation_id?: string;
+  memory_results?: MemoryWriteResult[];
+  memory_revision?: number;
+  summary_status?: 'disabled' | 'not_needed' | 'already_attempted' | 'saved' | 'not_saved' | 'revision_changed';
   transcript: string;
   detected_language?: string;
   message: string;
@@ -106,6 +111,8 @@ export async function postAssistantVoice(input: {
   /** PRP-233 PR3 — sticky conversation id. Optional. */
   conversationId?: string;
   expectedUserId?: string;
+  sessionMessages?: AssistantSessionMessage[];
+  sessionRevision?: number;
 }): Promise<AssistantPlanResponse> {
   const ext = mimeToExt(input.audioMime);
   const form = new FormData();
@@ -117,6 +124,8 @@ export async function postAssistantVoice(input: {
   }
   if (input.allowedTools?.length) form.append('allowed_tools', input.allowedTools.join(','));
   if (input.conversationId) form.append('conversation_id', input.conversationId);
+  if (input.sessionMessages) form.append('session_messages', JSON.stringify(input.sessionMessages));
+  if (input.sessionRevision !== undefined) form.append('session_revision', String(input.sessionRevision));
 
   const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/voice`, {
     method: 'POST',
@@ -134,6 +143,8 @@ export function postAssistantText(input: {
   /** PRP-233 PR3 — sticky conversation id. Optional. */
   conversationId?: string;
   expectedUserId?: string;
+  sessionMessages?: AssistantSessionMessage[];
+  sessionRevision?: number;
 }): Promise<AssistantPlanResponse> {
   return apiPost<AssistantPlanResponse>(`${ASSISTANT_BASE}/text`, {
     text: input.text,
@@ -141,6 +152,7 @@ export function postAssistantText(input: {
     language: input.language,
     allowed_tools: input.allowedTools,
     conversation_id: input.conversationId,
+    session_messages: input.sessionMessages, session_revision: input.sessionRevision,
   }, { expectedUserId: input.expectedUserId });
 }
 
@@ -223,7 +235,7 @@ export type AssistantMemoryKind =
 export type AssistantMemoryStatus = 'candidate' | 'active' | 'rejected' | 'deleted';
 export type AssistantMemorySensitivity = 'normal' | 'personal' | 'health_sensitive';
 
-export interface AssistantMemoryItem {
+export interface AssistantMemoryItem extends Partial<ReliableMemoryMetadata> {
   id: string;
   user_id: string;
   kind: AssistantMemoryKind;
@@ -236,6 +248,7 @@ export interface AssistantMemoryItem {
   confidence: number;
   sensitivity: AssistantMemorySensitivity;
   source: 'user_explicit' | 'assistant_inferred' | 'recipe_feedback' | 'imported' | 'system';
+  evidence?: Record<string, unknown>;
   approved_at: string | null;
   last_used_at: string | null;
   expires_at: string | null;
@@ -277,9 +290,10 @@ function buildQuery(params: Record<string, string | number | undefined>): string
 
 export function getAssistantConversations(
   opts: ListConversationsOpts = {},
+  options?: { expectedUserId?: string },
 ): Promise<CursorPage<AssistantConversation>> {
   const q = buildQuery({ cursor: opts.cursor, limit: opts.limit, status: opts.status });
-  return apiGet<CursorPage<AssistantConversation>>(`${ASSISTANT_BASE}/conversations${q}`);
+  return apiGet<CursorPage<AssistantConversation>>(`${ASSISTANT_BASE}/conversations${q}`, undefined, options);
 }
 
 export function createAssistantConversation(
@@ -293,17 +307,19 @@ export function createAssistantConversation(
 
 export function getAssistantConversation(
   id: string,
+  options?: { expectedUserId?: string },
 ): Promise<{ conversation: AssistantConversation }> {
-  return apiGet<{ conversation: AssistantConversation }>(`${ASSISTANT_BASE}/conversations/${id}`);
+  return apiGet<{ conversation: AssistantConversation }>(`${ASSISTANT_BASE}/conversations/${id}`, undefined, options);
 }
 
 export function getAssistantMessages(
   conversationId: string,
   opts: ListMessagesOpts = {},
+  options?: { expectedUserId?: string },
 ): Promise<CursorPage<AssistantMessage>> {
   const q = buildQuery({ cursor: opts.cursor, limit: opts.limit });
   return apiGet<CursorPage<AssistantMessage>>(
-    `${ASSISTANT_BASE}/conversations/${conversationId}/messages${q}`,
+    `${ASSISTANT_BASE}/conversations/${conversationId}/messages${q}`, undefined, options,
   );
 }
 
@@ -418,11 +434,12 @@ export function softDeleteAssistantConversation(
 export function searchAssistantHistory(
   query: string,
   limit?: number,
+  options?: { expectedUserId?: string },
 ): Promise<{ matches: AssistantSearchMatch[] }> {
   const params = new URLSearchParams({ q: query });
   if (limit) params.set('limit', String(limit));
   return apiGet<{ matches: AssistantSearchMatch[] }>(
-    `${ASSISTANT_BASE}/search?${params.toString()}`,
+    `${ASSISTANT_BASE}/search?${params.toString()}`, undefined, options,
   );
 }
 
@@ -483,3 +500,22 @@ async function unwrapAssistant<T>(res: Response): Promise<T> {
 }
 
 export { ApiError };
+
+export async function getAssistantMemoryPolicy(owner: string): Promise<MemoryPolicy> {
+  const result = await apiGet<{ policy: unknown }>(ASSISTANT_BASE + '/memory-policy', undefined, { expectedUserId: owner });
+  const policy = MemoryPolicySchema.parse(result.policy);
+  if (policy.userId !== owner) throw new Error('Le compte a changé.');
+  return policy;
+}
+export async function executeAssistantMemoryCommand(command: MemoryCommand, owner: string): Promise<MemoryWriteResult> {
+  const result = await apiPost<{ receipt: unknown }>(ASSISTANT_BASE + '/memory-commands', MemoryCommandSchema.parse(command), { expectedUserId: owner });
+  const receipt = MemoryWriteResultSchema.parse(result.receipt);
+  if (receipt.command_id !== command.command_id) throw new Error('Le reçu ne correspond pas à cette commande.');
+  return receipt;
+}
+export async function getAssistantMemoryReceipt(commandId: string, owner: string): Promise<MemoryWriteResult | null> {
+  const result = await apiGet<{ receipt: unknown }>(ASSISTANT_BASE + '/memory-commands/' + commandId, undefined, { expectedUserId: owner });
+  const receipt = result.receipt ? MemoryWriteResultSchema.parse(result.receipt) : null;
+  if (receipt && receipt.command_id !== commandId) throw new Error('Reçu incohérent.');
+  return receipt;
+}

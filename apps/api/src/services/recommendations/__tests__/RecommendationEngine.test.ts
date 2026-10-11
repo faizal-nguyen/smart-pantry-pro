@@ -10,6 +10,9 @@
  */
 
 import { emptyNutritionProfile } from '@smart/shared';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { MemoryService } from '../../assistant/MemoryService.js';
+import { clientFixture, memory, policy } from '../../assistant/__fixtures__/memory.js';
 import { RecommendationEngine } from '../RecommendationEngine.js';
 import type { RecommendationContext } from '../types.js';
 
@@ -144,7 +147,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     plan.contextRevision = 2; plan.inventory = [makeInvRow('p',0)];
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
     const keys=writer.readCache.mock.calls.map(call=>call[1]);
-    expect(keys.every(key=>key.startsWith('v10-03a:'))).toBe(true);
+    expect(keys.every(key=>key.startsWith('v10-03c:'))).toBe(true);
     expect(keys[0]).not.toBe(keys[1]);
     plan.contextRevision = null;
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
@@ -220,6 +223,56 @@ describe('RecommendationEngine — bucket assignment', () => {
     expect(result.cookable_now).toHaveLength(0);
     expect(result.almost_cookable).toHaveLength(0);
     expect(result.verify_suggestions!.map(r=>r.id)).toEqual(['r-noing']);
+  });
+});
+
+describe('V10-03C — observable memory taste effect', () => {
+  const recipes = [
+    { ...makeRecipe({ id:'r-mild',name:'A plat doux',ings:[{pid:'p-one',name:'Riz'}] }),tags:['doux'] },
+    { ...makeRecipe({ id:'r-unknown',name:'B plat sans caractère renseigné',ings:[{pid:'p-one',name:'Riz'}] }),tags:null },
+    { ...makeRecipe({ id:'r-spicy',name:'Z plat épicé',ings:[{pid:'p-one',name:'Riz'}] }),tags:['spicy'] },
+  ];
+  function setup() {
+    const table={ data:[memory({user_id:USER})] };
+    let current=policy({userId:USER,profileVersion:0});
+    const db=clientFixture({assistant_memory_items:table});
+    db.rpc.mockImplementation(async()=>({data:current,error:null}));
+    const service=new MemoryService(db.client);
+    const client=makeClient({recipes,inventory:[makeInvRow('p-one',10)]});
+    return {table,setPolicy:(next:ReturnType<typeof policy>)=>{current=next;},
+      ctx:{userId:USER,userClient:client as unknown as SupabaseClient,memoryService:service,now:NOW},engine:new RecommendationEngine()};
+  }
+  it('at identical stock/profile, confirmed spicy re-ranks documented recipes; unknown stays neutral; forget removes the effect',async()=>{
+    const s=setup();const remembered=await s.engine.suggestForUser(s.ctx,{});
+    expect(remembered.cookable_now.map(r=>r.id)).toEqual(['r-spicy','r-unknown','r-mild']);
+    expect(remembered.cookable_now.find(r=>r.id==='r-unknown')!.score_parts.preferenceMatch).toBe(0);
+    s.table.data=[memory({user_id:USER,status:'deleted',content:'',payload:null,version:2})];s.setPolicy(policy({userId:USER,revision:5,profileVersion:0}));
+    const forgotten=await s.engine.suggestForUser(s.ctx,{});
+    expect(forgotten.cookable_now.map(r=>r.id)).toEqual(['r-mild','r-unknown','r-spicy']);
+    expect(forgotten.cookable_now.every(r=>r.score_parts.preferenceMatch===0)).toBe(true);
+  });
+  it('candidate and disabled memories cannot alter the ranking',async()=>{
+    const s=setup();s.table.data=[memory({user_id:USER,status:'candidate',source:'assistant_inferred',approved_at:null})];
+    expect((await s.engine.suggestForUser(s.ctx,{})).cookable_now[0].id).toBe('r-mild');
+    s.table.data=[memory({user_id:USER})];s.setPolicy(policy({userId:USER,memoryEnabled:false,profileVersion:0}));
+    expect((await s.engine.suggestForUser(s.ctx,{})).cookable_now[0].id).toBe('r-mild');
+  });
+  it('this evening mild overrides the meal, qualifies its reason and never replaces the durable taste',async()=>{
+    const s=setup();const meal=await s.engine.suggestForUser(s.ctx,{requestText:'Ce soir, pas épicé'});
+    expect(meal.cookable_now[0].id).toBe('r-mild');
+    expect(meal.cookable_now[0].reasons.some(r=>r.includes('envie pour ce repas'))).toBe(true);
+    expect(s.table.data[0].payload).toEqual({type:'taste',subject:'spiciness',value:'spicy'});
+    expect((await s.engine.suggestForUser(s.ctx,{})).cookable_now[0].id).toBe('r-spicy');
+  });
+  it('a current allergy and the canonical allergy both exclude a recipe even when its taste is preferred',async()=>{
+    const s=setup();const allergicRecipes=[{...recipes[2],recipe_ingredients:[{...recipes[2].recipe_ingredients[0],ingredient_name:'Cacahuètes'}]}];
+    const settings={...emptyNutritionProfile(),consent:true,allergies:['cacahuètes']};
+    const canonical=makeClient({recipes:allergicRecipes,inventory:[makeInvRow('p-one',10)],profile:{user_id:USER,version:1,schema_version:1,settings,updated_at:NOW.toISOString(),origin:'explicit'}});
+    const result=await s.engine.suggestForUser({...s.ctx,userClient:canonical as unknown as SupabaseClient},{});
+    expect(result.cookable_now).toHaveLength(0);expect(result.excluded_suggestions?.[0].id).toBe('r-spicy');
+    const current=makeClient({recipes:allergicRecipes,inventory:[makeInvRow('p-one',10)]});
+    const provisional=await s.engine.suggestForUser({...s.ctx,userClient:current as unknown as SupabaseClient},{requestText:'Je suis allergique aux cacahuètes'});
+    expect(provisional.cookable_now).toHaveLength(0);expect(provisional.excluded_suggestions?.[0].id).toBe('r-spicy');
   });
 });
 
@@ -380,15 +433,8 @@ describe('RecommendationEngine — explicit preference and feedback wiring', () 
       profile:{ user_id:USER,version:1,schema_version:1,settings:{ ...emptyNutritionProfile(),consent:true,likedIngredients:(opts.memories ?? []).filter(item=>item.kind==='preference').map(item=>item.content),avoidedIngredients:(opts.memories ?? []).filter(item=>item.kind==='negative_preference').map(item=>item.content) },updated_at:NOW.toISOString(),origin:'explicit' },
     });
     const memoryService = {
-      async getTopActiveMemories() {
-        return (opts.memories ?? []).map((m) => ({
-          ...m,
-          normalized_content: m.normalized_content ?? null,
-          sensitivity: m.sensitivity ?? 'normal',
-          subject_type: m.subject_type ?? null,
-          subject_id: m.subject_id ?? null,
-        }));
-      },
+      async readPolicySafe() { return { userId:USER,revision:4,memoryEnabled:true,saveHistory:true,shareProfile:false,profileVersion:1 }; },
+      async modelMemories() { return []; },
     };
     return {
       engine: new RecommendationEngine(),
