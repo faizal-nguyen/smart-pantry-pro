@@ -19,6 +19,7 @@ import {
   type SocialPlatform,
 } from '@smart/shared';
 
+import { measureCost } from '../ai/ModelPricing.js';
 import type { SocialImportRow } from './SocialImportRepository.js';
 import type {
   ExtractionRequest,
@@ -79,6 +80,9 @@ export interface AICompletionRequest {
   timeoutMs?: number;
   maxRetries?: number;
   signal?: AbortSignal;
+  transport?: 'chat_completions' | 'responses';
+  reasoningEffort?: 'none' | 'low';
+  continuation?: Array<Record<string, unknown>>;
 }
 
 export interface AICompletionResponse {
@@ -87,7 +91,13 @@ export interface AICompletionResponse {
   usage: {
     prompt_tokens: number;
     completion_tokens: number;
+    cached_tokens?: number;
+    cache_write_tokens?: number;
+    reasoning_tokens?: number;
   };
+  usageKnown?: boolean;
+  serviceTier?: string;
+  continuation?: Array<Record<string, unknown>>;
   /** Present iff the model decided to call one or more tools. */
   tool_calls?: AICompletionToolCall[];
 }
@@ -105,6 +115,8 @@ export type AICompletionStreamEvent =
       model: string;
       usage: { prompt_tokens: number; completion_tokens: number };
       done: true;
+      usageKnown?: boolean;
+      serviceTier?: string;
     };
 
 export interface AICompletionClient {
@@ -120,12 +132,6 @@ export interface AICompletionClient {
 }
 
 // ---- Cost table (USD per 1M tokens) ---------------------------------
-
-const PRICES_PER_M: Record<string, { in: number; out: number }> = {
-  'gpt-4o-mini': { in: 0.15, out: 0.6 },
-  'gpt-4o': { in: 2.5, out: 10 },
-  'gpt-4-turbo': { in: 10, out: 30 },
-};
 
 const DEFAULT_MODEL = 'gpt-4o-mini';
 
@@ -297,9 +303,9 @@ export class OpenAIRecipeExtractionService implements RecipeExtractionService {
 
     return {
       draft: enriched,
-      modelUsed: aiResponse.model || this.model,
+      modelUsed: aiResponse.model || undefined,
       durationMs: Date.now() - start,
-      cost: this.computeCost(aiResponse.model || this.model, aiResponse.usage),
+      cost: this.computeCost(aiResponse),
     };
   }
 
@@ -437,19 +443,12 @@ export class OpenAIRecipeExtractionService implements RecipeExtractionService {
     return { ...draft, confidence, extractionWarnings: warnings };
   }
 
-  private computeCost(
-    model: string,
-    usage: { prompt_tokens: number; completion_tokens: number }
-  ) {
-    const price = PRICES_PER_M[model] ?? PRICES_PER_M[DEFAULT_MODEL];
-    const usd =
-      (usage.prompt_tokens * price.in + usage.completion_tokens * price.out) / 1_000_000;
-    return {
-      inputTokens: usage.prompt_tokens,
-      outputTokens: usage.completion_tokens,
-      usd: Number(usd.toFixed(6)),
-    };
+  private computeCost(result: AICompletionResponse) {
+    const measured = measureCost(result);
+    return { inputTokens:result.usage.prompt_tokens,outputTokens:result.usage.completion_tokens,
+      usd:measured.usd,quality:measured.quality };
   }
+
 }
 
 function positiveInt(value: unknown, max: number): number | undefined {
@@ -467,124 +466,6 @@ function positiveInt(value: unknown, max: number): number | undefined {
  * not block module import; the failure surfaces as
  * `EXTRACTION_FAILED` with a clear message.
  */
-export function createOpenAICompletionClient(): AICompletionClient {
-  let cachedClient: any = null;
-  return {
-    async complete(req: AICompletionRequest): Promise<AICompletionResponse> {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is not set on the server.');
-      }
-      if (!cachedClient) {
-        const mod = await import('openai');
-        const OpenAI = (mod as any).default ?? (mod as any).OpenAI ?? mod;
-        cachedClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      }
-      const params: Record<string, unknown> = {
-        model: req.model,
-        messages: req.messages,
-        temperature: req.temperature,
-        max_tokens: req.max_tokens,
-        response_format: req.response_format,
-      };
-      if (req.tools && req.tools.length > 0) {
-        params.tools = req.tools;
-        params.tool_choice = req.tool_choice ?? 'auto';
-      }
-      params.store = false;
-      const response = await cachedClient.chat.completions.create(params, {
-        ...(req.timeoutMs !== undefined ? { timeout: req.timeoutMs } : {}),
-        ...(req.maxRetries !== undefined ? { maxRetries: req.maxRetries } : {}),
-        ...(req.signal ? { signal: req.signal } : {}),
-      });
-      const message = response.choices?.[0]?.message ?? {};
-      const content = message.content ?? '';
-      const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0 };
-      const toolCalls = Array.isArray(message.tool_calls)
-        ? (message.tool_calls as Array<{
-            id: string;
-            type?: string;
-            function?: { name?: string; arguments?: string };
-          }>)
-            .filter((tc) => tc?.function?.name)
-            .map((tc) => ({
-              id: tc.id,
-              name: tc.function!.name as string,
-              arguments: tc.function!.arguments ?? '{}',
-            }))
-        : undefined;
-      return {
-        content,
-        model: response.model ?? req.model,
-        usage: {
-          prompt_tokens: usage.prompt_tokens ?? 0,
-          completion_tokens: usage.completion_tokens ?? 0,
-        },
-        ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
-      };
-    },
-
-    /**
-     * PRP-239 PR-C — OpenAI streaming. Yields `{ delta, done: false }`
-     * for every chunk of text the model emits, then a single
-     * `{ content, model, usage, done: true }` terminal event.
-     *
-     * `stream_options.include_usage: true` is required for the SDK to
-     * surface a `usage` object on the final chunk so we keep cost
-     * accounting parity with the non-streaming path.
-     *
-     * Tools / response_format are not threaded here on purpose — the
-     * caller (VoiceAgentService chef synthesis) explicitly asks for
-     * `tool_choice: 'none'`-equivalent semantics by routing the
-     * tool-bearing round-1 through `complete()` instead.
-     */
-    async *completeStream(req: AICompletionRequest): AsyncIterable<AICompletionStreamEvent> {
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is not set on the server.');
-      }
-      if (!cachedClient) {
-        const mod = await import('openai');
-        const OpenAI = (mod as any).default ?? (mod as any).OpenAI ?? mod;
-        cachedClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      }
-      const params: Record<string, unknown> = {
-        model: req.model,
-        messages: req.messages,
-        temperature: req.temperature,
-        max_tokens: req.max_tokens,
-        stream: true,
-        stream_options: { include_usage: true },
-      };
-
-      let accumulated = '';
-      let model = req.model;
-      let usage = { prompt_tokens: 0, completion_tokens: 0 };
-      params.store = false;
-      const stream = await cachedClient.chat.completions.create(params, {
-        ...(req.timeoutMs !== undefined ? { timeout: req.timeoutMs } : {}),
-        ...(req.maxRetries !== undefined ? { maxRetries: req.maxRetries } : {}),
-        ...(req.signal ? { signal: req.signal } : {}),
-      });
-      for await (const chunk of stream as AsyncIterable<{
-        model?: string;
-        choices?: Array<{ delta?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-      }>) {
-        if (chunk.model) model = chunk.model;
-        if (chunk.usage) {
-          usage = {
-            prompt_tokens: chunk.usage.prompt_tokens ?? 0,
-            completion_tokens: chunk.usage.completion_tokens ?? 0,
-          };
-        }
-        const delta = chunk.choices?.[0]?.delta?.content ?? '';
-        if (delta) {
-          accumulated += delta;
-          yield { delta, done: false };
-        }
-      }
-      yield { content: accumulated, model, usage, done: true };
-    },
-  };
-}
+export { createOpenAICompletionClient } from '../ai/OpenAITransport.js';
 
 export type { SocialPlatform };

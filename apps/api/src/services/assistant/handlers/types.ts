@@ -108,7 +108,7 @@ export interface ToolExecutionResult<TResult = unknown> {
    */
   reversibleAction?: ReversibleAction | null;
   /** Optional cost surcharge (e.g. import_recipe_from_url chains another GPT call). */
-  extraCostUsd?: number;
+  extraCostUsd?: number | null;
 }
 
 export interface ToolHandler<TArgs = unknown, TResult = unknown> {

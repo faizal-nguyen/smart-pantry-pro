@@ -1,0 +1,255 @@
+src/__tests__/accessibility-validation.test.ts(63,48): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(63,70): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(64,5): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(64,56): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(64,78): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(65,5): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(65,48): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(65,70): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(67,44): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(67,56): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(118,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(118,18): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(118,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(118,41): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(119,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(119,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(119,40): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(120,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(122,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(122,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(123,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(148,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(148,18): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(148,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(148,41): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(149,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(149,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(149,40): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(151,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(151,31): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(153,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(153,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(154,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(160,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(160,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(165,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(165,18): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(165,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(165,41): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(166,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(166,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(166,39): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(169,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(169,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(170,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(179,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(179,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(183,55): error TS1127: Invalid character.
+src/__tests__/accessibility-validation.test.ts(183,57): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(183,58): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(183,65): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(184,52): error TS1127: Invalid character.
+src/__tests__/accessibility-validation.test.ts(184,54): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(184,55): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(184,62): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(184,63): error TS1135: Argument expression expected.
+src/__tests__/accessibility-validation.test.ts(185,7): error TS1135: Argument expression expected.
+src/__tests__/accessibility-validation.test.ts(185,8): error TS1005: ')' expected.
+src/__tests__/accessibility-validation.test.ts(188,33): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(188,38): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(188,52): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(189,7): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(193,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(193,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(194,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(194,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(199,32): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(207,37): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(221,59): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(237,37): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(250,32): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(250,42): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(250,54): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(251,7): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(256,39): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(256,49): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(256,61): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(256,62): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(279,59): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(293,31): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(293,44): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(293,50): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(293,53): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(294,10): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(304,31): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(304,44): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(304,51): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(304,54): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(305,10): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(318,13): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(318,26): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(318,32): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(319,13): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(320,12): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(321,10): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(336,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(336,22): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(336,24): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(336,34): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(336,42): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(336,47): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(337,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(337,34): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(339,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(339,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(340,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(350,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(350,22): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(350,24): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(350,34): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(350,42): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(350,47): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(351,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(351,34): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(353,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(353,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(354,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(360,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(360,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(365,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(365,22): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(365,24): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(365,34): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(365,42): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(365,47): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(366,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(366,34): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(368,21): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(368,29): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(369,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(377,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(377,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(378,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(378,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(420,27): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(420,44): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(420,50): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(421,29): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(421,37): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(422,12): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(441,11): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(441,18): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(441,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(441,41): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(442,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(442,20): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(442,40): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(443,11): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(445,20): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(445,26): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(446,19): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(446,28): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(446,36): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(447,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(455,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(455,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(456,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(456,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(485,33): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(497,32): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(497,42): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(497,54): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(498,7): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(507,31): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(507,44): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(507,50): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(507,53): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(508,10): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(522,25): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(522,42): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(522,48): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(523,24): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(523,31): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(524,10): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(536,37): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(556,32): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(556,42): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(556,54): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(557,7): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(562,39): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(562,49): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(562,61): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(562,62): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(568,61): error TS1127: Invalid character.
+src/__tests__/accessibility-validation.test.ts(568,63): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(568,64): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(568,71): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(569,59): error TS1127: Invalid character.
+src/__tests__/accessibility-validation.test.ts(569,61): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(569,62): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(569,69): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(570,7): error TS1135: Argument expression expected.
+src/__tests__/accessibility-validation.test.ts(570,8): error TS1005: ')' expected.
+src/__tests__/accessibility-validation.test.ts(572,38): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(572,43): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(572,57): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(572,58): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(580,5): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(580,6): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(585,31): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(585,44): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(585,50): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(585,53): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(586,10): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(598,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(598,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(599,1): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(599,2): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(604,29): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(604,36): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(604,38): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(604,59): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(604,61): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(604,70): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(604,90): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(604,91): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(605,22): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(606,8): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(607,31): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(607,32): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(609,29): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(609,42): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(609,49): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(609,52): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(610,8): error TS1110: Type expected.
+src/__tests__/accessibility-validation.test.ts(611,5): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(611,6): error TS1005: ')' expected.
+src/__tests__/accessibility-validation.test.ts(628,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(628,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(633,9): error TS1005: '>' expected.
+src/__tests__/accessibility-validation.test.ts(633,20): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(633,22): error TS1136: Property assignment expected.
+src/__tests__/accessibility-validation.test.ts(633,47): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(633,48): error TS1109: Expression expected.
+src/__tests__/accessibility-validation.test.ts(634,9): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(634,32): error TS1005: ':' expected.
+src/__tests__/accessibility-validation.test.ts(636,19): error TS1005: ',' expected.
+src/__tests__/accessibility-validation.test.ts(636,27): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(637,8): error TS1161: Unterminated regular expression literal.
+src/__tests__/accessibility-validation.test.ts(651,3): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(651,4): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(652,1): error TS1128: Declaration or statement expected.
+src/__tests__/accessibility-validation.test.ts(652,2): error TS1128: Declaration or statement expected.
+src/design-system/index.ts(163,76): error TS1127: Invalid character.
+src/design-system/index.ts(163,77): error TS1434: Unexpected keyword or identifier.
+src/design-system/index.ts(163,151): error TS1127: Invalid character.
+src/design-system/index.ts(163,157): error TS1127: Invalid character.
+src/design-system/index.ts(163,158): error TS1434: Unexpected keyword or identifier.
+src/design-system/index.ts(163,218): error TS1127: Invalid character.
+src/design-system/index.ts(163,223): error TS1127: Invalid character.
+src/design-system/index.ts(163,227): error TS1127: Invalid character.
+src/design-system/index.ts(163,228): error TS1434: Unexpected keyword or identifier.
+src/design-system/index.ts(163,245): error TS1127: Invalid character.
+src/design-system/index.ts(163,249): error TS1127: Invalid character.
+src/design-system/index.ts(163,251): error TS1127: Invalid character.

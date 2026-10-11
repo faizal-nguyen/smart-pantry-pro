@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { apiGet, apiPost, apiPatch, ApiError } from '@/lib/api';
 import { MemoryPolicySchema, MemoryCommandSchema, MemoryWriteResultSchema,
   type MemoryPolicy, type MemoryCommand, type MemoryWriteResult, type ReliableMemoryMetadata, type AssistantSessionMessage } from '@smart/shared';
+import { AssistantModelCatalogSchema, type AssistantModelCatalog, type AssistantModelReceipt } from '@smart/shared';
 
 // ---- Response shapes (mirror VoiceAgentService) ---------------------
 
@@ -56,10 +57,12 @@ export interface AssistantPlanResponse {
   confirmation_token: string | null;
   cost: {
     whisper_usd: number;
-    llm_usd: number;
-    total_usd: number;
+    llm_usd: number | null;
+    total_usd: number | null;
   };
-  model_used: string;
+  model_used: string | null;
+  model_receipt?: AssistantModelReceipt;
+  actions_unverified?: Array<{ action_id: string; tool: string }>;
   duration_ms: number;
   replayed?: boolean;
 }
@@ -77,6 +80,10 @@ export interface UndoResponse {
 // ---- API ------------------------------------------------------------
 
 const ASSISTANT_BASE = '/assistant';
+export async function getAssistantModels(owner: string): Promise<AssistantModelCatalog> {
+  const result = await apiGet<{catalog:unknown}>(ASSISTANT_BASE+'/models',undefined,{expectedUserId:owner});
+  return AssistantModelCatalogSchema.parse(result.catalog);
+}
 
 async function authHeader(expectedUserId?: string): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();

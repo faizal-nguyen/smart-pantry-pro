@@ -10,3 +10,4 @@ export * from './cooking-adjustments.js';
 export * from './personalization.js';
 export * from './recipe-evaluation.js';
 export * from './assistant-memory.js';
+export * from './assistant-models.js';

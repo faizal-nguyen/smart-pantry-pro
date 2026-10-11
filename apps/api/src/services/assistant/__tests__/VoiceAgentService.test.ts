@@ -22,6 +22,7 @@ import { VoiceAgentService, VoiceAgentError } from '../VoiceAgentService.js';
 import type { AICompletionClient,AICompletionRequest } from '../../imports/RecipeExtractionService.js';
 import type { WhisperClient } from '../../media/WhisperTranscriber.js';
 import type { ActionLogRow, ActionLogWriter } from '../ActionLogWriter.js';
+import { benchmarkConfig, type AssistantModelConfig } from '../../ai/ModelConfig.js';
 
 const SECRET = 'a'.repeat(64);
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -174,6 +175,7 @@ function makeService({
   signer = new ConfirmationTokenSigner(SECRET),
   whisper = mockWhisper,
   contextBuilder,
+  modelConfig,
 }: {
   ai: AICompletionClient;
   handlers: Record<string, ToolHandler>;
@@ -181,6 +183,7 @@ function makeService({
   signer?: ConfirmationTokenSigner;
   whisper?: WhisperClient;
   contextBuilder?:ContextBuilder;
+  modelConfig?:AssistantModelConfig;
 }): { service: VoiceAgentService; writer: MockWriter; signer: ConfirmationTokenSigner } {
   const handlerRegistry = new ToolHandlerRegistry();
   for (const [name, h] of Object.entries(handlers)) {
@@ -193,7 +196,7 @@ function makeService({
     handlerRegistry,
     writer as any,
     signer,
-    { contextBuilder }
+    { contextBuilder, modelConfig }
   );
   return { service, writer, signer };
 }
@@ -722,7 +725,7 @@ describe('VoiceAgentService.handleUndo', () => {
 
 class StubMemoryService {
   conversations = new Map<string, { id: string; user_id: string }>();
-  messages: Array<{ conversation_id: string; user_id: string; role: string; content: string; action_log_ids: string[] }> = [];
+  messages: Array<{ conversation_id: string; user_id: string; role: string; content: string; action_log_ids: string[]; metadata:Record<string,unknown> }> = [];
   createCalls = 0;
   failNext = false;
 
@@ -755,6 +758,7 @@ class StubMemoryService {
       role: opts.role,
       content: opts.content,
       action_log_ids: opts.action_log_ids ?? [],
+      metadata: opts.metadata ?? {},
     });
     return { id: randomUUID(), conversation_id: conversationId, user_id: userId, ...opts } as any;
   }
@@ -908,6 +912,92 @@ describe('VoiceAgentService memory integration (PRP-223 PR3)', () => {
   });
 });
 
+describe('V10-03D transport, receipts and replay boundaries',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Ajoute deux pommes aux courses.'};
+  const args={items:[{name:'pommes',quantity:2}]};
+  it('rejects a forged owner before any provider or action IO',async()=>{
+    const ai={complete:jest.fn()};const {service,writer}=makeService({ai,handlers:{}});
+    await expect(service.handleRequest({...input,userId:'another-owner'},makeCtx())).rejects.toThrow('Propriétaire');
+    expect(ai.complete).not.toHaveBeenCalled();expect(writer.rows).toHaveLength(0);
+  });
+  it('enforces a read-only surface even when the provider returns a write outside its catalog',async()=>{
+    const handler={execute:jest.fn(async()=>({result:{saved:true}}))};
+    const {service,writer}=makeService({ai:makeAi([{name:'add_shopping_items',arguments:args}],'Tout est ajouté.'),handlers:{add_shopping_items:handler}});
+    const response=await service.handleRequest({...input,allowedTools:['read_inventory']},makeCtx());
+    expect(handler.execute).not.toHaveBeenCalled();expect(writer.rows).toHaveLength(0);
+    expect(response.actions_executed).toHaveLength(0);expect(response.message).not.toContain('Tout est ajouté');
+    expect(response.model_receipt?.calls).toHaveLength(1);
+  });
+  it('repairs an invalid call once and stops if the repair is also invalid',async()=>{
+    const ai=makeAi([{name:'add_shopping_items',arguments:{items:[{name:'pommes',quantity:-2}]}}]);
+    const handler={execute:jest.fn(async()=>({result:{saved:true}}))};
+    const {service}=makeService({ai,handlers:{add_shopping_items:handler}});
+    const response=await service.handleRequest(input,makeCtx());
+    expect(handler.execute).not.toHaveBeenCalled();expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','argument_repair']);
+    expect(response.model_receipt?.llm_usd).toBeGreaterThan(0);expect(response.message).toMatch(/validée/);
+  });
+  it('does not repeat an uncertain write inside the same batch',async()=>{
+    const handler={execute:jest.fn(async()=>{throw new Error('Reply lost after writing');})};
+    const {service}=makeService({ai:makeAi([{name:'add_shopping_items',arguments:args},{name:'add_shopping_items',arguments:args}],'Ajouté.'),handlers:{add_shopping_items:handler}});
+    const response=await service.handleRequest(input,makeCtx());
+    expect(handler.execute).toHaveBeenCalledTimes(1);expect(response.actions_unverified).toHaveLength(1);
+    expect(response.actions_executed).toHaveLength(0);expect(response.message).toMatch(/Vérifie/);
+  });
+  it.each(['executed','planned','failed'] as const)('reuses or qualifies an existing %s write on a lost-response retry',async status=>{
+    const writer=new MockWriter();writer.insertPlanned=async planned=>makeRow({tool:'add_shopping_items',tool_args:args,status,replayed:true,result:{saved:true}});
+    const handler={execute:jest.fn(async()=>({result:{saved:true}}))};
+    const {service}=makeService({writer,ai:makeAi([{name:'add_shopping_items',arguments:args}]),handlers:{add_shopping_items:handler}});
+    const response=await service.handleRequest(input,makeCtx());
+    expect(handler.execute).not.toHaveBeenCalled();
+    if(status==='executed') {expect(response.actions_executed).toHaveLength(1);expect(response.actions_unverified).toHaveLength(0);}
+    else {expect(response.actions_executed).toHaveLength(0);expect(response.actions_unverified).toHaveLength(1);}
+  });
+  it('binds Responses function outputs to call_id and keeps opaque reasoning out of the receipt',async()=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);return {content:requests.length===1 ? '' : 'Deux tomates.',model:request.model,usage:{prompt_tokens:100,completion_tokens:20,cache_write_tokens:0},
+        ...(requests.length===1 ? {tool_calls:[{id:'provider-call-id',name:'read_inventory',arguments:'{}'}],
+          continuation:[{type:'reasoning',id:'r1',encrypted_content:'PRIVATE_OPAQUE',summary:[]},{type:'function_call',call_id:'provider-call-id',name:'read_inventory',arguments:'{}'}]} : {})};
+    }};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{read_inventory:{execute:async()=>({result:{items:[{name:'tomates',quantity:2}]}})}}});
+    const response=await service.handleRequest({...input,text:'Lis mon inventaire.'},makeCtx());
+    expect(requests[1].continuation).toEqual(expect.arrayContaining([expect.objectContaining({type:'function_call_output',call_id:'provider-call-id',output:expect.stringContaining('executed')})]));
+    expect(JSON.stringify(response.model_receipt)).not.toContain('PRIVATE_OPAQUE');
+    expect(response.model_receipt?.calls).toHaveLength(2);
+  });
+  it('continues inventory → recommendation with linked outputs, within the shared call cap',async()=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);const name=requests.length===1 ? 'read_inventory':'suggest_recipes_for_context';
+      const id='hop-'+requests.length;
+      return {content:requests.length===3 ? 'Une soupe, durée à vérifier.':'',model:request.model,
+        usage:{prompt_tokens:100,completion_tokens:20,cache_write_tokens:0,cached_tokens:0},
+        ...(requests.length<=2 ? {tool_calls:[{id,name,arguments:'{}'}],continuation:[{type:'function_call',call_id:id,name,arguments:'{}'}]} : {})};
+    }};
+    const read={execute:jest.fn(async()=>({result:{items:[]}}))};const suggest={execute:jest.fn(async()=>({result:{recipes:[]}}))};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{read_inventory:read,suggest_recipes_for_context:suggest}});
+    const response=await service.handleRequest({...input,text:'Que cuisiner avec mon stock ?'},makeCtx());
+    expect(read.execute).toHaveBeenCalledTimes(1);expect(suggest.execute).toHaveBeenCalledTimes(1);
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup','synthesis']);
+    expect(requests[2].continuation).toEqual(expect.arrayContaining([
+      expect.objectContaining({type:'function_call_output',call_id:'hop-1'}),expect.objectContaining({type:'function_call_output',call_id:'hop-2'}),
+    ]));
+  });
+  it('falls back only for synthesis, bills every attempted call and publishes no rejected stream delta',async()=>{
+    let count=0;const ai:AICompletionClient={complete:async request=>{
+      count++;return {content:count===1 ? '' : 'Une soupe de tomates.',model:request.model,usage:{prompt_tokens:100,completion_tokens:20,cached_tokens:0},
+        ...(count===1 ? {tool_calls:[{id:'recipe-call',name:'suggest_recipes_for_context',arguments:'{}'}]} : {})};
+    },completeStream:async function*(){yield {done:false,delta:'SECRET_PARTIAL_STREAM avec du porc'};throw new Error('stream lost');}};
+    const handler={execute:jest.fn(async()=>({result:{recipes:[{id:'r',name:'Soupe'}]}}))};
+    const {service}=makeService({ai,handlers:{suggest_recipes_for_context:handler}});
+    const events:unknown[]=[];const response=await service.handleRequest({...input,text:'Une recette ?'},makeCtx(),event=>events.push(event));
+    expect(handler.execute).toHaveBeenCalledTimes(1);expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','synthesis_stream','synthesis_fallback']);
+    expect(response.model_receipt).toMatchObject({llm_usd:null,quality:'unknown'});expect(response.model_receipt?.known_subtotal_usd).toBeGreaterThan(0);
+    expect(JSON.stringify(events.filter(event=>(event as {type:string}).type==='delta'))).not.toContain('SECRET_PARTIAL_STREAM');
+    expect(events.filter(event=>(event as {type:string}).type==='delta')).toHaveLength(1);
+  });
+});
+
 describe('V10-03C provider and write boundaries',()=>{
   const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Souviens-toi que je préfère les plats épicés'};
   function serviceFor(memory:unknown,ai:AICompletionClient,context:ContextBuilder,handlers:Record<string,ToolHandler>={}) {
@@ -952,5 +1042,22 @@ describe('V10-03C provider and write boundaries',()=>{
     const context={build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder;
     const result=await serviceFor(serviceMemory,ai,context).handleRequest({...input,text:'Comment cuire la soupe ?',conversationId:CONV},makeCtx());
     expect(ai.complete).toHaveBeenCalledTimes(2);expect(persist).toHaveBeenCalled();expect(record).toHaveBeenCalled();expect(result.summary_status).toBe('saved');
+    expect(result.model_receipt?.calls.map(c=>c.role)).toEqual(['dialogue','summary']);
+    expect(memory.messages.find(m=>m.role==='assistant')?.metadata.model_receipt).toMatchObject({calls:expect.arrayContaining([expect.objectContaining({role:'summary'})])});
+  });
+  it('revocation during the summary also suppresses the final text and assistant history',async()=>{
+    const original=memoryPolicy({userId:USER,revision:0});let current=original;
+    const memory=new StubMemoryService();memory.conversations.set(CONV,{id:CONV,user_id:USER});memory.readPolicySafe=async()=>current;
+    memory.modelArtifacts=async()=>({messages:Array.from({length:20},(_,i)=>memoryMessage({id:'synthetic-'+i,user_id:USER,policy_revision:0})),summary:null,session:[],privateTerms:[]});
+    const record=jest.fn();Object.assign(memory,{persistArtifact:async()=>({claimed:true}),recordSummary:record});
+    const ai={complete:async(req:AICompletionRequest)=>{
+      if(req.max_tokens===320) current={...original,revision:1,saveHistory:false,memoryEnabled:false};
+      return {content:'OLD_CONTEXT_RESPONSE',model:req.model,usage:{prompt_tokens:10,completion_tokens:5}};
+    }};
+    const context={build:async()=>({policy:original,combinedText:'OLD_STORED_CONTEXT'})} as unknown as ContextBuilder;
+    const events:unknown[]=[];const result=await serviceFor(memory,ai,context).handleRequest({...input,text:'Une soupe ?',conversationId:CONV},makeCtx(),event=>events.push(event));
+    expect(result.summary_status).toBe('revision_changed');expect(result.message).toMatch(/ont changé/);
+    expect(record).not.toHaveBeenCalled();expect(memory.messages.filter(m=>m.role==='assistant')).toHaveLength(0);
+    expect(JSON.stringify(events)).not.toContain('OLD_CONTEXT_RESPONSE');expect(result.memory_revision).toBe(1);
   });
 });

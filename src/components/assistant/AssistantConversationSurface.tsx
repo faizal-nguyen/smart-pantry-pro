@@ -21,6 +21,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
+import AssistantModelDetails from './AssistantModelDetails';
 import { useAssistantConversation } from '@/hooks/useAssistantConversation';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
@@ -92,6 +93,7 @@ export default function AssistantConversationSurface({
     >
       <CardContent className="flex-1 overflow-y-auto p-4">
         <AssistantMemoryNotice result={latest && latest.owner === owner ? latest.result : null} />
+        {latest && latest.owner===owner && !latest.result.conversation_id && <AssistantModelDetails receipt={latest.result.model_receipt} />}
         {currentSession.messages.length > 0 && <div className="space-y-4"><p className="text-xs text-muted-foreground">Échange de cette session. L’historique durable est désactivé ou indisponible.</p>{currentSession.messages.map((m,i) => <p key={i} className="whitespace-pre-wrap text-sm"><span className="block font-medium">{m.role === 'user' ? 'Vous' : 'Assistant'}</span>{m.content}</p>)}</div>}
         {!conversationId && currentSession.messages.length === 0 ? (
           <div className="space-y-3 py-6"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ta question ci-dessous.</p></div>

@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
+import AssistantModelDetails from './AssistantModelDetails';
 import { useToast } from '@/hooks/use-toast';
 
 import {
@@ -199,6 +200,7 @@ export function AssistantResultDialog({
         <AssistantMemoryNotice result={result} />
 
         <ScrollArea className="max-h-[55vh] -mx-2 px-2">
+          <AssistantModelDetails receipt={result.model_receipt} />
           {result.actions_executed.length > 0 && (
             <section className="space-y-2 mb-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -239,7 +241,7 @@ export function AssistantResultDialog({
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
           <div className="text-xs text-muted-foreground tabular-nums">
-            Coût session : ${totalCost.toFixed(4)} • {durationSec}s • {result.model_used}
+            {result.cost.total_usd===null ? 'Coût demande indisponible' : 'Coût demande'+(result.model_receipt?.quality==='estimated' ? ' estimé' : '')+' : $'+totalCost.toFixed(4)} • {durationSec}s • {result.model_used ?? 'Aucun modèle servi'}
           </div>
           <div className="flex gap-2 ml-auto">
             {result.actions_pending.length > 0 ? (

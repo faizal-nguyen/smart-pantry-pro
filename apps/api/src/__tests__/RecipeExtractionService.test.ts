@@ -95,6 +95,12 @@ describe('OpenAIRecipeExtractionService (PRP-220.13)', () => {
     const userMsg = ai.calls[0].messages[1].content;
     expect(userMsg).toContain('User hint: use the description, not the title');
   });
+  it('does not claim that the configured model was served when provider metadata is missing',async()=>{
+    const ai=makeAi({...goodAiResponse(),model:'',usageKnown:false});
+    const service=new OpenAIRecipeExtractionService([new FallbackWebAdapter()],ai);
+    const result=await service.extract(baseImport());expect(result.modelUsed).toBeUndefined();
+    expect(result.cost).toMatchObject({usd:null,quality:'unknown'});
+  });
 
   it('seeds the AI prompt from the import row metadata', async () => {
     const ai = makeAi(goodAiResponse());

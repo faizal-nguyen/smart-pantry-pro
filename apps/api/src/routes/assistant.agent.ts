@@ -1,4 +1,6 @@
 import { AssistantSessionMessagesSchema } from '@smart/shared';
+import { loadAssistantModelConfig, modelCatalog } from '../services/ai/ModelConfig.js';
+import { PRICING_VERSION } from '../services/ai/ModelPricing.js';
 /**
  * PRP-221 J5 — Assistant agent routes.
  *
@@ -210,6 +212,8 @@ export function createAssistantAgentRouter(
   const router = Router();
   const auth = createAuthMiddleware(adminClient);
   router.use(auth);
+  const modelConfig = loadAssistantModelConfig();
+  router.get('/models', (_req,res)=>ok(res,{catalog:modelCatalog(modelConfig,PRICING_VERSION)},'OK','ASSISTANT_MODELS'));
 
   const hmacSecret = options.hmacSecret ?? process.env.ASSISTANT_HMAC_SECRET ?? '';
   if (!hmacSecret || hmacSecret.length < 32) {
@@ -270,7 +274,7 @@ export function createAssistantAgentRouter(
     handlerRegistry,
     writer,
     signer,
-    { memoryService, contextBuilder, memoryExtractor }
+    { memoryService, contextBuilder, memoryExtractor, modelConfig }
   );
 
   // Phase 3 — singleton EmbeddingService so its LRU cache is shared

@@ -3,6 +3,7 @@ import SettingsNavigation from './SettingsNavigation';
 import AccountSection from './AccountSection';
 import AppearanceSection from './AppearanceSection';
 import AssistantMemorySection from './AssistantMemorySection';
+import AssistantModelsSection from './AssistantModelsSection';
 import CookingPreferencesSection from './CookingPreferencesSection';
 import DataPrivacySection from './DataPrivacySection';
 import NotificationsSection from './NotificationsSection';
@@ -14,6 +15,7 @@ export default function SettingsShell({ user }: { user: User }) {
     switch (section) {
       case 'account': return <AccountSection user={user} />;
       case 'assistant-memory': return <AssistantMemorySection />;
+      case 'assistant-models': return <AssistantModelsSection />;
       case 'cooking': return <CookingPreferencesSection />;
       case 'nutrition': return <NutritionWellbeingStub />;
       case 'data-privacy': return <DataPrivacySection />;

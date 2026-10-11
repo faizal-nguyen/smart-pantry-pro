@@ -73,6 +73,8 @@ function Fixture() {
       <button onClick={()=>{failures.memoryConflict=true;}}>Simuler un conflit mémoire</button>
       <button onClick={()=>{failures.memoryReplyLost=true;}}>Perdre la réponse mémoire</button>
       <button onClick={()=>{failures.memoryOffline=true;void queries.invalidateQueries({queryKey:['assistant-memories']});}}>Refuser la lecture mémoire</button>
+      <button onClick={()=>{failures.modelsOffline=!failures.modelsOffline;void queries.invalidateQueries({queryKey:['assistant-models']});}}>Basculer le refus du catalogue de modèles</button>
+      <Link to="/assistant?conversation=90000000-0000-4000-8000-000000000001">Réponse fictive avec coût incomplet</Link>
       <span>Écran : {route.pathname}</span>
       <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
       <Link to="/kitchen/recipes">Bibliothèque</Link><Link to={`/kitchen/recipes/${CATALOG}?source=recipes_catalog`}>Fiche catalogue</Link><Link to={`/kitchen/recipes/${WRAPPER}?source=user_recipes`}>Fiche personnelle</Link>

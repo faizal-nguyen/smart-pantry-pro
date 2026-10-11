@@ -1,12 +1,13 @@
 # PRP V10-03D — Agent, modèles et coût vérifiable
 
-> Statut : spécification rédigée ; réalisation non commencée ; candidats à évaluer.
+> Statut : D0–D4 réalisés localement les 11–12 octobre 2026 ; benchmark réel terminé ; candidats rejetés, baseline conservée. D5 préparé, sans publication ni déploiement.
 > Date : 2026-10-09.
 > Priorité : P1 pour compatibilité et coûts ; amélioration de qualité soumise au benchmark.
 > Dépendances : commandes et confirmations V10-01/V10-02, moteur [V10-03](PRP-V10-03-Personnalisation.md), politique de [V10-03C](PRP-V10-03C-Memoire-Fiable.md).
 > Coordination : évaluation de fiche [V10-03A](PRP-V10-03A-Recettes-Apercus.md) et transports de [V10-03E](PRP-V10-03E-Voix-Cuisine.md).
 > Source : [audit du 9 octobre](../../docs/AUDIT-DESIGN-MEMOIRE-VOIX-2026-10-09.md), A01 et inventaire des chemins actifs ; référence locale `dda2602`.
 > Estimation indicative : 4 à 7 jours, hors attente d'accès aux modèles et observation du déploiement.
+> Réalisation : [contrats et vérification](../../docs/implementations/V10-03D.md), [inventaire actif](../../docs/audits/2026-10-11-v10-03d/INVENTAIRE.md), [benchmark et décisions](../../docs/audits/2026-10-11-v10-03d/BENCHMARK.md). Aucune migration ajoutée ; aucune bascule de modèle en production.
 
 ## 1. Problème et résultat attendu
 
@@ -145,12 +146,12 @@ Les tests automatiques utilisent des doubles de fournisseur. Les appels réels s
 
 | Étape / PR | Livrable | Condition |
 | --- | --- | --- |
-| D0 — Inventaire | Carte des appels/configurations, corpus et baseline, accès aux candidats | Aucun workload caché dans un remplacement global |
-| D1 — Transport | Adaptateur Responses et compatibilité SDK | Tests des items, tools, streaming et anciens callers |
-| D2 — Configuration/coût | Rôles, limites, tarifs et reçus | Modèle inconnu et usage incomplet représentés honnêtement |
-| D3 — Benchmark | Rapport comparatif et décision par rôle | Mémoire/politique stable ; budget et critères fixés avant appels réels |
-| D4 — Produit | Vue secondaire des modèles et détail par réponse | Configuration et modèle servi distingués |
-| D5 — Activation | Déploiement progressif, observation et retour arrière | SHA, variables, coûts et garanties métier vérifiés |
+| D0 — Inventaire | Carte des appels/configurations, corpus et baseline, accès aux candidats | Réalisé localement ; quatre modèles accessibles et appelés dans le banc fictif |
+| D1 — Transport | Adaptateur Responses et compatibilité SDK | Réalisé ; items, tools, streaming interrompu et anciens callers testés, SDK 4.104.0 conservé |
+| D2 — Configuration/coût | Rôles, limites, tarifs et reçus | Réalisé ; inconnu `null`, cache/raisonnement sans double comptage ; I/O de base déjà en cours non annulées par l'échéance |
+| D3 — Benchmark | Rapport comparatif et décision par rôle | 360 essais complets ; seuils non atteints, candidats rejetés ; relecture humaine non approuvée |
+| D4 — Produit | Vue secondaire des modèles et détail par réponse | Réalisé ; Chrome fictif 375/440 px, clair/sombre, erreurs de lecture vérifiées |
+| D5 — Activation | Déploiement progressif, observation et retour arrière | Porte d'approbation et retour baseline prêts ; aucune activation ou preuve de production |
 
 D0/D1 peuvent être préparés après les contrats de C0/C1. D3 utilise les comportements validés de mémoire, pour attribuer les écarts au modèle plutôt qu'à une politique différente.
 
@@ -160,16 +161,17 @@ Tests de transport : texte seul, plusieurs items, plusieurs tools, JSON invalide
 
 Exécuter `npm run shared:build`, `npm run test:v10:api`, les tests ciblés de `RecipeExtractionService` et des nouveaux adaptateurs, puis `npm run build`. Couvrir la route de streaming distincte si elle est modifiée.
 
-- [ ] Tous les chemins de modèles actifs sont inventoriés avec leurs valeurs serveur.
-- [ ] Rôles et paramètres sont typés, validés et figés par invocation.
-- [ ] Responses fonctionne avec les tools et l'ancienne extraction reste compatible.
-- [ ] Aucun changement de transport n'assouplit les politiques métier ou de mémoire.
-- [ ] Coût connu/estimé/inconnu et modèle réellement servi sont exacts dans les cas testés.
-- [ ] Le benchmark publie corpus, conditions, limites et décision pour chaque rôle.
-- [ ] La configuration rejetée reste rejetée ; un candidat non accessible n'est pas présenté comme activé.
-- [ ] La vue des modèles ne divulgue aucun secret et correspond à la configuration observée.
-- [ ] Retour arrière et absence de double écriture sont éprouvés.
-- [ ] Déploiement, essais fournisseur et tests locaux disposent de preuves distinctes.
+- [x] Les chemins actifs et aliases sont inventoriés avec leurs valeurs serveur locales ; activité distante des Edge Functions explicitement non vérifiée.
+- [x] Rôles et paramètres sont typés, validés et figés par invocation.
+- [x] Responses fonctionne avec les tools et l'ancienne extraction reste compatible dans les tests et appels fictifs réels.
+- [x] Les contrôles de risque, portée, propriétaire, confirmation et révocation mémoire sont conservés et éprouvés localement ; pas de certification de sécurité générale.
+- [x] Coût connu/estimé/inconnu et modèle réellement servi sont exacts dans les cas testés.
+- [x] Le benchmark publie corpus, conditions, limites et décision pour chaque rôle.
+- [x] Les candidats rejetés ne peuvent pas être activés par leur seule variable de sélection ; baseline conservée.
+- [x] La vue des modèles ne divulgue aucun secret et distingue configuration et observation du processus serveur.
+- [x] Retour à la configuration baseline et absence de double écriture sont éprouvés avec des doubles ; aucun rollback distant effectué.
+- [ ] Relecture humaine culinaire approuvée pour une adoption : aucune adoption retenue sur ce benchmark.
+- [ ] Déploiement, SHA publié et observation distante : non effectués ; tests locaux et essais fournisseur disposent de preuves séparées.
 
 ## 11. Retour arrière et transmission
 

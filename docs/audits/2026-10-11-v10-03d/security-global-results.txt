@@ -1,0 +1,9 @@
+❌ Found 1 potential hardcoded keys
+❌ Missing environment validator
+❌ Wildcard CORS in cleanup-shopping-list function
+❌ Wildcard CORS in indian-price-estimator function
+❌ Potential SQL injection in useNutritionalAI.ts
+❌ Potential SQL injection in useRecipeCatalog.ts
+❌ Potential SQL injection in useRecipeCollections.ts
+❌ Potential SQL injection in useRoutineCatalog.ts
+❌ Potential SQL injection in MealPlanningEngine.ts

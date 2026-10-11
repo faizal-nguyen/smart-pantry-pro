@@ -244,6 +244,12 @@ describe('ImportRecipeFromUrlHandler', () => {
       duplicate: true,
     });
   });
+  it('propagates an unavailable extraction cost instead of inventing a zero',async()=>{
+    const service=makeService({extractResult:{draft:{title:'Soupe'},cost:{usd:null,quality:'unknown'}}});
+    const handler=new ImportRecipeFromUrlHandler(()=>service as any);
+    const result=await handler.execute(makeCtx({}),{url:'https://example.com/recipe'});
+    expect(result.extraCostUsd).toBeNull();expect(result.result.cost_usd).toBeNull();
+  });
 
   it('continues to extract+save when capture is a duplicate but the import has no recipe_id yet', async () => {
     const service = makeService({

@@ -1,5 +1,6 @@
 import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
+import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
 
 export class ApiError extends Error {
   status: number; code?: string;
@@ -169,6 +170,15 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
+  if(path==='/assistant/models') {
+    if(failures.modelsOffline) throw new ApiError('Catalogue fictif indisponible.',{status:503});
+    return {catalog:modelCatalog} as T;
+  }
+  if(path.startsWith('/assistant/conversations/'+MODEL_CONVERSATION+'/messages')) return {items:[
+    {id:'90000000-0000-4000-8000-000000000002',user_id:OWNER,conversation_id:MODEL_CONVERSATION,role:'user',content:'Que cuisiner ce soir ?',content_format:'text',action_log_ids:[],metadata:{},created_at:'2026-10-11T10:00:00Z'},
+    {id:'90000000-0000-4000-8000-000000000003',user_id:OWNER,conversation_id:MODEL_CONVERSATION,role:'assistant',content:'La soupe est enregistrée dans ta bibliothèque. Sa durée reste à vérifier.',content_format:'text',action_log_ids:[],metadata:{model_receipt:modelReceipt},created_at:'2026-10-11T10:00:01Z'},
+  ],nextCursor:null} as T;
+  if(path==='/assistant/conversations/'+MODEL_CONVERSATION) return {conversation:{id:MODEL_CONVERSATION,user_id:OWNER,mode:'general',status:'active',title:'Conversation fictive',created_at:'2026-10-11T10:00:00Z',updated_at:'2026-10-11T10:00:01Z'}} as T;
   if(path==='/assistant/memory-policy') return {policy:{userId:OWNER,revision:memoryRevision,memoryEnabled:privacy.assistantMemoryEnabled,saveHistory:privacy.saveHistory,shareProfile:false,profileVersion:fixtureProfile().version}} as T;
   if(path.startsWith('/assistant/memory-commands/')) return {receipt:memoryReceipts.get(path.split('/').pop()!) ?? null} as T;
   if (path==='/v1/settings/nutrition-profile') return { profile:fixtureProfile(),legacyServerPresent:false } as T;

@@ -82,13 +82,14 @@
     "recipe:policy:check": "tsx scripts/audit-recipe-policy.ts --seeds supabase/seeds --check",
     "postinstall": "npm run shared:build || true",
     "test:v10:client": "jest --runInBand --testPathPattern \"\\.v10\\.test\" --no-coverage",
-    "test:v10:api": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"recommendations/__tests__|handlers/__tests__/(read|write|internal|memory).test|services/stock/__tests__|VoiceAgentService|RiskClassifier|CookingJournal|SocialVideoImportQueue|routes/__tests__/(stock|nutrition-profile|recommendations|assistant.memory|settings.privacy).routes|Memory.*test|ContextBuilder|ConversationSummary.*test\" --no-coverage",
+    "test:v10:api": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"ai/__tests__|recommendations/__tests__|handlers/__tests__/(read|write|internal|memory).test|services/stock/__tests__|VoiceAgentService|RiskClassifier|CookingJournal|SocialVideoImportQueue|routes/__tests__/(stock|nutrition-profile|recommendations|assistant.memory|assistant.models|settings.privacy).routes|Memory.*test|ContextBuilder|ConversationSummary.*test\" --no-coverage",
     "test:v10": "npm run shared:build && npm run test:v10:client && npm run test:v10:api",
     "test:v10:db": "python3 scripts/test-v10-stock-db.py",
     "test:v10:03:db": "python3 scripts/test-v10-personalization-db.py",
     "test:v10:03c:db": "python3 scripts/test-v10-memory-db.py",
     "audit:v10:memory": "node --import tsx scripts/audit-v10-memory.ts",
-    "test:v10:ui": "vite --config scripts/vite-v10-fixture.config.ts"
+    "test:v10:ui": "vite --config scripts/vite-v10-fixture.config.ts",
+    "benchmark:v10:models": "node --import tsx scripts/benchmark-v10-models.ts"
   },
   "dependencies": {
     "@deepgram/sdk": "^3.13.0",
