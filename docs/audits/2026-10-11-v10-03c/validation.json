@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-11",
+  "phase": "local_validation_before_git_publication",
+  "branch": "codex/v10-03c-memoire-fiable",
+  "base_sha": "e158cee8adc213ea735f204efb770464494fd4d8",
+  "uncommitted": true,
+  "checks": [
+    {
+      "name": "client",
+      "command": "npm run test:v10:client",
+      "status": "passed",
+      "suites": 39,
+      "tests": 138
+    },
+    {
+      "name": "api",
+      "command": "npm run test:v10:api",
+      "status": "passed",
+      "suites": 29,
+      "tests": 362
+    }
+  ],
+  "sql": {
+    "status": "passed",
+    "groups": 12,
+    "engine": "PostgreSQL 16 local, disposable database, two fictitious owners"
+  },
+  "build": "passed",
+  "core_lint": {
+    "status": "passed",
+    "files": 15
+  },
+  "global_security": {
+    "status": "failed",
+    "alerts": 9,
+    "unchanged_reported_sources": true
+  },
+  "global_client_typecheck": {
+    "status": "blocked_by_existing_syntax",
+    "file": "src/design-system/index.ts",
+    "line": 163
+  },
+  "migration": {
+    "file": "supabase/migrations/20261011184535_v10_assistant_memory.sql",
+    "sha256": "b53f176ea16afb9c61959df5862c5d6dcfdda12cecbb828f2705eca65bce7886",
+    "local_test_applied": true,
+    "remote_applied": false
+  },
+  "repair": "offline_fictitious_only",
+  "provider_calls": "mocked_only",
+  "release": {
+    "committed": false,
+    "pushed": false,
+    "merged": false,
+    "deployed": false
+  },
+  "physical_iphone": "not_validated",
+  "browser_checks": "browser-checks.json",
+  "cleanup": {
+    "local_test_server": "stopped",
+    "local_postgres": "stopped",
+    "browser_viewport": "reset",
+    "own_qa_tab": "closed"
+  },
+  "secret_scan": {
+    "status": "passed",
+    "tracked_and_new_v10_files": true,
+    "scanned_files": 1541
+  }
+}

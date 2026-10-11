@@ -2,7 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthSessionProvider } from '@/contexts/AuthSessionContext';
 import { ResponsiveProvider } from '@/contexts/ResponsiveContext';
 import { MaterialYouThemeProvider } from '@/contexts/MaterialYouThemeContext';
@@ -42,6 +42,15 @@ function ManualRecipe() {
 }
 function Fixture() {
   const route = useLocation();
+  const queries=useQueryClient();
+  const loadMemory=()=>{
+    data.assistant_memory_items=[
+      {id:'80000000-0000-4000-8000-000000000001',kind:'preference',content:'Je préfère les plats épicés.',status:'active',version:1,destination:'memory',payload:{type:'taste',subject:'spiciness',value:'spicy'},source:'user_explicit',sensitivity:'normal',approved_at:'2026-10-11T10:00:00Z'},
+      {id:'80000000-0000-4000-8000-000000000002',kind:'constraint',content:'Je suis allergique aux cacahuètes.',status:'candidate',version:1,destination:'profile',payload:{type:'profile',field:'allergies',operation:'add',value:['cacahuètes'],subject:'allergies'},source:'user_explicit',sensitivity:'health_sensitive'},
+      {id:'80000000-0000-4000-8000-000000000003',kind:'response_style',content:'Réponds avec des étapes courtes.',status:'candidate',version:0,destination:null,payload:null,source:'assistant_inferred',sensitivity:'normal'},
+    ].map(row=>({...row,user_id:OWNER,created_at:'2026-10-11T10:00:00Z',updated_at:'2026-10-11T10:00:00Z',expires_at:null,evidence:{channel:'text'},policy_revision:4,profile_version:null}));
+    persistFixtureData();location.reload();
+  };
   const { theme, toggleTheme } = useTheme();
   const [failure,setFailure] = useState(false);
   const [evaluationOffline,setEvaluationOffline]=useState(false);
@@ -60,6 +69,10 @@ function Fixture() {
   return <CulinaryDesignContext.Provider value={design}>
     <details className="relative z-10 bg-muted px-3 py-2 text-xs" aria-label="Contrôles du test local"><summary className="flex min-h-11 cursor-pointer items-center">Test local — données fictives · contrôles</summary><div className="flex flex-wrap gap-3 py-2">
       <strong>Test local — données fictives</strong>
+      <button onClick={loadMemory}>Charger les souvenirs fictifs</button>
+      <button onClick={()=>{failures.memoryConflict=true;}}>Simuler un conflit mémoire</button>
+      <button onClick={()=>{failures.memoryReplyLost=true;}}>Perdre la réponse mémoire</button>
+      <button onClick={()=>{failures.memoryOffline=true;void queries.invalidateQueries({queryKey:['assistant-memories']});}}>Refuser la lecture mémoire</button>
       <span>Écran : {route.pathname}</span>
       <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
       <Link to="/kitchen/recipes">Bibliothèque</Link><Link to={`/kitchen/recipes/${CATALOG}?source=recipes_catalog`}>Fiche catalogue</Link><Link to={`/kitchen/recipes/${WRAPPER}?source=user_recipes`}>Fiche personnelle</Link>

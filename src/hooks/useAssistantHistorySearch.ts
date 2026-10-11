@@ -6,6 +6,7 @@
  * isn't bombarded with empty results while typing the first letter.
  */
 import { useEffect, useState } from 'react';
+import { useAuthSessionOptional } from './useAuthenticatedUser';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -35,12 +36,13 @@ export function useAssistantHistorySearch(
   query: string,
   opts: UseAssistantHistorySearchOpts = {},
 ) {
+  const owner = useAuthSessionOptional().user?.id;
   const debounced = useDebouncedValue(query.trim(), opts.debounceMs ?? DEFAULT_DEBOUNCE);
-  const shouldFetch = (opts.enabled ?? true) && debounced.length >= MIN_QUERY_LENGTH;
+  const shouldFetch = !!owner && (opts.enabled ?? true) && debounced.length >= MIN_QUERY_LENGTH;
 
   const queryResult = useQuery<{ matches: AssistantSearchMatch[] }>({
-    queryKey: ['assistant-search', debounced, opts.limit ?? 20],
-    queryFn: () => searchAssistantHistory(debounced, opts.limit ?? 20),
+    queryKey: ['assistant-search', owner, debounced, opts.limit ?? 20],
+    queryFn: () => searchAssistantHistory(debounced, opts.limit ?? 20, { expectedUserId: owner }),
     enabled: shouldFetch,
     staleTime: 30_000,
   });

@@ -20,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ok, fail } from '../utils/responses.js';
 import { userRateLimit } from '../middleware/userRateLimit.js';
 import type { Database } from '../types/supabase.js';
+import { MemoryService } from '../services/assistant/MemoryService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
 import { ProfileError,profileDatabaseError } from '../services/recommendations/NutritionProfileService.js';
@@ -35,6 +36,7 @@ export function createRecommendationsRouter(
 
   // Stateless engine; each call uses the authenticated client's profile and RLS.
   const engine = new RecommendationEngine();
+  const memoryService = new MemoryService(adminClient);
 
   const limiter = userRateLimit({
     key: 'recommendations.suggest',
@@ -59,7 +61,7 @@ export function createRecommendationsRouter(
         {
           userId: req.user.id,
           userClient,
-          eventWriter,
+          eventWriter, memoryService,
         },
         parsed.data,
       );

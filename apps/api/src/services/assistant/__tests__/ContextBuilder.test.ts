@@ -1,190 +1,35 @@
-/**
- * PRP-223 PR4 — ContextBuilder unit tests.
- *
- * Stubs MemoryService at the public-method level (the underlying
- * Supabase chain is already covered by MemoryService.test.ts).
- */
-import { emptyNutritionProfile } from '@smart/shared';
 import { ContextBuilder, CONTEXT_BUILDER_LIMITS } from '../ContextBuilder.js';
-import type {
-  AssistantConversationSummary,
-  AssistantMemoryItem,
-  AssistantMessage,
-  AssistantSessionContext,
-} from '../MemoryService.js';
-
-const USER = '11111111-1111-1111-1111-111111111111';
-const CONV = '22222222-2222-2222-2222-222222222222';
-
-function mem(o: Partial<AssistantMemoryItem> = {}): AssistantMemoryItem {
-  return {
-    id: 'm-' + (o.id ?? '0'),
-    user_id: USER,
-    kind: 'preference',
-    scope: 'global',
-    status: 'active',
-    subject_type: null,
-    subject_id: null,
-    content: 'aime indien leger',
-    normalized_content: 'aime indien leger',
-    confidence: 0.8,
-    sensitivity: 'normal',
-    source: 'assistant_inferred',
-    evidence: {},
-    approved_at: null,
-    last_used_at: null,
-    expires_at: null,
-    deleted_at: null,
-    created_at: '2026-05-13T00:00:00Z',
-    updated_at: '2026-05-13T00:00:00Z',
-    ...o,
-  } as AssistantMemoryItem;
+import { MemoryService } from '../MemoryService.js';
+import { emptyNutritionProfile } from '@smart/shared';
+import { memory, policy, summary, message, session, USER, CONV } from '../__fixtures__/memory.js';
+const profile = (share:boolean) => ({ profile:{ user_id:USER, version:2, schema_version:1 as const, origin:'explicit' as const, updated_at:null,
+  settings:{ ...emptyNutritionProfile(),consent:true,shareWithAssistant:share,allergies:['lait'] } },legacyServerPresent:false });
+function stub(share=false) {
+  const service = { readPolicySafe:jest.fn(async()=>policy({ shareProfile:share })),
+    modelMemories:jest.fn(async()=>[memory()]), modelArtifacts:jest.fn(async()=>({ messages:[message()],summary:summary(),session:[session()],privateTerms:[] })) };
+  return { service, builder:new ContextBuilder(service as unknown as MemoryService,async()=>profile(share)) };
 }
-
-function msg(o: Partial<AssistantMessage> = {}): AssistantMessage {
-  return {
-    id: 'msg-' + (o.id ?? '0'),
-    conversation_id: CONV,
-    user_id: USER,
-    role: 'user',
-    content: 'salut',
-    content_format: 'text',
-    audio_transcript: null,
-    tool_calls: [],
-    action_log_ids: [],
-    metadata: {},
-    created_at: '2026-05-13T00:00:00Z',
-    ...o,
-  } as AssistantMessage;
-}
-
-function makeStub(opts: {
-  responseStyle?: AssistantMemoryItem | null;
-  topMemories?: AssistantMemoryItem[];
-  summary?: AssistantConversationSummary | null;
-  recentMessages?: AssistantMessage[];
-  sessionContext?: AssistantSessionContext[];
-  fail?: 'responseStyle' | 'topMemories' | 'summary' | 'recent' | 'session';
-}) {
-  return {
-    async getResponseStyleMemory() {
-      if (opts.fail === 'responseStyle') throw new Error('boom');
-      return opts.responseStyle ?? null;
-    },
-    async getTopActiveMemories() {
-      if (opts.fail === 'topMemories') throw new Error('boom');
-      return opts.topMemories ?? [];
-    },
-    async getLatestSummary() {
-      if (opts.fail === 'summary') throw new Error('boom');
-      return opts.summary ?? null;
-    },
-    async getRecentMessages() {
-      if (opts.fail === 'recent') throw new Error('boom');
-      return opts.recentMessages ?? [];
-    },
-    async getActiveSessionContext() {
-      if (opts.fail === 'session') throw new Error('boom');
-      return opts.sessionContext ?? [];
-    },
-  } as any;
-}
-
-describe('ContextBuilder', () => {
-  it('returns an empty block when the user has no memory and no conversation', async () => {
-    const builder = new ContextBuilder(makeStub({}));
-    const block = await builder.build(USER, null);
-    expect(block.combinedText).toBe('');
-    expect(block.memoriesText).toBe('');
-    expect(block.tokenEstimate).toBe(0);
-  });
-
-  it('renders the response_style at the top when set', async () => {
-    const builder = new ContextBuilder(
-      makeStub({
-        responseStyle: mem({ id: 'rs', kind: 'response_style', content: 'reponds court' }),
-        topMemories: [mem({ id: 'p1', kind: 'preference', content: 'aime indien' })],
-      }),
-    );
-    const block = await builder.build(USER);
-    expect(block.responseStyle).toContain('reponds court');
-    expect(block.combinedText.indexOf(block.responseStyle!)).toBe(0);
-    expect(block.memoriesText).toContain('aime indien');
-  });
-
-  it('caps memories at the configured limit', async () => {
-    const many = Array.from({ length: 20 }, (_, i) =>
-      mem({ id: String(i), content: `pref ${i}` }),
-    );
-    const builder = new ContextBuilder(makeStub({ topMemories: many }));
-    const block = await builder.build(USER);
-    const lines = block.memoriesText.split('\n').filter(l => l.startsWith('•'));
-    expect(lines.length).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxMemories);
-  });
-
-  it('renders summary, recent messages and session context when available', async () => {
-    const builder = new ContextBuilder(
-      makeStub({
-        summary: {
-          id: 's',
-          conversation_id: CONV,
-          user_id: USER,
-          summary: 'On a parlé recettes pâtes.',
-          covered_message_ids: [],
-          model_used: 'gpt-4o-mini',
-          created_at: '2026-05-13T00:00:00Z',
-        } as any,
-        recentMessages: [msg({ id: '1', role: 'user', content: 'des pâtes ?' })],
-        sessionContext: [
-          {
-            id: 'sc',
-            user_id: USER,
-            conversation_id: CONV,
-            key: 'time_budget',
-            value: '20 min',
-            expires_at: '2099-01-01T00:00:00Z',
-            created_at: '2026-05-13T00:00:00Z',
-          } as any,
-        ],
-      }),
-    );
-    const block = await builder.build(USER, CONV);
-    expect(block.summaryText).toContain('On a parlé recettes pâtes.');
-    expect(block.recentMessagesText).toContain('Utilisateur');
-    expect(block.recentMessagesText).toContain('des pâtes');
-    expect(block.sessionContextText).toContain('time_budget');
-  });
-
-  it('survives memory read failures without throwing', async () => {
-    const builder = new ContextBuilder(makeStub({ fail: 'topMemories' }));
-    const block = await builder.build(USER);
-    // No memories rendered, but the call completed.
-    expect(block.memoriesText).toBe('');
-  });
-
-  it('keeps the token budget bounded', async () => {
-    const huge = mem({ content: 'x'.repeat(20_000) });
-    const builder = new ContextBuilder(
-      makeStub({ topMemories: [huge, huge, huge, huge, huge, huge, huge, huge] }),
-    );
-    const block = await builder.build(USER);
-    expect(block.tokenEstimate).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxTokensEstimate);
-  });
+test('unknown permissions yield no stored data', async()=>{
+  const {service,builder}=stub();service.readPolicySafe.mockResolvedValueOnce(null);
+  expect((await builder.build(USER,CONV)).combinedText).toBe('');expect(service.modelMemories).not.toHaveBeenCalled();
 });
-
-
-describe('V10-03 assistant privacy and profile priority',()=>{
-  const explicit=(share:boolean)=>({ profile:{ user_id:USER,version:2,schema_version:1 as const,origin:'explicit' as const,updated_at:null,settings:{ ...emptyNutritionProfile(),consent:true,shareWithAssistant:share,allergies:['lait'] } },legacyServerPresent:false });
-  test('private profile and old health inference never enter the model context',async()=>{
-    const context=new ContextBuilder(makeStub({ topMemories:[mem({ content:'allergie lait',sensitivity:'health_sensitive' }),mem({ content:'aime beurre' })] }),async()=>explicit(false));
-    const block=await context.build(USER);
-    expect(block.combinedText).not.toContain('allergie lait');expect(block.combinedText).not.toContain('aime beurre');
-    expect(block.combinedText).toContain('reste privé');
-  });
-  test('opted-in explicit constraints receive priority over all inferred food memories',async()=>{
-    const context=new ContextBuilder(makeStub({ topMemories:[mem({ content:'pas allergique au lait' })] }),async()=>explicit(true));
-    const block=await context.build(USER);
-    expect(block.combinedText).toContain('"allergies":["lait"]');expect(block.combinedText).toContain('prime sur les inférences');
-    expect(block.combinedText).not.toContain('pas allergique');
-  });
+test('allowed complementary memory, recent history, summary and current meal keep references',async()=>{
+  const {builder}=stub();const block=await builder.build(USER,CONV);
+  expect(block.combinedText).toContain('plats épicés');expect(block.combinedText).toContain('soupe');expect(block.combinedText).toContain('Ce soir');
+  expect(block.references).toEqual([{ id:memory().id,version:1,destination:'memory',source:'user_explicit' }]);
+  expect(block.combinedText).not.toContain('"allergies"');expect(block.shareProfileWithModel).toBe(false);
+});
+test('only explicitly shared canonical profile enters context and primes its constraints',async()=>{
+  const block=await stub(true).builder.build(USER,CONV);
+  expect(block.combinedText).toContain('"allergies":["lait"]');expect(block.combinedText).toContain('Le profil confirmé prime');
+});
+test('failed canonical read cannot silently authorize another profile path',async()=>{
+  const {service}=stub(true);const builder=new ContextBuilder(service as unknown as MemoryService,async()=>{throw new Error('offline');});
+  expect((await builder.build(USER,CONV)).combinedText).toBe('');
+});
+test('limits are requested after shared filtering and the model budget remains bounded',async()=>{
+  const {service,builder}=stub();service.modelMemories.mockResolvedValueOnce([memory({ content:'x'.repeat(20000) })]);
+  const block=await builder.build(USER,CONV);
+  expect(service.modelMemories).toHaveBeenCalledWith(USER,policy(),8);
+  expect(block.tokenEstimate).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxTokensEstimate);
 });

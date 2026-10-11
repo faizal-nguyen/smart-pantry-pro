@@ -1,0 +1,78 @@
+{
+  "mode": "offline_fictitious_dry_run",
+  "writes": 0,
+  "owners": 2,
+  "inspected": 6,
+  "proposals": [
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000001"
+      ],
+      "action": "propose_profile_confirmation",
+      "reason": "canonical_profile_required"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000002"
+      ],
+      "action": "keep_candidate",
+      "reason": "legacy_not_confirmed"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000003"
+      ],
+      "action": "keep_candidate",
+      "reason": "legacy_not_confirmed"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "action": "keep_candidate",
+      "reason": "legacy_not_confirmed"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000005"
+      ],
+      "action": "propose_profile_confirmation",
+      "reason": "canonical_profile_required"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000005"
+      ],
+      "action": "review_conflict",
+      "reason": "canonical_allergy_wins"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000006"
+      ],
+      "action": "keep_candidate",
+      "reason": "legacy_not_confirmed"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000003"
+      ],
+      "group": "f044b7c25a930b1ed91d114fe55bcf1a406aacdb4395fb308da0f0adf8e587d4",
+      "action": "merge_provenance_after_review",
+      "reason": "semantic_duplicate"
+    },
+    {
+      "ids": [
+        "00000000-0000-4000-8000-000000000002",
+        "00000000-0000-4000-8000-000000000003",
+        "00000000-0000-4000-8000-000000000004"
+      ],
+      "group": "f044b7c25a930b1ed91d114fe55bcf1a406aacdb4395fb308da0f0adf8e587d4",
+      "action": "review_conflict",
+      "reason": "one_subject_multiple_values"
+    }
+  ],
+  "automatic_promotions": 0,
+  "profile_changes": 0
+}

@@ -1,4 +1,4 @@
-import { emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
+import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 
 export class ApiError extends Error {
@@ -37,8 +37,30 @@ function preview(id: string, requested?: number,source='auto'): RecipeStockPrevi
 }
 function fixtureProfile():NutritionProfile { return (data.nutrition_profiles?.[0] ?? { user_id:OWNER,version:0,schema_version:1,settings:emptyNutritionProfile(),origin:'empty',updated_at:null }) as unknown as NutritionProfile; }
 const results = new Map<string,StockCommandResult>(JSON.parse(localStorage.getItem('v10-fixture-results') ?? '[]'));
+let memoryRevision=4;
+let privacy={ hasConsent:false,allowAnalytics:false,saveHistory:true,assistantMemoryEnabled:true,allowImageProcessing:false,shareAnonymizedData:false,batterySaver:false,dataRetention:'standard' };
+const memoryReceipts=new Map<string,MemoryWriteResult>();
 const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  if (path==='/v1/settings/privacy') { privacy={...privacy,...body as typeof privacy};memoryRevision++;return {settings:privacy} as T; }
+  if (path==='/assistant/memory-commands') {
+    const c=MemoryCommandSchema.parse(body),row=data.assistant_memory_items.find(r=>r.id===c.memory_id);
+    const prior=memoryReceipts.get(c.command_id);if(prior) return {receipt:{...prior,replayed:true}} as T;
+    if (failures.memoryConflict) {failures.memoryConflict=false;if(row) {row.version=Number(row.version)+1;row.content='Je préfère les plats doux.';}memoryRevision++;throw new ApiError('Un autre appareil a changé ce souvenir.',{status:409,code:'VERSION_CONFLICT'});}
+    if(!row || row.version!==c.expected_version || c.expected_revision!==memoryRevision) throw new ApiError('Version actuelle à relire.',{status:409,code:'VERSION_CONFLICT'});
+    const fact=c.payload ? classifyMemoryFact(c.payload.content,{explicit:true,kind:c.payload.kind}) : null;
+    const status=['forget','reject'].includes(c.operation) || privacy.assistantMemoryEnabled ? fact?.destination==='profile' ? 'awaiting_confirmation':'saved' : 'disabled';
+    if(status!=='disabled') {
+      row.version=Number(row.version)+1;memoryRevision++;
+      if(['forget','reject'].includes(c.operation)) {row.status=c.operation==='forget' ? 'deleted':'rejected';row.content='';row.payload=null;}
+      else if(fact) {row.content=fact.content;row.payload=fact.payload;row.destination=fact.destination;row.status=fact.status;}
+      else row.status='active';
+    }
+    const receipt:MemoryWriteResult={command_id:c.command_id,operation:c.operation,status,memory_id:String(row.id),version:Number(row.version),destination:(row.destination ?? 'memory') as MemoryWriteResult['destination'],policy_revision:memoryRevision,profile_version:null,reason:null};
+    memoryReceipts.set(c.command_id,receipt);persistFixtureData();
+    if(failures.memoryReplyLost) {failures.memoryReplyLost=false;throw new ApiError('Réponse perdue après écriture fictive.',{status:503});}
+    return {receipt} as T;
+  }
   const request = body as { recipe: { id: string;source?:string }; servings?: number };
   if (path === '/v1/stock/preview') return preview(request.recipe.id,request.servings,request.recipe.source) as T;
   if (path==='/v1/recommendations/evaluate') {
@@ -147,10 +169,12 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
+  if(path==='/assistant/memory-policy') return {policy:{userId:OWNER,revision:memoryRevision,memoryEnabled:privacy.assistantMemoryEnabled,saveHistory:privacy.saveHistory,shareProfile:false,profileVersion:fixtureProfile().version}} as T;
+  if(path.startsWith('/assistant/memory-commands/')) return {receipt:memoryReceipts.get(path.split('/').pop()!) ?? null} as T;
   if (path==='/v1/settings/nutrition-profile') return { profile:fixtureProfile(),legacyServerPresent:false } as T;
-  if (path.startsWith('/assistant/memories')) return { items:data.assistant_memory_items,nextCursor:null } as T;
+  if (path.startsWith('/assistant/memories')) {if(failures.memoryOffline) throw new ApiError('Mémoire indisponible dans le test.',{status:503});return { items:data.assistant_memory_items.filter(row=>!['deleted','rejected'].includes(String(row.status))),nextCursor:null } as T;}
   if (path==='/assistant/conversations' || path.startsWith('/assistant/conversations?')) return { items:[],nextCursor:null } as T;
-  if (path==='/v1/settings/privacy') return { settings:{ hasConsent:false,allowAnalytics:false,saveHistory:true,allowImageProcessing:false,shareAnonymizedData:false,batterySaver:false,dataRetention:'standard' } } as T;
+  if (path==='/v1/settings/privacy') return { settings:privacy } as T;
   if (path.startsWith('/v1/stock/commands/')) {
     const result=results.get(path.split('/').pop()!);
     if (!result) throw new ApiError('Aucun reçu pour cette commande.',{ status:404,code:'COMMAND_NOT_FOUND' });

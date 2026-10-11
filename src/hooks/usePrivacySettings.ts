@@ -33,7 +33,8 @@ export type { PrivacySettings };
 const DEFAULT_SETTINGS: PrivacySettings = {
   hasConsent: false,
   allowAnalytics: false,
-  saveHistory: true,
+  saveHistory: false,
+  assistantMemoryEnabled: false,
   allowImageProcessing: true,
   shareAnonymizedData: false,
   batterySaver: false,
@@ -47,13 +48,15 @@ export function usePrivacySettings() {
   const [loaded,setLoaded]=useState<{ owner?:string;settings:PrivacySettings }>({ settings:DEFAULT_SETTINGS });
   const settings=loaded.owner===owner ? loaded.settings : DEFAULT_SETTINGS;
   const setSettings=useCallback((value:PrivacySettings)=>setLoaded({ owner,settings:value }),[owner]);
+  const [error, setError] = useState<Error | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   // ----- Load -----
   useEffect(() => {
     let active = true;
-    setIsLoading(true);setShowConsentDialog(false);
+    setIsLoading(true);setError(null);setShowConsentDialog(false);
     applyPrivacySettings(DEFAULT_SETTINGS);
     if (!owner) { setIsLoading(false);return; }
     (async () => {
@@ -63,7 +66,7 @@ export function usePrivacySettings() {
       } catch (err) {
         // 401/non-auth → on garde DEFAULT_SETTINGS, sans toast (peut
         // arriver pendant la phase de session loading).
-        if (active) toast.error('Vos choix de confidentialité ne peuvent pas être relus.');
+        if (active) { setError(new Error('Vos choix de confidentialité ne peuvent pas être relus.')); toast.error('Vos choix de confidentialité ne peuvent pas être relus.'); }
       } finally {
         if (active) setIsLoading(false);
       }
@@ -76,7 +79,8 @@ export function usePrivacySettings() {
   // ----- Update -----
   const updateSettings = useCallback(
     async (next: Partial<PrivacySettings>) => {
-      if (!owner) throw new Error('Connectez-vous pour enregistrer vos choix.');
+      if (!owner || error || isLoading) return false;
+      setIsUpdating(true);
       // Optimistic update — rollback si l'API échoue.
       const previous = settings;
       const optimistic = { ...settings, ...next };
@@ -84,18 +88,20 @@ export function usePrivacySettings() {
       applyPrivacySettings(optimistic);
       try {
         const { settings: confirmed } = await patchPrivacySettings(next,owner);
-        if (ownerRef.current!==owner) return;
+        if (ownerRef.current!==owner) return false;
         setSettings(confirmed);
         applyPrivacySettings(confirmed);
+        return true;
       } catch (err) {
-        if (ownerRef.current!==owner) return;
+        if (ownerRef.current!==owner) return false;
         setSettings(previous);
         applyPrivacySettings(previous);
         const message = err instanceof Error ? err.message : 'Erreur inconnue';
         toast.error(`Sauvegarde impossible : ${message}`);
-      }
+        return false;
+      } finally { if (ownerRef.current === owner) setIsUpdating(false); }
     },
-    [settings,owner,setSettings],
+    [settings,owner,setSettings,error,isLoading],
   );
 
   // ----- Consent -----
@@ -103,10 +109,12 @@ export function usePrivacySettings() {
 
   const isFeatureAllowed = useCallback(
     (feature: keyof PrivacySettings): boolean => {
+      if (isLoading || error) return false;
+      if (feature === 'assistantMemoryEnabled' || feature === 'saveHistory' || feature === 'batterySaver') return settings[feature] === true;
       if (!settings.hasConsent) return false;
-      return !!settings[feature];
+      return settings[feature] === true;
     },
-    [settings],
+    [settings, isLoading, error],
   );
 
   // ----- Export (download) -----
@@ -151,8 +159,8 @@ export function usePrivacySettings() {
   }, [owner]);
 
   return {
-    settings,
-    isLoading,
+    owner, settings,
+    isLoading, error, isUpdating,
     hasConsent: settings.hasConsent,
     showConsentDialog,
     setShowConsentDialog,

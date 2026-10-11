@@ -379,6 +379,7 @@ export type UpdateResponseStyleArgs = z.infer<typeof updateResponseStyleArgs>;
 
 const recordRecipeFeedbackArgs = z.object({
   recipe_id: z.string().uuid().optional(),
+  recipe_source: z.enum(['recipes', 'user_recipes', 'recipes_catalog']).optional(),
   recipe_title: z.string().min(1).max(300),
   outcome: z.enum(['loved', 'liked', 'ok', 'disliked', 'failed']).optional(),
   rating: z.number().int().min(1).max(5).optional(),
@@ -1032,12 +1033,12 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       additionalProperties: false,
     },
     defaultRiskTier: 'low',
-    reversible: true,
+    reversible: false,
   },
   {
     name: 'forget_memory',
     description:
-      "Soft-delete a memory the user no longer wants you to remember. Requires a known memory_id (call read_user_memories first). Reversible inside the 15-minute window.",
+      "Forget an owned memory only when the user explicitly asks. Requires a known memory_id. This does not remove a confirmed profile constraint.",
     schema: forgetMemoryArgs,
     jsonSchema: {
       type: 'object',
@@ -1047,8 +1048,8 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       },
       additionalProperties: false,
     },
-    defaultRiskTier: 'medium',
-    reversible: true,
+    defaultRiskTier: 'low',
+    reversible: false,
   },
   {
     name: 'update_response_style',
@@ -1064,7 +1065,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       additionalProperties: false,
     },
     defaultRiskTier: 'low',
-    reversible: true,
+    reversible: false,
   },
   {
     name: 'record_recipe_feedback',
@@ -1076,6 +1077,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       required: ['recipe_title'],
       properties: {
         recipe_id: { type: 'string', format: 'uuid' },
+        recipe_source: { type: 'string', enum: ['recipes', 'user_recipes', 'recipes_catalog'] },
         recipe_title: { type: 'string', minLength: 1, maxLength: 300 },
         outcome: { type: 'string', enum: ['loved', 'liked', 'ok', 'disliked', 'failed'] },
         rating: { type: 'integer', minimum: 1, maximum: 5 },

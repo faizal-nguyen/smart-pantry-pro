@@ -75,6 +75,10 @@ export interface AICompletionRequest {
   tools?: AICompletionTool[];
   /** Default 'auto'. 'none' forces text-only, 'required' forces a tool. */
   tool_choice?: 'auto' | 'none' | 'required';
+  /** Per-call transport budget, used by awaited conversation summaries. */
+  timeoutMs?: number;
+  maxRetries?: number;
+  signal?: AbortSignal;
 }
 
 export interface AICompletionResponse {
@@ -486,7 +490,12 @@ export function createOpenAICompletionClient(): AICompletionClient {
         params.tools = req.tools;
         params.tool_choice = req.tool_choice ?? 'auto';
       }
-      const response = await cachedClient.chat.completions.create(params);
+      params.store = false;
+      const response = await cachedClient.chat.completions.create(params, {
+        ...(req.timeoutMs !== undefined ? { timeout: req.timeoutMs } : {}),
+        ...(req.maxRetries !== undefined ? { maxRetries: req.maxRetries } : {}),
+        ...(req.signal ? { signal: req.signal } : {}),
+      });
       const message = response.choices?.[0]?.message ?? {};
       const content = message.content ?? '';
       const usage = response.usage ?? { prompt_tokens: 0, completion_tokens: 0 };
@@ -549,7 +558,12 @@ export function createOpenAICompletionClient(): AICompletionClient {
       let accumulated = '';
       let model = req.model;
       let usage = { prompt_tokens: 0, completion_tokens: 0 };
-      const stream = await cachedClient.chat.completions.create(params);
+      params.store = false;
+      const stream = await cachedClient.chat.completions.create(params, {
+        ...(req.timeoutMs !== undefined ? { timeout: req.timeoutMs } : {}),
+        ...(req.maxRetries !== undefined ? { maxRetries: req.maxRetries } : {}),
+        ...(req.signal ? { signal: req.signal } : {}),
+      });
       for await (const chunk of stream as AsyncIterable<{
         model?: string;
         choices?: Array<{ delta?: { content?: string } }>;

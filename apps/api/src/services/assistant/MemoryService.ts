@@ -5,32 +5,24 @@
  * (`assistant_conversations`, `assistant_messages`, `assistant_memory_items`,
  * `assistant_conversation_summaries`, `assistant_session_context`).
  *
- * Constructor takes the admin client because PR1 set up SELECT-only RLS:
- * INSERT/UPDATE/DELETE must go through service-role. Every query carries
- * an explicit `.eq('user_id', userId)` so that, even with the service-role
- * client, a logic bug cannot leak a row across users.
- *
- * Subsequent PRs consume this service:
- *   - PR3: VoiceAgentService records user+assistant messages on every turn.
- *   - PR4: ContextBuilder reads top memories + last summary + recent messages.
- *   - PR5: MemoryExtractor (async best-effort) calls `createMemory` on
- *          rules-matched candidates.
- *   - PR6: Frontend hooks consume the CRUD via REST.
+ * V10-03C writes use owner-bound, versioned commands and awaited artifact RPCs.
+ * Reads carry an explicit owner and reject expired data. The common policy RPC
+ * also purges expired new data and invalidates its derived contexts.
  *
  * Cooking journal lives in its own `CookingJournalService` (PR7).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
+import { MemoryCommandSchema, MemoryPolicySchema, MemoryWriteResultSchema, type MemoryCommand, type MemoryWriteResult, type MemoryPolicy, type ReliableMemoryMetadata, classifyMemoryFact, normalizeMemoryText, NutritionProfileSettingsSchema } from '@smart/shared';
+import { memoryRpc } from './memoryRpc.js';
+import { allowedMemory, allowedMessage, allowedSummary, allowedSession, privateProfileTerms } from './MemoryPolicy.js';
 
 type Tables = Database['public']['Tables'];
-type ConversationRow = Tables['assistant_conversations']['Row'];
-type ConversationInsert = Tables['assistant_conversations']['Insert'];
-type MessageRow = Tables['assistant_messages']['Row'];
-type MessageInsert = Tables['assistant_messages']['Insert'];
-type MemoryRow = Tables['assistant_memory_items']['Row'];
-type MemoryInsert = Tables['assistant_memory_items']['Insert'];
-type SummaryRow = Tables['assistant_conversation_summaries']['Row'];
-type SessionContextRow = Tables['assistant_session_context']['Row'];
+type ConversationRow = Tables['assistant_conversations']['Row'] & { policy_revision?: number | null; expires_at?: string | null };
+type MessageRow = Tables['assistant_messages']['Row'] & { policy_revision?: number | null; expires_at?: string | null };
+type MemoryRow = Tables['assistant_memory_items']['Row'] & Partial<ReliableMemoryMetadata>;
+type SummaryRow = Tables['assistant_conversation_summaries']['Row'] & { policy_revision?: number | null; coverage_hash?: string | null };
+type SessionContextRow = Tables['assistant_session_context']['Row'] & { policy_revision?: number | null };
 
 export type AssistantConversation = ConversationRow;
 export type AssistantMessage = MessageRow;
@@ -70,7 +62,7 @@ export class MemoryServiceError extends Error {
       | 'FORBIDDEN'
       | 'QUOTA_EXCEEDED'
       | 'HEALTH_SENSITIVE_REQUIRES_CONFIRMATION'
-      | 'DB_ERROR',
+      | 'DB_ERROR' | 'COMMAND_REQUIRED' | 'VERSION_CONFLICT' | 'IDEMPOTENCY_CONFLICT' | 'DISABLED',
     message: string,
     readonly cause?: unknown,
   ) {
@@ -103,6 +95,8 @@ interface RecordMessageOpts {
   tool_calls?: unknown[];
   action_log_ids?: string[];
   metadata?: Record<string, unknown>;
+  policy?: MemoryPolicy;
+  id?: string;
 }
 
 interface CreateMemoryOpts {
@@ -145,7 +139,7 @@ function decodeCursor(raw: string): { createdAt: string; id: string } | null {
   try {
     const decoded = Buffer.from(raw, 'base64url').toString('utf8');
     const [createdAt, id] = decoded.split('|');
-    if (!createdAt || !id) return null;
+    if (!createdAt || !id || !Number.isFinite(Date.parse(createdAt)) || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) return null;
     return { createdAt, id };
   } catch {
     return null;
@@ -162,23 +156,11 @@ export class MemoryService {
 
   // ----- Conversations -----------------------------------------------------
 
-  async createConversation(
-    userId: string,
-    opts: CreateConversationOpts = {},
-  ): Promise<ConversationRow> {
-    const payload: ConversationInsert = {
-      user_id: userId,
-      mode: opts.mode ?? 'general',
-      title: opts.title ?? null,
-      metadata: (opts.metadata ?? {}) as ConversationInsert['metadata'],
-    };
-    const { data, error } = await this.admin
-      .from('assistant_conversations')
-      .insert(payload)
-      .select('*')
-      .single();
-    if (error || !data) throw this.dbError('createConversation', error);
-    return data;
+  async createConversation(userId: string, opts: CreateConversationOpts = {}): Promise<ConversationRow> {
+    const policy = await this.readPolicy(userId);
+    const data = await this.persistArtifact(userId, policy, 'conversation', { ...opts, title: opts.title ?? 'Échange en cuisine' });
+    if (!data) throw new MemoryServiceError('DISABLED', 'Activez l’historique pour conserver une conversation.');
+    return data as ConversationRow;
   }
 
   async getConversation(conversationId: string, userId: string): Promise<ConversationRow> {
@@ -187,6 +169,7 @@ export class MemoryService {
       .select('*')
       .eq('id', conversationId)
       .eq('user_id', userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .maybeSingle();
     if (error) throw this.dbError('getConversation', error);
     if (!data) throw new MemoryServiceError('NOT_FOUND', 'conversation not found');
@@ -202,11 +185,13 @@ export class MemoryService {
       .from('assistant_conversations')
       .select('*')
       .eq('user_id', userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit + 1);
     if (opts.status) query = query.eq('status', opts.status);
+    else query = query.neq('status', 'deleted');
     if (opts.cursor) {
       const cur = decodeCursor(opts.cursor);
       if (cur) {
@@ -298,48 +283,13 @@ export class MemoryService {
 
   // ----- Messages ----------------------------------------------------------
 
-  async recordMessage(
-    conversationId: string,
-    userId: string,
-    opts: RecordMessageOpts,
-  ): Promise<MessageRow> {
-    const payload: MessageInsert = {
-      conversation_id: conversationId,
-      user_id: userId,
-      role: opts.role,
-      content: opts.content,
-      content_format: opts.content_format ?? 'text',
-      audio_transcript: opts.audio_transcript ?? null,
-      tool_calls: (opts.tool_calls ?? []) as MessageInsert['tool_calls'],
-      action_log_ids: opts.action_log_ids ?? [],
-      metadata: (opts.metadata ?? {}) as MessageInsert['metadata'],
-    };
-    const { data, error } = await this.admin
-      .from('assistant_messages')
-      .insert(payload)
-      .select('*')
-      .single();
-    if (error || !data) throw this.dbError('recordMessage', error);
-    // Touch conversation last_message_at on the back of every recorded message.
-    await this.touchLastMessageAt(conversationId, userId, data.created_at);
-    // PRP-224 PR1 — auto-title from the first user message. Best-effort:
-    // we read the conversation row to check whether a title already
-    // exists. If the read fails we just skip; the next user message
-    // gets another shot at it.
-    if (opts.role === 'user') {
-      try {
-        const conv = await this.getConversation(conversationId, userId);
-        if (!conv.title) {
-          const candidate = opts.content.slice(0, 50).trim();
-          if (candidate) {
-            await this.updateConversation(conversationId, userId, { title: candidate });
-          }
-        }
-      } catch {
-        /* best-effort: title will be set on the next user message */
-      }
-    }
-    return data;
+  async recordMessage(conversationId: string, userId: string, opts: RecordMessageOpts): Promise<MessageRow> {
+    const policy = opts.policy ?? await this.readPolicy(userId);
+    const { policy: _policy, ...payload } = opts;
+    const data = await this.persistArtifact(userId, policy, 'message', { ...payload, conversation_id: conversationId });
+    if (!data) throw new MemoryServiceError('DISABLED', 'Historique non enregistré : autorisation modifiée.');
+    await this.touchLastMessageAt(conversationId, userId, (data as MessageRow).created_at);
+    return data as MessageRow;
   }
 
   async listMessages(
@@ -353,6 +303,7 @@ export class MemoryService {
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .limit(limit + 1);
@@ -375,6 +326,7 @@ export class MemoryService {
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(Math.max(1, Math.min(limit, MAX_LIMIT)));
@@ -384,47 +336,9 @@ export class MemoryService {
 
   // ----- Memories ----------------------------------------------------------
 
-  async createMemory(userId: string, opts: CreateMemoryOpts): Promise<MemoryRow> {
-    // PRP-223 §6.3 — V1 quota + dedup by normalized_content.
-    if (opts.normalized_content) {
-      const existing = await this.findMemoryByNormalizedContent(userId, opts.normalized_content);
-      if (existing) return existing; // idempotent dedup
-    }
-    const count = await this.countActiveMemories(userId);
-    if (count >= MAX_ACTIVE_MEMORIES_PER_USER) {
-      throw new MemoryServiceError(
-        'QUOTA_EXCEEDED',
-        `memory quota exceeded (${MAX_ACTIVE_MEMORIES_PER_USER})`,
-      );
-    }
-    const payload: MemoryInsert = {
-      user_id: userId,
-      kind: opts.kind,
-      content: opts.content,
-      normalized_content: opts.normalized_content ?? null,
-      scope: opts.scope ?? 'global',
-      status: opts.status ?? 'active',
-      sensitivity: opts.sensitivity ?? 'normal',
-      source: opts.source ?? 'assistant_inferred',
-      subject_type: opts.subject_type ?? null,
-      subject_id: opts.subject_id ?? null,
-      confidence: opts.confidence ?? 0.7,
-      evidence: (opts.evidence ?? {}) as MemoryInsert['evidence'],
-    };
-    // Guardrail PRP-223 §13: never auto-active a health_sensitive memory.
-    if (payload.sensitivity === 'health_sensitive' && payload.status === 'active') {
-      payload.status = 'candidate';
-    }
-    if (payload.status === 'active') {
-      payload.approved_at = new Date().toISOString();
-    }
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .insert(payload)
-      .select('*')
-      .single();
-    if (error || !data) throw this.dbError('createMemory', error);
-    return data;
+  /** Legacy writers fail explicitly instead of bypassing the command contract. */
+  async createMemory(_userId: string, _opts: CreateMemoryOpts): Promise<MemoryRow> {
+    throw new MemoryServiceError('COMMAND_REQUIRED', 'Utilisez une commande mémoire versionnée.');
   }
 
   async listMemories(
@@ -436,73 +350,35 @@ export class MemoryService {
       .from('assistant_memory_items')
       .select('*')
       .eq('user_id', userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit + 1);
     if (opts.status) {
       query = query.eq('status', opts.status);
     } else {
-      query = query.neq('status', 'deleted');
+      query = query.not('status', 'in', '(deleted,rejected)');
     }
     if (opts.kind) query = query.eq('kind', opts.kind);
     if (opts.cursor) {
       const cur = decodeCursor(opts.cursor);
-      if (cur) query = query.lt('created_at', cur.createdAt);
+      if (cur) query = query.or(`created_at.lt.${new Date(cur.createdAt).toISOString()},and(created_at.eq.${new Date(cur.createdAt).toISOString()},id.lt.${cur.id})`);
     }
     const { data, error } = await query;
     if (error) throw this.dbError('listMemories', error);
     return this.paginate(data ?? [], limit);
   }
 
-  async patchMemory(memoryId: string, userId: string, opts: PatchMemoryOpts): Promise<MemoryRow> {
-    if (Object.keys(opts).length === 0) {
-      return this.getMemory(memoryId, userId);
-    }
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .update(opts)
-      .eq('id', memoryId)
-      .eq('user_id', userId)
-      .neq('status', 'deleted')
-      .select('*')
-      .maybeSingle();
-    if (error) throw this.dbError('patchMemory', error);
-    if (!data) throw new MemoryServiceError('NOT_FOUND', 'memory not found');
-    return data;
+  async patchMemory(_memoryId: string, _userId: string, _opts: PatchMemoryOpts): Promise<MemoryRow> {
+    throw new MemoryServiceError('COMMAND_REQUIRED', 'Utilisez une commande de correction versionnée.');
   }
 
-  async forgetMemory(memoryId: string, userId: string): Promise<MemoryRow> {
-    const now = new Date().toISOString();
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .update({ status: 'deleted', deleted_at: now })
-      .eq('id', memoryId)
-      .eq('user_id', userId)
-      .select('*')
-      .maybeSingle();
-    if (error) throw this.dbError('forgetMemory', error);
-    if (!data) throw new MemoryServiceError('NOT_FOUND', 'memory not found');
-    return data;
+  async forgetMemory(_memoryId: string, _userId: string): Promise<MemoryRow> {
+    throw new MemoryServiceError('COMMAND_REQUIRED', 'Utilisez une commande d’oubli versionnée.');
   }
 
-  async promoteCandidate(memoryId: string, userId: string): Promise<MemoryRow> {
-    const current = await this.getMemory(memoryId, userId);
-    if (current.status !== 'candidate') return current;
-    if (current.sensitivity === 'health_sensitive') {
-      // PRP-223 §13 — explicit user confirmation is the only path.
-      // The HTTP layer treats POST /memories/:id/promote as that
-      // confirmation, so we accept the transition here.
-    }
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .update({ status: 'active', approved_at: new Date().toISOString() })
-      .eq('id', memoryId)
-      .eq('user_id', userId)
-      .select('*')
-      .maybeSingle();
-    if (error) throw this.dbError('promoteCandidate', error);
-    if (!data) throw new MemoryServiceError('NOT_FOUND', 'memory not found');
-    return data;
+  async promoteCandidate(_memoryId: string, _userId: string): Promise<MemoryRow> {
+    throw new MemoryServiceError('COMMAND_REQUIRED', 'Utilisez une commande de confirmation versionnée.');
   }
 
   async markUsed(memoryId: string, userId: string): Promise<void> {
@@ -525,33 +401,15 @@ export class MemoryService {
   }
 
   async getResponseStyleMemory(userId: string): Promise<MemoryRow | null> {
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('kind', 'response_style')
-      .eq('status', 'active')
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw this.dbError('getResponseStyleMemory', error);
-    return data ?? null;
+    const policy = await this.readPolicySafe(userId);
+    return policy ? (await this.modelMemories(userId, policy, 200)).find(m => m.kind === 'response_style') ?? null : null;
   }
-
   async getTopActiveMemories(userId: string, limit: number): Promise<MemoryRow[]> {
-    const { data, error } = await this.admin
-      .from('assistant_memory_items')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('last_used_at', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false })
-      .limit(Math.max(1, Math.min(limit, MAX_LIMIT)));
-    if (error) throw this.dbError('getTopActiveMemories', error);
-    return data ?? [];
+    const policy = await this.readPolicySafe(userId);
+    return policy ? this.modelMemories(userId, policy, limit) : [];
   }
 
-  private async getMemory(memoryId: string, userId: string): Promise<MemoryRow> {
+  async getMemory(memoryId: string, userId: string): Promise<MemoryRow> {
     const { data, error } = await this.admin
       .from('assistant_memory_items')
       .select('*')
@@ -641,24 +499,12 @@ export class MemoryService {
 
   // ----- Summaries ---------------------------------------------------------
 
-  async recordSummary(
-    conversationId: string,
-    userId: string,
-    opts: { summary: string; covered_message_ids: string[]; model_used?: string | null },
-  ): Promise<SummaryRow> {
-    const { data, error } = await this.admin
-      .from('assistant_conversation_summaries')
-      .insert({
-        conversation_id: conversationId,
-        user_id: userId,
-        summary: opts.summary,
-        covered_message_ids: opts.covered_message_ids,
-        model_used: opts.model_used ?? null,
-      })
-      .select('*')
-      .single();
-    if (error || !data) throw this.dbError('recordSummary', error);
-    return data;
+  async recordSummary(conversationId: string, userId: string,
+    opts: { summary: string; covered_message_ids: string[]; model_used?: string | null; policy?: MemoryPolicy }): Promise<SummaryRow> {
+    const policy = opts.policy ?? await this.readPolicy(userId);
+    const data = await this.persistArtifact(userId, policy, 'summary', { ...opts, policy: undefined, conversation_id: conversationId });
+    if (!data) throw new MemoryServiceError('DISABLED', 'Résumé non conservé : révision modifiée.');
+    return data as SummaryRow;
   }
 
   async getLatestSummary(
@@ -679,26 +525,14 @@ export class MemoryService {
 
   // ----- Session context ---------------------------------------------------
 
-  async setSessionContext(
-    userId: string,
-    key: string,
-    value: unknown,
-    expiresAt: Date,
-    opts: SessionContextOpts = {},
-  ): Promise<SessionContextRow> {
-    const { data, error } = await this.admin
-      .from('assistant_session_context')
-      .insert({
-        user_id: userId,
-        conversation_id: opts.conversationId ?? null,
-        key,
-        value: value as Tables['assistant_session_context']['Insert']['value'],
-        expires_at: expiresAt.toISOString(),
-      })
-      .select('*')
-      .single();
-    if (error || !data) throw this.dbError('setSessionContext', error);
-    return data;
+  async setSessionContext(userId: string, key: string, value: unknown, expiresAt: Date,
+    opts: SessionContextOpts & { policy?: MemoryPolicy } = {}): Promise<SessionContextRow> {
+    const policy = opts.policy ?? await this.readPolicy(userId);
+    const data = await this.persistArtifact(userId, policy, 'session', {
+      conversation_id: opts.conversationId, key, value, expires_at: expiresAt.toISOString(),
+    });
+    if (!data) throw new MemoryServiceError('DISABLED', 'Contexte temporaire non conservé.');
+    return data as SessionContextRow;
   }
 
   async getActiveSessionContext(
@@ -716,6 +550,102 @@ export class MemoryService {
     const { data, error } = await query;
     if (error) throw this.dbError('getActiveSessionContext', error);
     return data ?? [];
+  }
+
+  async readPolicy(userId: string): Promise<MemoryPolicy> {
+    const { data, error } = await memoryRpc(this.admin, 'read_assistant_memory_policy', { p_user_id: userId });
+    if (error) throw this.dbError('readPolicy', error);
+    const parsed = MemoryPolicySchema.safeParse(data);
+    if (!parsed.success || parsed.data.userId !== userId) throw this.dbError('readPolicy', null);
+    return parsed.data;
+  }
+  async readPolicySafe(userId: string): Promise<MemoryPolicy | null> {
+    try { return await this.readPolicy(userId); } catch { return null; }
+  }
+  async getCommandReceipt(userId: string, commandId: string): Promise<MemoryWriteResult | null> {
+    const client = this.admin as unknown as SupabaseClient;
+    const { data, error } = await client.from('assistant_memory_commands').select('result')
+      .eq('user_id', userId).eq('command_id', commandId).maybeSingle();
+    if (error) throw this.dbError('getCommandReceipt', error);
+    return data ? MemoryWriteResultSchema.parse(data.result) : null;
+  }
+  async executeCommand(userId: string, input: MemoryCommand, userClient: SupabaseClient<Database>): Promise<MemoryWriteResult> {
+    const command = MemoryCommandSchema.parse(input);
+    const { data, error } = await memoryRpc(userClient, 'execute_assistant_memory_command', { p_command: command });
+    if (error) {
+      if (['PGRST202', '42883'].includes(error.code ?? '')) return {
+        command_id: command.command_id, operation: command.operation, status: 'not_saved', memory_id: command.memory_id ?? null,
+        version: null, destination: null, policy_revision: command.expected_revision, profile_version: null, reason: 'migration_required',
+      };
+      if (error.code === '42501') throw new MemoryServiceError('FORBIDDEN', 'Modification non autorisée.');
+      if (/MEMORY_(VERSION|REVISION|SEMANTIC)_CONFLICT|PROFILE_VERSION_CONFLICT/.test(error.message))
+        throw new MemoryServiceError('VERSION_CONFLICT', 'Une autre modification a été enregistrée. Rechargez la version actuelle.');
+      if (error.message.includes('IDEMPOTENCY_CONFLICT')) throw new MemoryServiceError('IDEMPOTENCY_CONFLICT', 'Cette commande correspond à une autre modification.');
+      if (error.message.includes('MEMORY_NOT_FOUND')) throw new MemoryServiceError('NOT_FOUND', 'Souvenir introuvable.');
+      if (error.message.includes('MEMORY_QUOTA')) throw new MemoryServiceError('QUOTA_EXCEEDED', 'La limite de souvenirs est atteinte.');
+      if (/INVALID_MEMORY_COMMAND|INVALID_PROFILE|INVALID_PRIVACY/.test(error.message)) return {
+        command_id: command.command_id, operation: command.operation, status: 'not_saved', memory_id: command.memory_id ?? null,
+        version: null, destination: null, policy_revision: command.expected_revision, profile_version: null, reason: 'invalid_command',
+      };
+      // A lost reply may have committed. The same command ID is the only retry.
+      try { const receipt = await this.getCommandReceipt(userId, command.command_id); if (receipt) return { ...receipt, replayed: true }; } catch { /* still uncertain */ }
+      return { command_id: command.command_id, operation: command.operation, status: 'verification_required', memory_id: command.memory_id ?? null,
+        version: null, destination: null, policy_revision: command.expected_revision, profile_version: null, reason: 'reply_unknown' };
+    }
+    return MemoryWriteResultSchema.parse(data);
+  }
+  async saveExtractedFact(userId: string, commandId: string, content: string, kind: MemoryKind,
+    source: 'user_explicit' | 'assistant_inferred', userClient: SupabaseClient<Database>, channel: 'text' | 'voice' | 'tool' = 'text'): Promise<MemoryWriteResult> {
+    const receipt = await this.getCommandReceipt(userId, commandId);
+    if (receipt) return { ...receipt, replayed: true };
+    const policy = await this.readPolicy(userId);
+    const fact = classifyMemoryFact(content, { explicit: source === 'user_explicit', kind });
+    const first = await this.listMemories(userId, { limit: 100 });
+    const items = first.nextCursor ? [...first.items, ...(await this.listMemories(userId, { limit: 100, cursor: first.nextCursor })).items] : first.items;
+    const previous = items.find(row => row.status !== 'rejected' && (
+      (fact?.payload.type === 'taste' && (row.payload as { type?: string })?.type === 'taste') ||
+      (kind === 'response_style' && row.kind === kind) || normalizeMemoryText(row.content) === normalizeMemoryText(fact?.content ?? content)));
+    try {
+      return await this.executeCommand(userId, { command_id: commandId, operation: 'save', expected_version: previous?.version ?? 0,
+        expected_revision: policy.revision, payload: { content, kind, source, evidence: { channel, pattern: fact?.pattern ?? 'note' } } }, userClient);
+    } catch (failure) {
+      if (failure instanceof MemoryServiceError && ['IDEMPOTENCY_CONFLICT','VERSION_CONFLICT'].includes(failure.code)) {
+        const committed = await this.getCommandReceipt(userId, commandId);
+        if (committed) return { ...committed, replayed: true };
+      }
+      throw failure;
+    }
+  }
+  async persistArtifact(userId: string, policy: MemoryPolicy, kind: string, payload: object): Promise<unknown | null> {
+    if (policy.userId !== userId || !policy.saveHistory) return null;
+    const { data, error } = await memoryRpc(this.admin, 'persist_assistant_memory_artifact', {
+      p_user_id: userId, p_revision: policy.revision, p_kind: kind, p_payload: payload,
+    });
+    if (error) throw this.dbError('persistArtifact', error);
+    return data;
+  }
+  async modelMemories(userId: string, policy: MemoryPolicy, limit = 8, purpose: 'model_context' | 'model_tool' | 'deterministic' = 'model_context'): Promise<MemoryRow[]> {
+    if (policy.userId !== userId || !policy.memoryEnabled) return [];
+    // The atomic quota is 200. Filter the complete candidate set before limit.
+    const { data, error } = await this.admin.from('assistant_memory_items').select('*').eq('user_id', userId)
+      .eq('status', 'active').order('last_used_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false }).limit(200);
+    if (error) throw this.dbError('modelMemories', error);
+    return (data ?? []).filter(row => allowedMemory(row, policy, purpose)).slice(0, limit);
+  }
+  async modelArtifacts(userId: string, policy: MemoryPolicy, conversationId: string, limit = 10) {
+    if (policy.userId !== userId || !policy.saveHistory) return { messages: [] as MessageRow[], summary: null as SummaryRow | null, session: [] as SessionContextRow[], privateTerms: [] as string[] };
+    const { data: profile, error } = await (this.admin as unknown as SupabaseClient).from('nutrition_profiles').select('settings').eq('user_id', userId).maybeSingle();
+    if (error) throw this.dbError('modelArtifacts', error);
+    const settings = NutritionProfileSettingsSchema.safeParse(profile?.settings);
+    const terms = privateProfileTerms(settings.success ? settings.data : null);
+    const [messages, summary, session] = await Promise.all([
+      this.getRecentMessages(conversationId, userId, 100), this.getLatestSummary(conversationId, userId),
+      this.getActiveSessionContext(userId, { conversationId }),
+    ]);
+    return { messages: messages.filter(row => allowedMessage(row, policy, terms)).slice(-limit),
+      summary: summary && allowedSummary(summary, policy, terms) ? summary : null,
+      session: session.filter(row => allowedSession(row, policy, conversationId, terms)), privateTerms: terms };
   }
 
   // ----- Helpers -----------------------------------------------------------

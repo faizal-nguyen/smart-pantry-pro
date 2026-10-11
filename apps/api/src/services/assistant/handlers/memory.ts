@@ -1,217 +1,96 @@
-/**
- * PRP-223 PR4 — assistant memory tool handlers.
- *
- * Wires the LLM tool catalogue (`read_user_memories`,
- * `search_conversation_history`) to `MemoryService`. PR5 will append
- * the write tools (`remember_preference`, `forget_memory`,
- * `update_response_style`). PR7 will append `record_recipe_feedback`
- * once `CookingJournalService` lands.
- *
- * Read tools are `defaultRiskTier='read'` and `reversible=false` — they
- * never escalate beyond `read` in `RiskClassifier`.
- *
- * Each handler runs with the per-request `ToolExecutionContext`, but
- * delegates DB access to `MemoryService` (which holds the admin client
- * with explicit user_id filters — defence in depth on top of RLS).
- */
-import type { ToolHandler, ToolHandlerRegistry } from './types.js';
-import type { MemoryService, AssistantMemoryItem } from '../MemoryService.js';
+import { randomUUID } from 'node:crypto';
+import { classifyMemoryFact, normalizeMemoryText } from '@smart/shared';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../../../types/supabase.js';
+import type { ToolHandler, ToolHandlerRegistry, ToolExecutionContext } from './types.js';
+import type { MemoryService } from '../MemoryService.js';
+import { modelMemoryView, sameMemoryPolicy } from '../MemoryPolicy.js';
+import { memoryRpc } from '../memoryRpc.js';
 import type { CookingJournalService } from '../../cooking/CookingJournalService.js';
-import type {
-  ForgetMemoryArgs,
-  ReadUserMemoriesArgs,
-  RecordRecipeFeedbackArgs,
-  RememberPreferenceArgs,
-  SearchConversationHistoryArgs,
-  UpdateResponseStyleArgs,
-} from '../schemas/tools.js';
-
-export interface MemoryHandlerDeps {
-  memoryService: MemoryService;
-  /** PRP-223 PR7 — dedicated service for cooking_journal_entries (replaces
-   *  the direct admin-client write that PR5 had as a placeholder). */
-  cookingJournal: CookingJournalService;
-}
-
-interface MemoryView {
-  id: string;
-  kind: string;
-  scope: string;
-  content: string;
-  sensitivity: string;
-  confidence: number;
-  last_used_at: string | null;
-}
-
-function toView(row: AssistantMemoryItem): MemoryView {
-  return {
-    id: row.id,
-    kind: row.kind,
-    scope: row.scope,
-    content: row.content,
-    sensitivity: row.sensitivity,
-    confidence: row.confidence,
-    last_used_at: row.last_used_at,
-  };
-}
+import type { ForgetMemoryArgs, ReadUserMemoriesArgs, RecordRecipeFeedbackArgs, RememberPreferenceArgs,
+  SearchConversationHistoryArgs, UpdateResponseStyleArgs } from '../schemas/tools.js';
+export interface MemoryHandlerDeps { memoryService: MemoryService; cookingJournal: CookingJournalService }
 
 class ReadUserMemoriesHandler implements ToolHandler<ReadUserMemoriesArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-
-  async execute(ctx: { userId: string }, args: ReadUserMemoriesArgs) {
-    const limit = args.limit ?? 8;
-    const { items } = await this.deps.memoryService.listMemories(ctx.userId, {
-      limit: Math.min(limit * 3, 50), // fetch a bit more, then filter & cap
-      status: 'active',
-      kind: args.kind,
-    });
-    let filtered = items;
-    if (args.query) {
-      const q = args.query.toLowerCase();
-      filtered = filtered.filter(m =>
-        (m.content ?? '').toLowerCase().includes(q) ||
-        (m.normalized_content ?? '').toLowerCase().includes(q),
-      );
-    }
-    const top = filtered.slice(0, limit);
-    return { result: { memories: top.map(toView) } };
+  async execute(ctx: ToolExecutionContext, args: ReadUserMemoriesArgs) {
+    const policy = await this.deps.memoryService.readPolicySafe(ctx.userId);
+    if (!policy) return { result: { memories: [], policy_revision: null } };
+    const rows = await this.deps.memoryService.modelMemories(ctx.userId, policy, 200, 'model_tool');
+    const filtered = rows.filter(m => (!args.kind || m.kind === args.kind) && (!args.query || m.content.toLowerCase().includes(args.query.toLowerCase())));
+    if (!sameMemoryPolicy(policy, await this.deps.memoryService.readPolicySafe(ctx.userId))) return { result: { memories: [], policy_revision: null } };
+    return { result: { memories: filtered.slice(0, args.limit ?? 8).map(modelMemoryView), policy_revision: policy.revision } };
   }
 }
-
 class SearchConversationHistoryHandler implements ToolHandler<SearchConversationHistoryArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-
-  async execute(ctx: { userId: string }, args: SearchConversationHistoryArgs) {
-    const limit = args.limit ?? 10;
-    // V1: client-side filtering over the most recent conversations'
-    // messages. ILIKE in SQL would be tighter but PRP-223 §7 keeps
-    // pg_trgm optional, so we stay portable.
-    const { items: conversations } = await this.deps.memoryService.listConversations(
-      ctx.userId,
-      { limit: 20 },
-    );
-    const matches: Array<{
-      conversation_id: string;
-      message_id: string;
-      role: string;
-      created_at: string;
-      snippet: string;
-    }> = [];
-    const needle = args.query.toLowerCase();
-    for (const conv of conversations) {
-      const recent = await this.deps.memoryService.getRecentMessages(conv.id, ctx.userId, 50);
-      for (const msg of recent) {
-        if (msg.content.toLowerCase().includes(needle)) {
-          matches.push({
-            conversation_id: conv.id,
-            message_id: msg.id,
-            role: msg.role,
-            created_at: msg.created_at,
-            snippet: snippet(msg.content, args.query),
-          });
-          if (matches.length >= limit) break;
-        }
-      }
-      if (matches.length >= limit) break;
+  async execute(ctx: ToolExecutionContext, args: SearchConversationHistoryArgs) {
+    const policy = await this.deps.memoryService.readPolicySafe(ctx.userId);
+    if (!policy?.saveHistory) return { result: { matches: [], policy_revision: null } };
+    const { items } = await this.deps.memoryService.listConversations(ctx.userId, { limit: 20 });
+    const matches: Array<{ conversation_id: string; message_id: string; role: string; snippet: string }> = [];
+    for (const conv of items) {
+      const { messages, summary } = await this.deps.memoryService.modelArtifacts(ctx.userId, policy, conv.id, 100);
+      for (const row of messages) if (row.content.toLowerCase().includes(args.query.toLowerCase()))
+        matches.push({ conversation_id: conv.id, message_id: row.id, role: row.role, snippet: row.content.slice(0, 240) });
+      if (summary?.summary.toLowerCase().includes(args.query.toLowerCase())) matches.push({
+        conversation_id: conv.id, message_id: summary.id, role: 'summary', snippet: summary.summary.slice(0, 240),
+      });
+      if (matches.length >= (args.limit ?? 10)) break;
     }
-    return { result: { matches } };
+    if (!sameMemoryPolicy(policy, await this.deps.memoryService.readPolicySafe(ctx.userId))) return { result: { matches: [], policy_revision: null } };
+    return { result: { matches: matches.slice(0, args.limit ?? 10), policy_revision: policy.revision } };
   }
 }
-
-function snippet(content: string, query: string): string {
-  const idx = content.toLowerCase().indexOf(query.toLowerCase());
-  if (idx < 0) return content.slice(0, 200);
-  const start = Math.max(0, idx - 60);
-  const end = Math.min(content.length, idx + query.length + 60);
-  const head = start > 0 ? '…' : '';
-  const tail = end < content.length ? '…' : '';
-  return `${head}${content.slice(start, end)}${tail}`;
-}
-
-// ---- PRP-223 PR5 — write handlers ---------------------------------------
-
 class RememberPreferenceHandler implements ToolHandler<RememberPreferenceArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-  async execute(ctx: { userId: string }, args: RememberPreferenceArgs) {
-    const created = await this.deps.memoryService.createMemory(ctx.userId, {
-      kind: args.kind,
-      content: args.content,
-      normalized_content: args.content.toLowerCase().trim(),
-      sensitivity: args.sensitivity ?? 'normal',
-      source: 'user_explicit',
-      // status is auto-set: active for normal, candidate for health_sensitive
-    });
-    return {
-      result: { memory_id: created.id, status: created.status },
-      reversibleAction: { tool: 'forget_memory', args: { memory_id: created.id } },
-    };
+  async execute(ctx: ToolExecutionContext, args: RememberPreferenceArgs) {
+    const original = classifyMemoryFact(ctx.requestText ?? '');
+    // A model-generated instruction cannot make a transient/inferred input durable.
+    if (!original || original.destination === 'session' || original.destination === 'feedback')
+      return { result: { status: 'not_saved', reason: 'explicit_fact_required' } };
+    const result = await this.deps.memoryService.saveExtractedFact(ctx.userId, ctx.commandId ?? randomUUID(),
+      ctx.requestText!, args.kind, original.source, ctx.userClient as SupabaseClient<Database>, 'tool');
+    return { result };
   }
 }
-
 class ForgetMemoryHandler implements ToolHandler<ForgetMemoryArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-  async execute(ctx: { userId: string }, args: ForgetMemoryArgs) {
-    const forgotten = await this.deps.memoryService.forgetMemory(args.memory_id, ctx.userId);
-    return {
-      result: { memory_id: forgotten.id, status: forgotten.status },
-      // No reversibleAction: re-promoting a soft-deleted row would be
-      // brittle; the user can re-tell the assistant the fact instead.
-    };
+  async execute(ctx: ToolExecutionContext, args: ForgetMemoryArgs) {
+    const request = normalizeMemoryText(ctx.requestText ?? '');
+    const negated = /\b(?:n|ne)\s+(?:l\s+)?(?:oublie|efface|supprime)z?\b.{0,40}\b(?:pas|jamais|rien)\b/.test(request);
+    if (negated || !/\b(?:oublie|efface|supprime)z?\b/.test(request)) throw new Error('MEMORY_FORGET_INTENT_REQUIRED');
+    const receipt = ctx.commandId ? await this.deps.memoryService.getCommandReceipt(ctx.userId, ctx.commandId) : null;
+    if (receipt) return { result: receipt };
+    const row = await this.deps.memoryService.getMemory(args.memory_id, ctx.userId);
+    const policy = await this.deps.memoryService.readPolicy(ctx.userId);
+    return { result: await this.deps.memoryService.executeCommand(ctx.userId, {
+      command_id: ctx.commandId ?? randomUUID(), operation: 'forget', memory_id: row.id,
+      expected_version: row.version ?? 0, expected_revision: policy.revision,
+    }, ctx.userClient as SupabaseClient<Database>) };
   }
 }
-
 class UpdateResponseStyleHandler implements ToolHandler<UpdateResponseStyleArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-  async execute(ctx: { userId: string }, args: UpdateResponseStyleArgs) {
-    // Forget the previous response_style memory (if any), then create
-    // the new one. Two-step rather than an UPDATE so the audit trail is
-    // explicit and ContextBuilder always reads the freshest row.
-    const previous = await this.deps.memoryService.getResponseStyleMemory(ctx.userId);
-    if (previous) {
-      try {
-        await this.deps.memoryService.forgetMemory(previous.id, ctx.userId);
-      } catch {
-        // best-effort; the create below still wins.
-      }
-    }
-    const created = await this.deps.memoryService.createMemory(ctx.userId, {
-      kind: 'response_style',
-      content: args.preference,
-      normalized_content: args.preference.toLowerCase().trim(),
-      sensitivity: 'normal',
-      source: 'user_explicit',
-    });
-    return { result: { memory_id: created.id } };
+  async execute(ctx: ToolExecutionContext, args: UpdateResponseStyleArgs) {
+    if (!/souviens|retiens|memorise|mémorise|réponds|reponds|style de reponse|style de réponse/iu.test(ctx.requestText ?? ''))
+      return { result: { status: 'not_saved', reason: 'explicit_fact_required' } };
+    const result = await this.deps.memoryService.saveExtractedFact(ctx.userId, ctx.commandId ?? randomUUID(), ctx.requestText!,
+      'response_style', 'user_explicit', ctx.userClient as SupabaseClient<Database>, 'tool');
+    return { result };
   }
 }
-
 class RecordRecipeFeedbackHandler implements ToolHandler<RecordRecipeFeedbackArgs> {
   constructor(private readonly deps: MemoryHandlerDeps) {}
-  async execute(ctx: { userId: string }, args: RecordRecipeFeedbackArgs) {
-    const entry = await this.deps.cookingJournal.record(ctx.userId, {
-      recipe_id: args.recipe_id ?? null,
-      recipe_title: args.recipe_title,
-      outcome: args.outcome ?? null,
-      rating: args.rating ?? null,
-      notes: args.notes ?? null,
-      would_cook_again: args.would_cook_again ?? null,
+  async execute(ctx: ToolExecutionContext, args: RecordRecipeFeedbackArgs) {
+    const { data, error } = await memoryRpc(ctx.userClient as SupabaseClient<Database>, 'record_assistant_recipe_feedback', {
+      p_feedback: { ...args, command_id: ctx.commandId ?? randomUUID() },
     });
-    return {
-      result: {
-        id: entry.id,
-        recipe_id: entry.recipe_id,
-        recipe_title: entry.recipe_title,
-        outcome: entry.outcome,
-        rating: entry.rating,
-      },
-    };
+    if (error) throw new Error('RECIPE_FEEDBACK_NOT_SAVED');
+    return { result: data };
   }
 }
-
-export function registerMemoryHandlers(
-  registry: ToolHandlerRegistry,
-  deps: MemoryHandlerDeps,
-): void {
+export function registerMemoryHandlers(registry: ToolHandlerRegistry, deps: MemoryHandlerDeps): void {
   registry.register('read_user_memories', new ReadUserMemoriesHandler(deps));
   registry.register('search_conversation_history', new SearchConversationHistoryHandler(deps));
   registry.register('remember_preference', new RememberPreferenceHandler(deps));

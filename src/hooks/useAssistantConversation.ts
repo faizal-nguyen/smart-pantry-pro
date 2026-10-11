@@ -5,6 +5,7 @@
  * Returns the conversation row + loading/error state. Disabled when
  * `id` is null/undefined.
  */
+import { useAuthSessionOptional } from './useAuthenticatedUser';
 import { useQuery } from '@tanstack/react-query';
 
 import {
@@ -13,10 +14,11 @@ import {
 } from '@/services/assistantApi';
 
 export function useAssistantConversation(id: string | null | undefined) {
+  const owner = useAuthSessionOptional().user?.id;
   const query = useQuery<{ conversation: AssistantConversation }>({
-    queryKey: ['assistant-conversation', id ?? null],
-    queryFn: () => getAssistantConversation(id as string),
-    enabled: !!id,
+    queryKey: ['assistant-conversation', owner, id ?? null],
+    queryFn: () => getAssistantConversation(id as string, { expectedUserId: owner }),
+    enabled: !!owner && !!id,
     staleTime: 30_000,
   });
 
