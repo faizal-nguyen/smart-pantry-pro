@@ -148,7 +148,7 @@ export interface ImportRecipeFromUrlResult {
   duplicate: boolean;
   /** Filled when extraction succeeded and the row was saved. */
   draft_title?: string;
-  cost_usd?: number;
+  cost_usd?: number | null;
 }
 
 /**
@@ -170,7 +170,6 @@ export class ImportRecipeFromUrlHandler
     args: ImportRecipeFromUrlArgs
   ): Promise<ToolExecutionResult<ImportRecipeFromUrlResult>> {
     const service = this.buildService(ctx.userClient);
-    let totalCost = 0;
 
     // 1. Capture (idempotent on hash → returns existing row when seen).
     let captured;
@@ -207,7 +206,7 @@ export class ImportRecipeFromUrlHandler
         err instanceof Error ? err.message : 'extract failed'
       );
     }
-    if (extractResult.cost?.usd) totalCost += extractResult.cost.usd;
+    const totalCost = extractResult.cost?.usd ?? null;
 
     // 3. Save the freshly extracted draft as a recipe.
     let saveResult;

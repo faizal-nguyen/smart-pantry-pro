@@ -15,6 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 export const SETTINGS_SECTIONS = [
   'account',
   'assistant-memory',
+  'assistant-models',
   'cooking',
   'nutrition',
   'data-privacy',

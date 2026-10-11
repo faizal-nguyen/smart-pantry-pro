@@ -245,7 +245,7 @@ export class SocialImportService {
         model: '',
         inputTokens: 0,
         outputTokens: 0,
-        costUsd: 0,
+        costUsd: null,
         durationMs: Date.now() - t0,
         confidence: 0,
         warningsCount: 0,
@@ -315,7 +315,7 @@ export class SocialImportService {
 
     metrics.extractionTotal.inc({ platform: acquired.platform, outcome: 'success' });
     metrics.extractionLatency.observe({ platform: acquired.platform }, result.durationMs ?? 0);
-    if (result.modelUsed && result.cost) {
+    if (result.modelUsed && result.cost && result.cost.usd !== null) {
       metrics.extractionCost.inc({ model: result.modelUsed }, result.cost.usd);
       metrics.extractionTokens.inc(
         { model: result.modelUsed, direction: 'input' },
@@ -333,7 +333,7 @@ export class SocialImportService {
       model: result.modelUsed ?? '',
       inputTokens: result.cost?.inputTokens ?? 0,
       outputTokens: result.cost?.outputTokens ?? 0,
-      costUsd: result.cost?.usd ?? 0,
+      costUsd: result.cost?.usd ?? null,
       durationMs: result.durationMs ?? 0,
       confidence: validatedDraft.confidence,
       warningsCount: validatedDraft.extractionWarnings?.length ?? 0,

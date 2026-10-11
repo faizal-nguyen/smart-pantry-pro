@@ -1,0 +1,159 @@
+{
+  "checked_at": "2026-10-11T22:22:32.904059+00:00",
+  "scope": "local uncommitted implementation",
+  "branch": "codex/v10-03d-agent-modeles",
+  "base_sha": "0670340cc62f1cc671301cf5209503bf2178bd8a",
+  "published": false,
+  "deployed": false,
+  "supabase_remote_mutations": false,
+  "new_migrations": [],
+  "checks": {
+    "client": {
+      "command": "npm run test:v10:client",
+      "exit_code": 0,
+      "tests_passed": 144,
+      "suites_passed": 41,
+      "evidence": "client-results.txt"
+    },
+    "api": {
+      "command": "npm run test:v10:api",
+      "exit_code": 0,
+      "tests_passed": 392,
+      "suites_passed": 31,
+      "evidence": "api-results.txt"
+    },
+    "imports": {
+      "command": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"SocialImportService|RecipeExtractionService|handlers/__tests__/high.test\" --no-coverage",
+      "exit_code": 0,
+      "tests_passed": 47,
+      "suites_passed": 4,
+      "evidence": "imports-results.txt"
+    },
+    "build": {
+      "command": "npm run build",
+      "exit_code": 0,
+      "covers": [
+        "shared TypeScript",
+        "API TypeScript",
+        "Vite production bundle"
+      ],
+      "evidence": "build-results.txt"
+    },
+    "targeted_lint": {
+      "exit_code": 0,
+      "scope": [
+        "apps/api/src/services/ai",
+        "src/components/assistant/AssistantModelDetails.tsx",
+        "src/components/settings/AssistantModelsSection.tsx",
+        "packages/shared/src/assistant-models.ts",
+        "scripts/assistant-models",
+        "scripts/benchmark-v10-models.ts",
+        "scripts/fixtures/v10/models.ts"
+      ],
+      "errors": 0,
+      "notes": "npm configuration warnings only"
+    },
+    "tracked_secrets": {
+      "command": "node scripts/security-baseline-check.cjs --secrets-only",
+      "exit_code": 0,
+      "tracked_files": 1541,
+      "evidence": "tracked-secrets.txt"
+    },
+    "changed_and_new_secrets": {
+      "exit_code": 0,
+      "count": 57,
+      "evidence": "new-file-secrets.json"
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    "security_global": {
+      "command": "node scripts/security-baseline-check.cjs",
+      "exit_code": 1,
+      "failures": 9,
+      "evidence": "security-global-results.txt",
+      "status": "preexisting findings, affected files unchanged from base"
+    },
+    "frontend_typecheck_global": {
+      "command": "npx --no-install tsc -p tsconfig.app.json --noEmit",
+      "exit_code": 2,
+      "error_count": 255,
+      "status": "preexisting syntax errors at design-system/index.ts and accessibility-validation.test.ts",
+      "evidence": "frontend-typecheck-results.txt"
+    },
+    "offline_benchmark": {
+      "exit_code": 0,
+      "trials_passed": 120,
+      "actual_spend_usd": 0,
+      "evidence": "benchmark-offline.json"
+    },
+    "live_benchmark": {
+      "exit_code": 0,
+      "final_comparison_trials": 360,
+      "first_incomplete_trials": 238,
+      "first_stop_reason": "provider_failure",
+      "final_provider_failures": 0,
+      "measured_subtotal_usd": 0.4483937799999999,
+      "reserved_total_usd": 0.45019165499999947,
+      "authorized_budget_usd": 5,
+      "invoice_total_known": false,
+      "candidates_adopted": false,
+      "human_review": "pending",
+      "evidence": "benchmark-live-r2.json"
+    },
+    "ui": {
+      "surface": "Chrome local, fictitious offline fixtures",
+      "viewports": [
+        "375x812",
+        "440x956"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "horizontal_overflow_observed": false,
+      "detail_touch_target_css_px": 44,
+      "catalog_failure_recovery_observed": true,
+      "viewport_override_reset": true,
+      "tab_closed": true,
+      "physical_iphone": false,
+      "Safari": false,
+      "VoiceOver": false,
+      "screenshots": [
+        "models-reply-375.png",
+        "models-reply-dark-440.png",
+        "models-settings-375.png",
+        "models-settings-440.png",
+        "models-settings-dark-440.png"
+      ]
+    }
+  },
+  "baseline_files_unchanged": {
+    "scripts/security-baseline-check.cjs": true,
+    "src/design-system/index.ts": true,
+    "src/__tests__/accessibility-validation.test.ts": true,
+    "src/hooks/useRecipeCatalog.ts": true,
+    "src/hooks/useRoutineCatalog.ts": true,
+    "src/hooks/useNutritionalAI.ts": true,
+    "src/hooks/useRecipeCollections.ts": true,
+    "src/services/planning/core/MealPlanningEngine.ts": true,
+    "supabase/functions/cleanup-shopping-list/index.ts": true,
+    "supabase/functions/indian-price-estimator/index.ts": true,
+    "src/services/socialMediaParser/__tests__/performance-validation.test.ts": true
+  },
+  "model_source_sha256": {
+    "ModelConfig.ts": "e2eabcbb71768fca0e45741624f436e7700e58e24f0fe1d3cb52d4df8f44457d",
+    "OpenAITransport.ts": "78565ad62a3b1e8f4e84b56112002c71877f1caac0d96f1a13f00ee982117a3a",
+    "ModelPricing.ts": "e5baae81407890c99b8f23a0e4a91876d2382deac1900c3e42e8d6840df6e2ee",
+    "ModelInvocation.ts": "b1e312f73bc9886cad02e7c42b5fdb483ca73b32781ee9d2a94b1e6b6a8d57e9"
+  },
+  "limitations": [
+    "Global frontend TypeScript and global security scanner are not green.",
+    "Provider deadline stops new work and aborts model calls; existing database/preparation I/O is not cancelled.",
+    "Legacy proxy, embeddings, vision and later confirmed imports retain separate model/billing boundaries.",
+    "Live corpus uses in-memory handlers and a canonical recommendation DTO, not real Supabase writes.",
+    "Automated benchmark checks intent/arguments/receipts; human culinary review remains pending.",
+    "No publication, deployment or physical iPhone validation."
+  ]
+}

@@ -1,0 +1,10 @@
+> vite_react_shadcn_ts@0.0.0 build
+> npm run shared:build && npm run api:build:ts && vite build
+> vite_react_shadcn_ts@0.0.0 shared:build
+> tsc -p packages/shared/tsconfig.json
+> vite_react_shadcn_ts@0.0.0 api:build:ts
+> tsc -p apps/api/tsconfig.json
+vite v5.4.19 building for production...
+✓ 4327 modules transformed.
+dist/assets/Settings--Gqhcq04.js                       107.48 kB
+✓ built in 6.99s

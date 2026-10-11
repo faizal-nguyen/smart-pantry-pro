@@ -46,6 +46,8 @@ export interface ActionLogRow {
   created_at: string;
   executed_at: string | null;
   updated_at: string;
+  /** Local return metadata only; never stored as a database column. */
+  replayed?: boolean;
 }
 
 export interface InsertPlannedInput {
@@ -100,7 +102,7 @@ export class ActionLogWriter {
           input.clientRequestId,
           input.stepSeq
         );
-        if (existing) return existing;
+        if (existing) return { ...existing, replayed: true };
       }
       throw error;
     }

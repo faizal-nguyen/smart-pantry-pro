@@ -20,7 +20,7 @@ export interface ExtractionLog {
   model: string;
   inputTokens: number;
   outputTokens: number;
-  costUsd: number;
+  costUsd: number | null;
   durationMs: number;
   confidence: number;
   warningsCount: number;

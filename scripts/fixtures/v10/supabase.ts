@@ -39,7 +39,7 @@ const broken='30000000-0000-4000-8000-000000000002',absent='30000000-0000-4000-8
 if (!data.recipes.some(row=>row.id===broken)) data.recipes.push({ ...recipe,id:broken,name:'Recette de test avec une image cassée et un titre assez long pour vérifier la lecture sur petit écran',image_url:'/scripts/fixtures/v10/assets/missing-image.jpg' });
 if (!data.recipes.some(row=>row.id===absent)) data.recipes.push({ ...recipe,id:absent,name:'Recette de test sans photo',image_url:null,prep_time:null });
 export function persistFixtureData() { localStorage.setItem('v10-fixture-data',JSON.stringify(data)); }
-export const failures = { nextCommand: false,nextReplyLost:false,evaluationOffline:false,memoryConflict:false,memoryOffline:false,memoryReplyLost:false };
+export const failures = { nextCommand: false,nextReplyLost:false,evaluationOffline:false,memoryConflict:false,memoryOffline:false,memoryReplyLost:false,modelsOffline:false };
 const session = { user: { id: OWNER, email: 'test@example.invalid' }, access_token: 'local-test-only' };
 class Query implements PromiseLike<{ data: unknown; error: null; count: number }> {
   private filters: Array<(row: Row) => boolean> = [];

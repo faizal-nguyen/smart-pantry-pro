@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 const sections = [
   { id: 'cooking', label: 'Profil alimentaire', detail: 'Goûts, contraintes, temps et portions', icon: ChefHat },
   { id: 'assistant-memory', label: 'Mémoire de l’assistant', detail: 'Souvenirs enregistrés et conversations', icon: BookOpen },
+  { id: 'assistant-models', label: 'Modèles de l’assistant', detail: 'Configuration, modèles servis et coûts', icon: BookOpen },
   { id: 'data-privacy', label: 'Données et confidentialité', detail: 'Historique, export et conservation', icon: Shield },
   { id: 'account', label: 'Compte', detail: 'Connexion et informations personnelles', icon: UserIcon },
   { id: 'notifications', label: 'Notifications', detail: 'Rappels et autorisations', icon: Bell },

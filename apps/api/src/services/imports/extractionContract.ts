@@ -25,7 +25,8 @@ export interface ExtractionResult {
   cost?: {
     inputTokens: number;
     outputTokens: number;
-    usd: number;
+    usd: number | null;
+    quality?: 'known' | 'estimated' | 'unknown';
   };
 }
 

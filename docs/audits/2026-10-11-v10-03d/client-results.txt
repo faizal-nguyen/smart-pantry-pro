@@ -1,0 +1,6 @@
+npm run test:v10:client
+
+Test Suites: 41 passed, 41 total
+Tests:       144 passed, 144 total
+Snapshots:   0 total
+Time:        16.15 s

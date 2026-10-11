@@ -65,6 +65,9 @@ import {
   type WhisperClient,
 } from '../media/WhisperTranscriber.js';
 import type { RiskTier } from './schemas/tools.js';
+import type { AssistantModelReceipt, AssistantRole } from '@smart/shared';
+import { loadAssistantModelConfig, freezeConfig, type AssistantModelConfig } from '../ai/ModelConfig.js';
+import { ModelInvocation } from '../ai/ModelInvocation.js';
 
 // PRP-239 PR4 — chef agent helpers (round-2 escalation + post-check).
 import {
@@ -75,15 +78,8 @@ import {
   type AssistantStreamEvent,
 } from './chefAgent.js';
 
-const DEFAULT_MODEL = 'gpt-4o-mini';
-const FALLBACK_MODEL = 'gpt-4o';
 const DEFAULT_MAX_TOOL_CALLS = 6;
 const DEFAULT_CONFIRMATION_TTL_MS = 5 * 60_000;
-
-const PRICES_PER_M: Record<string, { in: number; out: number }> = {
-  'gpt-4o-mini': { in: 0.15, out: 0.6 },
-  'gpt-4o': { in: 2.5, out: 10 },
-};
 
 const AGENT_SYSTEM_PROMPT = `You are Smart Pantry Pro's kitchen assistant. The user speaks to you in French (default) or English.
 
@@ -181,10 +177,12 @@ export interface AssistantPlanResponse {
   confirmation_token: string | null;
   cost: {
     whisper_usd: number;
-    llm_usd: number;
-    total_usd: number;
+    llm_usd: number | null;
+    total_usd: number | null;
   };
-  model_used: string;
+  model_used: string | null;
+  model_receipt?: AssistantModelReceipt;
+  actions_unverified?: Array<{ action_id: string; tool: string }>;
   duration_ms: number;
   /** True if this is a 10-minute audio_sha256 replay of a previous session. */
   replayed?: boolean;
@@ -212,6 +210,7 @@ export interface UndoInput {
 }
 
 export interface VoiceAgentOptions {
+  modelConfig?: AssistantModelConfig;
   model?: string;
   fallbackModel?: string;
   maxToolCalls?: number;
@@ -266,8 +265,7 @@ export class VoiceAgentError extends Error {
 // ---- Service --------------------------------------------------------
 
 export class VoiceAgentService {
-  private readonly model: string;
-  private readonly fallbackModel: string;
+  private readonly modelConfig: AssistantModelConfig;
   private readonly maxToolCalls: number;
   private readonly undoWindowMs: number;
   private readonly systemPrompt: string;
@@ -288,9 +286,12 @@ export class VoiceAgentService {
     private readonly signer: ConfirmationTokenSigner,
     options: VoiceAgentOptions = {}
   ) {
-    this.model = options.model ?? DEFAULT_MODEL;
-    this.fallbackModel = options.fallbackModel ?? FALLBACK_MODEL;
-    this.maxToolCalls = options.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+    const base = options.modelConfig ?? loadAssistantModelConfig();
+    this.modelConfig = freezeConfig({ ...base, limits:{...base.limits}, roles:{
+      dialogue:{...base.roles.dialogue, ...(options.model ? {model:options.model} : {})},
+      culinary:{...base.roles.culinary, ...(options.fallbackModel ? {model:options.fallbackModel} : {})}, summary:{...base.roles.summary},
+    } });
+    this.maxToolCalls = Math.min(options.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS,this.modelConfig.limits.maxTools);
     this.confirmationTtlMs = options.confirmationTtlMs ?? DEFAULT_CONFIRMATION_TTL_MS;
     this.undoWindowMs = options.undoWindowMs ?? DEFAULT_UNDO_WINDOW_MS;
     this.systemPrompt = options.systemPrompt ?? AGENT_SYSTEM_PROMPT;
@@ -313,8 +314,10 @@ export class VoiceAgentService {
     ctx: ToolExecutionContext,
     onProgress?: (event: AssistantStreamEvent) => void,
   ): Promise<AssistantPlanResponse> {
+    if (input.userId !== ctx.userId) throw new VoiceAgentError('INTERNAL','Propriétaire de la requête incohérent.');
     const start = Date.now();
     const sessionId = randomUUID();
+    const invocation = new ModelInvocation(sessionId,this.modelConfig,this.ai,start);
 
     // PRP-223 PR3 — resolve the conversation up-front so the same id is
     // attached to both the input recording and the response. We touch
@@ -431,11 +434,41 @@ export class VoiceAgentService {
       { role: 'user', content: transcript },
     ];
 
-    let ai1 = await this.callLLMSafe(this.model, aiMessages, tools, providerGuard);
+    let ai1: AICompletionResponse;
+    try { ai1 = await this.callLLMSafe(invocation, 'dialogue', aiMessages, tools, providerGuard, 'tool_selection'); }
+    catch {
+      const receipt=invocation.receipt();
+      return {session_id:sessionId,transcript,detected_language:detectedLanguage,
+        message:'L’assistant n’a pas pu répondre. Les résultats de mémorisation sont affichés séparément.',
+        actions_executed:[],actions_pending:[],confirmation_token:null,model_used:null,model_receipt:receipt,
+        cost:{whisper_usd:whisperUsd,llm_usd:receipt.llm_usd,total_usd:receipt.llm_usd===null ? null : whisperUsd+receipt.llm_usd},
+        duration_ms:Date.now()-start,conversation_id:conversationId,memory_results:memoryResults,memory_revision:requestPolicy?.revision};
+    }
     if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId)))
       ai1 = { ...ai1, content: "Vos réglages ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.", tool_calls: [] };
-    let llmUsd = this.usdFromUsage(ai1.model || this.model, ai1.usage);
+    let repaired = false;
+    const outcomes = new Map<string, unknown>();
+    const attemptedWrites = new Map<string, string>();
+    const unverified: Array<{action_id:string;tool:string}> = [];
+    let toolIssue = false;
     let activeResponse = ai1;
+    let followupUsed = false;
+    let replayPrefix: Array<Record<string,unknown>> = [];
+    const continuationFor = (response: AICompletionResponse, role: AssistantRole, policy: MemoryPolicy | null) => {
+      const requestedModel=this.modelConfig.roles[role].model;
+      const continuation=[...replayPrefix,...(response.continuation ?? [])]
+        .filter(item=>item.type!=='reasoning'||response.model===requestedModel)
+        .map(item=>({...item}));
+      for(const call of response.tool_calls ?? []) {
+        // Every output has its corresponding function item, including injected clients.
+        if(!continuation.some(item=>item.type==='function_call'&&item.call_id===call.id))
+          continuation.push({type:'function_call',call_id:call.id,name:call.name,arguments:call.arguments});
+        const value=(outcomes.get(call.id) ?? {status:'not_executed',reason:'tool_limit_or_scope'}) as Record<string,unknown>;
+        const result=this.memoryService ? memoryModelToolResult(call.name,value.result,policy) : recommendationModelContext(value.result,allowedProfileVersion) ?? value.result;
+        continuation.push({type:'function_call_output',call_id:call.id,output:JSON.stringify({...value,result})});
+      }
+      return continuation;
+    };
 
     const toolCalls = (ai1.tool_calls ?? []).slice(0, this.maxToolCalls);
 
@@ -444,7 +477,10 @@ export class VoiceAgentService {
     const pending: PendingActionDescriptor[] = [];
 
     for (let i = 0; i < toolCalls.length; i++) {
+      try { invocation.checkWork(); } catch { toolIssue=true; break; }
       const tc = toolCalls[i];
+      if (input.allowedTools && !input.allowedTools.includes(tc.name as ToolName)) { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
+      try { this.toolRegistry.get(tc.name); } catch { outcomes.set(tc.id,{status:'unknown_tool'}); toolIssue=true; continue; }
       const stepSeq = i;
 
       let parsedArgs: unknown;
@@ -452,6 +488,9 @@ export class VoiceAgentService {
         parsedArgs = this.parseToolArgs(tc);
       } catch (err) {
         if (err instanceof ToolArgsValidationError) {
+          outcomes.set(tc.id,{status:'invalid_arguments'});
+          if (repaired) { toolIssue=true; break; }
+          repaired = true;
           // Round 2 escalation : retry on fallback model with the same
           // user message + a hint about the invalid args (§18 Q4).
           const retryMessages: AICompletionRequest['messages'] = [
@@ -467,8 +506,9 @@ export class VoiceAgentService {
                 '. Please reformat the call carefully.',
             },
           ];
-          const ai2 = await this.callLLMSafe(this.fallbackModel, retryMessages, tools, providerGuard);
-          llmUsd += this.usdFromUsage(ai2.model || this.fallbackModel, ai2.usage);
+          let ai2: AICompletionResponse;
+          try { ai2 = await this.callLLMSafe(invocation, 'culinary', retryMessages, tools.filter(t=>t.function.name===tc.name), providerGuard, 'argument_repair'); }
+          catch { toolIssue=true; break; }
           if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId))) {
             activeResponse = { ...ai2, content: 'Vos réglages ont changé pendant cet échange. Relancez votre demande.', tool_calls: [] };
             break;
@@ -476,8 +516,9 @@ export class VoiceAgentService {
           activeResponse = ai2;
           // Restart the loop with the retried tool_calls (only the failed
           // step; previously executed steps stay).
-          const retriedCalls = (ai2.tool_calls ?? []).slice(0, this.maxToolCalls - i);
+          const retriedCalls = (ai2.tool_calls ?? []).filter(call=>call.name===tc.name).slice(0,1);
           if (retriedCalls.length === 0) {
+            toolIssue=true;
             // Retry produced no tool calls — surface the error and bail.
             break;
           }
@@ -493,6 +534,12 @@ export class VoiceAgentService {
       const spec = this.toolRegistry.get(tc.name);
       const risk = classifyRisk(spec, parsedArgs, ctx);
 
+      const writeKey = tc.name + ':' + hashArgs(parsedArgs);
+      if (risk.tier !== 'read' && attemptedWrites.has(writeKey)) {
+        outcomes.set(tc.id,{status:'already_attempted',action_id:attemptedWrites.get(writeKey)});
+        continue;
+      }
+
       // INSERT planned row
       let planned: ActionLogRow;
       try {
@@ -507,7 +554,7 @@ export class VoiceAgentService {
             ? { memory_command: true } : parsedArgs as Record<string, unknown>,
           riskTier: risk.tier,
           reversible: spec.reversible,
-          llmModel: activeResponse.model || this.model,
+          llmModel: activeResponse.model || null,
         });
       } catch (err) {
 
@@ -515,12 +562,36 @@ export class VoiceAgentService {
           `[assistant.insertPlanned] failed for tool=${tc.name}:`,
           err instanceof Error ? err.name : 'ActionLogError'
         );
-        throw new VoiceAgentError(
-          'INTERNAL',
-          err instanceof Error ? err.message : 'action log insert failed'
-        );
+        outcomes.set(tc.id,{status:'not_executed',reason:'action_log_unavailable'});
+        toolIssue=true;
+        continue;
       }
 
+      if (risk.tier !== 'read') attemptedWrites.set(writeKey,planned.id);
+      if (planned.replayed) {
+        const privateCommand = ['remember_preference','update_response_style','read_user_memories','search_conversation_history'].includes(tc.name);
+        if (planned.tool !== tc.name || (!privateCommand && hashArgs(planned.tool_args) !== hashArgs(parsedArgs))) {
+          outcomes.set(tc.id,{status:'not_executed',reason:'request_identity_conflict'});
+          toolIssue=true;
+          continue;
+        }
+        if (planned.status === 'executed') {
+          outcomes.set(tc.id,{status:'executed',action_id:planned.id,result:planned.result,replayed:true});
+          executed.push({action_id:planned.id,step_seq:stepSeq,tool:planned.tool,args:parsedArgs as Record<string,unknown>,
+            result:planned.result,reversible:Boolean(planned.reversible_action),undo_expires_at:planned.undo_expires_at,risk_tier:planned.risk_tier});
+        } else if (planned.status === 'planned' && ['medium','high'].includes(planned.risk_tier)) {
+          outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
+          pending.push({action_id:planned.id,step_seq:stepSeq,tool:planned.tool,args:parsedArgs as Record<string,unknown>,
+            risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier)});
+        } else if (planned.risk_tier !== 'read') {
+          outcomes.set(tc.id,{status:'verification_required',action_id:planned.id});
+          unverified.push({action_id:planned.id,tool:planned.tool});
+        } else {
+          outcomes.set(tc.id,{status:'not_executed',reason:'previous_read_incomplete'});
+          toolIssue=true;
+        }
+        continue;
+      }
       if (risk.tier === 'read' || risk.tier === 'low') {
         // Execute immediately
         try {
@@ -531,6 +602,7 @@ export class VoiceAgentService {
             { ...ctx, commandId: planned.id, sessionId, conversationId, requestText: transcript },
             parsedArgs,
           );
+          if(exec.extraCostUsd!==undefined) invocation.addToolCost(planned.id,tc.name,exec.extraCostUsd);
           await this.writer.markExecuted(planned.id, {
             result: ['read_user_memories','search_conversation_history'].includes(tc.name)
               ? { status: 'read', count: Array.isArray((exec.result as Record<string, unknown>)?.memories) ? ((exec.result as Record<string, unknown>).memories as unknown[]).length : 0 }
@@ -544,6 +616,7 @@ export class VoiceAgentService {
                 : null,
             costUsd: exec.extraCostUsd,
           });
+          outcomes.set(tc.id,{status:'executed',action_id:planned.id,result:exec.result});
           executed.push({
             action_id: planned.id,
             step_seq: stepSeq,
@@ -563,27 +636,25 @@ export class VoiceAgentService {
           onProgress?.({ type: 'tool_result', tool: tc.name, payload: exec.result });
         } catch (err) {
           if (err instanceof ToolHandlerNotFoundError) {
-            await this.writer.markFailed(
-              planned.id,
-              'NO_TOOL_HANDLER',
-              err.message
-            );
-            throw new VoiceAgentError('NO_TOOL_HANDLER', err.message);
+            await this.writer.markFailed(planned.id,'NO_TOOL_HANDLER','Handler indisponible.').catch(()=>undefined);
+            outcomes.set(tc.id,{status:'not_executed',reason:'handler_unavailable'});
+            toolIssue=true;
+            continue;
           }
 
           console.error(
             `[assistant.handler] ${tc.name} failed:`,
             err instanceof Error ? err.name : 'ToolExecutionError'
           );
-          await this.writer.markFailed(
-            planned.id,
-            'EXECUTION_FAILED',
-            err instanceof Error ? err.message : 'unknown error'
-          );
-          // Keep going — other tool calls in the batch may still succeed.
+          await this.writer.markFailed(planned.id,'EXECUTION_FAILED','Résultat à vérifier.').catch(()=>undefined);
+          outcomes.set(tc.id,{status:risk.tier==='read' ? 'failed' : 'verification_required',action_id:planned.id});
+          if (risk.tier !== 'read') unverified.push({action_id:planned.id,tool:tc.name});
+          else toolIssue=true;
+          // Other distinct commands may complete; this command is never replayed blindly.
         }
       } else {
         // medium / high : keep planned, return for confirmation
+        outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
         pending.push({
           action_id: planned.id,
           step_seq: stepSeq,
@@ -592,6 +663,27 @@ export class VoiceAgentService {
           risk_tier: risk.tier,
           reason: risk.reason ?? defaultReasonForTier(risk.tier),
         });
+      }
+      // Responses may select one tool at a time. Permit a bounded follow-up
+      // after reads, so inventory → recommendation actually reaches the engine.
+      // Once a write was attempted, only the later text synthesis can run.
+      if (i===toolCalls.length-1 && !followupUsed && this.modelConfig.roles.dialogue.transport==='responses' &&
+          executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
+          toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
+        followupUsed=true;
+        const policy=this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
+        const continuation=continuationFor(activeResponse,'dialogue',policy);
+        const messages:AICompletionRequest['messages']=[
+          {role:'system',content:systemContent},{role:'user',content:transcript},
+          {role:'user',content:'Les résultats des outils sont fournis. Appelle seulement un outil encore nécessaire pour terminer cette demande, sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
+        ];
+        try {
+          const next=await this.callLLMSafe(invocation,'dialogue',messages,tools,providerGuard,'tool_followup',continuation);
+          if(this.memoryService&&!sameMemoryPolicy(lastProviderPolicy,await this.memoryService.readPolicySafe(input.userId))) {toolIssue=true;break;}
+          replayPrefix=continuation;
+          activeResponse=next;
+          toolCalls.push(...(next.tool_calls ?? []).slice(0,this.maxToolCalls-toolCalls.length));
+        } catch {toolIssue=true;}
       }
     }
 
@@ -645,7 +737,10 @@ export class VoiceAgentService {
         // shopping list ack, confirmation) we keep gpt-4o-mini.
         // `chefMode` is computed at the outer scope above so the
         // post-check after round-2 can use the same signal.
-        const synthesisModel = chefMode ? this.fallbackModel : this.model;
+        // Preserve the old chef baseline for a fair comparison. Candidates only
+        // escalate explicitly for a complex menu; ordinary recipes stay economical.
+        const synthesisRole: AssistantRole = chefMode && (this.modelConfig.preset === 'baseline' || /batch|menu|plusieurs repas|adapter.*plusieurs/iu.test(transcript)) ? 'culinary' : 'dialogue';
+        const continuation = continuationFor(activeResponse,synthesisRole,currentPolicy);
         const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? this.systemPrompt : systemContent;
         const synthesisSystem = chefMode
           ? `${currentSystem}\n\n${chefSystemPrompt()}`
@@ -676,10 +771,10 @@ export class VoiceAgentService {
         if (wantStream) {
           try {
             synthesis = await this.callLLMStreamSafe(
-              synthesisModel,
+              invocation, synthesisRole,
               synthesisMessages,
               (delta) => onProgress?.({ type: 'delta', text: delta }),
-              providerGuard,
+              providerGuard, continuation,
             );
           } catch (err) {
             // Graceful degradation — if streaming throws (e.g. the
@@ -688,14 +783,13 @@ export class VoiceAgentService {
             // we never lose the synthesis to a transient stream error.
 
             console.warn('[assistant.chef.stream] falling back to non-stream.');
-            synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, [], providerGuard);
+            synthesis = await this.callLLMSafe(invocation, synthesisRole, synthesisMessages, [], providerGuard, 'synthesis_fallback', continuation);
           }
         } else {
-          synthesis = await this.callLLMSafe(synthesisModel, synthesisMessages, [], providerGuard);
+          synthesis = await this.callLLMSafe(invocation, synthesisRole, synthesisMessages, [], providerGuard, 'synthesis', continuation);
         }
-        llmUsd += this.usdFromUsage(synthesis.model || synthesisModel, synthesis.usage);
         if (synthesis.content && synthesis.content.trim()) {
-          activeResponse = { ...synthesis, model: synthesis.model || synthesisModel };
+          activeResponse = synthesis;
         }
 
         // Post-check moved out of the round-2 branch (see below) so it
@@ -744,9 +838,26 @@ export class VoiceAgentService {
     }
     const memoryOnly = memoryResults.length > 0 && executed.every(a => ['remember_preference','forget_memory','update_response_style'].includes(a.tool)) && pending.length === 0;
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
-    const currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
-    const canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
+    if (pending.length) message = synthesizeMessage(executed,pending);
+    if (toolIssue) message = 'Une action n’a pas pu être validée sur cette page. '+synthesizeMessage(executed,pending);
+    if (unverified.length) message = 'Une action n’a pas pu être confirmée. Vérifie son résultat avant de la répéter. ' + synthesizeMessage(executed,pending);
+    let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
+    let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
     if (!canRecordResponse && !memoryOnly) message = 'Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
+
+    let summaryResult: SummaryResult = { status: 'disabled', costUsd: 0 };
+    if (this.memoryService && conversationId && canRecordResponse && lastProviderPolicy?.saveHistory) {
+      summaryResult = await new ConversationSummaryService(this.memoryService, this.ai, invocation)
+        .maintain(input.userId, conversationId, lastProviderPolicy);
+    }
+    // Summary generation is another awaited provider turn. A revocation during
+    // it must also suppress the previous context before persistence or streaming.
+    if(this.memoryService) {
+      currentAfterProvider=await this.memoryService.readPolicySafe(input.userId);
+      canRecordResponse=sameMemoryPolicy(lastProviderPolicy,currentAfterProvider);
+      if(!canRecordResponse&&!memoryOnly) message='Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
+    }
+    if(onProgress&&message) onProgress({type:'delta',text:message});
 
     // PRP-223 PR3 — record the assistant turn. Aggregate the action_log
     // ids on the assistant message so the chat history can link back to
@@ -765,7 +876,8 @@ export class VoiceAgentService {
         ];
         const recipeProposals = extractRecipeProposalsFromExecuted(executed);
         const messageMetadata: Record<string, unknown> = {
-          model: activeResponse.model || this.model,
+          model: activeResponse.model || null,
+          model_receipt: invocation.receipt(),
         };
         if (recipeProposals) {
           messageMetadata.recipe_proposals = recipeProposals;
@@ -786,12 +898,7 @@ export class VoiceAgentService {
       }
     }
 
-    let summaryResult: SummaryResult = { status: 'disabled', costUsd: 0 };
-    if (this.memoryService && conversationId && canRecordResponse && lastProviderPolicy?.saveHistory) {
-      summaryResult = await new ConversationSummaryService(this.memoryService, this.ai)
-        .maintain(input.userId, conversationId, lastProviderPolicy);
-      llmUsd += summaryResult.costUsd;
-    }
+    const modelReceipt = invocation.receipt();
     return {
       session_id: sessionId,
       transcript,
@@ -802,10 +909,11 @@ export class VoiceAgentService {
       confirmation_token: confirmationToken,
       cost: {
         whisper_usd: whisperUsd,
-        llm_usd: Number(llmUsd.toFixed(6)),
-        total_usd: Number((whisperUsd + llmUsd).toFixed(6)),
+          llm_usd: modelReceipt.llm_usd,
+        total_usd: modelReceipt.llm_usd === null ? null : whisperUsd + modelReceipt.llm_usd,
       },
-      model_used: activeResponse.model || this.model,
+      model_used: activeResponse.model || null,
+      model_receipt: modelReceipt, actions_unverified: unverified,
       duration_ms: Date.now() - start,
       conversation_id: conversationId,
       memory_results: memoryResults, memory_revision: currentAfterProvider?.revision, summary_status: summaryResult.status, summary_cost_unknown: summaryResult.costUnknown,
@@ -991,78 +1099,26 @@ export class VoiceAgentService {
   }
 
   private async callLLMSafe(
-    model: string,
-    messages: AICompletionRequest['messages'],
-    tools: AICompletionRequest['tools'],
-    guard?: (messages: AICompletionRequest['messages']) => Promise<AICompletionRequest['messages']>
-  ): Promise<AICompletionResponse> {
-    try {
-      return await this.ai.complete({
-        model,
-        messages: guard ? await guard(messages) : messages,
-        temperature: 0.2,
-        max_tokens: 1500,
-        tools,
-        tool_choice: tools && tools.length > 0 ? 'auto' : 'none',
-      });
-    } catch (err) {
-      throw new VoiceAgentError(
-        'LLM_FAILED',
-        err instanceof Error ? err.message : 'AI client failed'
-      );
-    }
-  }
-
-  /**
-   * PRP-239 PR-C — streaming counterpart of callLLMSafe. Yields each
-   * delta to `onDelta` as it arrives, then resolves with the full
-   * `AICompletionResponse` once the terminal `done: true` chunk lands.
-   *
-   * Used only by the chef round-2 synthesis (text-only, no tools). If
-   * the configured AICompletionClient doesn't implement
-   * `completeStream`, we throw a typed error so the caller can fall
-   * back to the non-streaming path.
-   */
-  private async callLLMStreamSafe(
-    model: string,
-    messages: AICompletionRequest['messages'],
-    onDelta: (text: string) => void,
+    invocation: ModelInvocation, role: AssistantRole,
+    messages: AICompletionRequest['messages'], tools: AICompletionRequest['tools'],
     guard?: (messages: AICompletionRequest['messages']) => Promise<AICompletionRequest['messages']>,
+    purpose = 'synthesis', continuation: Array<Record<string,unknown>> = [],
   ): Promise<AICompletionResponse> {
-    if (!this.ai.completeStream) {
-      throw new Error('STREAM_NOT_SUPPORTED');
-    }
+    const safe = guard ? await guard(messages) : messages;
     try {
-      const stream = this.ai.completeStream({
-        model,
-        messages: guard ? await guard(messages) : messages,
-        temperature: 0.2,
-        max_tokens: 1500,
-      });
-      let finalContent = '';
-      let finalModel = model;
-      let finalUsage = { prompt_tokens: 0, completion_tokens: 0 };
-      for await (const evt of stream) {
-        if (evt.done === true) {
-          finalContent = evt.content;
-          finalModel = evt.model;
-          finalUsage = evt.usage;
-        } else {
-          onDelta(evt.delta);
-        }
-      }
-      return { content: finalContent, model: finalModel, usage: finalUsage };
-    } catch (err) {
-      throw new VoiceAgentError(
-        'LLM_FAILED',
-        err instanceof Error ? err.message : 'AI client stream failed',
-      );
-    }
+      return await invocation.complete(role,{messages:safe,temperature:0.2,tools,tool_choice:tools?.length ? 'auto' : 'none',
+        ...(safe === messages && invocation.config.roles[role].transport === 'responses' ? {continuation} : {})},purpose);
+    } catch { throw new VoiceAgentError('LLM_FAILED','Appel du modèle indisponible ou limite atteinte.'); }
   }
-
-  private usdFromUsage(model: string, usage: { prompt_tokens: number; completion_tokens: number }) {
-    const price = PRICES_PER_M[model] ?? PRICES_PER_M[DEFAULT_MODEL];
-    return (usage.prompt_tokens * price.in + usage.completion_tokens * price.out) / 1_000_000;
+  private async callLLMStreamSafe(
+    invocation: ModelInvocation, role: AssistantRole, messages: AICompletionRequest['messages'],
+    _onDelta: (text:string)=>void,
+    guard?: (messages: AICompletionRequest['messages']) => Promise<AICompletionRequest['messages']>,
+    continuation: Array<Record<string,unknown>> = [],
+  ): Promise<AICompletionResponse> {
+    const safe=guard ? await guard(messages) : messages;
+    return invocation.complete(role,{messages:safe,temperature:0.2,
+      ...(safe === messages && invocation.config.roles[role].transport === 'responses' ? {continuation} : {})},'synthesis_stream',true);
   }
 
   private buildReplayResponse(
@@ -1078,7 +1134,7 @@ export class VoiceAgentService {
       actions_pending: [],
       confirmation_token: null,
       cost: { whisper_usd: 0, llm_usd: 0, total_usd: 0 },
-      model_used: row.llm_model ?? DEFAULT_MODEL,
+      model_used: null,
       duration_ms: Date.now() - start,
       replayed: true,
       conversation_id: conversationId,
@@ -1101,7 +1157,7 @@ export class VoiceAgentService {
       actions_pending: [],
       confirmation_token: null,
       cost: { whisper_usd: 0, llm_usd: 0, total_usd: 0 },
-      model_used: this.model,
+      model_used: null,
       duration_ms: Date.now() - start,
       conversation_id: conversationId,
     };
