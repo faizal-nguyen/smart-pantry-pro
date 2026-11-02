@@ -35,19 +35,19 @@ BEGIN
   ) VALUES (
     v_user_id,
     'Bánh Mì Trứng (Banh Mi Œuf Frit Croustillant)',
-    'Sandwich banh mi garni d''un œuf frit à l''asiatique aux bords dorés croustillants et jaune coulant. Pâté de campagne, mayo Kewpie, cornichons banh mi, concombre, coriandre et sauce Maggi sur baguette grillée.',
-    $instr$["Chauffer la poêle à feu moyen-vif jusqu'à ce que l'huile brille légèrement.",
-"Casser un œuf au centre de la poêle chaude.",
-"Assaisonner l'œuf d'une pincée de sel.",
-"Frire jusqu'à formation de bords dorés croustillants autour du blanc, jaune coulant.",
-"Retirer l'œuf et le laisser reposer sur papier absorbant.",
-"Couper le pain banh mi en deux dans le sens de la longueur en gardant une charnière.",
-"Griller le pain 5 minutes à 200°C, puis retirer la mie intérieure si dense.",
-"Tartiner 1 c. à soupe de mayo Kewpie d'un côté et 2 oz de pâté de l'autre.",
-"Placer l'œuf frit côté mayo, assaisonner de poivre et sauce Maggi.",
-"Garnir de concombre, cornichons banh mi et coriandre fraîche ; servir immédiatement."]
+    'Sandwich banh mi garni d''œufs frits à l''asiatique, aux bords dorés et croustillants et au jaune coulant. Pâté de volaille, mayonnaise japonaise, pickles de carotte et de daïkon, concombre, coriandre et sauce d''assaisonnement sur une baguette grillée.',
+    $instr$["Chauffer l'huile dans une poêle à feu moyen-vif jusqu'à ce qu'elle soit chaude et brillante.",
+"Casser un œuf au centre de la poêle chaude (cuire les œufs un par un).",
+"Saler l'œuf d'une pincée de sel.",
+"Le frire jusqu'à ce que le blanc forme des bords dorés et croustillants, en gardant le jaune coulant.",
+"Retirer l'œuf et le laisser reposer sur du papier absorbant. Répéter avec les autres œufs.",
+"Couper les pains en deux dans la longueur en gardant une charnière.",
+"Faire griller les pains 5 minutes au four à 200°C, puis retirer un peu de mie si elle est dense.",
+"Tartiner un côté de chaque pain de 1 c. à soupe de mayonnaise japonaise et l'autre d'environ 60 g de pâté.",
+"Placer 2 œufs frits côté mayonnaise, poivrer et arroser de sauce d'assaisonnement.",
+"Garnir de concombre, de pickles de carotte et de daïkon et de coriandre fraîche ; servir aussitôt."]
 $instr$,
-    5, 5, 2, 2,
+    5, 10, 2, 2,
     'Vietnamienne', 'breakfast',
     ARRAY['banh mi','œuf frit','sandwich vietnamien','pâté','rapide','petit-déjeuner','street-food'],
     'manual',
@@ -58,16 +58,16 @@ $instr$,
   INSERT INTO public.recipe_ingredients (
     recipe_id, ingredient_name, quantity, unit, is_essential, order_index, notes
   ) VALUES
-    (v_recipe_id, 'huile de cuisson',           4,   'c. à soupe', true,  1,  'pour la friture'),
-    (v_recipe_id, 'œufs',                       4,   'unité',      true,  2,  'gros'),
-    (v_recipe_id, 'sel',                        0.25,'c. à café',  true,  3,  'casher'),
+    (v_recipe_id, 'huile végétale',             4,   'c. à soupe', true,  1,  'pour la friture'),
+    (v_recipe_id, 'œufs',                       4,   'unité',      true,  2,  'gros, 2 par sandwich'),
+    (v_recipe_id, 'sel',                        0.25,'c. à café',  true,  3,  'kasher'),
     (v_recipe_id, 'poivre noir',                0.125,'c. à café', true,  4,  'moulu'),
-    (v_recipe_id, 'cornichons banh mi',         60,  'ml',         true,  5,  'đồ chua, carotte-daikon marinés'),
-    (v_recipe_id, 'coriandre fraîche',          12,  'brin',       true,  6,  'garniture'),
-    (v_recipe_id, 'mayonnaise Kewpie',          2,   'c. à soupe', true,  7,  'japonaise'),
-    (v_recipe_id, 'sauce Maggi',                1,   'c. à soupe', true,  8,  NULL),
-    (v_recipe_id, 'concombre persan',           4,   'tranche',    true,  9,  '0,6 cm d''épaisseur'),
-    (v_recipe_id, 'pâté de campagne',           115, 'g',          true,  10, 'bio, environ 4 oz'),
-    (v_recipe_id, 'pain banh mi',               2,   'unité',      true,  11, 'ou baguette italienne');
+    (v_recipe_id, 'pickles carotte-daïkon',     60,  'g',          true,  5,  'đồ chua, égouttés'),
+    (v_recipe_id, 'coriandre fraîche',          12,  'brin',       true,  6,  NULL),
+    (v_recipe_id, 'mayonnaise japonaise',       2,   'c. à soupe', true,  7,  'type Kewpie'),
+    (v_recipe_id, 'sauce assaisonnement',       1,   'c. à soupe', true,  8,  'type Maggi'),
+    (v_recipe_id, 'concombre',                  4,   'tranche',    true,  9,  'type libanais, tranches de 0,6 cm'),
+    (v_recipe_id, 'pâté de foie de volaille',   115, 'g',          true,  10, 'ou autre pâté de volaille'),
+    (v_recipe_id, 'pain banh mi',               2,   'unité',      true,  11, 'ou petite baguette');
 
 END $$;

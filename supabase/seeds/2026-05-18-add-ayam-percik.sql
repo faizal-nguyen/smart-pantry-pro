@@ -32,13 +32,13 @@ BEGIN
     v_user_id,
     'Ayam Percik',
     'Poulet rôti saucé typique du Kelantan (Malaisie). Le poulet est mariné au curcuma puis nappé d''une sauce au lait de coco riche en épices fraîches avant d''être grillé jusqu''à ce que la sauce lustrée enrobe la viande.',
-    $instr$["Dans un grand bol, mélanger le gingembre râpé, le sel et le curcuma en poudre. Frotter le mélange sur les cuisses de poulet. Réserver pour mariner.",
+    $instr$["Dans un grand bol, mélanger le gingembre râpé, le sel et le curcuma en poudre. Frotter le mélange sur les cuisses de poulet et laisser mariner.",
 "Cuire les cuisses de poulet marinées à la vapeur pendant 15 minutes puis réserver.",
-"Dans un blender, mettre les échalotes, l'ail, la pâte de crevettes séchées et la citronnelle (parties blanches uniquement). Mixer jusqu'à obtenir une pâte lisse.",
+"Dans un blender, mettre les échalotes, l'ail, la pâte de crevettes séchée (belacan) et la citronnelle (parties blanches uniquement). Mixer jusqu'à obtenir une pâte lisse.",
 "Dans une poêle (huilée si elle n'est pas anti-adhésive), cuire la pâte de piment (cili boh) à feu moyen-doux pendant 1 à 2 minutes. Ajouter la pâte d'aromates mixée et cuire à feu doux pendant 15 minutes en remuant continuellement, avant d'ajouter le lait de coco.",
 "Ajouter les tiges de citronnelle écrasées. Ajouter ensuite le sel, le sucre et la pâte de tamarin. Continuer à remuer pendant 15 minutes à feu doux. La sauce doit épaissir lorsqu'elle est prête.",
-"Placer les cuisses de poulet vapeur dans la sauce. Mijoter 5 minutes. Transférer le poulet sur une plaque de cuisson chemisée. Continuer à mijoter la sauce 5 minutes de plus puis éteindre le feu.",
-"Enfourner les cuisses de poulet 30 minutes à 200°C, ou jusqu'à coloration. Une fois prêtes, napper les cuisses cuites avec le reste de sauce. Servir avec du riz."]
+"Placer les cuisses de poulet cuites à la vapeur dans la sauce. Mijoter 5 minutes. Transférer le poulet sur une plaque recouverte de papier cuisson. Continuer à mijoter la sauce 5 minutes de plus puis éteindre le feu.",
+"Enfourner les cuisses de poulet 30 minutes à 200°C, ou jusqu'à coloration. Une fois prêtes, napper les cuisses cuites avec le reste de sauce. Servir avec du riz blanc."]
 $instr$,
     30, 100, 4, 3,
     'Malaisienne', 'dinner',
@@ -59,17 +59,18 @@ $instr$,
     -- Pâte d'aromates
     (v_recipe_id, 'échalotes',                 7,   'unité',      true,  5,  'pour la pâte d''aromates'),
     (v_recipe_id, 'ail',                       2,   'gousse',     true,  6,  'pour la pâte d''aromates'),
-    (v_recipe_id, 'pâte de crevettes séchées', 1.5, 'c. à soupe', true,  7,  'belacan'),
+    (v_recipe_id, 'pâte de crevettes',         1.5, 'c. à soupe', true,  7,  'séchée (belacan)'),
     (v_recipe_id, 'citronnelle',               2,   'unité',      true,  8,  'parties blanches uniquement, pour mixer'),
     -- Sauce
-    (v_recipe_id, 'pâte de piment',            3,   'c. à soupe', true,  9,  'cili boh'),
-    (v_recipe_id, 'lait de coco',              480, 'ml',         true,  10, '2 tasses (~480 ml)'),
-    (v_recipe_id, 'citronnelle',               2,   'unité',      true,  11, 'tiges, écrasées pour la sauce'),
-    (v_recipe_id, 'sel',                       0.5, 'c. à soupe', true,  12, 'sauce'),
-    (v_recipe_id, 'sucre',                     3,   'c. à soupe', true,  13, NULL),
-    (v_recipe_id, 'pâte de tamarin',           1,   'c. à soupe', true,  14, NULL),
+    (v_recipe_id, 'huile végétale',            1,   'c. à soupe', false, 9,  'seulement si la poêle n''est pas anti-adhésive'),
+    (v_recipe_id, 'pâte de piment',            3,   'c. à soupe', true,  10, 'cili boh'),
+    (v_recipe_id, 'lait de coco',              480, 'ml',         true,  11, NULL),
+    (v_recipe_id, 'citronnelle',               2,   'unité',      true,  12, 'tiges écrasées, pour la sauce'),
+    (v_recipe_id, 'sel',                       0.5, 'c. à soupe', true,  13, 'sauce'),
+    (v_recipe_id, 'sucre',                     3,   'c. à soupe', true,  14, NULL),
+    (v_recipe_id, 'pâte de tamarin',           1,   'c. à soupe', true,  15, NULL),
     -- Accompagnement suggéré
-    (v_recipe_id, 'riz blanc',                 1,   'unité',      false, 15, 'pour servir');
+    (v_recipe_id, 'riz blanc',                 300, 'g',          false, 16, 'poids cru, cuit pour servir');
 
   RAISE NOTICE 'Seed: Ayam Percik inserted with id % for user %', v_recipe_id, v_user_id;
 END $$;
