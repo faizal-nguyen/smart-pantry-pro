@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  allocateRecipeStock, allocateCookingStock, StockCommandSchema,
+  allocateRecipeStock, allocateCookingStock, canAddToShoppingList, needsPurchase, StockCommandSchema,
   type RecipeReference, type RecipeStockPreview, type ResolvedStockRecipe,
   type StockCommand, type StockCommandResult, type StockLot,
 } from '@smart/shared';
@@ -116,9 +116,13 @@ export class StockCommandService {
         if (actual.missing.some(missing => !outside.has(missing.ingredient_index))) throw new StockCommandError('INSUFFICIENT_QUANTITY',409);
         allocations = actual.allocations.filter(allocation => !outside.has(allocation.ingredient_index));
       } else {
-        const unknown = preview.missing.find(missing => missing.quantity == null || missing.quantity <= 0 || ['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(missing.reason));
-        if (unknown) throw new StockCommandError(unknown.reason);
-        allocations = preview.missing.map(({ ingredient_index, quantity, unit }) => ({ ingredient_index, quantity, unit }));
+        // Products in stock with an amount to verify are not bought again; unmeasured
+        // amounts are left to the user (the client names them) unless nothing else can be added.
+        const toBuy = preview.missing.filter(needsPurchase);
+        const addable = toBuy.filter(canAddToShoppingList);
+        const unknown = toBuy.find(missing => !canAddToShoppingList(missing));
+        if (!addable.length && unknown) throw new StockCommandError(unknown.quantity == null || unknown.quantity <= 0 ? 'QUANTITY_UNKNOWN' : 'UNIT_UNKNOWN');
+        allocations = addable.map(({ ingredient_index, quantity, unit }) => ({ ingredient_index, quantity, unit }));
       }
     }
     const { data, error } = await this.client.rpc('execute_stock_command', { p_command: command, p_allocations: allocations });

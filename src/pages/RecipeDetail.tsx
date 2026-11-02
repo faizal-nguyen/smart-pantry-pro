@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
+import { canAddToShoppingList, recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
 import { ArrowLeft, Clock, Users, Star, Heart, Share, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -93,6 +93,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const canEdit = ownsRecipe && recipe?.source === 'recipes';
   const hasBaseServings = recipe?.servings != null && Number.isFinite(recipe.servings) && recipe.servings > 0;
   const canUseStock = hasBaseServings && evaluation.validServings;
+  const purchaseCount = freshEvaluation?.availability.missing.filter(canAddToShoppingList).length ?? 0;
   const handlePhotoUpload = async (file: File) => {
     if (!reference || !ownsRecipe) return;
     try {
@@ -162,7 +163,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const actions = {
     onCook: handleCook, onAddMissingToShoppingList: handleAddMissing, onEdit, cooking, addingToCart,
     canCook: canUseStock, canEdit,
-    canAddMissing: canUseStock && !!freshEvaluation?.availability.missing.length,
+    canAddMissing: canUseStock && purchaseCount > 0,
   };
   return <div className="culinary-page mx-auto max-w-4xl p-4 md:p-6 pb-[calc(var(--content-bottom-pad)+5rem)] md:pb-6">
     <div className="mb-4 flex items-center justify-between gap-2">
@@ -231,6 +232,6 @@ function RecipeDetailContent({ id }: { id?: string }) {
         <AlertDialogFooter><AlertDialogCancel>Annuler</AlertDialogCancel><AlertDialogAction disabled={deleting} onClick={() => void handleDelete()} className="bg-destructive text-destructive-foreground">Supprimer</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-    <RecipeMobileActionBar {...actions} missingCount={freshEvaluation?.availability.missing.length} />
+    <RecipeMobileActionBar {...actions} missingCount={purchaseCount || undefined} />
   </div>;
 }

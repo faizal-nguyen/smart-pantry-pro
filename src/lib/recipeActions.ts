@@ -4,7 +4,7 @@
  * buildRecipeActionPrompt remains for old read-only prompt previews.
  */
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
-import type { RecipeReference } from '@smart/shared';
+import { canAddToShoppingList, needsPurchase, type RecipeReference } from '@smart/shared';
 
 export type RecipeAction = 'add_missing' | 'plan' | 'cooked';
 
@@ -64,6 +64,7 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
   const reference: RecipeReference = { id: recipe.id, source: recipe.source ?? 'auto' };
   const intent = `recipe:${recipe.id}:${action}`;
   let command = await pendingIntent(intent);
+  let byHand: string[] = [];
   if (!command) {
     const preview = await previewRecipeStock(reference,recipe.servings ?? undefined);
     if (action === 'cooked') {
@@ -72,6 +73,8 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
         recipe: reference, servings: preview.servings, recipe_version: preview.recipe.version, outside_inventory: [],
       });
     } else if (action === 'add_missing') {
+      // "1 botte" or "au goût" cannot be stored as a shopping quantity: name them instead of failing.
+      byHand = preview.missing.filter(missing => needsPurchase(missing) && !canAddToShoppingList(missing)).map(missing => missing.ingredient_name);
       command = await commandForIntent('recipe_add_missing',intent,{ recipe: reference, servings: preview.servings });
     } else {
       const today = new Date();
@@ -81,5 +84,6 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
   }
   await executeStockCommand(command);
   await finishIntent(intent);
-  return recipeActionToastTitle(action);
+  const title = recipeActionToastTitle(action);
+  return byHand.length ? `${title} · à ajouter à la main : ${byHand.join(', ')}` : title;
 }

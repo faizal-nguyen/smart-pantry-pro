@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { RecipeStockPreview, StockAllocation } from '@smart/shared';
+import { needsPurchase, type RecipeStockPreview, type StockAllocation } from '@smart/shared';
 import type { InventoryItem } from './useInventory';
 import type { RecipeIngredient } from './useRecipes';
 import { useAuthSessionOptional } from './useAuthenticatedUser';
@@ -15,7 +15,7 @@ export interface MissingIngredient { ingredient: RecipeIngredient; urgency: 'hig
 export interface ShoppingListItem { ingredient: RecipeIngredient; quantity: number; unit: string; priority: number; storeSection: string; }
 export interface InventoryAnalysis {
   recipeId: string; canMake: boolean; confidence: number; availableIngredients: InventoryMatch[];
-  missingIngredients: MissingIngredient[]; possibleSubstitutions: Substitution[];
+  missingIngredients: MissingIngredient[]; ingredientsToVerify: MissingIngredient[]; possibleSubstitutions: Substitution[];
   shoppingList: ShoppingListItem[]; lastAnalyzed: Date; preview: RecipeStockPreview;
 }
 
@@ -37,14 +37,17 @@ export function analysisFromPreview(preview: RecipeStockPreview): InventoryAnaly
         product: { id: lot.product_id, name: lot.product_name, unit_type: lot.unit ?? '', category: '' } },
     });
   });
-  const missingIngredients = preview.missing.map(missing => ({
+  const gap = (missing: RecipeStockPreview['missing'][number]): MissingIngredient => ({
     ingredient: { ...ingredients[missing.ingredient_index], quantity: missing.quantity ?? undefined },
-    urgency: 'high' as const, reason: missing.reason,
-  }));
+    urgency: missing.is_essential ? 'high' : 'low', reason: missing.reason,
+  });
+  // In-stock products whose amount cannot be compared are shown to verify, not to buy.
+  const missingIngredients = preview.missing.filter(needsPurchase).map(gap);
+  const ingredientsToVerify = preview.missing.filter(missing => !needsPurchase(missing)).map(gap);
   const essential = preview.recipe.ingredients.filter(ingredient => ingredient.is_essential !== false).length;
-  const unknown = preview.missing.filter(missing => missing.is_essential).length;
-  return { recipeId: preview.recipe.id, canMake: essential > 0 && unknown === 0,
-    confidence: essential ? (essential-unknown)/essential : 0, availableIngredients, missingIngredients,
+  const blocking = preview.missing.filter(missing => missing.is_essential && needsPurchase(missing)).length;
+  return { recipeId: preview.recipe.id, canMake: essential > 0 && blocking === 0,
+    confidence: essential ? (essential-blocking)/essential : 0, availableIngredients, missingIngredients, ingredientsToVerify,
     possibleSubstitutions: [], shoppingList: missingIngredients.filter(missing => missing.ingredient.quantity != null && missing.ingredient.unit)
       .map(missing => ({ ingredient: missing.ingredient, quantity: missing.ingredient.quantity!, unit: missing.ingredient.unit!, priority: 1, storeSection: 'Autres' })),
     lastAnalyzed: new Date(), preview,

@@ -11,10 +11,55 @@ register('ml', 'volume', 1, ['millilitre', 'millilitres', 'milliliter', 'millili
 register('cl', 'volume', 10, ['centilitre', 'centilitres']);
 register('dl', 'volume', 100, ['decilitre', 'decilitres']);
 register('l', 'volume', 1000, ['litre', 'litres', 'liter', 'liters']);
+// Measuring spoons are standard volumes; cups, pinches and cans stay unconverted (sizes vary).
+register('c. a soupe', 'volume', 15, ['c.a.s', 'c.a.s.', 'cuillere a soupe', 'cuilleres a soupe', 'tbsp', 'tablespoon', 'tablespoons']);
+register('c. a cafe', 'volume', 5, ['c.a.c', 'c.a.c.', 'cuillere a cafe', 'cuilleres a cafe', 'tsp', 'teaspoon', 'teaspoons']);
 register('piece', 'count', 1, ['pieces', 'unite', 'unites', 'unit', 'units', 'pcs', 'pc', 'u']);
 
 export function normalizeIngredientName(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// A complement after the shared words names another product: "lait de coco" is not "lait".
+const COMPLEMENT_WORDS = new Set(['de', 'd', 'du', 'des', 'a', 'au', 'aux', 'en', 'l', 'la', 'le', 'les']);
+// Staples whose usual shop name carries a complement ("Sel de mer", "Sucre en poudre").
+const SAME_STAPLES = new Set(['sel de mer', 'sel de guerande', 'sucre en poudre', 'sucre de canne', 'poivre en grain']);
+// Qualifiers that turn a base ingredient into another product ("lait concentré", "saumon fumé").
+const TRANSFORMING_WORDS = new Set(['concentre', 'sucree', 'seche', 'sechee', 'deshydrate', 'deshydratee', 'fume', 'fumee']);
+const TAP_WATER_WORDS = new Set(['chaude', 'froide', 'tiede', 'bouillante', 'glacee', 'fraiche', 'du', 'robinet']);
+// Letters without a decomposed form, so that "đường" keeps its first letter.
+const PLAIN_LETTERS: Record<string, string> = { 'œ': 'oe', 'æ': 'ae', 'đ': 'd', 'ð': 'd', 'ø': 'o', 'ł': 'l', 'ß': 'ss' };
+
+/** Accent-, case-, punctuation- and plural-insensitive words of a product or ingredient name. */
+export function ingredientNameTokens(value: string): string[] {
+  return normalizeIngredientName(value).replace(/[œæđðøłß]/g, letter => PLAIN_LETTERS[letter])
+    .split(/[^a-z0-9]+/).filter(Boolean)
+    .map(token => token.length > 3 && /[sx]$/.test(token) ? token.slice(0, -1) : token);
+}
+
+/**
+ * 0 when the names designate different products, 1 for the same product name,
+ * 2 when the product only adds descriptive words to the ingredient ("Lait de coco bio"
+ * for "lait de coco"). A more specific ingredient ("citron vert") is never covered by
+ * a generic product ("Citron").
+ */
+export function ingredientMatchRank(ingredientName: string, productName: string): 0 | 1 | 2 {
+  const same = normalizeIngredientName(ingredientName);
+  if (same && same === normalizeIngredientName(productName)) return 1; // any script, e.g. "味噌"
+  const ingredient = ingredientNameTokens(ingredientName);
+  const product = ingredientNameTokens(productName);
+  if (!ingredient.length || ingredient.length > product.length) return 0;
+  if (ingredient.join(' ') === product.join(' ')) return 1;
+  if (ingredient.length === product.length || !ingredient.every((token, index) => product[index] === token)) return 0;
+  const extra = product.slice(ingredient.length);
+  if (COMPLEMENT_WORDS.has(extra[0]) && !SAME_STAPLES.has([...ingredient, ...extra.slice(0, 2)].join(' '))) return 0;
+  return extra.some(token => TRANSFORMING_WORDS.has(token)) ? 0 : 2;
+}
+
+/** Tap water ("eau", "eau chaude", "eau du robinet") is never tracked as stock. */
+export function isAlwaysAvailableIngredient(ingredientName: string): boolean {
+  const [head, ...rest] = ingredientNameTokens(ingredientName);
+  return head === 'eau' && rest.every(token => TAP_WATER_WORDS.has(token));
 }
 
 export function describeUnit(value: string | null | undefined) {
@@ -72,6 +117,16 @@ export interface StockMissing {
   is_essential: boolean;
 }
 
+/** Absent or insufficient stock must be bought; other reasons mean "in stock, amount to verify". */
+export function needsPurchase(missing: { reason?: StockMissing['reason'] }): boolean {
+  return missing.reason === 'NOT_IN_STOCK' || missing.reason === 'INSUFFICIENT_QUANTITY';
+}
+
+/** The shopping list only holds measurable amounts; "1 botte" or "au goût" is added by hand. */
+export function canAddToShoppingList(missing: StockMissing): boolean {
+  return needsPurchase(missing) && missing.quantity != null && missing.quantity > 0 && !!describeUnit(missing.unit);
+}
+
 /** Reserve lots once across the whole recipe, including repeated ingredients. */
 export function allocateRecipeStock(
   ingredients: StockIngredient[], lots: StockLot[], baseServings: number, requestedServings: number,
@@ -85,18 +140,23 @@ export function allocateRecipeStock(
   const remaining = new Map(lots.map(lot => [lot.id, Math.max(0, Number(lot.quantity))]));
   const ordered = [...lots].sort((a, b) => (a.expiry_date ?? '9999-12-31').localeCompare(b.expiry_date ?? '9999-12-31') || a.id.localeCompare(b.id));
   ingredients.forEach((ingredient, index) => {
-    if (options.skip?.includes(index)) return;
+    if (options.skip?.includes(index) || isAlwaysAvailableIngredient(ingredient.ingredient_name)) return;
     const required = ingredient.quantity == null ? null : Number(ingredient.quantity) * requestedServings / baseServings;
     const absent = (reason: StockMissing['reason'], quantity = required) => missing.push({
       ingredient_index: index, ingredient_name: ingredient.ingredient_name, quantity,
       unit: ingredient.unit ?? null, reason, is_essential: ingredient.is_essential !== false,
     });
-    if (required == null || !Number.isFinite(required) || required <= 0) { absent('QUANTITY_UNKNOWN'); return; }
-    if (!describeUnit(ingredient.unit)) { absent('UNIT_UNKNOWN'); return; }
-    const candidates = ordered.filter(lot => !options.selectedLots?.[index] || lot.id === options.selectedLots[index]).filter(lot => ingredient.inventory_product_id
-      ? lot.product_id === ingredient.inventory_product_id
-      : normalizeIngredientName(lot.product_name) === normalizeIngredientName(ingredient.ingredient_name));
+    const rank = (lot: StockLot) => ingredient.inventory_product_id && lot.product_id === ingredient.inventory_product_id
+      ? 1 : ingredientMatchRank(ingredient.ingredient_name, lot.product_name);
+    // Same-named products first, then more specific ones; expiry order is kept within each group.
+    const candidates = ordered.filter(lot => !options.selectedLots?.[index] || lot.id === options.selectedLots[index])
+      .map(lot => ({ lot, rank: rank(lot) })).filter(match => match.rank > 0)
+      .sort((a, b) => a.rank - b.rank).map(match => match.lot);
+    // Unknown amounts or units only mean "to verify" when the product is actually in stock.
+    const inStock = candidates.some(lot => (remaining.get(lot.id) ?? 0) > 0);
     if (!candidates.length) { absent('NOT_IN_STOCK'); return; }
+    if (required == null || !Number.isFinite(required) || required <= 0) { absent(inStock ? 'QUANTITY_UNKNOWN' : 'NOT_IN_STOCK'); return; }
+    if (!describeUnit(ingredient.unit)) { absent(inStock ? 'UNIT_UNKNOWN' : 'NOT_IN_STOCK'); return; }
     let needed = required;
     const proposed: StockAllocation[] = [];
     let incompatible: StockMissing['reason'] | null = null;

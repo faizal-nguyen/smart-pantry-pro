@@ -69,7 +69,7 @@ export default function RecipeMobileActionBar({
           data-testid="primary-action"
           aria-label={
             missingCount
-              ? `Ajouter ${missingCount} ingrédients manquants aux courses`
+              ? `Ajouter ${missingCount} ingrédient${missingCount > 1 ? 's' : ''} manquant${missingCount > 1 ? 's' : ''} aux courses`
               : 'Ajouter les ingrédients manquants aux courses'
           }
         >
