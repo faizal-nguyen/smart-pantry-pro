@@ -20,7 +20,9 @@ jest.mock('@/hooks/useRecipeDetails', () => ({ useRecipeDetails: (_owner: string
 jest.mock('@/hooks/useRecipeEvaluation', () => ({ useRecipeEvaluation: jest.fn((ref: { id: string; source: string }, servings: number) => ({
   data: { reference: ref, servings, base_servings: mockBase, profile_version: 1, stock_version: 'stock', recipe_version: 'recipe', calculated_at: '2026-10-09T12:00:00Z',
     constraints: { status: 'verify', findings: [{ ingredient: 'Sauce', code: 'INGREDIENT_UNRESOLVED', message: 'Composition à vérifier.' }], limitations: [] },
-    availability: { status: 'missing', missing: [{ ingredient_name: 'Riz', quantity: 50, unit: 'g' }], uncertainties: [], excluded_lots: [] },
+    availability: { status: 'missing', missing: [{ ingredient_name: 'Riz', quantity: 50, unit: 'g', reason: 'NOT_IN_STOCK', is_essential: true },
+      { ingredient_name: 'Sel', quantity: 1, unit: 'c. à café', reason: 'UNIT_INCOMPATIBLE', is_essential: true },
+      { ingredient_name: 'Coriandre', quantity: 1, unit: 'botte', reason: 'NOT_IN_STOCK', is_essential: false }], uncertainties: [], excluded_lots: [] },
     nutrition: { status: 'partial', known_ingredients: 1, total_ingredients: 1, per_serving: { energyKcal: 100, proteinG: null, fiberG: 0 },
       sources: [{ product_id: 'rice', source: 'manual', base: '100g', updated_at: '2026-10-08T12:00:00Z' }], limitations: [] } },
   isLoading: false, isFetching: false, error: mockFailure, validServings: servings > 0 && servings <= 100, refetch: mockRetry,
@@ -45,7 +47,10 @@ beforeEach(() => { jest.clearAllMocks(); mockOwner = OWNER; mockBase = 4; mockFa
 
 test('the common evidence, selected portions and typed cooking reference appear together; no heuristic badge', async () => {
   show();
-  expect(screen.getByText(/À acheter ou vérifier : Riz/)).toBeVisible();
+  expect(screen.getByText('À acheter : Riz · 50 g.')).toBeVisible();
+  expect(screen.getByText('En stock, quantité à vérifier : Sel · 1 c. à café.')).toBeVisible();
+  expect(screen.getByText('À acheter : Coriandre · 1 botte (facultatif).')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Ajouter 1 ingrédient manquant aux courses' })).toBeInTheDocument();
   expect(screen.getByText('Contraintes à vérifier.')).toBeVisible();
   expect(screen.getByText(/Nutrition · estimation partielle/)).toBeVisible();
   fireEvent.click(screen.getByText(/Nutrition · estimation partielle/));
@@ -69,7 +74,7 @@ test('an unknown base cannot silently become four portions for a stock command, 
   mockBase = null; show();
   fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
   expect(screen.getByRole('button', { name: 'Commencer cette recette' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: /ingrédients manquants aux courses/ })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /ingrédients? manquants? aux courses/ })).toBeDisabled();
   expect(screen.getByText('Cuire le riz.')).toBeVisible(); expect(startCookingSession).not.toHaveBeenCalled();
 });
 test('navigation and account changes reset the portions draft instead of mixing recipes or accounts', () => {

@@ -1,4 +1,4 @@
-import { allocateRecipeStock,calendarDaysUntil,convertQuantity,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
+import { allocateRecipeStock,calendarDaysUntil,convertQuantity,ingredientMatchRank,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
 import { RecipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js';
 import type { RecipeWithIngredients } from './types.js';
 
@@ -111,6 +111,8 @@ export function qualifyLots(lots:QualifiedLot[],now:Date) {
   }
   return { eligible,excluded,reasons };
 }
+const matchesLot=(ingredient:{ ingredient_name:string;inventory_product_id?:string|null },lot:{ product_id:string;product_name:string })=>
+  ingredient.inventory_product_id===lot.product_id || ingredientMatchRank(ingredient.ingredient_name,lot.product_name)>0;
 export function evaluateAvailability(recipe:RecipeWithIngredients,lots:QualifiedLot[],servings:number,now:Date) {
   const qualified=qualifyLots(lots,now);
   const unknownBase=!(recipe.servings && Number.isFinite(recipe.servings) && recipe.servings>0);
@@ -123,16 +125,17 @@ export function evaluateAvailability(recipe:RecipeWithIngredients,lots:Qualified
   // Insufficient ingredients have no committed allocation. Their partial lots
   // still contribute to the missing-quantity estimate and must be qualified.
   const partialIngredients=result.missing.map(item=>recipe.recipe_ingredients?.[item.ingredient_index]).filter(Boolean);
-  for (const lot of qualified.eligible.filter(item=>used.has(item.id) || partialIngredients.some(ingredient=>ingredient?.inventory_product_id ? ingredient.inventory_product_id===item.product_id : norm(ingredient?.ingredient_name ?? '')===norm(item.product_name)))) {
+  for (const lot of qualified.eligible.filter(item=>used.has(item.id) || partialIngredients.some(ingredient=>ingredient && matchesLot(ingredient,item)))) {
     if (!lot.expiry_date || !lot.date_kind || lot.date_kind==='unknown') uncertainties.push(`Date ou type de date à vérifier pour ${lot.product_name}.`);
     if (lot.quantity_quality!=='measured') uncertainties.push(`Quantité ${lot.quantity_quality==='estimated' ? 'estimée' : 'à qualifier'} pour ${lot.product_name}.`);
   }
   if (unknownBase) uncertainties.push('Portions de base de la recette inconnues ; quantités à confirmer avant de calculer les manquants.');
   if (!(recipe.recipe_ingredients?.length)) uncertainties.push('Liste d’ingrédients absente.');
-  if (result.missing.some(item=>['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason))) uncertainties.push('Une quantité ou une conversion d’unité ne peut pas être vérifiée.');
-  return { status:uncertainties.length ? 'verify' as const : result.missing.length ? 'missing' as const : 'available' as const,
+  if (result.missing.some(item=>item.is_essential && ['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason))) uncertainties.push('Une quantité ou une conversion d’unité ne peut pas être vérifiée.');
+  // Optional garnishes stay listed but never make a recipe unavailable.
+  return { status:uncertainties.length ? 'verify' as const : result.missing.some(item=>item.is_essential) ? 'missing' as const : 'available' as const,
     missing:result.missing,allocations:result.allocations,uncertainties:[...new Set(uncertainties)],excluded_lots:qualified.excluded,
-    excluded_lot_reasons:qualified.reasons.filter(reason=>lots.some(lot=>lot.id===reason.id && (recipe.recipe_ingredients ?? []).some(ingredient=>ingredient.inventory_product_id===lot.product_id || norm(ingredient.ingredient_name)===norm(lot.product_name)))) };
+    excluded_lot_reasons:qualified.reasons.filter(reason=>lots.some(lot=>lot.id===reason.id && (recipe.recipe_ingredients ?? []).some(ingredient=>matchesLot(ingredient,lot)))) };
 }
 
 export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<string,IngredientProduct>):NutritionEstimate {

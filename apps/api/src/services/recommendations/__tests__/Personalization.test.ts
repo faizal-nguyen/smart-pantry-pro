@@ -81,6 +81,15 @@ describe('V10-03 original lots, portions and honest nutrition',()=>{
     expect(result.excluded_lot_reasons![0].date_kind).toBe('use_by');
     expect(evaluateAvailability(r,lots,4,NOW).missing[0]).toMatchObject({ quantity:200,unit:'g' });
   });
+  test('an optional garnish never blocks a recipe, while an absent essential is missing rather than to verify',async()=>{
+    const r=recipe('r','Riz','Riz','p');
+    r.recipe_ingredients!.push({ id:'r:1',ingredient_name:'Coriandre',quantity:1,unit:'botte',inventory_product_id:null,is_essential:false });
+    const result=evaluateAvailability(r,[lot('p')],2,NOW);
+    expect(result.status).toBe('available');expect(result.missing.map(item=>item.ingredient_name)).toEqual(['Coriandre']);
+    expect((await suggest({ recipes:[r],inventory:[lot('p')] })).cookable_now.map(item=>item.id)).toEqual(['r']);
+    r.recipe_ingredients!.push({ id:'r:2',ingredient_name:'Gingembre',quantity:2,unit:'cm',inventory_product_id:null,is_essential:true });
+    expect(evaluateAvailability(r,[lot('p')],2,NOW)).toMatchObject({ status:'missing',uncertainties:[] });
+  });
   test('unknown dates and estimated quantities cannot promise verified freshness or sufficiency',()=>{
     const r=recipe('r','Riz','Riz','p');
     const result=evaluateAvailability(r,[lot('p',{ expiry_date:null,date_kind:'unknown',quantity_quality:'estimated' })],2,NOW);

@@ -9,7 +9,7 @@ const result = { command_id: ID, command_type: 'consume_recipe', status: 'confir
 const operation = { command_id: ID, command_type: 'consume_recipe', payload_version: 1,
   payload: { recipe: { id: RECIPE, source: 'auto' }, servings: 4, recipe_version: 'version', outside_inventory: [] } };
 
-function client(opts: { receipt?: unknown; error?: { message: string; code?: string }; amount?: number | null; unit?: string; changed?: boolean; routine?: boolean } = {}) {
+function client(opts: { receipt?: unknown; error?: { message: string; code?: string }; amount?: number | null; unit?: string; changed?: boolean; routine?: boolean; extra?: unknown[] } = {}) {
   const filters: Array<[string,unknown]> = [];
   const from = jest.fn((table: string) => {
     const data = table === 'stock_commands' ? opts.receipt ?? null : [{ id: LOT, product_id: 'p', quantity: 1, unit: 'kg', stock_version: 2, product: { name: 'Farine', unit_type: 'kg' } }];
@@ -20,7 +20,7 @@ function client(opts: { receipt?: unknown; error?: { message: string; code?: str
   });
   const rpc = jest.fn(async (name: string) => name === 'stock_routine_capabilities' ? { data:opts.routine===false ? null:2,error:opts.routine===false ? { message:'not found' }:null } : name === 'resolve_stock_recipe' ? { data: {
     id: RECIPE, source: 'recipes', canonicalId: RECIPE, name: 'Pain', servings: 4, version: opts.changed ? 'new' : 'version',
-    ingredients: [{ ingredient_name: 'Farine', inventory_product_id: 'p', quantity: opts.amount === undefined ? 200 : opts.amount, unit: opts.unit ?? 'g', is_essential: true }],
+    ingredients: [{ ingredient_name: 'Farine', inventory_product_id: 'p', quantity: opts.amount === undefined ? 200 : opts.amount, unit: opts.unit ?? 'g', is_essential: true }, ...(opts.extra ?? [])],
   }, error: null } : { data: opts.error ? null : result, error: opts.error ?? null });
   return { supabase: { from, rpc } as unknown as SupabaseClient, from, rpc, filters };
 }
@@ -53,6 +53,17 @@ describe('StockCommandService', () => {
     const mocked = client({ amount: null });
     await new StockCommandService(mocked.supabase).execute(USER,{ ...operation, payload: { ...operation.payload, outside_inventory: [0] } });
     expect(mocked.rpc).toHaveBeenLastCalledWith('execute_stock_command',expect.objectContaining({ p_allocations: [] }));
+  });
+  test('adding missing ingredients skips products in stock to verify and amounts the list cannot hold', async () => {
+    const add = { command_id: ID, command_type: 'recipe_add_missing', payload_version: 1, payload: { recipe: { id: RECIPE, source: 'auto' }, servings: 4 } };
+    const mocked = client({ unit: 'tasse' });
+    await new StockCommandService(mocked.supabase).execute(USER,add);
+    expect(mocked.rpc).toHaveBeenLastCalledWith('execute_stock_command',expect.objectContaining({ p_allocations: [] }));
+    const absent = client({ extra: [{ ingredient_name: 'Coriandre', quantity: 1, unit: 'botte', is_essential: false }, { ingredient_name: 'Sucre', quantity: 50, unit: 'g', is_essential: true }] });
+    await new StockCommandService(absent.supabase).execute(USER,add);
+    expect(absent.rpc).toHaveBeenLastCalledWith('execute_stock_command',expect.objectContaining({ p_allocations: [{ ingredient_index: 2, quantity: 50, unit: 'g' }] }));
+    const onlyUnmeasured = client({ extra: [{ ingredient_name: 'Coriandre', quantity: 1, unit: 'botte', is_essential: false }] });
+    await expect(new StockCommandService(onlyUnmeasured.supabase).execute(USER,add)).rejects.toMatchObject({ code: 'UNIT_UNKNOWN' });
   });
   test('database conflict is recoverable and internal SQL failures are not reported as success', async () => {
     await expect(new StockCommandService(client({ error: { message: 'CONFLICT' } }).supabase).execute(USER,operation)).rejects.toMatchObject({ code: 'CONFLICT', status: 409 });

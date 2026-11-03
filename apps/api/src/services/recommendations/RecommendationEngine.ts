@@ -150,7 +150,7 @@ export class RecommendationEngine {
       }
       if (latest?.feedback==='dislike') { excluded.push(view);continue; }
       if (!essential.length || availability.status==='verify') { verify.push(view);continue; }
-      if (availability.missing.length===0) cookable.push(view);
+      if (gaps.length===0) cookable.push(view);
       else if (gaps.length<=threshold) almost.push(view);else recent.push(view);
     }
     const sort=(a:RecommendedRecipeView,b:RecommendedRecipeView)=>b.score_total-a.score_total || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
