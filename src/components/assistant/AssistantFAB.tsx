@@ -1,8 +1,8 @@
 /**
  * PRP-221 Sprint 1 frontend — global floating mic button.
  *
- * Tap once → start recording. Tap again → stop, upload, show result
- * dialog. Pulses red while recording. Hides itself entirely if the
+ * Tap once → start a dictation. Its text opens in a review dialog (V10-03E)
+ * before anything is sent. Pulses red while recording. Hides itself if the
  * user is on /auth or any unauth surface (the dialog needs a Supabase
  * session to mint the API call).
  *
@@ -67,7 +67,7 @@ export function AssistantFAB({
     ? `Arrêter l'enregistrement (${formatMs(recordingMs)})`
     : isBusy
       ? 'Traitement en cours…'
-      : 'Activer l’assistant vocal';
+      : 'Dicter une demande à l’assistant';
 
   // PRP-237 PR3 — FAB porte la presence assistant donc utilise
   // `accent-ai` (electric blue) au lieu du primary saffron. Le red

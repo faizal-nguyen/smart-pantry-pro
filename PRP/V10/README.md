@@ -1,6 +1,6 @@
 # V10 Routine quotidienne, consolidation et application iOS
 
-> Statut : V10-01, V10-02, V10-03, V10-03A et V10-03B implémentés et testés localement ; homologation environnement/matériel ouverte. Cuisine personnelle, avec grandes photos, est la direction 03B choisie par l'utilisateur ; les essais sur iPhone restent ouverts. V10-03C à V10-03E sont rédigés, sans réalisation. V10-04 et V10-05 restent à réaliser.
+> Statut : V10-01, V10-02, V10-03, V10-03A et V10-03B implémentés et testés localement ; homologation environnement/matériel ouverte. Cuisine personnelle, avec grandes photos, est la direction 03B choisie par l'utilisateur ; les essais sur iPhone restent ouverts. V10-03C et V10-03D sont fusionnés ; la dictée de V10-03E (E1–E2) est réalisée localement, le prototype mains libres reste à faire. V10-04 et V10-05 restent à réaliser.
 
 [Publication Git V10-01/02](../../docs/implementations/V10-publication.md) · [Publication Git V10-03A/03B](../../docs/implementations/V10-03AB-publication.md).
 > Création : 2026-10-08. Mise à jour : 2026-10-10.
@@ -14,7 +14,7 @@ Le parcours directeur est **courses → rangement → stock → choix du repas �
 
 Ce dossier contient la feuille de route et **dix PRPs**. À la demande de l'utilisateur, cinq lots de consolidation précèdent les deux lots iOS : aperçus, design, mémoire de l'assistant dans l'application, modèles et voix.
 
-Les réalisations locales de [V10-01](../../docs/implementations/V10-01.md), [V10-02](../../docs/implementations/V10-02.md), [V10-03](../../docs/implementations/V10-03.md), [V10-03A](../../docs/implementations/V10-03A.md) et [V10-03B](../../docs/implementations/V10-03B.md), leurs tests et leurs limites sont documentés. Les critères de production et d'essai matériel restent ouverts tant que leurs preuves ne sont pas produites. V10-03C à V10-03E restent des spécifications à réaliser.
+Les réalisations locales de [V10-01](../../docs/implementations/V10-01.md), [V10-02](../../docs/implementations/V10-02.md), [V10-03](../../docs/implementations/V10-03.md), [V10-03A](../../docs/implementations/V10-03A.md) et [V10-03B](../../docs/implementations/V10-03B.md), leurs tests et leurs limites sont documentés. Les critères de production et d'essai matériel restent ouverts tant que leurs preuves ne sont pas produites. V10-03C et V10-03D sont fusionnés ([V10-03D](../../docs/implementations/V10-03D.md)) ; la dictée de V10-03E est documentée dans [V10-03E](../../docs/implementations/V10-03E.md), ses étapes matériel et prototype restent ouvertes.
 
 ## 1. Documents et ordre de réalisation
 

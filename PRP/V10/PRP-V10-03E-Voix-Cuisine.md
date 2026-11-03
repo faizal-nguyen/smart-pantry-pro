@@ -1,12 +1,13 @@
 # PRP V10-03E — Dictée et voix en cuisine
 
-> Statut : spécification rédigée ; réalisation non commencée ; conversation continue à prototyper.
+> Statut : E1–E2 (dictée) réalisés localement le 3 novembre 2026 ; appel fournisseur réel, Safari iPhone et corpus audio à vérifier ; E0 partiel ; E3–E5 non commencés.
 > Date : 2026-10-09.
 > Priorité : P1 pour la dictée ; prototype mains libres avant choix d'intégration native.
 > Dépendances : commandes V10-01/V10-02, politique de [V10-03C](PRP-V10-03C-Memoire-Fiable.md), backend et budgets de [V10-03D](PRP-V10-03D-Agent-Modeles.md).
 > Coordination : langage et composants de [V10-03B](PRP-V10-03B-Design-Culinaire.md) ; preuves de cycle de vie natif dans [V10-04](PRP-V10-04-Prototype-iOS.md).
 > Source : [audit du 9 octobre](../../docs/AUDIT-DESIGN-MEMOIRE-VOIX-2026-10-09.md), V01 et inventaire audio ; référence locale `dda2602`.
 > Estimation indicative : 3 à 5 jours pour la dictée, puis 2 à 4 jours de prototype et mesures, hors contraintes matérielles découvertes.
+> Réalisation : [dictée E1–E2](../../docs/implementations/V10-03E.md). Aucune migration ; aucun déploiement.
 
 ## 1. Problème et résultat attendu
 
@@ -180,9 +181,9 @@ Tests serveur : route authentifiée, limites audio, aucun tool lors de transcrip
 Les tests automatisés ne prouvent pas qualité microphone, Bluetooth ou écoute en cuisine. Les essais fournisseur utilisent un corpus fictif et un budget déclaré ; ne pas conserver par défaut des enregistrements personnels.
 
 - [ ] La dictée utilise un modèle actuel accessible et son contrat réellement compatible.
-- [ ] Une transcription peut être corrigée avant toute exécution du nouveau parcours.
-- [ ] Aide contextuelle et conversation complète conservent contexte et portée des tools.
-- [ ] Refus de permission, panne, annulation et résultat tardif gardent une issue compréhensible.
+- [x] Une transcription peut être corrigée avant toute exécution du nouveau parcours.
+- [x] Aide contextuelle et conversation complète conservent contexte et portée des tools.
+- [x] Refus de permission, panne, annulation et résultat tardif gardent une issue compréhensible.
 - [ ] Quantités, unités, négations et autocorrections ont des résultats mesurés et relus.
 - [ ] Aucun cas critique du corpus ne provoque une écriture anticipée, fausse ou répétée.
 - [ ] Coût et latence couvrent chaque composante, avec incertitudes visibles.

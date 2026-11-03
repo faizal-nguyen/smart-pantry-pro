@@ -1,22 +1,24 @@
 /**
  * PRP-221 Sprint 1 frontend — typed client over /api/assistant/*.
  *
- * Wraps the 5 endpoints :
- *   POST /api/assistant/voice            multipart audio
+ * Wraps the endpoints :
+ *   POST /api/assistant/transcribe       multipart audio → text only (V10-03E)
  *   POST /api/assistant/text             { text, client_request_id }
  *   POST /api/assistant/actions/execute  { confirmation_token }
  *   POST /api/assistant/actions/:id/undo
  *   GET  /api/assistant/request-id       (helper)
  *
  * Reuses the project's existing `apiPost` for JSON endpoints; rolls
- * its own multipart helper for /voice (apiPost is JSON-only).
+ * its own multipart helper for /transcribe (apiPost is JSON-only). The app
+ * no longer calls the historical /voice route, which acts on the audio
+ * before the user can read it.
  */
 import { supabase } from '@/integrations/supabase/client';
 
 import { apiGet, apiPost, apiPatch, ApiError } from '@/lib/api';
 import { MemoryPolicySchema, MemoryCommandSchema, MemoryWriteResultSchema,
   type MemoryPolicy, type MemoryCommand, type MemoryWriteResult, type ReliableMemoryMetadata, type AssistantSessionMessage } from '@smart/shared';
-import { AssistantModelCatalogSchema, type AssistantModelCatalog, type AssistantModelReceipt } from '@smart/shared';
+import { AssistantModelCatalogSchema, AssistantTranscriptionSchema, type AssistantModelCatalog, type AssistantModelReceipt, type AssistantTranscription } from '@smart/shared';
 
 // ---- Response shapes (mirror VoiceAgentService) ---------------------
 
@@ -105,41 +107,35 @@ export function newClientRequestId(): string {
 }
 
 /**
- * Sends an audio blob with multipart/form-data. apiPost is JSON-only,
- * so we hand-roll fetch here. Auth header is the same Supabase JWT.
+ * V10-03E — dictation. Sends the recording, gets back text to show and
+ * correct. Nothing is executed: the corrected text goes through
+ * postAssistantText like a typed message.
  */
-export async function postAssistantVoice(input: {
+export async function postAssistantTranscription(input: {
   audio: Blob;
   audioMime: string;
   clientRequestId: string;
-  language?: string;
+  languages?: readonly string[];
   audioDurationSeconds?: number;
-  allowedTools?: readonly string[];
-  /** PRP-233 PR3 — sticky conversation id. Optional. */
-  conversationId?: string;
   expectedUserId?: string;
-  sessionMessages?: AssistantSessionMessage[];
-  sessionRevision?: number;
-}): Promise<AssistantPlanResponse> {
-  const ext = mimeToExt(input.audioMime);
+  signal?: AbortSignal;
+}): Promise<AssistantTranscription> {
   const form = new FormData();
-  form.append('audio', input.audio, `recording.${ext}`);
+  form.append('audio', input.audio, `recording.${mimeToExt(input.audioMime)}`);
   form.append('client_request_id', input.clientRequestId);
-  if (input.language) form.append('language', input.language);
+  if (input.languages?.length) form.append('languages', input.languages.join(','));
   if (typeof input.audioDurationSeconds === 'number') {
     form.append('audio_duration_seconds', String(Math.round(input.audioDurationSeconds)));
   }
-  if (input.allowedTools?.length) form.append('allowed_tools', input.allowedTools.join(','));
-  if (input.conversationId) form.append('conversation_id', input.conversationId);
-  if (input.sessionMessages) form.append('session_messages', JSON.stringify(input.sessionMessages));
-  if (input.sessionRevision !== undefined) form.append('session_revision', String(input.sessionRevision));
-
-  const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/voice`, {
+  const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/transcribe`, {
     method: 'POST',
     headers: { ...(await authHeader(input.expectedUserId)) },
     body: form,
+    signal: input.signal,
   });
-  return await unwrapAssistant<AssistantPlanResponse>(res);
+  const transcription = AssistantTranscriptionSchema.parse(await unwrapAssistant<unknown>(res));
+  if (transcription.client_request_id !== input.clientRequestId) throw new Error('La transcription ne correspond pas à cet enregistrement.');
+  return transcription;
 }
 
 export function postAssistantText(input: {
@@ -487,11 +483,14 @@ async function unwrapAssistant<T>(res: Response): Promise<T> {
     }
   }
   if (!res.ok) {
-    const err = body as { error?: { message?: string; code?: string } } | undefined;
-    throw new ApiError(err?.error?.message ?? `HTTP ${res.status}`, {
+    // The API sends `{ error: string, code }` (utils/responses.fail); older
+    // handlers nest `{ error: { message, code } }`. Same reading as lib/api.
+    const err = body as { error?: string | { message?: string; code?: string }; code?: string } | undefined;
+    const value = err?.error;
+    throw new ApiError(typeof value === 'string' ? value : value?.message ?? `HTTP ${res.status}`, {
       status: res.status,
-      code: err?.error?.code,
-      details: err?.error,
+      code: typeof value === 'string' ? err?.code : value?.code,
+      details: value,
     });
   }
   if (body && typeof body === 'object' && 'success' in (body as object)) {

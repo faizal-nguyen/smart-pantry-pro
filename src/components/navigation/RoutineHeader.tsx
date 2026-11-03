@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useOwnedValue } from '@/lib/ownedStorage';
+import { appendDictation, useDictation } from '@/hooks/useDictation';
+import { DictationMicButton, DictationStatusLine } from '@/components/assistant/DictationControls';
 import { postAssistantText, newClientRequestId } from '@/services/assistantApi';
 import { CookingSessionSchema, type CookingSession } from '@/services/cookingSessions';
 const CONVERSATION_TTL = 24 * 3600 * 1000;
@@ -25,6 +27,11 @@ export default function RoutineHeader() {
   const [question,setQuestion,storageError] = useOwnedValue(user.id, 'assistant:' + task, '');
   const [handle,setHandle,handleError] = useOwnedValue<{ id: string | null; at: number }>(user.id, 'assistant-conversation:' + task, { id:null, at:0 });
   const [sessions] = useOwnedValue<CookingSession[]>(user.id,'cooking-sessions',[]);
+  const editQuestion = (value: string) => { try { setQuestion(value); } catch (failure) { setState({ ...current,error:(failure as Error).message }); } };
+  // V10-03E — dictation fills the question; « Demander » keeps the same read-only scope.
+  const dictation = useDictation({ owner:user.id, onTranscript:text => editQuestion(appendDictation(question,text)) });
+  const dictating = dictation.status === 'recording' || dictation.status === 'transcribing';
+  useEffect(() => dictation.cancel,[key,open,dictation.cancel]);
   useEffect(() => {
     const clear = (event: Event) => { if ((event as CustomEvent<{owner?:string}>).detail?.owner === user.id) setState({ key, busy:false, answer:'', error:null, session:[] }); };
     window.addEventListener('assistant-memory-changed',clear);
@@ -35,7 +42,7 @@ export default function RoutineHeader() {
   const recipe = cooking.success ? cooking.data.recipe.id : location.pathname.match(/^\/kitchen\/recipes\/([^/]+)/)?.[1];
   const context = JSON.stringify({ route:location.pathname,...(recipe ? { recipe_id:recipe,recipe_source:cooking.success ? cooking.data.recipe.source : 'auto' } : {}),...(cooking.success ? { cooking_session_id:cooking.data.id,servings:cooking.data.servings,step:cooking.data.step } : {}),...(product ? { inventory_id:product } : {}) });
   const ask = async () => {
-    if (!question.trim() || current.busy) return;
+    if (!question.trim() || current.busy || dictating) return;
     setState({ ...current, busy:true, error:null });
     try {
       const conversationId = handle && typeof handle.id === 'string' && Date.now() - handle.at < CONVERSATION_TTL ? handle.id : undefined;
@@ -66,9 +73,10 @@ export default function RoutineHeader() {
       </div>
     </header>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Aide pour cette tâche</DialogTitle><DialogDescription>{recipe ? 'Cette recette accompagne votre question.' : product ? 'Ce lot accompagne votre question.' : 'Votre question sera accompagnée de la page ouverte.'} Vous pouvez poursuivre cet échange.</DialogDescription></DialogHeader>
-      <label className="space-y-2">Votre question<Textarea value={question} onChange={e => { try { setQuestion(e.target.value); } catch (failure) { setState({ ...current,error:(failure as Error).message }); } }} placeholder="Par quoi remplacer cet ingrédient ?" /></label>
+      <label className="space-y-2">Votre question<Textarea value={question} disabled={dictating} onChange={e => editQuestion(e.target.value)} placeholder="Par quoi remplacer cet ingrédient ?" /></label>
+      <div className="flex items-center gap-2"><DictationMicButton dictation={dictation} disabled={current.busy || !!storageError || !!handleError} /><DictationStatusLine dictation={dictation} className="flex-1" />{dictation.status === 'idle' && <span className="text-sm text-muted-foreground">Dictez, relisez, puis demandez.</span>}</div>
       {(current.error || storageError || handleError) && <p role="alert" className="text-destructive">{current.error || storageError || handleError}</p>}
-      <Button className="min-h-11" disabled={current.busy || !question.trim() || !!storageError || !!handleError} onClick={() => void ask()}>{current.busy ? 'Recherche…' : 'Demander'}</Button>
+      <Button className="min-h-11" disabled={current.busy || dictating || !question.trim() || !!storageError || !!handleError} onClick={() => void ask()}>{current.busy ? 'Recherche…' : 'Demander'}</Button>
       {current.answer && <p role="status" className="whitespace-pre-wrap text-sm">{current.answer}</p>}
       <Button variant="outline" className="min-h-11" disabled={current.busy} onClick={startNew}>Nouvelle conversation</Button>
       <Button variant="outline" className="min-h-11" asChild><Link to="/assistant" onClick={() => setOpen(false)}>Ouvrir les conversations</Link></Button>

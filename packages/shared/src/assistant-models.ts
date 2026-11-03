@@ -38,6 +38,28 @@ export const AssistantModelReceiptSchema = z.object({
   disclaimer: z.literal('Application estimate, not an OpenAI invoice'),
 }).strict();
 export type AssistantModelReceipt = z.infer<typeof AssistantModelReceiptSchema>;
+/** V10-03E — dictation: transcription only, never a tool or a stock write. */
+export const TranscriptionModelSchema = z.enum(['gpt-transcribe', 'whisper-1']);
+export type TranscriptionModel = z.infer<typeof TranscriptionModelSchema>;
+export const AssistantTranscriptionSchema = z.object({
+  transcription_id: z.string(),
+  client_request_id: z.string().uuid(),
+  text: z.string(),
+  /** As reported by the provider; empty when it could not tell. */
+  languages: z.array(z.string()),
+  requested_model: TranscriptionModelSchema,
+  /** The transcription API does not report the served model. */
+  served_model: z.string().nullable(),
+  duration_seconds: z.number().nonnegative().nullable(),
+  duration_source: z.enum(['provider', 'client']).nullable(),
+  cost: z.object({
+    usd: z.number().nonnegative().nullable(),
+    quality: z.enum(['known', 'estimated', 'unknown']),
+    reason: z.string().nullable(),
+    pricing_version: z.string(),
+  }).strict(),
+}).strict();
+export type AssistantTranscription = z.infer<typeof AssistantTranscriptionSchema>;
 export const AssistantModelCatalogSchema = z.object({
   configuration_version: z.string(),
   preset: z.enum(['baseline', 'luna', 'luna-sol']),
