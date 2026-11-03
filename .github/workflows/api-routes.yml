@@ -46,3 +46,25 @@ jobs:
           name: jest-api-log
           path: apps/api/.jest-api.log
           if-no-files-found: ignore
+
+  # Same install and build as render.yaml. NODE_ENV=production skips
+  # devDependencies (e.g. @types/jest), so test-only code compiled into
+  # the API fails here instead of failing every Render deploy silently.
+  render-build:
+    name: API production build (Render)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install production dependencies
+        run: npm install --legacy-peer-deps --force --no-audit --no-fund
+
+      - name: Build shared package and API
+        run: npm run shared:build && npm run api:build:ts
