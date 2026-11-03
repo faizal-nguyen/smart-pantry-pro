@@ -5,7 +5,8 @@
  * + /undo. Pure logic; HTTP wiring lives in J5.
  *
  * Flow (per /voice or /text request) :
- *   1. (voice) Whisper transcribe
+ *   1. (voice) transcribe (SpeechTranscriber; the app now dictates via
+ *      /transcribe and sends the corrected text to /text)
  *   2. (voice) audio_sha256 dedup window 10min
  *   3. GPT-4o-mini with the tool catalog (whitelist optional)
  *   4. For each tool_call returned by the model :
@@ -60,10 +61,7 @@ import {
   type ToolExecutionResult,
 } from './handlers/types.js';
 import { performUndo, UndoFailedError } from './undo.js';
-import {
-  computeWhisperCostUsd,
-  type WhisperClient,
-} from '../media/WhisperTranscriber.js';
+import type { SpeechTranscriber } from '../media/SpeechTranscriber.js';
 import type { RiskTier } from './schemas/tools.js';
 import type { AssistantModelReceipt, AssistantRole } from '@smart/shared';
 import { loadAssistantModelConfig, freezeConfig, type AssistantModelConfig } from '../ai/ModelConfig.js';
@@ -124,7 +122,7 @@ export interface VoiceAgentRequestInput {
   source: 'voice' | 'text';
   audioPath?: string;
   audioSha256?: string;
-  /** Audio duration in seconds, used only for Whisper cost computation. */
+  /** Browser-measured duration; only an estimated cost when the provider reports none. */
   audioDurationSeconds?: number;
   text?: string;
   language?: string;
@@ -176,6 +174,7 @@ export interface AssistantPlanResponse {
   actions_pending: PendingActionDescriptor[];
   confirmation_token: string | null;
   cost: {
+    /** Historical name kept for compatibility: transcription cost, 0 for text. */
     whisper_usd: number;
     llm_usd: number | null;
     total_usd: number | null;
@@ -279,7 +278,7 @@ export class VoiceAgentService {
 
   constructor(
     private readonly ai: AICompletionClient,
-    private readonly whisper: WhisperClient,
+    private readonly transcriber: SpeechTranscriber,
     private readonly toolRegistry: ToolRegistry,
     private readonly handlerRegistry: ToolHandlerRegistry,
     private readonly writer: ActionLogWriter,
@@ -326,10 +325,10 @@ export class VoiceAgentService {
     let conversationId: string | undefined;
     let requestPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
 
-    // 1. Transcript: from Whisper for voice, raw text otherwise.
+    // 1. Transcript: transcribed for voice, raw text otherwise.
     let transcript = '';
     let detectedLanguage: string | undefined;
-    let whisperUsd = 0;
+    let transcriptionUsd: number | null = 0;
 
     if (input.source === 'voice') {
       if (!input.audioPath) {
@@ -349,20 +348,19 @@ export class VoiceAgentService {
         }
       }
       try {
-        const transcribed = await this.whisper.transcribe({
+        const transcribed = await this.transcriber.transcribe({
           audioPath: input.audioPath,
-          language: input.language,
+          languages: input.language ? [input.language] : undefined,
+          clientDurationSeconds: input.audioDurationSeconds,
         });
-        transcript = transcribed.text.trim();
-        detectedLanguage = transcribed.language;
+        transcript = transcribed.text;
+        detectedLanguage = transcribed.languages[0];
+        transcriptionUsd = transcribed.cost.usd;
       } catch (err) {
         throw new VoiceAgentError(
           'TRANSCRIPTION_FAILED',
-          err instanceof Error ? err.message : 'Whisper failed'
+          err instanceof Error ? err.message : 'Transcription failed'
         );
-      }
-      if (input.audioDurationSeconds && input.audioDurationSeconds > 0) {
-        whisperUsd = computeWhisperCostUsd(input.audioDurationSeconds);
       }
     } else {
       transcript = (input.text ?? '').trim();
@@ -441,7 +439,7 @@ export class VoiceAgentService {
       return {session_id:sessionId,transcript,detected_language:detectedLanguage,
         message:'L’assistant n’a pas pu répondre. Les résultats de mémorisation sont affichés séparément.',
         actions_executed:[],actions_pending:[],confirmation_token:null,model_used:null,model_receipt:receipt,
-        cost:{whisper_usd:whisperUsd,llm_usd:receipt.llm_usd,total_usd:receipt.llm_usd===null ? null : whisperUsd+receipt.llm_usd},
+        cost:{whisper_usd:transcriptionUsd ?? 0,llm_usd:receipt.llm_usd,total_usd:receipt.llm_usd===null || transcriptionUsd===null ? null : transcriptionUsd+receipt.llm_usd},
         duration_ms:Date.now()-start,conversation_id:conversationId,memory_results:memoryResults,memory_revision:requestPolicy?.revision};
     }
     if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId)))
@@ -908,9 +906,10 @@ export class VoiceAgentService {
       actions_pending: pending,
       confirmation_token: confirmationToken,
       cost: {
-        whisper_usd: whisperUsd,
-          llm_usd: modelReceipt.llm_usd,
-        total_usd: modelReceipt.llm_usd === null ? null : whisperUsd + modelReceipt.llm_usd,
+        whisper_usd: transcriptionUsd ?? 0,
+        llm_usd: modelReceipt.llm_usd,
+        // No exact total when one component is unknown.
+        total_usd: modelReceipt.llm_usd === null || transcriptionUsd === null ? null : transcriptionUsd + modelReceipt.llm_usd,
       },
       model_used: activeResponse.model || null,
       model_receipt: modelReceipt, actions_unverified: unverified,

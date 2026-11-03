@@ -4,7 +4,8 @@ import { PRICING_VERSION } from '../services/ai/ModelPricing.js';
 /**
  * PRP-221 J5 — Assistant agent routes.
  *
- *   POST /api/assistant/voice                multipart audio  → plan
+ *   POST /api/assistant/transcribe           multipart audio  → text only (V10-03E)
+ *   POST /api/assistant/voice                multipart audio  → plan (historical)
  *   POST /api/assistant/text                 JSON utterance   → plan
  *   POST /api/assistant/actions/execute      confirmation     → exec
  *   POST /api/assistant/actions/:id/undo     undo a row       → exec
@@ -64,16 +65,25 @@ import {
   type AICompletionClient,
 } from '../services/imports/RecipeExtractionService.js';
 import {
-  createOpenAIWhisperClient,
-  type WhisperClient,
-} from '../services/media/WhisperTranscriber.js';
+  createSpeechTranscriber,
+  detectAudioFormat,
+  type SpeechTranscriber,
+} from '../services/media/SpeechTranscriber.js';
 
-const DEFAULT_AUDIO_LIMIT_BYTES = 25 * 1024 * 1024; // Whisper's hard cap
+const DEFAULT_AUDIO_LIMIT_BYTES = 25 * 1024 * 1024; // provider hard cap
 const audioLimitBytes = (() => {
   const raw = process.env.ASSISTANT_AUDIO_MAX_BYTES;
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AUDIO_LIMIT_BYTES;
 })();
+/**
+ * V10-03E — a dictation lasts at most 60 s. Browser recordings carry no
+ * reliable duration header (Chrome WebM, fragmented MP4), so the server bound
+ * is the size: 3 MB is 60 s at 400 kbps, well above what browsers record, and
+ * caps the cost of a forged long upload at a few cents.
+ */
+const MAX_DICTATION_SECONDS = 60;
+const DICTATION_LIMIT_BYTES = Math.min(3 * 1024 * 1024, audioLimitBytes);
 
 const ALLOWED_AUDIO_MIME = new Set([
   'audio/mp4',
@@ -85,43 +95,34 @@ const ALLOWED_AUDIO_MIME = new Set([
   'audio/webm',
   'audio/ogg',
 ]);
-const MIME_TO_EXT: Record<string, string> = {
-  'audio/mp4': 'mp4',
-  'audio/m4a': 'm4a',
-  'audio/mpeg': 'mp3',
-  'audio/mp3': 'mp3',
-  'audio/wav': 'wav',
-  'audio/x-wav': 'wav',
-  'audio/webm': 'webm',
-  'audio/ogg': 'ogg',
-};
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: audioLimitBytes },
-  fileFilter: (_req, file, cb) => {
-    if (ALLOWED_AUDIO_MIME.has(file.mimetype)) {
-      cb(null, true);
-      return;
-    }
-    cb(new Error(`Audio MIME non supporté: ${file.mimetype}`));
-  },
-});
-
-function multerSingleAudio(req: Request, res: Response, next: NextFunction) {
-  upload.single('audio')(req, res, (error) => {
-    if (!error) return next();
-    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-      return fail(
-        res,
-        `Audio trop volumineux (max ${audioLimitBytes} bytes / Whisper).`,
-        413,
-        'AUDIO_TOO_LARGE'
-      );
-    }
-    return fail(res, error, 415, 'UNSUPPORTED_AUDIO');
+function singleAudio(limitBytes: number) {
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: limitBytes },
+    fileFilter: (_req, file, cb) => {
+      // The declared type is only a first filter: the content is checked by
+      // detectAudioFormat before the file reaches the provider.
+      const declared = file.mimetype.split(';')[0].trim();
+      if (ALLOWED_AUDIO_MIME.has(declared)) {
+        cb(null, true);
+        return;
+      }
+      cb(new Error('Format audio non supporté.'));
+    },
   });
+  return (req: Request, res: Response, next: NextFunction) => {
+    upload.single('audio')(req, res, (error) => {
+      if (!error) return next();
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return fail(res, `Audio trop volumineux (max ${limitBytes} octets).`, 413, 'AUDIO_TOO_LARGE');
+      }
+      return fail(res, error, 415, 'UNSUPPORTED_AUDIO');
+    });
+  };
 }
+const multerSingleAudio = singleAudio(audioLimitBytes);
+const multerDictationAudio = singleAudio(DICTATION_LIMIT_BYTES);
 
 // ---- Body schemas ---------------------------------------------------
 
@@ -145,6 +146,15 @@ const VoiceFormFieldsSchema = z.object({
   conversation_id: z.string().uuid().optional(), // PRP-223 PR3
   session_messages: z.preprocess(value => { if (typeof value !== 'string') return value; try { return JSON.parse(value); } catch { return null; } }, AssistantSessionMessagesSchema.optional()),
   session_revision: z.coerce.number().int().nonnegative().optional(),
+});
+
+// V10-03E — dictation form fields. Languages are bounded hints only.
+const TranscribeFormFieldsSchema = z.object({
+  client_request_id: z.string().uuid(),
+  languages: z.string().max(20).optional()
+    .transform(value => value?.split(',').map(code => code.trim().toLowerCase()).filter(Boolean) ?? [])
+    .refine(codes => codes.length <= 3 && codes.every(code => /^[a-z]{2}$/.test(code)), 'languages'),
+  audio_duration_seconds: z.coerce.number().nonnegative().optional(),
 });
 
 const ConfirmRequestSchema = z.object({
@@ -200,7 +210,7 @@ function mapVoiceAgentError(res: Response, err: VoiceAgentError): Response {
 export interface CreateAssistantAgentRouterOptions {
   /** Inject mocks for tests; defaults pull from env. */
   ai?: AICompletionClient;
-  whisper?: WhisperClient;
+  transcriber?: SpeechTranscriber;
   /** Override the HMAC secret (default: process.env.ASSISTANT_HMAC_SECRET). */
   hmacSecret?: string;
 }
@@ -219,6 +229,7 @@ export function createAssistantAgentRouter(
   if (!hmacSecret || hmacSecret.length < 32) {
     // The router still mounts to keep app boot stable, but every call
     // returns 503 with a clear message until the operator fixes env.
+    router.all('/transcribe', notConfigured);
     router.all('/voice', notConfigured);
     router.all('/text', notConfigured);
     router.all('/actions/execute', notConfigured);
@@ -227,7 +238,7 @@ export function createAssistantAgentRouter(
   }
 
   const ai = options.ai ?? createOpenAICompletionClient();
-  const whisper = options.whisper ?? createOpenAIWhisperClient();
+  const transcriber = options.transcriber ?? createSpeechTranscriber();
   const writer = new ActionLogWriter(adminClient);
   const signer = new ConfirmationTokenSigner(hmacSecret);
 
@@ -269,7 +280,7 @@ export function createAssistantAgentRouter(
 
   const service = new VoiceAgentService(
     ai,
-    whisper,
+    transcriber,
     new ToolRegistry(),
     handlerRegistry,
     writer,
@@ -278,7 +289,7 @@ export function createAssistantAgentRouter(
   );
 
   // Phase 3 — singleton EmbeddingService so its LRU cache is shared
-  // across requests (whisper transcripts commonly repeat items). The
+  // across requests (dictated requests commonly repeat items). The
   // service is best-effort: a missing OPENAI_API_KEY surfaces at call
   // time as a soft failure, the ProductResolver simply skips the
   // semantic step and falls through to the existing fuzzy path.
@@ -299,7 +310,7 @@ export function createAssistantAgentRouter(
     memoryService,
   });
 
-  // Conservative rate limits — voice + LLM + Whisper makes each call ~$0.01.
+  // Conservative rate limits — voice + LLM + transcription makes each call ~$0.01.
   const HOUR = 3_600_000;
   const requestLimiter = userRateLimit({
     key: 'assistant.request',
@@ -319,8 +330,55 @@ export function createAssistantAgentRouter(
     premiumMax: 600,
     windowMs: HOUR,
   });
+  const transcribeLimiter = userRateLimit({
+    key: 'assistant.transcribe',
+    freeMax: 60,
+    premiumMax: 600,
+    windowMs: HOUR,
+  });
+
+  // ---- /transcribe (V10-03E) ---------------------------------------
+  // Dictation: audio → text the user can correct. No conversation, no
+  // memory, no tool and no stock command; the corrected text is then sent
+  // through /text like a typed message.
+  router.post('/transcribe', transcribeLimiter, multerDictationAudio, async (req: Request, res: Response) => {
+    const fields = TranscribeFormFieldsSchema.safeParse(req.body);
+    if (!fields.success) return fail(res, 'Invalid form fields', 400, 'INVALID_BODY');
+    if (!req.file) return fail(res, 'Aucun audio fourni.', 400, 'NO_FILE');
+    if (!req.user?.id) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    // Client duration is a claim, not a proof: honest clients are stopped
+    // here, the byte limit bounds the others.
+    if ((fields.data.audio_duration_seconds ?? 0) > MAX_DICTATION_SECONDS + 5) {
+      return fail(res, `Dictée trop longue (max ${MAX_DICTATION_SECONDS} s).`, 413, 'AUDIO_TOO_LONG');
+    }
+    const format = detectAudioFormat(req.file.buffer);
+    if (!format) return fail(res, 'Format audio non reconnu.', 415, 'UNSUPPORTED_AUDIO');
+
+    // The audio is deleted before the response leaves, success or not.
+    let tmpDir: string | null = null;
+    let result: Awaited<ReturnType<SpeechTranscriber['transcribe']>> | null = null;
+    try {
+      tmpDir = await mkdtemp(path.join(os.tmpdir(), 'assistant-dictation-'));
+      const audioPath = path.join(tmpDir, `audio.${format}`);
+      await writeFile(audioPath, req.file.buffer);
+      result = await transcriber.transcribe({
+        audioPath,
+        languages: fields.data.languages,
+        clientDurationSeconds: fields.data.audio_duration_seconds,
+      });
+    } catch (err) {
+      // Never log the audio or the text.
+      console.error('[assistant.transcribe] error:', err instanceof Error ? err.name : 'TranscriptionError');
+    } finally {
+      if (tmpDir) await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    if (!result) return fail(res, 'Transcription indisponible. Ta saisie au clavier reste possible.', 502, 'TRANSCRIPTION_FAILED');
+    return ok(res, { client_request_id: fields.data.client_request_id, ...result }, 'OK', 'ASSISTANT_TRANSCRIBED');
+  });
 
   // ---- /voice -------------------------------------------------------
+  // Historical record-and-act route, kept compatible for clients released
+  // before V10-03E. The app now dictates through /transcribe then /text.
   router.post('/voice', requestLimiter, multerSingleAudio, async (req: Request, res: Response) => {
     const fields = VoiceFormFieldsSchema.safeParse(req.body);
     if (!fields.success) return fail(res, 'Invalid form fields', 400, 'INVALID_BODY');
@@ -329,12 +387,13 @@ export function createAssistantAgentRouter(
 
     const buffer = req.file.buffer;
     const audioSha256 = createHash('sha256').update(buffer).digest('hex');
-    const ext = MIME_TO_EXT[req.file.mimetype] ?? 'mp3';
+    const format = detectAudioFormat(buffer);
+    if (!format) return fail(res, 'Format audio non reconnu.', 415, 'UNSUPPORTED_AUDIO');
 
-    // Multer keeps audio in memory; Whisper SDK wants a path so we
-    // spool to a temp file. Cleanup is unconditional.
+    // Multer keeps audio in memory; the SDK wants a file so we spool to a
+    // temp file. Cleanup is unconditional.
     const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'assistant-voice-'));
-    const audioPath = path.join(tmpDir, `audio.${ext}`);
+    const audioPath = path.join(tmpDir, `audio.${format}`);
     try {
       await writeFile(audioPath, buffer);
 

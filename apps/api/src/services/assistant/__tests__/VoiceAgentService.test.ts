@@ -1,7 +1,7 @@
 /**
  * VoiceAgentService — orchestration tests.
  *
- * All IO is mocked: AICompletionClient, WhisperClient, ActionLogWriter,
+ * All IO is mocked: AICompletionClient, SpeechTranscriber, ActionLogWriter,
  * ToolHandlerRegistry. The ProductResolver isn't called by the
  * orchestrator itself (handlers use it), so a stub is enough.
  */
@@ -20,7 +20,7 @@ import {
 } from '../handlers/types.js';
 import { VoiceAgentService, VoiceAgentError } from '../VoiceAgentService.js';
 import type { AICompletionClient,AICompletionRequest } from '../../imports/RecipeExtractionService.js';
-import type { WhisperClient } from '../../media/WhisperTranscriber.js';
+import type { SpeechTranscriber } from '../../media/SpeechTranscriber.js';
 import type { ActionLogRow, ActionLogWriter } from '../ActionLogWriter.js';
 import { benchmarkConfig, type AssistantModelConfig } from '../../ai/ModelConfig.js';
 
@@ -153,9 +153,11 @@ function makeAiSequence(responses: Array<{ tool_calls?: any[]; content?: string 
   };
 }
 
-const mockWhisper: WhisperClient = {
+const mockTranscriber: SpeechTranscriber = {
+  model: 'gpt-transcribe',
   async transcribe() {
-    return { text: '(unused)', language: 'en' };
+    return { transcription_id: 'transcription-test', text: '(unused)', languages: ['en'], requested_model: 'gpt-transcribe', served_model: null,
+      duration_seconds: null, duration_source: null, cost: { usd: null, quality: 'unknown', reason: 'duration_unknown', pricing_version: 'test' } };
   },
 };
 
@@ -173,7 +175,7 @@ function makeService({
   handlers,
   writer = new MockWriter(),
   signer = new ConfirmationTokenSigner(SECRET),
-  whisper = mockWhisper,
+  transcriber = mockTranscriber,
   contextBuilder,
   modelConfig,
 }: {
@@ -181,7 +183,7 @@ function makeService({
   handlers: Record<string, ToolHandler>;
   writer?: MockWriter;
   signer?: ConfirmationTokenSigner;
-  whisper?: WhisperClient;
+  transcriber?: SpeechTranscriber;
   contextBuilder?:ContextBuilder;
   modelConfig?:AssistantModelConfig;
 }): { service: VoiceAgentService; writer: MockWriter; signer: ConfirmationTokenSigner } {
@@ -191,7 +193,7 @@ function makeService({
   }
   const service = new VoiceAgentService(
     ai,
-    whisper,
+    transcriber,
     new ToolRegistry(),
     handlerRegistry,
     writer as any,
@@ -771,7 +773,7 @@ describe('VoiceAgentService memory integration (PRP-223 PR3)', () => {
     const writer = new MockWriter();
     const service = new VoiceAgentService(
       ai,
-      mockWhisper,
+      mockTranscriber,
       new ToolRegistry(),
       handlerRegistry,
       writer as any,
@@ -887,7 +889,7 @@ describe('VoiceAgentService memory integration (PRP-223 PR3)', () => {
     const writer = new MockWriter();
     const service = new VoiceAgentService(
       ai,
-      mockWhisper,
+      mockTranscriber,
       new ToolRegistry(),
       handlerRegistry,
       writer as any,
@@ -1002,7 +1004,7 @@ describe('V10-03C provider and write boundaries',()=>{
   const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Souviens-toi que je préfère les plats épicés'};
   function serviceFor(memory:unknown,ai:AICompletionClient,context:ContextBuilder,handlers:Record<string,ToolHandler>={}) {
     const registry=new ToolHandlerRegistry();for(const [name,handler] of Object.entries(handlers)) registry.register(name,handler);
-    return new VoiceAgentService(ai,mockWhisper,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
+    return new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
       {memoryService:memory as MemoryService,memoryExtractor:new MemoryExtractor(),contextBuilder:context});
   }
   it('waits for the memory write before dispatch, and qualifies an uncertain result instead of claiming saved',async()=>{
