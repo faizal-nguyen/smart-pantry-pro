@@ -395,7 +395,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {
     name: 'read_inventory',
     description:
-      'Read the user inventory. Returns items with their product name, category, unit, quantity, expiry date and location. Use this BEFORE suggesting recipes or adding to a list, so you ground answers in actual stock.',
+      'Read the user inventory. Returns items with their product name, category, unit, quantity, expiry date and location. Use this BEFORE suggesting recipes, so you ground answers in actual stock. Adding items never requires a prior read: an empty or unmatched result is no reason to refuse an add.',
     schema: readInventoryArgs,
     jsonSchema: {
       type: 'object',
@@ -611,7 +611,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {
     name: 'add_inventory_items',
     description:
-      'Add items to the user inventory. Each item is { name, quantity, optional category/unit/expiry_date/notes }. The server resolves names to product_ids — you do NOT need to know UUIDs.',
+      'Add items to the user inventory. Each item is { name, quantity, optional category/unit/expiry_date/notes }. The server resolves names to product_ids — you do NOT need to know UUIDs. Call it directly when the user asks to add stock, even if the inventory is empty or lacks that product: the server creates or matches the product.',
     schema: addInventoryItemsArgs,
     jsonSchema: {
       type: 'object',
