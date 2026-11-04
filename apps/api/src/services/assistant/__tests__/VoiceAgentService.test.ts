@@ -1155,7 +1155,9 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     await service.handleRequest({...input,text:'Ajoute deux kilos de pommes de terre au stock.'},makeCtx());
     const offered=(requests[1].tools ?? []).map(t=>t.function.name);
     expect(offered).not.toContain('read_inventory');
-    expect(offered).toContain('add_inventory_items');
+    // 19:50: the hop went to read_shopping_list, another plain read.
+    expect(offered).not.toContain('read_shopping_list');
+    expect(offered).toEqual(expect.arrayContaining(['add_inventory_items','ask_clarification','suggest_recipes_for_context']));
   });
   it('answers a read-only question in two calls, the follow-up replacing the synthesis',async()=>{
     const {ai}=scripted([{call:{name:'read_inventory',arguments:'{}'}},{content:'Il te reste une pomme de terre.'}]);
