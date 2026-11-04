@@ -1120,3 +1120,44 @@ describe('no change is announced without a write',()=>{
     expect(result.message).toMatch(/J'ai ajouté/);
   });
 });
+
+describe('Chat Completions tool follow-up after reads (baseline)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const};
+  type Step={content?:string;call?:{name:string;arguments:string}};
+  function scripted(steps:Step[]) {
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);const step=steps[requests.length-1] ?? {content:'fin'};
+      return {content:step.content ?? '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(step.call ? {tool_calls:[{id:'call-'+requests.length,...step.call}]} : {})};
+    }};
+    return {ai,requests};
+  }
+  const potatoes={result:{items:[{product_name:'pomme de terre',quantity:1,unit_type:'unit'}]}};
+  it('reads, then adds in the same turn (prod case 2026-11-04 16:53)',async()=>{
+    const {ai,requests}=scripted([{call:{name:'read_inventory',arguments:'{}'}},
+      {call:{name:'add_inventory_items',arguments:'{"items":[{"name":"pomme de terre","quantity":2,"unit":"kg"}]}'}},
+      {content:"J'ai ajouté 2 kg de pommes de terre."}]);
+    const add={execute:jest.fn(async()=>({result:{added:[{inventory_id:'i1',product_id:'p1',product_name:'pomme de terre',quantity:2}],ambiguous:[]},reversibleAction:null}))};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{read_inventory:{execute:async()=>potatoes},add_inventory_items:add}});
+    const response=await service.handleRequest({...input,text:'Ajoute deux kilos de pommes de terre au stock.'},makeCtx());
+    expect(add.execute).toHaveBeenCalledTimes(1);
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup','synthesis']);
+    expect(JSON.stringify(requests[1].messages)).toContain('pomme de terre');
+    expect(response.message).toBe("J'ai ajouté 2 kg de pommes de terre.");
+  });
+  it('answers a read-only question in two calls, the follow-up replacing the synthesis',async()=>{
+    const {ai}=scripted([{call:{name:'read_inventory',arguments:'{}'}},{content:'Il te reste une pomme de terre.'}]);
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{read_inventory:{execute:async()=>potatoes}}});
+    const response=await service.handleRequest({...input,text:'Que reste-t-il ?'},makeCtx());
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup']);
+    expect(response.message).toBe('Il te reste une pomme de terre.');
+  });
+  it('keeps recipe turns at two calls (no hop after a recipe tool)',async()=>{
+    const {ai}=scripted([{call:{name:'suggest_recipes_for_context',arguments:'{}'}},{content:'Aucune recette ne correspond.'}]);
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{suggest_recipes_for_context:{execute:async()=>({result:{recipes:[]}})}}});
+    const response=await service.handleRequest({...input,text:'Que cuisiner ce soir ?'},makeCtx());
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).not.toContain('tool_followup');
+    expect(response.model_receipt?.calls).toHaveLength(2);
+  });
+});
