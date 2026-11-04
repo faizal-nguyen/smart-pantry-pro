@@ -176,6 +176,17 @@ describe('ProductResolver.resolve', () => {
     }
   });
 
+  it('prefers the one candidate with the same name, plural and accents aside', async () => {
+    const same = makeProduct({ id: 'pa', name: 'pomme de terre', normalized_name: 'pomme de terre' });
+    const other = makeProduct({ id: 'pb', name: 'pommes de terre grenaille', normalized_name: 'pommes de terre grenaille' });
+    const { client } = makeClient({ exactSingle: null, fuzzy: [{ product: other, score: 0.86 }, { product: same, score: 0.85 }] });
+
+    const result = await new ProductResolver(client).resolve(USER_ID, { name: 'Pommes de terre' });
+
+    expect(result.kind).toBe('matched');
+    if (result.kind === 'matched') expect(result.product.id).toBe('pa');
+  });
+
   it('returns "matched" when top candidate dominates by ≥ ambiguity delta', async () => {
     const a = makeProduct({ id: 'pa', normalized_name: 'tomate' });
     const b = makeProduct({ id: 'pb', normalized_name: 'tomatillo' });
@@ -547,6 +558,21 @@ describe('ProductResolver.resolve — semantic step', () => {
     const result = await resolver.resolve(USER_ID, { name: 'oignon' });
 
     expect(result.kind).toBe('ambiguous');
+  });
+
+  it('prefers the same-name semantic candidate over close scores (prod case)', async () => {
+    const same = makeProduct({ id: 'pa', name: 'pomme de terre', normalized_name: 'pomme de terre' });
+    const grenaille = makeProduct({ id: 'pb', name: 'pommes de terre grenaille', normalized_name: 'pommes de terre grenaille' });
+    const nouvelles = makeProduct({ id: 'pc', name: 'pommes de terre nouvelles', normalized_name: 'pommes de terre nouvelles' });
+    const { client } = makeSemanticClient({ exactSingle: null, semanticHits: [
+      { product: same, score: 0.878611 }, { product: grenaille, score: 0.862068 }, { product: nouvelles, score: 0.860334 },
+    ] });
+    const resolver = new ProductResolver(client, { embeddingService: makeStubEmbeddingService({ vector: FAKE_VEC }) });
+
+    const result = await resolver.resolve(USER_ID, { name: 'pommes de terre' });
+
+    expect(result.kind).toBe('matched');
+    if (result.kind === 'matched') expect(result.product.id).toBe('pa');
   });
 
   it('falls through to fuzzy when the semantic RPC returns nothing', async () => {
