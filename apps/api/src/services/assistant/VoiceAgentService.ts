@@ -83,7 +83,7 @@ const AGENT_SYSTEM_PROMPT = `You are Smart Pantry Pro's kitchen assistant. The u
 
 You help manage their inventory, shopping list, recipes, and meal plan via tool calls.
 
-GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE proposing actions if the user's intent depends on stock.
+GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE suggesting recipes or purchases that depend on stock. A direct command (« ajoute », « retire », « coche », « supprime ») is not a suggestion: call its write tool directly, without reading first.
 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
 - Pick the RIGHT tool based on what the user actually asked:
@@ -690,9 +690,16 @@ export class VoiceAgentService {
           ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
           {role:'user',content:'Les résultats des outils sont fournis. Appelle seulement un outil encore nécessaire pour terminer cette demande, sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
         ];
-        // Reads that already ran are not offered again: a re-read would spend
-        // the only hop the requested write needs (prod log 2026-11-04 18:45).
-        const followupTools=tools.filter(tool=>!executed.some(action=>action.tool===tool.function.name));
+        // The hop exists to act on what was read: offer writes, clarification
+        // and the recipe engine (inventory → recommendation), never a tool that
+        // already ran nor another plain read, which would spend the hop the
+        // requested write needs (prod log 2026-11-04: a second read_inventory
+        // at 18:45, read_shopping_list at 19:50).
+        const followupTools=tools.filter(tool=>{
+          const name=tool.function.name;
+          if(executed.some(action=>action.tool===name)) return false;
+          return this.toolRegistry.get(name).defaultRiskTier!=='read' || isRecipeTool(name);
+        });
         try {
           const next=await this.callLLMSafe(invocation,'dialogue',messages,followupTools,providerGuard,'tool_followup',continuation);
           if(this.memoryService&&!sameMemoryPolicy(lastProviderPolicy,await this.memoryService.readPolicySafe(input.userId))) {toolIssue=true;break;}
