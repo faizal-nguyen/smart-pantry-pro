@@ -12,6 +12,7 @@
  * nested.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ingredientNameTokens } from '@smart/shared';
 
 import type {
   ToolHandler,
@@ -153,10 +154,11 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
       .eq('user_id', ctx.userId);
 
     if (args.category) q = q.eq('products.category', args.category);
-    if (args.search) q = q.ilike('products.name', `%${args.search}%`);
 
     const { data, error } = await q.order('updated_at', { ascending: false }).limit(200);
     if (error) throw error;
+    // Accent-, case- and plural-insensitive, so "pommes de terre" finds "Pomme de terre".
+    const search = args.search ? nameKey(args.search) : '';
 
     const rows = ((data ?? []) as RawInventoryRow[])
       .map((row) => {
@@ -178,7 +180,8 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           days_to_expiry: daysToExpiry(row.expiry_date),
         } satisfies InventoryItemView;
       })
-      .filter((x): x is InventoryItemView => x !== null);
+      .filter((x): x is InventoryItemView => x !== null)
+      .filter((r) => !search || nameKey(r.product_name).includes(search));
 
     const filtered =
       args.near_expiry_days !== undefined
@@ -192,6 +195,10 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
 
     return { result: { items: filtered } };
   }
+}
+
+function nameKey(name: string): string {
+  return ingredientNameTokens(name).join(' ');
 }
 
 interface RawShoppingRow {

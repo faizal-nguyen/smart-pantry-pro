@@ -154,11 +154,17 @@ describe('ReadInventoryHandler', () => {
     expect(calls[0].filters).toContainEqual({ kind: 'eq', col: 'user_id', val: USER });
   });
 
-  it('passes search filter as ILIKE on products.name', async () => {
-    const { client, calls } = makeClient({ routes: { inventory: { data: [] } } });
+  it('matches search regardless of accents, case and plural', async () => {
+    const row = (id: string, name: string) => ({ id, product_id: id, quantity: 1, expiry_date: null, location: null,
+      products: { id, name, category: 'legumes', unit_type: 'kg', image_url: null } });
+    const { client } = makeClient({ routes: { inventory: { data: [
+      row('p1', 'Pomme de terre'), row('p2', 'Pommes de terre grenaille'), row('p3', 'Pomme'), row('p4', 'Tomate'),
+    ] } } });
     const handler = new ReadInventoryHandler();
-    await handler.execute(makeCtx(client), { search: 'tom' });
-    expect(calls[0].filters).toContainEqual({ kind: 'ilike', col: 'products.name', val: '%tom%' });
+    const potatoes = await handler.execute(makeCtx(client), { search: 'pommes de terre' });
+    expect(potatoes.result.items.map(i => i.id)).toEqual(['p1', 'p2']);
+    const partial = await handler.execute(makeCtx(client), { search: 'TOM' });
+    expect(partial.result.items.map(i => i.id)).toEqual(['p4']);
   });
 
   it('drops rows with NULL joined product (PostgREST filter exclusion)', async () => {

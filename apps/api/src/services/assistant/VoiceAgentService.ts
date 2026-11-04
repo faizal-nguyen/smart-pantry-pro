@@ -110,6 +110,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
 Be precise:
 - never invent products, quantities, or recipes the user did not mention
 - when the user mentions an item that may match several inventory rows, call ask_clarification
+- adding to the inventory or the shopping list never depends on current stock: call add_inventory_items / add_shopping_items directly, even when the inventory is empty
 - product names go to tools as plain text ("tomate", "yaourt grec") — the server resolves them to IDs
 
 Format the final assistant message in the user's language (FR if FR, EN if EN). Keep it short, confirm what was done, ask only what's strictly necessary.
