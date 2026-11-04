@@ -1063,3 +1063,37 @@ describe('V10-03C provider and write boundaries',()=>{
     expect(JSON.stringify(events)).not.toContain('OLD_CONTEXT_RESPONSE');expect(result.memory_revision).toBe(1);
   });
 });
+
+describe('session continuity when durable history is off',()=>{
+  const p=memoryPolicy({userId:USER,saveHistory:false,memoryEnabled:false});
+  const sessionMessages=[{role:'user' as const,content:'Ajoute deux kilos de pommes de terre au stock.'},
+    {role:'assistant' as const,content:'Plusieurs types de pommes de terre : lesquelles ?'}];
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Des classiques.',
+    sessionMessages,sessionRevision:p.revision};
+  function serviceWith(context:ContextBuilder,ai:AICompletionClient,handlers:Record<string,ToolHandler>={}) {
+    const registry=new ToolHandlerRegistry();for(const [name,handler] of Object.entries(handlers)) registry.register(name,handler);
+    return new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,
+      new ConfirmationTokenSigner(SECRET),{memoryService:{readPolicySafe:async()=>p} as unknown as MemoryService,memoryExtractor:new MemoryExtractor(),contextBuilder:context});
+  }
+  const sent=(ai:{complete:jest.Mock})=>JSON.stringify(ai.complete.mock.calls[0][0].messages);
+  it.each([
+    ['a context block for the same policy',{policy:p,combinedText:''}],
+    ['an empty context block (no stored context)',{policy:null,combinedText:''}],
+  ])('sends the earlier session turns to the model with %s',async(_label,block)=>{
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>({content:'Ajouté.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}}))};
+    await serviceWith({build:async()=>block} as unknown as ContextBuilder,ai).handleRequest(input,makeCtx());
+    expect(sent(ai)).toContain('Ajoute deux kilos de pommes de terre');
+    expect(ai.complete.mock.calls[0][0].messages.slice(-1)[0]?.content).toBe('Des classiques.');
+  });
+  it('keeps tool results for the follow-up call with an empty context block',async()=>{
+    const handler={execute:jest.fn(async()=>({result:{items:[{name:'Pommes de terre grenaille'}]}}))};
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>ai.complete.mock.calls.length===1
+      ? {content:'',model:req.model,usage:{prompt_tokens:10,completion_tokens:10},tool_calls:[{id:'tool-one',name:'read_inventory',arguments:'{}'}]}
+      : {content:'Vous avez des grenailles.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}})};
+    const result=await serviceWith({build:async()=>({policy:null,combinedText:''})} as unknown as ContextBuilder,ai,{read_inventory:handler})
+      .handleRequest({...input,text:'Que reste-t-il ?'},makeCtx());
+    expect(handler.execute).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(ai.complete.mock.calls.slice(1).map(call=>call[0].messages))).toContain('Pommes de terre grenaille');
+    expect(result.message).not.toMatch(/réglages.*ont changé/);
+  });
+});

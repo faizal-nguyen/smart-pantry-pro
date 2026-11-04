@@ -414,10 +414,15 @@ export class VoiceAgentService {
       }
     }
 
+    // Session turns were admitted under requestPolicy, stored context under
+    // contextPolicy. An empty context block (no policy) holds nothing to
+    // revoke, so it must not discard the session turns or tool results.
+    const stillAdmitted = (current: MemoryPolicy | null) =>
+      sameMemoryPolicy(requestPolicy, current) && (!contextPolicy || sameMemoryPolicy(contextPolicy, current));
     const providerGuard = this.memoryService ? async (messages: AICompletionRequest['messages']) => {
       const current = await this.memoryService!.readPolicySafe(input.userId);
       lastProviderPolicy = current;
-      if (sameMemoryPolicy(contextPolicy, current)) return messages;
+      if (stillAdmitted(current)) return messages;
       // No old tool result, summary, profile detail or context survives a changed
       // revision. The current voluntary question can still be answered.
       allowedProfileVersion = undefined;
@@ -722,7 +727,7 @@ export class VoiceAgentService {
         const currentPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const summaryParts = executed.map(a => {
           const result = this.memoryService ? memoryModelToolResult(a.tool, a.result,
-            sameMemoryPolicy(contextPolicy, currentPolicy) ? currentPolicy : null)
+            stillAdmitted(currentPolicy) ? currentPolicy : null)
             : recommendationModelContext(a.result, allowedProfileVersion) ?? a.result;
           // Tool arguments can contain private preferences. Results are enough.
           return '• ' + a.tool + ' → ' + JSON.stringify(result).slice(0, 1500);
