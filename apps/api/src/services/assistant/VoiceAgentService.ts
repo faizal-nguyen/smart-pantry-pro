@@ -458,6 +458,12 @@ export class VoiceAgentService {
     let activeResponse = ai1;
     let followupUsed = false;
     let replayPrefix: Array<Record<string,unknown>> = [];
+    // What the model may see of a tool call's outcome under the current policy.
+    const modelOutcome = (call: { id: string; name: string }, policy: MemoryPolicy | null) => {
+      const value=(outcomes.get(call.id) ?? {status:'not_executed',reason:'tool_limit_or_scope'}) as Record<string,unknown>;
+      const result=this.memoryService ? memoryModelToolResult(call.name,value.result,policy) : recommendationModelContext(value.result,allowedProfileVersion) ?? value.result;
+      return {...value,result};
+    };
     const continuationFor = (response: AICompletionResponse, role: AssistantRole, policy: MemoryPolicy | null) => {
       const requestedModel=this.modelConfig.roles[role].model;
       const continuation=[...replayPrefix,...(response.continuation ?? [])]
@@ -467,9 +473,7 @@ export class VoiceAgentService {
         // Every output has its corresponding function item, including injected clients.
         if(!continuation.some(item=>item.type==='function_call'&&item.call_id===call.id))
           continuation.push({type:'function_call',call_id:call.id,name:call.name,arguments:call.arguments});
-        const value=(outcomes.get(call.id) ?? {status:'not_executed',reason:'tool_limit_or_scope'}) as Record<string,unknown>;
-        const result=this.memoryService ? memoryModelToolResult(call.name,value.result,policy) : recommendationModelContext(value.result,allowedProfileVersion) ?? value.result;
-        continuation.push({type:'function_call_output',call_id:call.id,output:JSON.stringify({...value,result})});
+        continuation.push({type:'function_call_output',call_id:call.id,output:JSON.stringify(modelOutcome(call,policy))});
       }
       return continuation;
     };
@@ -668,17 +672,22 @@ export class VoiceAgentService {
           reason: risk.reason ?? defaultReasonForTier(risk.tier),
         });
       }
-      // Responses may select one tool at a time. Permit a bounded follow-up
-      // after reads, so inventory → recommendation actually reaches the engine.
+      // Permit one bounded follow-up after reads, so read → write ("ajoute…"
+      // after read_inventory) and inventory → recommendation finish in one
+      // turn. Chat Completions gets the receipts as text and skips the hop
+      // after a recipe tool, whose synthesis already runs.
       // Once a write was attempted, only the later text synthesis can run.
-      if (i===toolCalls.length-1 && !followupUsed && this.modelConfig.roles.dialogue.transport==='responses' &&
+      const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
+      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool))) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
         followupUsed=true;
         const policy=this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const continuation=continuationFor(activeResponse,'dialogue',policy);
+        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+JSON.stringify(modelOutcome(call,policy)).slice(0,1500));
         const messages:AICompletionRequest['messages']=[
-          {role:'system',content:systemContent},{role:'user',content:transcript},
+          {role:'system',content:systemContent},...aiMessages.slice(1),
+          ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
           {role:'user',content:'Les résultats des outils sont fournis. Appelle seulement un outil encore nécessaire pour terminer cette demande, sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
         ];
         try {
