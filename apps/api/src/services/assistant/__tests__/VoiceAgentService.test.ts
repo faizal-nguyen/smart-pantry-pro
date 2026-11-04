@@ -1146,6 +1146,17 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     expect(JSON.stringify(requests[1].messages)).toContain('pomme de terre');
     expect(response.message).toBe("J'ai ajouté 2 kg de pommes de terre.");
   });
+  it('does not offer already-run reads in the follow-up (prod case 2026-11-04 18:45)',async()=>{
+    const {ai,requests}=scripted([{call:{name:'read_inventory',arguments:'{}'}},
+      {call:{name:'add_inventory_items',arguments:'{"items":[{"name":"pomme de terre","quantity":2,"unit":"kg"}]}'}},
+      {content:"J'ai ajouté 2 kg de pommes de terre."}]);
+    const add={execute:jest.fn(async()=>({result:{added:[{inventory_id:'i1',product_id:'p1',product_name:'pomme de terre',quantity:2}],ambiguous:[]},reversibleAction:null}))};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{read_inventory:{execute:async()=>potatoes},add_inventory_items:add}});
+    await service.handleRequest({...input,text:'Ajoute deux kilos de pommes de terre au stock.'},makeCtx());
+    const offered=(requests[1].tools ?? []).map(t=>t.function.name);
+    expect(offered).not.toContain('read_inventory');
+    expect(offered).toContain('add_inventory_items');
+  });
   it('answers a read-only question in two calls, the follow-up replacing the synthesis',async()=>{
     const {ai}=scripted([{call:{name:'read_inventory',arguments:'{}'}},{content:'Il te reste une pomme de terre.'}]);
     const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{read_inventory:{execute:async()=>potatoes}}});
