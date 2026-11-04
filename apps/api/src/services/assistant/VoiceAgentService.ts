@@ -690,8 +690,11 @@ export class VoiceAgentService {
           ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
           {role:'user',content:'Les résultats des outils sont fournis. Appelle seulement un outil encore nécessaire pour terminer cette demande, sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
         ];
+        // Reads that already ran are not offered again: a re-read would spend
+        // the only hop the requested write needs (prod log 2026-11-04 18:45).
+        const followupTools=tools.filter(tool=>!executed.some(action=>action.tool===tool.function.name));
         try {
-          const next=await this.callLLMSafe(invocation,'dialogue',messages,tools,providerGuard,'tool_followup',continuation);
+          const next=await this.callLLMSafe(invocation,'dialogue',messages,followupTools,providerGuard,'tool_followup',continuation);
           if(this.memoryService&&!sameMemoryPolicy(lastProviderPolicy,await this.memoryService.readPolicySafe(input.userId))) {toolIssue=true;break;}
           replayPrefix=continuation;
           activeResponse=next;
