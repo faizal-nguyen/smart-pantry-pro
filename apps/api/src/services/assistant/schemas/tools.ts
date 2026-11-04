@@ -45,7 +45,7 @@ const itemJsonSchema = {
   properties: {
     name: { type: 'string', maxLength: 200 },
     category: { type: 'string', maxLength: 100 },
-    unit: { type: 'string', maxLength: 50 },
+    unit: { type: 'string', maxLength: 50, description: 'the unit the user said (kg, g, L, sachet…); omit only when none was given' },
     quantity: { type: 'number', minimum: 0, maximum: 100_000 },
     expiry_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
     notes: { type: 'string', maxLength: 500 },

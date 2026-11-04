@@ -1097,3 +1097,26 @@ describe('session continuity when durable history is off',()=>{
     expect(result.message).not.toMatch(/réglages.*ont changé/);
   });
 });
+
+describe('no change is announced without a write',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Ajoute deux kilos de pommes de terre au stock.'};
+  function run(tool:string,handler:ToolHandler,claim:string) {
+    const registry=new ToolHandlerRegistry();registry.register(tool,handler);
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>ai.complete.mock.calls.length===1
+      ? {content:'',model:req.model,usage:{prompt_tokens:10,completion_tokens:10},tool_calls:[{id:'tool-one',name:tool,arguments:tool==='read_inventory' ? '{}' : '{"items":[{"name":"pommes de terre","quantity":2,"unit":"kg"}]}'}]}
+      : {content:claim,model:req.model,usage:{prompt_tokens:10,completion_tokens:10}})};
+    return new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET))
+      .handleRequest(input,makeCtx());
+  }
+  it('replaces "J\'ai ajouté" when only a read ran (prod case 2026-11-04)',async()=>{
+    const result=await run('read_inventory',{execute:jest.fn(async()=>({result:{items:[]}}))},"J'ai ajouté deux kilos de pommes de terre à votre stock.");
+    expect(result.message).not.toMatch(/ajouté/);
+    expect(result.message).toMatch(/rien modifié/);
+  });
+  it('keeps the claim when a write actually ran',async()=>{
+    const add={execute:jest.fn(async()=>({result:{added:[{inventory_id:'i1',product_id:'p1',product_name:'pomme de terre',quantity:2}],ambiguous:[]},reversibleAction:null}))};
+    const result=await run('add_inventory_items',add,"J'ai ajouté deux kilos de pommes de terre à votre stock.");
+    expect(add.execute).toHaveBeenCalledTimes(1);
+    expect(result.message).toMatch(/J'ai ajouté/);
+  });
+});

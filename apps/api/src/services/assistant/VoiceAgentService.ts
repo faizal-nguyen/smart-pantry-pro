@@ -845,6 +845,12 @@ export class VoiceAgentService {
     if (pending.length) message = synthesizeMessage(executed,pending);
     if (toolIssue) message = 'Une action n’a pas pu être validée sur cette page. '+synthesizeMessage(executed,pending);
     if (unverified.length) message = 'Une action n’a pas pu être confirmée. Vérifie son résultat avant de la répéter. ' + synthesizeMessage(executed,pending);
+    // A model can announce a change no write tool made ("J'ai ajouté…" after
+    // a read only). Only an executed, pending or unverified write backs it.
+    if (!executed.some(a => a.risk_tier !== 'read') && !pending.length && !unverified.length && CHANGE_CLAIM.test(message)) {
+      console.warn('[assistant.claim_without_write] replaced');
+      message = NO_CHANGE_MESSAGE;
+    }
     let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
     let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
     if (!canRecordResponse && !memoryOnly) message = 'Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
@@ -1181,6 +1187,9 @@ function defaultReasonForTier(tier: RiskTier): string {
       return '';
   }
 }
+
+const CHANGE_CLAIM = /(?:\bj['’]ai|\bje viens d['’]|\bc['’]est|\b(?:a|ont|est|sont) été)\s+(?:bien\s+)?(?:ajout|retir|supprim|modifi|mis à jour|mise à jour|enregistr|marqu|coch|consomm|vid|déplac)|\bI(?:['’]ve| have)?\s+(?:just\s+)?(?:added|removed|deleted|updated|marked|cleared)\b/iu;
+const NO_CHANGE_MESSAGE = 'Je n’ai encore rien modifié. Redis-moi ce que tu veux ajouter ou changer, par exemple « ajoute 2 kg de pommes de terre au stock ».';
 
 function synthesizeMessage(
   executed: ExecutedActionDescriptor[],

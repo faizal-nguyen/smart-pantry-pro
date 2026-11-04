@@ -40,6 +40,7 @@
  *     semantic+fuzzy for the misses.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ingredientMatchRank } from '@smart/shared';
 
 import type { EmbeddingService } from '../products/EmbeddingService.js';
 import { classifyByName } from '../products/CategoryClassifier.js';
@@ -110,6 +111,16 @@ export interface ProductResolverOptions {
  * The normalized_name in the DB is always derived this way, so we can
  * safely compare client-computed strings against the DB values.
  */
+/**
+ * The only candidate named like the input once accents, case and plural are
+ * ignored ("pommes de terre" → "pomme de terre"). Close scores against
+ * longer names ("pommes de terre grenaille") are then not an ambiguity.
+ */
+function sameNameCandidate<T extends { product: ProductRow }>(name: string, candidates: T[]): T | undefined {
+  const same = candidates.filter((c) => ingredientMatchRank(name, c.product.name) === 1);
+  return same.length === 1 ? same[0] : undefined;
+}
+
 export function normalizeProductName(name: string): string {
   return name
     .normalize('NFKD')
@@ -164,7 +175,7 @@ export class ProductResolver {
     }
 
     const semantic = await this.findSemantic(normalized);
-    const semanticVerdict = this.classifySemantic(semantic);
+    const semanticVerdict = this.classifySemantic(input.name, semantic);
     if (semanticVerdict) return semanticVerdict;
 
     const candidates = await this.findFuzzy(normalized);
@@ -219,7 +230,7 @@ export class ProductResolver {
         const embedding = embeddingFor.get(idx) ?? null;
         if (embedding) {
           const semantic = await this.findSemanticByVector(embedding);
-          const semanticVerdict = this.classifySemantic(semantic);
+          const semanticVerdict = this.classifySemantic(input.name, semantic);
           if (semanticVerdict) return semanticVerdict;
         }
 
@@ -246,6 +257,9 @@ export class ProductResolver {
       const c = aboveThreshold[0];
       return { kind: 'matched', product: c.product, confidence: c.score, via: 'fuzzy' };
     }
+
+    const sameName = sameNameCandidate(input.name, aboveThreshold);
+    if (sameName) return { kind: 'matched', product: sameName.product, confidence: sameName.score, via: 'fuzzy' };
 
     const top = aboveThreshold[0];
     const second = aboveThreshold[1];
@@ -336,6 +350,7 @@ export class ProductResolver {
    * see candidates here they all clear the semantic threshold.
    */
   private classifySemantic(
+    name: string,
     candidates: Array<{ product: ProductRow; score: number }>
   ): ResolveResult | null {
     if (candidates.length === 0) return null;
@@ -344,6 +359,9 @@ export class ProductResolver {
       const c = candidates[0];
       return { kind: 'matched', product: c.product, confidence: c.score, via: 'semantic' };
     }
+
+    const sameName = sameNameCandidate(name, candidates);
+    if (sameName) return { kind: 'matched', product: sameName.product, confidence: sameName.score, via: 'semantic' };
 
     const [top, second] = candidates;
     if (top.score - second.score < this.ambiguityDelta) {
