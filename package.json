@@ -89,6 +89,7 @@
     "test:v10:03c:db": "python3 scripts/test-v10-memory-db.py",
     "test:v10:pantry:db": "python3 scripts/test-v10-pantry-db.py",
     "test:security:db": "python3 scripts/test-security-baseline-db.py",
+    "test:stock:units:db": "python3 scripts/test-stock-units-db.py",
     "audit:v10:memory": "node --import tsx scripts/audit-v10-memory.ts",
     "test:v10:ui": "vite --config scripts/vite-v10-fixture.config.ts",
     "benchmark:v10:models": "node --import tsx scripts/benchmark-v10-models.ts"

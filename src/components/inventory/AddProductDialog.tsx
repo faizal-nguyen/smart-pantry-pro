@@ -160,9 +160,11 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
 
     setLoading(true);
     try {
+      // The lot keeps the unit picked in the form, never the unit of the shared product.
       await addToInventory({
         product_id: selectedProduct.id,
         quantity: parseFloat(quantity),
+        unit: unitType,
         expiry_date: expiryDate || undefined,
         location: location || undefined
       });
@@ -581,7 +583,7 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
               <div>
                 <p className="font-medium">{selectedProduct.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {selectedProduct.category} • {selectedProduct.unit_type}
+                  {selectedProduct.category} • {unitType}
                 </p>
               </div>
             </div>
@@ -596,7 +598,7 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
                   min="0"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder={`ex: 2 ${selectedProduct.unit_type}`}
+                  placeholder={`ex: 2 ${unitType}`}
                   required
                 />
               </div>

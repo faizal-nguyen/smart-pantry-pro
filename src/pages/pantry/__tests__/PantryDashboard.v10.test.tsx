@@ -64,3 +64,12 @@ test('undoing an add that topped up a lot undoes its stock command, never delete
   expect(mockUndoStockCommand).toHaveBeenCalledWith('command-1');
   expect(mockDeleteEq).not.toHaveBeenCalled();
 });
+
+test('the lot keeps the unit picked in the quick add, not the unit of the existing product', async () => {
+  render(<MemoryRouter><PantryDashboard /><Toaster /></MemoryRouter>);
+  fireEvent.change(screen.getByPlaceholderText('ex: Tomates'), { target: { value: 'Farine' } });
+  fireEvent.change(screen.getByDisplayValue('unité'), { target: { value: 'g' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter' }));
+  await screen.findByRole('button', { name: 'Annuler' });
+  expect(mockAddToInventory).toHaveBeenCalledWith(expect.objectContaining({ product_id: PRODUCT_ID, unit: 'g' }));
+});
