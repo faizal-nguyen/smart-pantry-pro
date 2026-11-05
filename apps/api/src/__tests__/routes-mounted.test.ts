@@ -25,15 +25,8 @@ interface Probe {
 const STABLE_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/health' },
   { method: 'post', path: '/api/parse-video-recipe' },
-  { method: 'post', path: '/api/youtube-extract' },
-  { method: 'post', path: '/api/transcribe-youtube' },
-  { method: 'post', path: '/api/social/instagram/oembed' },
-  { method: 'post', path: '/api/shopping/parse-text' },
-  { method: 'post', path: '/api/shopping/transcribe' },
-  { method: 'post', path: '/api/shopping/items/batch' },
+  { method: 'post', path: '/api/social/instagram/thumbnail' },
   { method: 'post', path: '/api/assistant/stream' },
-  { method: 'post', path: '/api/ai-assistant-enhanced' },
-  { method: 'get',  path: '/api/diagnostics' },
   { method: 'get',  path: '/api/diagnostics/routes' },
   // PRP-220.10: imports REST API. Auth middleware -> 401 without a
   // token; that already fails the "not 404" assertion as expected.
@@ -52,16 +45,31 @@ const STABLE_ROUTES: Probe[] = [
 const V1_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/v1/health' },
   { method: 'post', path: '/api/v1/parse-video-recipe' },
-  { method: 'post', path: '/api/v1/youtube-extract' },
-  { method: 'post', path: '/api/v1/transcribe-youtube' },
-  { method: 'post', path: '/api/v1/social/instagram/oembed' },
-  { method: 'post', path: '/api/v1/shopping/parse-text' },
-  { method: 'post', path: '/api/v1/shopping/transcribe' },
-  { method: 'post', path: '/api/v1/shopping/items/batch' },
+  { method: 'post', path: '/api/v1/social/instagram/thumbnail' },
   { method: 'post', path: '/api/v1/assistant/stream' },
-  { method: 'get',  path: '/api/v1/diagnostics' },
   { method: 'post', path: '/api/v1/imports/social' },
   { method: 'get',  path: '/api/v1/imports/social' },
+];
+
+// Public routes removed in the 2026-11 security pass (no live caller):
+// they must stay unmounted.
+const REMOVED_ROUTES: Probe[] = [
+  { method: 'post', path: '/api/youtube-extract' },
+  { method: 'post', path: '/api/transcribe-youtube' },
+  { method: 'post', path: '/api/shopping/parse-text' },
+  { method: 'post', path: '/api/shopping/transcribe' },
+  { method: 'post', path: '/api/shopping/items/batch' },
+  { method: 'post', path: '/api/social/instagram/oembed' },
+  { method: 'post', path: '/api/ai-assistant-enhanced' },
+  { method: 'get',  path: '/api/diagnostics' },
+  { method: 'get',  path: '/api/realtime/status' },
+];
+
+// Costly or outbound routes kept for a live caller: signed-in users only.
+const AUTH_ONLY_ROUTES: Probe[] = [
+  { method: 'post', path: '/api/parse-video-recipe' },
+  { method: 'post', path: '/api/social/instagram/thumbnail' },
+  { method: 'post', path: '/api/assistant/stream' },
 ];
 
 const ALL_ROUTES = [
@@ -73,6 +81,16 @@ describe('Routes mounted (PRP-220.04 / 220.05 no-404 contract)', () => {
   it.each(ALL_ROUTES)('[$group] $method.toUpperCase $path is not 404', async ({ method, path }) => {
     const res = await (request(BASE) as any)[method](path).set('Content-Type', 'application/json').send({});
     expect(res.status).not.toBe(404);
+  });
+
+  it.each(REMOVED_ROUTES)('removed $method.toUpperCase $path answers 404', async ({ method, path }) => {
+    const res = await (request(BASE) as any)[method](path).set('Content-Type', 'application/json').send({});
+    expect(res.status).toBe(404);
+  });
+
+  it.each(AUTH_ONLY_ROUTES)('$method.toUpperCase $path rejects a request without a user token', async ({ method, path }) => {
+    const res = await (request(BASE) as any)[method](path).set('Content-Type', 'application/json').send({});
+    expect(res.status).toBe(401);
   });
 
   it('GET / returns the API metadata banner', async () => {

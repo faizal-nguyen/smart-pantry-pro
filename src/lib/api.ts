@@ -18,7 +18,7 @@ function resolveBase(): string {
   return (fromEnv && fromEnv.length > 0 ? fromEnv.replace(/\/$/, '') : '') + DEFAULT_BASE;
 }
 
-async function authHeader(expectedUserId?: string): Promise<Record<string, string>> {
+export async function authHeader(expectedUserId?: string): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (expectedUserId && data.session?.user.id !== expectedUserId) {

@@ -7,9 +7,8 @@
  *   - When `METRICS_AUTH_TOKEN` is set, the request must carry a
  *     matching `Authorization: Bearer <token>` header (constant-time
  *     comparison). This is a hard requirement on production deploys.
- *   - When the token is unset (dev), the endpoint is open. Operators
- *     are expected to keep the metrics endpoint behind a private
- *     reverse-proxy ACL in that case.
+ *   - When the token is unset, the endpoint answers 503 in production
+ *     (fail closed) and stays open in dev/test.
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
@@ -21,6 +20,9 @@ export function createMetricsRouter(): Router {
   const expectedToken = process.env.METRICS_AUTH_TOKEN;
 
   router.get('/', async (req: Request, res: Response) => {
+    if (!expectedToken && process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ error: 'Metrics disabled: METRICS_AUTH_TOKEN is not configured' });
+    }
     if (expectedToken) {
       const provided = (req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
       if (!provided || !timingSafeEqual(provided, expectedToken)) {

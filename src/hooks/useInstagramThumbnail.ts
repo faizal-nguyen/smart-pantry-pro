@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiPost } from '@/lib/api';
 
 export const useInstagramThumbnail = () => {
   const [loading, setLoading] = useState(false);
@@ -18,33 +19,18 @@ export const useInstagramThumbnail = () => {
       }
       console.log('🔍 [useInstagramThumbnail] Extraction de la vignette pour:', url);
       
-      // En développement, utiliser l'URL directe du serveur API si le proxy ne fonctionne pas
-      const apiUrl = '/api/social/instagram/thumbnail';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url })
-      });
+      // The API requires the signed-in user's token (apiPost adds it).
+      const data = await apiPost<any>('/social/instagram/thumbnail', { url });
+      console.log('📦 [useInstagramThumbnail] Réponse:', data);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const raw = await response.json();
-      console.log('📦 [useInstagramThumbnail] Réponse:', raw);
-      const data = raw?.data ?? raw;
-
-      if (raw.success) {
+      if (data) {
         console.log('✅ [useInstagramThumbnail] Données trouvées');
         if (data?.thumbnail_base64) {
           console.log('✅ [useInstagramThumbnail] Image base64 disponible');
         }
         return data;
       } else {
-        throw new Error(data?.error || 'Aucune vignette trouvée');
+        throw new Error('Aucune vignette trouvée');
       }
     } catch (err) {
       console.error('❌ [useInstagramThumbnail] Erreur:', err);

@@ -20,20 +20,15 @@ import { securityMiddleware } from './middleware/security.js';
 import { requestIdHeader } from './middleware/requestId.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { rateLimit } from './middleware/rateLimit.js';
-import { env } from './config/env.js';
+import { createAuthMiddleware } from './middleware/auth.middleware.js';
+import { userRateLimit } from './middleware/userRateLimit.js';
 
 // Routes (synchronous; v1Router is loaded lazily below to avoid boot blocking)
 import { healthRouter } from './routes/health.js';
-import { assistantRouter, assistantCompatRouter } from './routes/assistant.js';
+import { createAssistantStreamRouter } from './routes/assistant.js';
 import { parseVideoRecipeRouter } from './routes/parseVideoRecipe.js';
-import { youtubeExtractRouter } from './routes/youtubeExtract.js';
-import { transcribeYoutubeRouter } from './routes/transcribeYoutube.js';
-import { shoppingParseTextRouter } from './routes/shoppingParseText.js';
-import { shoppingTranscribeRouter } from './routes/shoppingTranscribe.js';
-import { shoppingItemsBatchRouter } from './routes/shoppingItemsBatch.js';
-import { instagramRouter } from './routes/instagram.js';
+import { createInstagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
-import { diagnosticsRouter } from './routes/diagnostics.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
 import { createMediaRouter } from './routes/media.js';
 import { createAssistantAgentRouter } from './routes/assistant.agent.js';
@@ -46,18 +41,7 @@ import {
   saveImportedDraftAsRecipe,
 } from './services/imports/index.js';
 
-const ytRateLimit = () =>
-  rateLimit({
-    windowMs: env.RATE_LIMIT_YT_WINDOW_MS || 60_000,
-    max: env.RATE_LIMIT_YT_MAX || 30,
-  });
-
 const assistantRateLimit = () => rateLimit({ windowMs: 60_000, max: 30 });
-
-export interface RealtimeStatus {
-  enabled: boolean;
-  connectedClients: number;
-}
 
 export interface CreateAppOptions {
   /**
@@ -65,17 +49,19 @@ export interface CreateAppOptions {
    * to keep tests deterministic. Defaults to false.
    */
   skipLazyV1?: boolean;
-  /**
-   * Optional getter for the WebSocket realtime status. When provided,
-   * `GET /api/realtime/status` returns its result. Wired by `index.ts`
-   * after the realtime service has lazily initialised.
-   */
-  realtimeStatus?: () => RealtimeStatus;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
+  // One proxy hop in front of the app (Render). req.ip is then the
+  // address that proxy saw, not a client-supplied X-Forwarded-For entry.
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
+
+  const requireUser = createAuthMiddleware(supabaseAdmin as any);
+  const parseVideoLimit = userRateLimit({ key: 'parse-video-recipe', freeMax: 30, premiumMax: 300, windowMs: 3_600_000 });
+  const assistantStreamRouter = createAssistantStreamRouter(supabaseAdmin);
+  const instagramRouter = createInstagramRouter(supabaseAdmin);
 
   // Middlewares
   app.use(corsMiddleware);
@@ -92,7 +78,6 @@ export function createApp(options: CreateAppOptions = {}): Express {
         health: '/api/health',
         v1: '/api/v1',
         assistant: '/api/assistant/stream',
-        diagnostics: '/api/diagnostics',
       },
       timestamp: new Date().toISOString(),
     });
@@ -101,17 +86,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   // === Stable routes (no version prefix) ===
   app.use('/api/health', healthRouter);
-  app.use('/api/parse-video-recipe', parseVideoRecipeRouter);
-  app.use('/api/youtube-extract', ytRateLimit(), youtubeExtractRouter);
-  app.use('/api/transcribe-youtube', ytRateLimit(), transcribeYoutubeRouter);
-  app.use('/api/shopping/parse-text', shoppingParseTextRouter);
-  app.use('/api/shopping/transcribe', shoppingTranscribeRouter);
-  app.use('/api/shopping/items/batch', shoppingItemsBatchRouter);
+  app.use('/api/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/social/instagram', instagramRouter);
-  app.use('/api/assistant', assistantRateLimit(), assistantRouter);
-  app.use('/api/ai-assistant-enhanced', assistantRateLimit(), assistantCompatRouter);
+  app.use('/api/assistant', assistantRateLimit(), assistantStreamRouter);
   app.use('/api/proxy', proxyRouter);
-  app.use('/api/diagnostics', diagnosticsRouter);
   app.use(
     '/api/imports/social',
     createImportsSocialRouter(supabaseAdmin, {
@@ -139,17 +117,10 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   // === v1 aliases (same handlers, versioned path) ===
   app.use('/api/v1/health', healthRouter);
-  app.use('/api/v1/parse-video-recipe', parseVideoRecipeRouter);
-  app.use('/api/v1/youtube-extract', ytRateLimit(), youtubeExtractRouter);
-  app.use('/api/v1/transcribe-youtube', ytRateLimit(), transcribeYoutubeRouter);
-  app.use('/api/v1/shopping/parse-text', shoppingParseTextRouter);
-  app.use('/api/v1/shopping/transcribe', shoppingTranscribeRouter);
-  app.use('/api/v1/shopping/items/batch', shoppingItemsBatchRouter);
+  app.use('/api/v1/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/v1/social/instagram', instagramRouter);
-  app.use('/api/v1/assistant', assistantRateLimit(), assistantRouter);
-  app.use('/api/v1/ai-assistant-enhanced', assistantRateLimit(), assistantCompatRouter);
+  app.use('/api/v1/assistant', assistantRateLimit(), assistantStreamRouter);
   app.use('/api/v1/proxy', proxyRouter);
-  app.use('/api/v1/diagnostics', diagnosticsRouter);
   app.use(
     '/api/v1/imports/social',
     createImportsSocialRouter(supabaseAdmin, {
@@ -159,22 +130,6 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/media', createMediaRouter(supabaseAdmin));
   app.use('/api/v1/assistant', createAssistantAgentRouter(supabaseAdmin));
   app.use('/api/v1/assistant', createAssistantMemoryRouter(supabaseAdmin));
-
-  // === Realtime status (optional, only when index.ts wires it) ===
-  if (options.realtimeStatus) {
-    app.get('/api/realtime/status', (_req, res) => {
-      const status = options.realtimeStatus!();
-      res.json({
-        success: true,
-        websocket: {
-          enabled: status.enabled,
-          connectedClients: status.connectedClients,
-          transports: ['websocket', 'polling'],
-        },
-        timestamp: new Date().toISOString(),
-      });
-    });
-  }
 
   // === Diagnostics: list mounted routes (dev/non-production only) ===
   // Useful for debugging route mounting and for the no-404 contract test.
