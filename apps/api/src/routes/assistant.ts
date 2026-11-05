@@ -1,12 +1,15 @@
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import { Router, type Request, type Response } from 'express';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import jwt from 'jsonwebtoken';
-import { logSecurityEvent, logError } from '../config/logger.js';
-
-export const assistantRouter = Router();
+import { createAuthMiddleware } from '../middleware/auth.middleware.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
+import { logError } from '../config/logger.js';
 
 const Body = z.object({
   message: z.string().min(1).max(4000),
+  // Kept: the live social-recipe parser sends its JSON-extraction prompt
+  // here. The route now requires a real signed-in user and a per-user
+  // limit, so it is no longer an anonymous GPT proxy.
   systemPrompt: z.string().max(8000).optional(),
   context: z.record(z.any()).optional(),
   mode: z.enum(['text','voice','visual']).optional(),
@@ -17,43 +20,22 @@ function writeEvent(res: Response, data: unknown) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function authGuard(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization || '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
-  const secret = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET;
-
-  // CRITICAL: Never bypass authentication, even in dev mode
-  if (!secret) {
-    logSecurityEvent('JWT_SECRET_MISSING', undefined, {
-      endpoint: '/assistant',
-      severity: 'critical',
-    });
-    return res.status(500).json({
-      success: false,
-      error: 'Server misconfigured - authentication not available',
-      code: 'NO_JWT_SECRET'
-    });
-  }
-
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: 'Unauthorized - no token provided',
-      code: 'UNAUTHORIZED'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, secret);
-    (req as any).user = decoded;
-    return next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      error: 'Invalid or expired token',
-      code: 'INVALID_TOKEN'
-    });
-  }
+/**
+ * `POST /stream`: server-side OpenAI streaming for signed-in users.
+ *
+ * Auth goes through `createAuthMiddleware` (Supabase `auth.getUser`):
+ * the previous local `jwt.verify` also accepted the public anon key's
+ * JWT, which is signed with the same secret.
+ */
+export function createAssistantStreamRouter(adminClient: SupabaseClient<any, any, any>): Router {
+  const router = Router();
+  router.post(
+    '/stream',
+    createAuthMiddleware(adminClient as any),
+    userRateLimit({ key: 'assistant.stream', freeMax: 30, premiumMax: 300, windowMs: 3_600_000 }),
+    assistantStreamHandler,
+  );
+  return router;
 }
 
 export async function assistantStreamHandler(req: Request, res: Response) {
@@ -121,7 +103,8 @@ export async function assistantStreamHandler(req: Request, res: Response) {
 
     if (!upstream.ok || !upstream.body) {
       const text = await upstream.text().catch(() => '');
-      writeEvent(res, { error: `Upstream error ${upstream.status}`, detail: text });
+      logError(new Error(`OpenAI upstream ${upstream.status}`), { endpoint: '/assistant/stream', detail: text.slice(0, 500) });
+      writeEvent(res, { error: 'Assistant temporarily unavailable', code: 'UPSTREAM_ERROR' });
       res.write('data: [DONE]\n\n');
       return res.end();
     }
@@ -136,17 +119,12 @@ export async function assistantStreamHandler(req: Request, res: Response) {
     }
     return res.end();
   } catch (e: any) {
-    writeEvent(res, { error: e?.message || 'Upstream failure', code: 'OPENAI_ERROR' });
+    logError(e instanceof Error ? e : new Error(String(e)), { endpoint: '/assistant/stream' });
+    writeEvent(res, { error: 'Assistant temporarily unavailable', code: 'OPENAI_ERROR' });
     res.write('data: [DONE]\n\n');
     return res.end();
   }
 }
-
-assistantRouter.post('/stream', authGuard, assistantStreamHandler);
-
-// Temporary compatibility router for legacy path `/api/ai-assistant-enhanced`
-export const assistantCompatRouter = Router();
-assistantCompatRouter.post('/', authGuard, assistantStreamHandler);
 
 function buildSystemPrompt(context: any = {}): string {
   try {
