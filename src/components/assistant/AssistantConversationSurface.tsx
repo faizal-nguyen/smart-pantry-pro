@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
-import type { AssistantSessionMessage } from '@smart/shared';
+import { keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
@@ -65,7 +65,7 @@ export default function AssistantConversationSurface({
     if (ownerRef.current !== owner) return;
     setLatest({ owner, result: response });
     if (!response.conversation_id) setSession(previous => ({ owner, revision: response.memory_revision,
-      messages: [...(previous.owner === owner && previous.revision === response.memory_revision ? previous.messages : []),
+      messages: [...(previous.owner === owner && keepsSessionTurns(previous.revision, response) ? previous.messages : []),
         { role: 'user' as const, content: response.transcript.slice(0,500) }, { role: 'assistant' as const, content: response.message.slice(0,500) }].slice(-8) }));
     void queryClient.invalidateQueries({ queryKey: ['assistant-memories'] });
     void queryClient.invalidateQueries({ queryKey: ['assistant-memory-policy'] });

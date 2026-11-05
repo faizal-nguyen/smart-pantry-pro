@@ -1086,6 +1086,18 @@ describe('session continuity when durable history is off',()=>{
     expect(sent(ai)).toContain('Ajoute deux kilos de pommes de terre');
     expect(ai.complete.mock.calls[0][0].messages.slice(-1)[0]?.content).toBe('Des classiques.');
   });
+  it.each([
+    ['a memory saved since the turn was read keeps them',{revision:p.revision+1,historyFloor:p.revision},true],
+    ['a revocation since then drops them',{revision:p.revision+1,historyFloor:p.revision+1},false],
+  ])('%s',async(_label,changes,kept)=>{
+    const current={...p,...changes};
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>({content:'Ajouté.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}}))};
+    const result=await new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),new ToolHandlerRegistry(),new MockWriter() as unknown as ActionLogWriter,
+      new ConfirmationTokenSigner(SECRET),{memoryService:{readPolicySafe:async()=>current} as unknown as MemoryService,memoryExtractor:new MemoryExtractor(),
+        contextBuilder:{build:async()=>({policy:current,combinedText:''})} as unknown as ContextBuilder}).handleRequest(input,makeCtx());
+    expect(sent(ai).includes('Ajoute deux kilos de pommes de terre')).toBe(kept);
+    expect(result.history_floor).toBe(current.historyFloor);
+  });
   it('keeps tool results for the follow-up call with an empty context block',async()=>{
     const handler={execute:jest.fn(async()=>({result:{items:[{name:'Pommes de terre grenaille'}]}}))};
     const ai={complete:jest.fn(async(req:AICompletionRequest)=>ai.complete.mock.calls.length===1

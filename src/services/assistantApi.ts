@@ -50,6 +50,8 @@ export interface AssistantPlanResponse {
   conversation_id?: string;
   memory_results?: MemoryWriteResult[];
   memory_revision?: number;
+  /** Revision of the last revocation; absent from older APIs. */
+  history_floor?: number;
   summary_status?: 'disabled' | 'not_needed' | 'already_attempted' | 'saved' | 'not_saved' | 'revision_changed';
   transcript: string;
   detected_language?: string;

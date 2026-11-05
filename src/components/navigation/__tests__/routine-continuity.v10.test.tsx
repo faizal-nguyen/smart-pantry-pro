@@ -27,6 +27,16 @@ test('when history is off, bounded session context continues and is cleared afte
   fireEvent(window,new CustomEvent('assistant-memory-changed',{detail:{owner:mockOwner}}));await ask('Autre question');expect(mockPost.mock.calls[2][0].sessionMessages).toEqual([]);
   expect(Object.values(localStorage).join(' ')).not.toContain('Réponse fictive');
 });
+test('when history is off, a memory saved by a reply keeps the session; a revocation clears it',async()=>{
+  mockPost.mockResolvedValueOnce({...reply(),memory_revision:4,history_floor:4})
+    .mockResolvedValueOnce({...reply(),memory_revision:5,history_floor:4})
+    .mockResolvedValueOnce({...reply(),memory_revision:6,history_floor:6}).mockResolvedValue(reply(undefined,6));
+  render(page());fireEvent.click(screen.getByRole('button',{name:'Aide'}));
+  await ask('Une soupe ?');await ask('J’aime les tomates');await ask('Et avec quoi ?');
+  expect(mockPost.mock.calls[2][0].sessionMessages).toHaveLength(4);expect(mockPost.mock.calls[2][0].sessionRevision).toBe(5);
+  // The revoking reply drops the earlier turns and keeps only its own.
+  await ask('Autre question');expect(mockPost.mock.calls[3][0].sessionMessages.map((m:{content:string})=>m.content)).toEqual(['Et avec quoi ?','Réponse fictive']);
+});
 test('changing accounts never reuses the previous account conversation or reply',async()=>{
   mockPost.mockResolvedValue(reply('conversation-a'));const view=render(page());fireEvent.click(screen.getByRole('button',{name:'Aide'}));await ask('Question du compte A');
   mockOwner='owner-b';view.rerender(page());expect(screen.queryByText('Réponse fictive')).not.toBeInTheDocument();await ask('Question du compte B');

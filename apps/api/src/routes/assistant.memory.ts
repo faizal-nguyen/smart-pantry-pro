@@ -178,7 +178,13 @@ export function createAssistantMemoryRouter(
   });
 
   router.get('/memory-policy', async (req, res) => {
-    try { return ok(res, { policy: await service.readPolicy(req.user.id) }, 'OK', 'MEMORY_POLICY'); }
+    try {
+      // The client does not use the history floor, and a front still open from
+      // before 20261105110000 parses the policy strictly.
+      const policy = { ...await service.readPolicy(req.user.id) };
+      delete policy.historyFloor;
+      return ok(res, { policy }, 'OK', 'MEMORY_POLICY');
+    }
     catch { return fail(res, 'Les autorisations mémoire sont indisponibles.', 503, 'MEMORY_POLICY_UNAVAILABLE'); }
   });
   router.get('/memory-commands/:id', async (req, res) => {

@@ -6,10 +6,33 @@ export const MemoryDestinationSchema = z.enum(['memory', 'profile', 'feedback', 
 export type MemoryDestination = z.infer<typeof MemoryDestinationSchema>;
 export const MemoryPolicySchema = z.object({
   userId: z.string().uuid(), revision: z.number().int().nonnegative(),
+  /** Revision of the last revocation (20261105110000); absent from older databases. */
+  historyFloor: z.number().int().nonnegative().optional(),
   memoryEnabled: z.boolean(), saveHistory: z.boolean(), shareProfile: z.boolean(),
   profileVersion: z.number().int().nonnegative(),
 }).strict();
 export type MemoryPolicy = z.infer<typeof MemoryPolicySchema>;
+
+/**
+ * Every memory change raises the revision; only a revocation (a memory
+ * forgotten, history or memory switched off, profile sharing withdrawn) raises
+ * the floor. A database without a floor treats every change as a revocation.
+ */
+export function memoryHistoryFloor(policy: MemoryPolicy): number {
+  return policy.historyFloor ?? policy.revision;
+}
+/**
+ * Whether the client keeps its session turns (history not saved) after a reply:
+ * until a revocation, or on every memory change with an API without a floor.
+ */
+export function keepsSessionTurns(previousRevision: number | undefined, response: { memory_revision?: number; history_floor?: number }): boolean {
+  return response.history_floor == null ? previousRevision === response.memory_revision
+    : previousRevision != null && previousRevision >= response.history_floor;
+}
+/** Messages, summaries, session context and reads written since the last revocation. */
+export function withinMemoryHistory(policy: MemoryPolicy, revision: number | null | undefined): boolean {
+  return typeof revision === 'number' && revision >= memoryHistoryFloor(policy) && revision <= policy.revision;
+}
 export const MemoryProfileFieldSchema = z.enum(['allergies', 'excludedIngredients', 'diets', 'goals', 'likedIngredients',
   'avoidedIngredients', 'cuisines', 'equipment', 'usualTimeMinutes', 'usualServings']);
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MessageCircle, Settings } from 'lucide-react';
-import type { AssistantSessionMessage } from '@smart/shared';
+import { keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
 import { useFamilyMode } from '@/hooks/useFamilyMode';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ export default function RoutineHeader() {
       if (active.current !== key) return;
       if (result.conversation_id) setHandle({ id:result.conversation_id, at:Date.now() });
       setState({ key,busy:false,error:null,answer:result.message,revision:result.memory_revision,
-        session:result.conversation_id ? [] : [...(current.revision === result.memory_revision ? current.session : []),
+        session:result.conversation_id ? [] : [...(keepsSessionTurns(current.revision, result) ? current.session : []),
           { role:'user',content:question.slice(0,500) },{ role:'assistant',content:result.message.slice(0,500) }].slice(-8) as AssistantSessionMessage[] });
     } catch (failure) {
       if (active.current === key) setState({ ...current,busy:false,error:failure instanceof Error ? failure.message : 'Aide indisponible. Votre question reste conservée.' });

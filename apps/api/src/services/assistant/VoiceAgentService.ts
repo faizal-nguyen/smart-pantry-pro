@@ -30,7 +30,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
-import { MemoryWriteResultSchema, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
+import { memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
 import { memoryModelToolResult } from './MemoryModelOutput.js';
 import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
@@ -195,6 +195,8 @@ export interface AssistantPlanResponse {
   conversation_id?: string;
   memory_results?: MemoryWriteResult[];
   memory_revision?: number;
+  /** Revision of the last revocation: session turns sent from this revision on stay admitted. */
+  history_floor?: number;
   summary_status?: SummaryResult['status'];
   summary_cost_unknown?: boolean;
 }
@@ -437,7 +439,8 @@ export class VoiceAgentService {
 
     const aiMessages: AICompletionRequest['messages'] = [
       { role: 'system', content: systemContent },
-      ...(requestPolicy && input.sessionRevision === requestPolicy.revision && !requestPolicy.saveHistory
+      // A memory saved by this or an earlier turn does not end the session; a revocation does.
+      ...(requestPolicy && withinMemoryHistory(requestPolicy, input.sessionRevision) && !requestPolicy.saveHistory
         ? (input.sessionMessages ?? []).slice(-8).map(m => ({ role: m.role, content: m.content.slice(0,500) })) : []),
       { role: 'user', content: transcript },
     ];
@@ -450,7 +453,7 @@ export class VoiceAgentService {
         message:'L’assistant n’a pas pu répondre. Les résultats de mémorisation sont affichés séparément.',
         actions_executed:[],actions_pending:[],confirmation_token:null,model_used:null,model_receipt:receipt,
         cost:{whisper_usd:transcriptionUsd ?? 0,llm_usd:receipt.llm_usd,total_usd:receipt.llm_usd===null || transcriptionUsd===null ? null : transcriptionUsd+receipt.llm_usd},
-        duration_ms:Date.now()-start,conversation_id:conversationId,memory_results:memoryResults,memory_revision:requestPolicy?.revision};
+        duration_ms:Date.now()-start,conversation_id:conversationId,memory_results:memoryResults,memory_revision:requestPolicy?.revision,history_floor:requestPolicy ? memoryHistoryFloor(requestPolicy) : undefined};
     }
     if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId)))
       ai1 = { ...ai1, content: "Vos réglages ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.", tool_calls: [] };
@@ -950,7 +953,8 @@ export class VoiceAgentService {
       model_receipt: modelReceipt, actions_unverified: unverified,
       duration_ms: Date.now() - start,
       conversation_id: conversationId,
-      memory_results: memoryResults, memory_revision: currentAfterProvider?.revision, summary_status: summaryResult.status, summary_cost_unknown: summaryResult.costUnknown,
+      memory_results: memoryResults, memory_revision: currentAfterProvider?.revision,
+      history_floor: currentAfterProvider ? memoryHistoryFloor(currentAfterProvider) : undefined, summary_status: summaryResult.status, summary_cost_unknown: summaryResult.costUnknown,
     };
   }
 

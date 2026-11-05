@@ -3,12 +3,23 @@ import { clientFixture, policy, memory, command, receipt, USER, OTHER, CID, CONV
 
 test('settings read failure, malformed policy and mismatched owner fail closed', async () => {
   const f = clientFixture(); const service = new MemoryService(f.client);
-  f.rpc.mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
-  expect(await service.readPolicySafe(USER)).toBeNull();
-  f.rpc.mockResolvedValueOnce({ data: policy({ userId: OTHER }), error: null });
-  expect(await service.readPolicySafe(USER)).toBeNull();
-  f.rpc.mockResolvedValueOnce({ data: {}, error: null });
-  expect(await service.readPolicySafe(USER)).toBeNull();
+  jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  for (const failure of [{ data: null, error: { message: 'offline' } }, { data: policy({ userId: OTHER }), error: null }, { data: {}, error: null }]) {
+    f.rpc.mockResolvedValueOnce(failure).mockResolvedValueOnce(failure);
+    expect(await service.readPolicySafe(USER)).toBeNull();
+  }
+});
+test('a brief policy read failure is retried once instead of reading as a revocation', async () => {
+  const f = clientFixture(); const service = new MemoryService(f.client);
+  f.rpc.mockResolvedValueOnce({ data: null, error: { message: 'timeout' } });
+  expect(await service.readPolicySafe(USER)).toEqual(policy());
+  expect(f.rpc).toHaveBeenCalledTimes(2);
+});
+test('the thread lists its latest messages, oldest first (it stopped at the 50 oldest)', async () => {
+  const f = clientFixture({ assistant_messages: { data: [{ id: 'm3', created_at: '3' }, { id: 'm2', created_at: '2' }] } });
+  const page = await new MemoryService(f.client).listMessages(CONV, USER, { limit: 2 });
+  expect(page).toEqual({ items: [{ id: 'm2', created_at: '2' }, { id: 'm3', created_at: '3' }], nextCursor: null });
+  expect(f.calls).toContainEqual({ table: 'assistant_messages', method: 'order', args: ['created_at', { ascending: false }] });
 });
 test('authenticated command envelope is validated before RPC; no admin memory inserts', async () => {
   const admin = clientFixture(), user = clientFixture(); user.rpc.mockResolvedValueOnce({ data: receipt(), error: null });
