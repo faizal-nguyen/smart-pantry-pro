@@ -1,26 +1,43 @@
 import { TTLCache } from '../utils/cache.js';
-import { fetchJsonWithRetry, fetchWithTimeout } from '../utils/http.js';
+import { fetchJsonWithRetry } from '../utils/http.js';
+import { safeFetchText } from './imports/platforms/ssrfGuard.js';
 import * as cheerio from 'cheerio';
 
 const thumbCache = new TTLCache<any>(30 * 60 * 1000);
 
+const ALLOWED_HOST_SUFFIXES = ['instagram.com', 'cdninstagram.com'];
+
+/** https URL on instagram.com / cdninstagram.com or one of their subdomains. */
+export function isInstagramUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port) return false;
+  const host = parsed.hostname.toLowerCase();
+  return ALLOWED_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+}
+
 export async function getInstagramThumbnail(url: string) {
+  if (!isInstagramUrl(url)) {
+    return { success: false, thumbnail_url: null, source: url, message: 'Only instagram.com URLs are accepted', code: 'URL_NOT_ALLOWED' };
+  }
   const token = process.env.INSTAGRAM_OEMBED_TOKEN || process.env.FACEBOOK_APP_TOKEN;
   const cacheKey = `thumb:${token ? '1' : '0'}:${url}`;
   const cached = thumbCache.get(cacheKey);
   if (cached) return cached;
 
   try {
-    const res = await fetchWithTimeout(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SmartPantryBot/1.0)' } }, 5000);
-    if (res.ok) {
-      const html = await res.text();
-      const $ = cheerio.load(html);
-      const ogImage = $('meta[property="og:image"]').attr('content') || null;
-      if (ogImage) {
-        const payload = { success: true, thumbnail_url: ogImage, source: url, method: 'og:image', code: 'OG_FALLBACK' };
-        thumbCache.set(cacheKey, payload);
-        return payload;
-      }
+    // safeFetchText refuses private/metadata hosts and caps the body.
+    const html = await safeFetchText(url, { timeoutMs: 5000, maxBytes: 512 * 1024 });
+    const $ = cheerio.load(html);
+    const ogImage = $('meta[property="og:image"]').attr('content') || null;
+    if (ogImage) {
+      const payload = { success: true, thumbnail_url: ogImage, source: url, method: 'og:image', code: 'OG_FALLBACK' };
+      thumbCache.set(cacheKey, payload);
+      return payload;
     }
   } catch {}
 

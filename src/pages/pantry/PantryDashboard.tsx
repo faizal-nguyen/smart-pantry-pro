@@ -33,7 +33,7 @@ const PantryDashboard: React.FC = () => {
   // Perf audit 2026-05-21 — useInventory() ne charge plus `products` au
   // mount. Le dashboard a un autocomplete quick-add qui en a besoin.
   useEffect(() => { void loadProducts(); }, [loadProducts]);
-  const [quick, setQuick] = useState({ name: '', qty: 1, unit: 'pcs' });
+  const [quick, setQuick] = useState({ name: '', qty: 1, unit: 'unité' });
   const [openAuto, setOpenAuto] = useState(false);
 
   const toConsume = useMemo(() => {
@@ -77,9 +77,11 @@ const PantryDashboard: React.FC = () => {
         productId = created.id;
       }
 
+      // The lot keeps the unit picked here, never the unit of the shared product.
       const createdInv = await addToInventory({
         product_id: productId!,
         quantity: quick.qty,
+        unit: quick.unit,
         expiry_date: undefined,
         location: 'pantry'
       } as any);
@@ -261,7 +263,7 @@ const PantryDashboard: React.FC = () => {
                 onChange={e => setQuick(q => ({ ...q, unit: e.target.value }))}
                 className="border rounded px-3 py-2"
               >
-                <option value="pcs">pcs</option>
+                <option value="unité">unité</option>
                 <option value="kg">kg</option>
                 <option value="g">g</option>
                 <option value="L">L</option>

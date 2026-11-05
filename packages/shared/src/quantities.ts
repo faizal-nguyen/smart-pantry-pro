@@ -62,8 +62,20 @@ export function isAlwaysAvailableIngredient(ingredientName: string): boolean {
   return head === 'eau' && rest.every(token => TAP_WATER_WORDS.has(token));
 }
 
+/** A unit as typed or picked, without accents, case or the "(s)" of "unité(s)". */
+function unitName(value: string | null | undefined): string {
+  return normalizeIngredientName(value ?? '').replace(/\s*\([sx]\)$/, '');
+}
+
+/** Plural-insensitive name of a unit without conversion: "sachets" and "sachet(s)" are "sachet". */
+function unitKey(value: string | null | undefined): string {
+  const name = unitName(value);
+  // Characters, not UTF-16 units, like length() in SQL.
+  return [...name].length > 3 && /[sx]$/.test(name) ? name.slice(0, -1) : name;
+}
+
 export function describeUnit(value: string | null | undefined) {
-  return UNITS[normalizeIngredientName(value ?? '')] ?? null;
+  return UNITS[unitName(value)] ?? null;
 }
 
 export class QuantityError extends Error {
@@ -77,6 +89,8 @@ export function convertQuantity(quantity: number, from: string | null | undefine
   if (!Number.isFinite(quantity) || quantity < 0) throw new QuantityError('INVALID_QUANTITY', 'Quantité invalide.');
   const source = describeUnit(from);
   const target = describeUnit(to);
+  // A unit without conversion ("sachet", "boîte", "tasse") still counts in itself.
+  if (!source && !target && unitKey(from) && unitKey(from) === unitKey(to)) return Math.round(quantity * 1e9) / 1e9;
   if (!source || !target) throw new QuantityError('UNIT_UNKNOWN', 'Unité à vérifier.');
   if (source.dimension !== target.dimension) throw new QuantityError('UNIT_INCOMPATIBLE', 'Ces unités ne sont pas convertibles sans information supplémentaire.');
   return Math.round(quantity * source.factor / target.factor * 1e9) / 1e9;
@@ -187,7 +201,8 @@ export function allocateRecipeStock(
     const inStock = candidates.some(lot => (remaining.get(lot.id) ?? 0) > 0);
     if (!candidates.length) { absent('NOT_IN_STOCK'); return; }
     if (required == null || !Number.isFinite(required) || required <= 0) { absent(inStock ? 'QUANTITY_UNKNOWN' : 'NOT_IN_STOCK'); return; }
-    if (!describeUnit(ingredient.unit)) { absent(inStock ? 'UNIT_UNKNOWN' : 'NOT_IN_STOCK'); return; }
+    // "1 sachet" is taken from a lot in sachets; against grams it stays to verify (below).
+    if (!unitKey(ingredient.unit) || (!describeUnit(ingredient.unit) && !inStock)) { absent(inStock ? 'UNIT_UNKNOWN' : 'NOT_IN_STOCK'); return; }
     let needed = required;
     const proposed: StockAllocation[] = [];
     let incompatible: StockMissing['reason'] | null = null;

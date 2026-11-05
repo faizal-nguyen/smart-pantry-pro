@@ -146,4 +146,20 @@ describe('GET /api/metrics', () => {
       .set('Authorization', 'Bearer secret-token');
     expect(ok.status).toBe(200);
   });
+
+  it('fails closed in production when METRICS_AUTH_TOKEN is not set', async () => {
+    const saved = { token: process.env.METRICS_AUTH_TOKEN, env: process.env.NODE_ENV };
+    delete process.env.METRICS_AUTH_TOKEN;
+    process.env.NODE_ENV = 'production';
+    try {
+      const app = express();
+      app.use('/api/metrics', createMetricsRouter());
+      const res = await request(app).get('/api/metrics');
+      expect(res.status).toBe(503);
+      expect(res.text).not.toMatch(/process_cpu_user_seconds_total/);
+    } finally {
+      if (saved.token === undefined) delete process.env.METRICS_AUTH_TOKEN; else process.env.METRICS_AUTH_TOKEN = saved.token;
+      process.env.NODE_ENV = saved.env;
+    }
+  });
 });

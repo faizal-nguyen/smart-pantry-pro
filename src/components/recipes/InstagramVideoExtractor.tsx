@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useInstagramThumbnail } from '@/hooks/useInstagramThumbnail';
+import { authHeader } from '@/lib/api';
 
 interface Recipe {
   title: string;
@@ -136,6 +137,8 @@ export const InstagramVideoExtractor: React.FC<InstagramVideoExtractorProps> = (
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // The API requires the signed-in user's token.
+          ...(await authHeader()),
         },
         body: JSON.stringify({ 
           videoUrl: url,
