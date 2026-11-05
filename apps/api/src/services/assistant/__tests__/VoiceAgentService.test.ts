@@ -1109,6 +1109,21 @@ describe('session continuity when durable history is off',()=>{
     expect(JSON.stringify(ai.complete.mock.calls.slice(1).map(call=>call[0].messages))).toContain('Pommes de terre grenaille');
     expect(result.message).not.toMatch(/réglages.*ont changé/);
   });
+  it('the recipe answer is written knowing the earlier turns (« Et sans crème ? »)',async()=>{
+    const turns=[{role:'user' as const,content:'Propose-moi un dîner avec du poulet'},{role:'assistant' as const,content:'Hibachi Fried Rice ou Soboro Udon.'}];
+    const suggestion={pipeline_version:3,profile_version:0,cookable_now:[],almost_cookable:[],verify_suggestions:[],excluded_suggestions:[],recent_suggestions:[],
+      request_constraints:{exclude_ingredients:['crème'],diets:[]}};
+    const handler={execute:jest.fn(async()=>({result:suggestion}))};
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>ai.complete.mock.calls.length===1
+      ? {content:'',model:req.model,usage:{prompt_tokens:10,completion_tokens:10},tool_calls:[{id:'tool-one',name:'suggest_recipes_for_context',arguments:'{"ingredient":"poulet","exclude_ingredients":["crème"]}'}]}
+      : {content:'Sans crème : Hibachi Fried Rice.',model:req.model,usage:{prompt_tokens:10,completion_tokens:10}})};
+    await serviceWith({build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder,ai,{suggest_recipes_for_context:handler})
+      .handleRequest({...input,text:'Et sans crème ?',sessionMessages:turns},makeCtx());
+    expect(ai.complete).toHaveBeenCalledTimes(2);
+    const synthesis=JSON.stringify(ai.complete.mock.calls[1][0].messages);
+    expect(synthesis).toContain('Propose-moi un dîner avec du poulet');
+    expect(synthesis).toContain('exclude_ingredients');
+  });
 });
 
 describe('no change is announced without a write',()=>{

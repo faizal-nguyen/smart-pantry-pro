@@ -73,6 +73,12 @@ describe('chefAgent — chefSystemPrompt', () => {
     expect(prompt).toMatch(/phrase résumé/);
   });
 
+  it('only claims a « sans X » the tool applied, and says when nothing is certain from stock', () => {
+    expect(prompt).toMatch(/request_constraints/);
+    expect(prompt).toMatch(/pas pu (l')?appliquer/);
+    expect(prompt).toMatch(/cookable_now et almost_cookable sont vides/);
+  });
+
   it('CHEF_ROUND2_INSTRUCTION asks for no further tool calls', () => {
     expect(CHEF_ROUND2_INSTRUCTION).toMatch(/n'invoque aucun outil/);
   });

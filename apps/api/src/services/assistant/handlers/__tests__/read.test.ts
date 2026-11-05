@@ -797,6 +797,18 @@ describe('SuggestRecipesForContextHandler', () => {
     expect(result.result.cookable_now).toHaveLength(3);
   });
 
+  it('exclude_ingredients leaves those recipes out for this request only', async () => {
+    const tomato = { id: 'r-tomate', name: 'Salade', description: null, prep_time: 10, cook_time: 0, servings: 2, image_url: null,
+      cuisine_category: null, meal_type: null, tags: null, created_at: '2026-05-10T00:00:00Z',
+      recipe_ingredients: [{ id: 'i-t', ingredient_name: 'Tomate', quantity: 1, unit: 'g', inventory_product_id: 'p-tomate', is_essential: true }] };
+    const { client } = makeClient({ routes: { recipes: { data: [tomato] },
+      inventory: { data: [{ id: 'lot-p-tomate', product_id: 'p-tomate', quantity: 100, unit: 'g', stock_version: 0 }] } } });
+    const result = await new SuggestRecipesForContextHandler().execute(makeCtx(client), { exclude_ingredients: ['tomates'] });
+    expect(result.result.cookable_now).toHaveLength(0);
+    expect(result.result.excluded_suggestions!.map((r) => r.id)).toEqual(['r-tomate']);
+    expect(result.result.request_constraints).toEqual({ exclude_ingredients: ['tomates'], diets: [] });
+  });
+
   // ---- PRP-226 PR1 regression — open question / fallback / args -------
 
   it('PRP-226 — answers with recent_suggestions when nothing cookable', async () => {

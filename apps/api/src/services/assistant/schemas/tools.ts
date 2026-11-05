@@ -192,6 +192,9 @@ const suggestRecipesForContextArgs = z.object({
   protein_family: proteinFamilySchema.optional(),
   protein_cut: proteinCutSchema.optional(),
   dietary_flag: dietaryFlagSchema.optional(),
+  /** Left out of this request only (« sans crème »); never saved to the profile. */
+  // The engine keeps the first 10; a longer list must not fail the whole call.
+  exclude_ingredients: z.array(z.string().trim().min(1).max(80)).min(1).max(30).optional(),
 });
 export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForContextArgs>;
 
@@ -567,6 +570,11 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
           type: 'string',
           enum: ['vegetarien', 'vegan', 'sans_porcin', 'sans_alcool'],
           description: 'PRP-239: narrow by recipes.recipe_facets.dietary_flags. Use sparingly — sans_porcin and sans_alcool are policy defaults.',
+        },
+        exclude_ingredients: {
+          type: 'array', minItems: 1, maxItems: 10,
+          items: { type: 'string', minLength: 1, maxLength: 80 },
+          description: 'Ingredients the user leaves out of THIS request only, singular or as said (« sans crème » → ["crème"], « pas de champignons ni d’oignons » → ["champignons","oignons"]). Never saved. When the user refines an earlier ask, repeat the earlier exclusions.',
         },
       },
       additionalProperties: false,

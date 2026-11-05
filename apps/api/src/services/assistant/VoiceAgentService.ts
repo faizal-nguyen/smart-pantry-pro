@@ -103,6 +103,8 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "batch cooking" → { "goal": "batch_cooking" }
     - "une recette italienne" → { "query": "italien" }
     - 4 personnes → { "servings": 4 }
+    - "végétarien", "sans viande" → { "dietary_flag": "vegetarien" }
+    - "sans crème", "pas de champignons" → { "exclude_ingredients": ["crème"] } (this request only). A follow-up like « Et sans crème ? » refines the previous ask: call the tool again with the earlier ingredient and context args plus the new exclusion.
 - Only when all relevant tool calls come back empty should you ask the user to import a new recipe or add items to the shopping list.
 - DO NOT invent recipes out of thin air. Only propose recipes returned by a tool.
 - When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
@@ -437,11 +439,12 @@ export class VoiceAgentService {
       return [{ role: 'system' as const, content: basePrompt }, { role: 'user' as const, content: transcript }];
     } : undefined;
 
+    // A memory saved by this or an earlier turn does not end the session; a revocation does.
+    const sessionTurns: AICompletionRequest['messages'] = requestPolicy && withinMemoryHistory(requestPolicy, input.sessionRevision) && !requestPolicy.saveHistory
+      ? (input.sessionMessages ?? []).slice(-8).map(m => ({ role: m.role, content: m.content.slice(0,500) })) : [];
     const aiMessages: AICompletionRequest['messages'] = [
       { role: 'system', content: systemContent },
-      // A memory saved by this or an earlier turn does not end the session; a revocation does.
-      ...(requestPolicy && withinMemoryHistory(requestPolicy, input.sessionRevision) && !requestPolicy.saveHistory
-        ? (input.sessionMessages ?? []).slice(-8).map(m => ({ role: m.role, content: m.content.slice(0,500) })) : []),
+      ...sessionTurns,
       { role: 'user', content: transcript },
     ];
 
@@ -781,6 +784,8 @@ export class VoiceAgentService {
 
         const synthesisMessages: AICompletionRequest['messages'] = [
           { role: 'system', content: synthesisSystem },
+          // Without the earlier turns « Et sans crème ? » is answered as a new question.
+          ...sessionTurns,
           { role: 'user', content: transcript },
           {
             role: 'assistant',

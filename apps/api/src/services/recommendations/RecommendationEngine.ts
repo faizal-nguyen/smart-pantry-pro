@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
-import { classifyMemoryFact,mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
+import { classifyMemoryFact,ingredientNameTokens,mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
 import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
 import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
-import { qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { namesIngredient,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
 import { evaluateRecipe } from './RecipeEvaluation.js';
+import { requestConstraints,resolveExclusions } from './RequestConstraints.js';
 import { scoreMemoryTaste } from './MemoryTasteScoring.js';
 import { sameMemoryPolicy } from '../assistant/MemoryPolicy.js';
 import type { RecommendationContext,RecommendationResult,RecipeWithIngredients,RecommendedRecipeView,RecommendationScoreParts } from './types.js';
@@ -63,16 +64,32 @@ export class RecommendationEngine {
     }
     if (input.dietaryFlag==='vegetarien' && !settings.diets.includes('vegetarian')) settings.diets.push('vegetarian');
     if (input.dietaryFlag==='vegan' && !settings.diets.includes('vegan')) settings.diets.push('vegan');
+    // « Et sans crème ? »: exclusions said now or passed by the tool hold for this call only.
+    const said=requestConstraints(temporary);
+    settings.diets=[...new Set([...settings.diets,...said.diets])];
     const [recipes,lots,interactions,history]=await Promise.all([this.loadRecipes(ctx,input),this.loadInventory(ctx),this.loadInteractions(ctx),this.loadHistory(ctx)]);
     const productIds=[...new Set(recipes.flatMap(recipe=>(recipe.recipe_ingredients ?? []).map(item=>item.inventory_product_id).filter(Boolean)))];
     const products=await this.loadProducts(ctx,productIds);
+    // A said phrase counts only when it names a food these recipes or the registry know, so
+    // « sans os » neither filters nor is reported as applied. Tool terms are the model's reading.
+    const same=(a:string,b:string)=>ingredientNameTokens(a).join(' ')===ingredientNameTokens(b).join(' ');
+    const requestedExclusions=[...(input.excludedIngredients ?? []).map(term=>term.trim().toLowerCase().slice(0,80)),
+      ...resolveExclusions(said.phrases,term=>namesIngredient(term,recipes))]
+      .filter((term,index,all)=>term && all.findIndex(other=>same(other,term))===index).slice(0,10);
+    settings.excludedIngredients=[...settings.excludedIngredients,...requestedExclusions.filter(term=>!settings.excludedIngredients.some(known=>same(known,term)))];
+    const requestDiets=[...new Set([...said.diets,...(requestConstraint?.field==='diets' ? requestConstraint.value as string[] : []),
+      ...(input.dietaryFlag==='vegetarien' ? ['vegetarian'] : input.dietaryFlag==='vegan' ? ['vegan'] : [])])];
+    const requestExcluded=[...requestedExclusions,...(requestConstraint?.field==='excludedIngredients' ? requestConstraint.value as string[] : [])]
+      .filter((term,index,all)=>all.findIndex(other=>same(other,term))===index);
+    const requested=requestExcluded.length || requestDiets.length ? { exclude_ingredients:requestExcluded,diets:requestDiets } : null;
+    const requestView=requested ? { request_constraints:requested } : {};
     const stockVersion=stockFingerprint(lots);
     // Read authoritative inputs before cache: profile, date, edited recipes, product
     // provenance, feedback and cooked history all participate, even on direct writes.
     const key='v10-03c:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
       try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) {
-        if (!ctx.memoryService || sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId))) return cached.hit.result;
+        if (!ctx.memoryService || sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId))) return { ...cached.hit.result,...requestView };
         return this.suggestForUser({ ...ctx, memoryService: undefined }, input);
       } } catch { /* Fresh computation remains authoritative. */ }
     }
@@ -157,13 +174,13 @@ export class RecommendationEngine {
     for (const bucket of [cookable,almost,verify,excluded,recent]) bucket.sort(sort);
     const selected=new Set([...cookable,...almost].sort(sort).slice(0,limit).map(recipe=>`${recipe.reference.source}:${recipe.id}`));
     const result:RecommendationResult={ cookable_now:cookable.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),almost_cookable:almost.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),recent_suggestions:input.includeRecentFallback===false ? [] : recent.slice(0,limit).map(recipe=>({ ...recipe,description:recipe.description ?? null,servings:recipe.servings ?? null,cuisine_category:recipe.cuisine_category ?? null,meal_type:recipe.meal_type ?? null,tags:recipe.tags ?? null })),
-      verify_suggestions:verify.slice(0,limit),excluded_suggestions:excluded.slice(0,limit),total_user_recipes:recipes.length,pipeline_version:3,profile_version:profile.version,memory_revision:memoryPolicy?.revision,calculated_at:now.toISOString(),has_constraints:settings.allergies.length+settings.diets.length+settings.excludedIngredients.length>0 };
+      verify_suggestions:verify.slice(0,limit),excluded_suggestions:excluded.slice(0,limit),total_user_recipes:recipes.length,pipeline_version:3,profile_version:profile.version,memory_revision:memoryPolicy?.revision,calculated_at:now.toISOString(),has_constraints:settings.allergies.length+settings.diets.length+settings.excludedIngredients.length>0,...requestView };
     if (ctx.memoryService && !sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId)))
       return this.suggestForUser({ ...ctx, memoryService: undefined }, input);
     // No sensitive input or raw conversation goes into ordinary recommendation events.
     if (ctx.eventWriter) {
       try { result.event_id=await ctx.eventWriter.recordEvent({ userId:ctx.userId,conversationId:ctx.conversationId ?? null,assistantMessageId:ctx.assistantMessageId ?? null,requestText:null,context:input,result }); } catch { /* Optional event receipt; no false domain success. */ }
-      if (!requestConstraint && !temporaryTaste) try { await ctx.eventWriter.writeCache({ userId:ctx.userId,cacheKey:key,payload:result }); } catch { /* Computed result remains valid. */ }
+      if (!requestConstraint && !temporaryTaste && !requested) try { await ctx.eventWriter.writeCache({ userId:ctx.userId,cacheKey:key,payload:result }); } catch { /* Computed result remains valid. */ }
     }
     return result;
   }

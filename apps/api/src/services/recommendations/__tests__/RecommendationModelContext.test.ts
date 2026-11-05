@@ -34,3 +34,9 @@ test('bounded recipe context remains complete JSON instead of cutting an evidenc
   expect(parsed.cookable_now[0].reason_codes[0].text).toHaveLength(160);
   expect(recommendationModelContext({ products: [] })).toBeNull();
 });
+
+test('the constraints of the current request reach the model even when the profile is private', () => {
+  const shaped = { ...result(), request_constraints: { exclude_ingredients: ['crème'], diets: ['gluten_free'] } };
+  expect(recommendationModelContext(shaped, undefined)).toMatchObject({ request_constraints: { exclude_ingredients: ['crème'], diets: ['gluten_free'] } });
+  expect(recommendationModelContext(result(), undefined)).not.toHaveProperty('request_constraints');
+});
