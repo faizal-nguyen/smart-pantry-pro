@@ -1,10 +1,11 @@
-import { classifyMemoryFact, isSensitiveMemoryText, MemoryFactPayloadSchema, normalizeMemoryText,
-  type MemoryPolicy, type NutritionProfileSettings } from '@smart/shared';
+import { classifyMemoryFact, ingredientNameTokens, isSensitiveMemoryText, MemoryFactPayloadSchema, memoryHistoryFloor, normalizeMemoryText,
+  withinMemoryHistory, type MemoryPolicy, type NutritionProfileSettings } from '@smart/shared';
 import type { AssistantMemoryItem, AssistantMessage, AssistantConversationSummary, AssistantSessionContext } from './MemoryService.js';
 
 export type MemoryPurpose = 'personal_ui' | 'deterministic' | 'model_context' | 'model_tool';
+/** No revocation between the two reads; a new memory or a profile edit is not one. */
 export function sameMemoryPolicy(a: MemoryPolicy | null | undefined, b: MemoryPolicy | null | undefined): boolean {
-  return !!a && !!b && a.userId === b.userId && a.revision === b.revision &&
+  return !!a && !!b && a.userId === b.userId && memoryHistoryFloor(a) === memoryHistoryFloor(b) &&
     a.memoryEnabled === b.memoryEnabled && a.saveHistory === b.saveHistory &&
     a.shareProfile === b.shareProfile && a.profileVersion === b.profileVersion;
 }
@@ -32,25 +33,37 @@ export function privateProfileTerms(settings: NutritionProfileSettings | null): 
     ...settings.avoidedIngredients, ...settings.cuisines, ...settings.equipment,
     ...settings.diets].map(normalizeMemoryText).filter(term => term.length >= 3);
 }
+/**
+ * What was said since the last revocation is the thread of the conversation,
+ * preferences and proposals included ("Voici 3 idées…", "je n'aime pas les
+ * champignons"): forgetting a memory or withdrawing consent raises the history
+ * floor instead. An unshared profile never leaks through it.
+ */
 export function allowedHistoryText(text: string, policy: MemoryPolicy, privateTerms: string[] = []): boolean {
+  if (policy.shareProfile) return true;
+  if (isSensitiveMemoryText(text)) return false;
+  // Whole words, singular or plural: "arachides" is "arachide", "fourchette" is not "four".
+  const words = ' ' + ingredientNameTokens(text).join(' ') + ' ';
+  return !privateTerms.some(term => { const name = ingredientNameTokens(term).join(' '); return !!name && words.includes(' ' + name + ' '); });
+}
+/**
+ * A preference or durable fact ("je n'aime pas…", "d'habitude…"): the stuff of
+ * long-term memory. Searching other conversations skips it while memory is off.
+ */
+export function durablePreferenceText(text: string): boolean {
   const fact = classifyMemoryFact(text);
-  // Durable facts come from their canonical source; past dialogue cannot
-  // override it, promote a candidate, or revive a forgotten preference.
-  if (fact && !['session', 'feedback'].includes(fact.destination)) return false;
-  if (fact?.destination !== 'session' && /\b(souviens|retiens|memorise|prefer\w*|aime\w*|habitude\w*|habituellement)\b/.test(normalizeMemoryText(text))) return false;
-  if (!policy.shareProfile && (isSensitiveMemoryText(text) ||
-    privateTerms.some(term => normalizeMemoryText(text).includes(term)))) return false;
-  return true;
+  if (fact && !['session', 'feedback'].includes(fact.destination)) return true;
+  return fact?.destination !== 'session' && /\b(souviens|retiens|memorise|prefer\w*|aime\w*|habitude\w*|habituellement)\b/.test(normalizeMemoryText(text));
 }
 export function allowedMessage(row: AssistantMessage, policy: MemoryPolicy, terms: string[] = []): boolean {
   if (row.expires_at && (!Number.isFinite(Date.parse(row.expires_at)) || Date.parse(row.expires_at) <= Date.now())) return false;
   if (classifyMemoryFact(row.content)?.destination === 'session' &&
     (!Number.isFinite(Date.parse(row.created_at)) || Date.parse(row.created_at) < Date.now() - 24 * 3600 * 1000)) return false;
-  return policy.saveHistory && row.user_id === policy.userId && row.policy_revision === policy.revision &&
+  return policy.saveHistory && row.user_id === policy.userId && withinMemoryHistory(policy, row.policy_revision) &&
     ['user', 'assistant'].includes(row.role) && allowedHistoryText(row.content, policy, terms);
 }
 export function allowedSummary(row: AssistantConversationSummary, policy: MemoryPolicy, terms: string[] = []): boolean {
-  return policy.saveHistory && row.user_id === policy.userId && row.policy_revision === policy.revision &&
+  return policy.saveHistory && row.user_id === policy.userId && withinMemoryHistory(policy, row.policy_revision) &&
     !!row.coverage_hash && row.covered_message_ids.length > 0 && allowedSummaryText(row.summary, policy, terms);
 }
 export function allowedSummaryText(text: string, policy: MemoryPolicy, terms: string[] = []): boolean {
@@ -58,7 +71,7 @@ export function allowedSummaryText(text: string, policy: MemoryPolicy, terms: st
 }
 export function allowedSession(row: AssistantSessionContext, policy: MemoryPolicy, conversationId: string, terms: string[] = []): boolean {
   return policy.saveHistory && row.user_id === policy.userId && row.conversation_id === conversationId &&
-    row.policy_revision === policy.revision && Date.parse(row.expires_at) > Date.now() &&
+    withinMemoryHistory(policy, row.policy_revision) && Date.parse(row.expires_at) > Date.now() &&
     allowedHistoryText(JSON.stringify(row.value), policy, terms);
 }
 export function modelMemoryView(row: AssistantMemoryItem) {

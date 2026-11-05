@@ -40,7 +40,7 @@ def artifact(kind,payload,owner=A,revision=None):
             literal(json.dumps(payload))+"::jsonb);",role="service_role")
     return json.loads(out) if out else None
 
-def tests():
+def tests(history_floor=False):
     equal(policy()["memoryEnabled"],False)
     equal(policy()["saveHistory"],False)
     equal(execute(command("Souviens-toi que je préfère les plats épicés"))["status"],"disabled")
@@ -189,7 +189,11 @@ def tests():
         assert item(legacy) and item(other["memory_id"],B)
         equal(run("SELECT count(*) FROM assistant_messages WHERE id="+literal(message["id"])+";"),"0")
         equal(run("SELECT count(*) FROM assistant_conversation_summaries WHERE user_id="+literal(A)+";"),"0")
-        equal(artifact("message",{"conversation_id":conv["id"],"role":"user","content":"Réponse tardive"},revision=old),None)
+        late={"conversation_id":conv["id"],"role":"user","content":"Réponse tardive"}
+        if history_floor:  # 20261105110000: expiry is not a revocation, the deleted conversation refuses the write
+            run("SELECT persist_assistant_memory_artifact("+literal(A)+"::uuid,"+str(old)+",'message',"+literal(json.dumps(late))+"::jsonb);",
+                role="service_role",error="MEMORY_NOT_FOUND")
+        else: equal(artifact("message",late,revision=old),None)
         equal(execute(command(text,source="assistant_inferred"))["status"],"not_saved")
         enable(dataRetention="full",autoDeleteAfter=0)
         full=execute(command("Souviens-toi de mon carnet sans échéance fictif"))

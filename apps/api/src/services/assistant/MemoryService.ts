@@ -298,6 +298,9 @@ export class MemoryService {
     opts: CursorListOpts = {},
   ): Promise<CursorListResult<MessageRow>> {
     const limit = normaliseLimit(opts.limit);
+    // Without a cursor the thread shows its latest messages, oldest first: the
+    // first page used to stop at the 50 oldest, hiding every new exchange.
+    if (!opts.cursor) return { items: await this.getRecentMessages(conversationId, userId, limit), nextCursor: null };
     let query = this.admin
       .from('assistant_messages')
       .select('*')
@@ -307,10 +310,8 @@ export class MemoryService {
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .limit(limit + 1);
-    if (opts.cursor) {
-      const cur = decodeCursor(opts.cursor);
-      if (cur) query = query.gt('created_at', cur.createdAt);
-    }
+    const cur = decodeCursor(opts.cursor);
+    if (cur) query = query.gt('created_at', cur.createdAt);
     const { data, error } = await query;
     if (error) throw this.dbError('listMessages', error);
     return this.paginate(data ?? [], limit);
@@ -559,8 +560,16 @@ export class MemoryService {
     if (!parsed.success || parsed.data.userId !== userId) throw this.dbError('readPolicy', null);
     return parsed.data;
   }
+  /**
+   * null when the policy cannot be read. One retry: a brief network or lock
+   * wait must not read as a revocation ("Vos réglages ont changé").
+   */
   async readPolicySafe(userId: string): Promise<MemoryPolicy | null> {
-    try { return await this.readPolicy(userId); } catch { return null; }
+    try { return await this.readPolicy(userId); } catch { /* retried once below */ }
+    try { return await this.readPolicy(userId); } catch (error) {
+      console.warn('[assistant.memory] policy unreadable', error instanceof MemoryServiceError ? error.code : 'unknown');
+      return null;
+    }
   }
   async getCommandReceipt(userId: string, commandId: string): Promise<MemoryWriteResult | null> {
     const client = this.admin as unknown as SupabaseClient;

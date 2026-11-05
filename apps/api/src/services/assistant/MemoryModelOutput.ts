@@ -1,4 +1,4 @@
-import type { MemoryPolicy } from '@smart/shared';
+import { withinMemoryHistory, type MemoryPolicy } from '@smart/shared';
 import { recommendationModelContext } from '../recommendations/RecommendationModelContext.js';
 
 const blockedKeys = /^(profile|settings|allergies|excludedIngredients|diets|goals|targets|personal_notes|notes|evidence|transcript|request_text|tool_args|audio_transcript|health|memory_context)$/i;
@@ -12,7 +12,7 @@ function redact(value: unknown, share: boolean, depth = 0): unknown {
 export function memoryModelToolResult(tool: string, result: unknown, policy: MemoryPolicy | null): unknown {
   const obj = result && typeof result === 'object' ? result as Record<string, unknown> : {};
   if (tool === 'read_user_memories' || tool === 'search_conversation_history') {
-    if (!policy || obj.policy_revision !== policy.revision ||
+    if (!policy || !withinMemoryHistory(policy, obj.policy_revision as number | undefined) ||
       (tool === 'read_user_memories' ? !policy.memoryEnabled : !policy.saveHistory)) return { status: 'unavailable' };
     return result;
   }

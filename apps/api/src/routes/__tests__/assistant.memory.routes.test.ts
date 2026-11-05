@@ -14,6 +14,11 @@ test('memory HTTP requires an authenticated owner and policy failures are closed
   expect(s.admin.rpc).toHaveBeenCalledWith('read_assistant_memory_policy',{p_user_id:USER});
   s.admin.rpc.mockResolvedValue({data:policy({userId:OTHER}),error:null});await request(s.app).get('/assistant/memory-policy').expect(503);
 });
+test('a front still open from before the history floor can read the policy',async()=>{
+  const s=setup();s.admin.rpc.mockResolvedValue({data:policy({historyFloor:3}),error:null});
+  const result=await request(s.app).get('/assistant/memory-policy').expect(200);
+  expect(result.body.data.policy).toEqual(policy());
+});
 test('strict command rejects forged owners and uses the user RPC, not the privileged client',async()=>{
   const s=setup();await request(s.app).post('/assistant/memory-commands').send({...command(),user_id:OTHER}).expect(400);expect(s.user.rpc).not.toHaveBeenCalled();
   const result=await request(s.app).post('/assistant/memory-commands').send(command()).expect(200);expect(result.body.data.receipt.status).toBe('saved');

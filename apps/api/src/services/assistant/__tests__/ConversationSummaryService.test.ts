@@ -15,7 +15,9 @@ test('20 uncovered messages trigger one awaited bounded call and actual persiste
   expect(result.status).toBe('saved');expect(result.costUsd).toBeGreaterThan(0);
   expect(ai.complete).toHaveBeenCalledTimes(1);expect(ai.complete).toHaveBeenCalledWith(expect.objectContaining({ max_tokens:320,maxRetries:0,timeoutMs:5000,signal:expect.any(AbortSignal) }));
   expect(ai.complete.mock.calls[0][0].messages[1].content.length).toBeLessThanOrEqual(SUMMARY_BUDGET.inputChars);
-  expect(memory.recordSummary).toHaveBeenCalledWith(CONV,USER,expect.objectContaining({ covered_message_ids:expect.arrayContaining(['id-0','id-19']),policy:policy() }));
+  expect(memory.recordSummary).toHaveBeenCalledWith(CONV,USER,expect.objectContaining({ covered_message_ids:expect.arrayContaining(['id-0','id-13']),policy:policy() }));
+  // The latest exchanges stay verbatim in the prompt instead of a summary of them.
+  expect(memory.recordSummary).toHaveBeenCalledWith(CONV,USER,expect.objectContaining({ covered_message_ids:expect.not.arrayContaining(['id-14']) }));
 });
 test('history disabled, threshold not reached, or duplicate claim do not call the provider',async()=>{
   const {service,memory,ai,rows}=setup();await service.maintain(USER,CONV,policy({ saveHistory:false }));expect(ai.complete).not.toHaveBeenCalled();
@@ -41,4 +43,15 @@ test('timeout aborts the single call; a late result cannot persist',async()=>{
     finish({ content:'Late text',model:'mock',usage:{prompt_tokens:1,completion_tokens:1} });await Promise.resolve();
     expect(memory.recordSummary).not.toHaveBeenCalled();
   } finally {jest.useRealTimers();}
+});
+
+test('after failed runs, only the messages that reach the prompt are marked as covered',async()=>{
+  const {service,memory,ai}=setup();
+  const rows=Array.from({length:60},(_,i)=>message({ id:'id-'+i,content:'Étape '+i+' '+'x'.repeat(300) }));
+  memory.modelArtifacts.mockResolvedValueOnce({ messages:rows,summary:null,session:[],privateTerms:[] });
+  expect((await service.maintain(USER,CONV,policy())).status).toBe('saved');
+  const prompt=ai.complete.mock.calls[0][0].messages[1].content;
+  const covered=(memory.recordSummary.mock.calls[0] as unknown as [string,string,{ covered_message_ids:string[] }])[2].covered_message_ids;
+  expect(covered.length).toBeLessThan(54);
+  for (const id of covered) expect(prompt).toContain('['+id+']');
 });

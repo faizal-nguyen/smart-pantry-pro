@@ -51,3 +51,15 @@ test('feedback calls the authenticated atomic interaction/journal command and do
   db.rpc.mockResolvedValue({data:null,error:{message:'not saved'}});
   await expect(registry.get('record_recipe_feedback')!.execute(ctx,args)).rejects.toThrow('NOT_SAVED');
 });
+
+test('with memory off, searching past conversations does not bring preferences back',async()=>{
+  const {registry,service,ctx}=setup();
+  const rows=[{id:'m1',role:'user',content:'Je n’aime pas les champignons'},{id:'m2',role:'assistant',content:'Une poêlée de champignons et de riz.'}];
+  service.modelArtifacts.mockResolvedValue({messages:rows,summary:null} as never);
+  const off=policy({memoryEnabled:false});service.readPolicySafe.mockResolvedValue(off);
+  const hidden=(await registry.get('search_conversation_history')!.execute(ctx,{query:'champignons'})).result as {matches:Array<{message_id:string}>};
+  expect(hidden.matches.map(m=>m.message_id)).toEqual(['m2']);
+  service.readPolicySafe.mockResolvedValue(policy());
+  const shown=(await registry.get('search_conversation_history')!.execute(ctx,{query:'champignons'})).result as {matches:Array<{message_id:string}>};
+  expect(shown.matches.map(m=>m.message_id)).toEqual(['m1','m2']);
+});

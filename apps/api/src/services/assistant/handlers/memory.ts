@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../../types/supabase.js';
 import type { ToolHandler, ToolHandlerRegistry, ToolExecutionContext } from './types.js';
 import type { MemoryService } from '../MemoryService.js';
-import { modelMemoryView, sameMemoryPolicy } from '../MemoryPolicy.js';
+import { durablePreferenceText, modelMemoryView, sameMemoryPolicy } from '../MemoryPolicy.js';
 import { memoryRpc } from '../memoryRpc.js';
 import type { CookingJournalService } from '../../cooking/CookingJournalService.js';
 import type { ForgetMemoryArgs, ReadUserMemoriesArgs, RecordRecipeFeedbackArgs, RememberPreferenceArgs,
@@ -29,11 +29,13 @@ class SearchConversationHistoryHandler implements ToolHandler<SearchConversation
     if (!policy?.saveHistory) return { result: { matches: [], policy_revision: null } };
     const { items } = await this.deps.memoryService.listConversations(ctx.userId, { limit: 20 });
     const matches: Array<{ conversation_id: string; message_id: string; role: string; snippet: string }> = [];
+    // With memory off, past conversations do not bring preferences back.
+    const found = (text: string) => text.toLowerCase().includes(args.query.toLowerCase()) && (policy.memoryEnabled || !durablePreferenceText(text));
     for (const conv of items) {
       const { messages, summary } = await this.deps.memoryService.modelArtifacts(ctx.userId, policy, conv.id, 100);
-      for (const row of messages) if (row.content.toLowerCase().includes(args.query.toLowerCase()))
+      for (const row of messages) if (found(row.content))
         matches.push({ conversation_id: conv.id, message_id: row.id, role: row.role, snippet: row.content.slice(0, 240) });
-      if (summary?.summary.toLowerCase().includes(args.query.toLowerCase())) matches.push({
+      if (summary && found(summary.summary)) matches.push({
         conversation_id: conv.id, message_id: summary.id, role: 'summary', snippet: summary.summary.slice(0, 240),
       });
       if (matches.length >= (args.limit ?? 10)) break;

@@ -33,3 +33,26 @@ test('limits are requested after shared filtering and the model budget remains b
   expect(service.modelMemories).toHaveBeenCalledWith(USER,policy(),8);
   expect(block.tokenEstimate).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxTokensEstimate);
 });
+
+describe('the latest exchanges are never the ones cut (audit 2026-11-04)',()=>{
+  const long=(i:number)=>message({ id:'m'+i,role:i%2 ? 'assistant' : 'user',content:'Message '+i+' '+'x'.repeat(380) });
+  test('a long thread drops its oldest messages and keeps the last reply whole',async()=>{
+    const {service,builder}=stub();
+    service.modelArtifacts.mockResolvedValueOnce({ messages:Array.from({length:30},(_,i)=>long(i)),summary:null,session:[session()],privateTerms:[] });
+    const block=await builder.build(USER,CONV);
+    expect(block.combinedText).toContain('Message 29 '+'x'.repeat(380));
+    expect(block.combinedText).toContain('Ce soir');
+    expect(block.combinedText).not.toContain('Message 0 ');
+    expect(block.combinedText.length).toBeLessThanOrEqual(CONTEXT_BUILDER_LIMITS.maxTokensEstimate*4);
+    expect(block.combinedText.indexOf('Échanges autorisés')).toBeGreaterThan(block.combinedText.indexOf('Souvenirs confirmés'));
+  });
+  test('messages the summary covers are not repeated, the others are all there',async()=>{
+    const {service,builder}=stub();
+    service.modelArtifacts.mockResolvedValueOnce({ messages:Array.from({length:14},(_,i)=>message({ id:'m'+i,content:'Échange '+i })),
+      summary:summary({ covered_message_ids:Array.from({length:8},(_,i)=>'m'+i) }),session:[],privateTerms:[] });
+    const block=await builder.build(USER,CONV);
+    expect(block.recentMessagesText).not.toContain('Échange 7');
+    for (let i=8;i<14;i+=1) expect(block.recentMessagesText).toContain('Échange '+i);
+    expect(service.modelArtifacts).toHaveBeenCalledWith(USER,policy(),CONV,100);
+  });
+});
