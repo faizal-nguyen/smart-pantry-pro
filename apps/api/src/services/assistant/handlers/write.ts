@@ -1,5 +1,5 @@
 import { StockCommandService } from '../../stock/StockCommandService.js';
-import type { StockCommandResult } from '@smart/shared';
+import { findTopUpLot, type StockCommandResult } from '@smart/shared';
 /**
  * PRP-221 J5b — Write handlers (LOW + MEDIUM tiers).
  *
@@ -146,11 +146,40 @@ export interface AddInventoryItemsResult {
     product_id: string;
     product_name: string;
     quantity: number;
+    /** Set when the quantity joined an existing lot: its new total, in its unit. */
+    topped_up?: { total: number; unit: string };
   }>;
   ambiguous: Array<{
     name: string;
     candidates: Array<{ product_id: string; product_name: string; score: number }>;
   }>;
+}
+
+interface InventoryLot {
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit: string | null;
+  expiry_date: string | null;
+  location: string | null;
+  stock_version: number;
+}
+
+/** The user's lots of these products, oldest first, with the product unit as fallback. */
+async function lotsByProduct(ctx: ToolExecutionContext, productIds: string[]): Promise<Map<string, InventoryLot[]>> {
+  const { data, error } = await ctx.userClient.from('inventory')
+    .select('id, product_id, quantity, unit, expiry_date, location, stock_version, product:products(unit_type)')
+    .eq('user_id', ctx.userId).in('product_id', [...new Set(productIds)]).order('created_at', { ascending: true });
+  if (error) throw error;
+  const lots = new Map<string, InventoryLot[]>();
+  for (const row of (data ?? []) as Array<InventoryLot & { product?: { unit_type: string | null } | Array<{ unit_type: string | null }> | null }>) {
+    const product = Array.isArray(row.product) ? row.product[0] : row.product;
+    lots.set(row.product_id, [...(lots.get(row.product_id) ?? []), {
+      id: row.id, product_id: row.product_id, quantity: Number(row.quantity), unit: row.unit ?? product?.unit_type ?? null,
+      expiry_date: row.expiry_date ?? null, location: row.location ?? null, stock_version: Number(row.stock_version),
+    }]);
+  }
+  return lots;
 }
 
 export class AddInventoryItemsHandler
@@ -168,38 +197,66 @@ export class AddInventoryItemsHandler
       };
     }
 
-    const payload = resolved.map((r) => ({
-      user_id: ctx.userId,
-      product_id: r.product_id,
-      quantity: r.quantity,
-      unit: r.unit,
-      expiry_date: r.expiry_date,
-    }));
+    // An add joins the one matching lot of its product (see findTopUpLot)
+    // instead of creating a row; the rest become new rows.
+    const lots = await lotsByProduct(ctx, resolved.map((r) => r.product_id));
+    const topUps = new Map<string, { lot: InventoryLot; total: number }>();
+    const fresh: typeof resolved = [];
+    const added: AddInventoryItemsResult['added'] = [];
+    for (const item of resolved) {
+      const current = (lots.get(item.product_id) ?? []).map((lot) => ({ ...lot, quantity: topUps.get(lot.id)?.total ?? lot.quantity }));
+      const hit = findTopUpLot(current, item);
+      if (!hit) { fresh.push(item); continue; }
+      topUps.set(hit.lot.id, hit);
+      added.push({ inventory_id: hit.lot.id, product_id: item.product_id, product_name: item.product_name, quantity: item.quantity,
+        topped_up: { total: hit.total, unit: hit.lot.unit ?? '' } });
+    }
+    const commandId = ctx.commandId;
+    if (topUps.size && !commandId) throw new Error('Identité de commande manquante.');
 
-    const { data, error } = await ctx.userClient
-      .from('inventory')
-      .insert(payload)
-      .select('id, product_id, quantity');
-    if (error) throw error;
+    let inserted: Array<{ id: string; product_id: string; quantity: number }> = [];
+    if (fresh.length) {
+      const { data, error } = await ctx.userClient
+        .from('inventory')
+        .insert(fresh.map((r) => ({
+          user_id: ctx.userId,
+          product_id: r.product_id,
+          quantity: r.quantity,
+          unit: r.unit,
+          expiry_date: r.expiry_date,
+        })))
+        .select('id, product_id, quantity');
+      if (error) throw error;
+      inserted = (data ?? []) as typeof inserted;
+    }
 
-    const inserted = ((data ?? []) as Array<{ id: string; product_id: string; quantity: number }>);
+    let command: StockCommandResult | null = null;
+    if (topUps.size && commandId) {
+      const service = new StockCommandService(ctx.userClient);
+      try {
+        command = await service.getResult(ctx.userId, commandId) ?? await service.execute(ctx.userId, {
+          command_id: commandId, command_type: 'adjust_inventory', payload_version: 1,
+          payload: { items: [...topUps.values()].map(({ lot, total }) => ({ id: lot.id, quantity: total, unit: lot.unit ?? '', expected_version: lot.stock_version })) },
+        });
+      } catch (err) {
+        // A lot changed meanwhile: nothing stays half-added.
+        if (inserted.length) await ctx.userClient.from('inventory').delete().eq('user_id', ctx.userId).in('id', inserted.map((r) => r.id));
+        throw err;
+      }
+    }
 
-    const added: AddInventoryItemsResult['added'] = inserted.map((row, i) => ({
+    added.push(...inserted.map((row, i) => ({
       inventory_id: row.id,
       product_id: row.product_id,
-      product_name: resolved[i]?.product_name ?? '',
+      product_name: fresh[i]?.product_name ?? '',
       quantity: row.quantity,
-    }));
+    })));
+    const insertedIds = inserted.map((r) => r.id);
+    const reversibleAction: ReversibleAction | null = command
+      ? { tool: '_undo_inventory_add', args: { original_command_id: command.command_id, inventory_ids: insertedIds } }
+      : insertedIds.length ? { tool: '_remove_inventory_items', args: { inventory_ids: insertedIds } } : null;
 
-    const reversibleAction: ReversibleAction | null =
-      inserted.length > 0
-        ? {
-            tool: '_remove_inventory_items',
-            args: { inventory_ids: inserted.map((r) => r.id) },
-          }
-        : null;
-
-    if (inserted.length > 0) await invalidateRecoCache(ctx);
+    if (added.length > 0) await invalidateRecoCache(ctx);
 
     return { result: { added, ambiguous }, reversibleAction };
   }

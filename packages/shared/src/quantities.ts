@@ -100,6 +100,37 @@ export interface StockLot {
   expiry_date?: string | null;
 }
 
+export interface TopUpLot {
+  id: string;
+  quantity: number;
+  /** The row unit, or the product unit when the row has none. */
+  unit: string | null;
+  expiry_date?: string | null;
+  location?: string | null;
+}
+
+/**
+ * The lot of one product that an add tops up instead of creating a row: stock
+ * left (an empty lot may carry a stale date), a unit the stock commands can
+ * convert, no other place, and the same expiry date — or, for an add without
+ * one, the only dated lot. Lots with the same date are interchangeable: the
+ * first one wins.
+ */
+export function findTopUpLot<T extends TopUpLot>(
+  lots: readonly T[],
+  add: { quantity: number; unit: string | null; expiry_date?: string | null; location?: string | null },
+): { lot: T; total: number } | null {
+  const fits = lots.flatMap(lot => {
+    if (!(lot.quantity > 0) || (add.location && lot.location && add.location !== lot.location)) return [];
+    try { return [{ lot, total: Math.round((lot.quantity + convertQuantity(add.quantity, add.unit, lot.unit)) * 1e9) / 1e9 }]; }
+    catch { return []; }
+  });
+  const date = add.expiry_date ?? null;
+  const sameDate = fits.filter(({ lot }) => (lot.expiry_date ?? null) === date);
+  if (sameDate.length) return sameDate[0];
+  return !date && fits.length === 1 ? fits[0] : null;
+}
+
 export interface StockAllocation {
   ingredient_index: number;
   inventory_id: string;

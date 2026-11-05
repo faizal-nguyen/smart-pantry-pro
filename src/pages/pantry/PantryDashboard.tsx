@@ -17,6 +17,7 @@ import { Autocomplete, AutocompleteSuggestion } from '@/components/ui/Autocomple
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
+import { undoStockCommand } from '@/services/stockCommands';
 
 const PantryDashboard: React.FC = () => {
   // PRP-238 PR2 — user vient du context AuthSessionProvider via le hook.
@@ -87,19 +88,27 @@ const PantryDashboard: React.FC = () => {
       // The toast's `action` must be a <ToastAction> element: the Toaster
       // renders it as a React child, so a plain { label, onClick } object
       // crashed the page right after every successful quick add.
+      // A top-up is undone by its stock command: deleting the row would drop the whole lot.
       const undoAdd = async () => {
-        const { error: undoError } = await supabase.from('inventory').delete().eq('id', createdInv.id);
-        if (undoError) {
+        try {
+          if (createdInv.top_up_command_id) await undoStockCommand(createdInv.top_up_command_id);
+          else {
+            const { error: undoError } = await supabase.from('inventory').delete().eq('id', createdInv.id);
+            if (undoError) throw undoError;
+            dispatchAgentDbChanged(['inventory']);
+          }
+        } catch (undoError) {
           console.error('Quick add undo error', undoError);
           toast({ variant: 'destructive', title: 'Annulation impossible', description: 'Le produit est resté dans l\'inventaire.' });
           return;
         }
-        dispatchAgentDbChanged(['inventory']);
         toast({ title: 'Ajout annulé' });
       };
       toast({
         title: 'Produit ajouté',
-        description: `${createdInv?.product?.name || quick.name} ajouté à l'inventaire.`,
+        description: createdInv.top_up_command_id
+          ? `${createdInv.product?.name || quick.name} : ${createdInv.quantity} ${createdInv.unit ?? ''} au total dans ce lot.`
+          : `${createdInv?.product?.name || quick.name} ajouté à l'inventaire.`,
         action: (
           <ToastAction altText="Annuler l'ajout" onClick={() => void undoAdd()}>
             Annuler

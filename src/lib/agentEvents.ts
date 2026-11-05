@@ -105,6 +105,7 @@ const TOOL_TABLES: Record<string, AgentAffectedTable[]> = {
 
   // Internal handlers (only invoked through reversible_action)
   _remove_inventory_items: ['inventory'],
+  _undo_inventory_add: ['inventory'],
   _restore_inventory_quantities: ['inventory'],
   _restore_inventory_item_snapshot: ['inventory'],
   _restore_shopping_items: ['shopping_list'],
