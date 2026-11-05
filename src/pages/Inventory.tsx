@@ -18,7 +18,6 @@ import QuickStockDialog from '@/components/inventory/QuickStockDialog';
 import RoutineDiscardDialog from '@/components/inventory/RoutineDiscardDialog';
 import { DiscardDraftSchema,prepareDiscard,type DiscardDraft } from '@/services/stockDiscard';
 const AddProductDialog = lazy(() => import('@/components/inventory/AddProductDialog'));
-const MobileBarcodeScanner = lazy(() => import('@/components/scanner/MobileBarcodeScanner'));
 
 interface CategoryDef {
   key: string;
@@ -287,6 +286,6 @@ export default function Inventory() {
     <QuickStockDialog open={quickOpen} onOpenChange={setQuickOpen} onSaved={() => { setMessage('Les ajouts confirmés sont dans le stock.'); void stock.refetch(); }} />
     {editing && <QuickStockCorrection key={editing.id} item={editing} open onOpenChange={value => { if (!value) setEditing(null); }} onSave={save} />}
     {discardOpen && <RoutineDiscardDialog open onOpenChange={setDiscardOpen} onSaved={()=>{ setMessage('Perte enregistrée, stock mis à jour.');setLastCommand(null);setActionError(null);void stock.refetch(); }} />}
-    <Suspense fallback={<p role="status">Ouverture…</p>}>{manualOpen && <AddProductDialog open onOpenChange={setManualOpen} />}{scannerOpen && <MobileBarcodeScanner open onClose={() => setScannerOpen(false)} onScanSuccess={() => { setScannerOpen(false); void stock.refetch(); }} mode="inventory" />}</Suspense>
+    <Suspense fallback={<p role="status">Ouverture…</p>}>{manualOpen && <AddProductDialog open onOpenChange={setManualOpen} />}{scannerOpen && <AddProductDialog open startWithScanner onOpenChange={setScannerOpen} />}</Suspense>
   </div>;
 }

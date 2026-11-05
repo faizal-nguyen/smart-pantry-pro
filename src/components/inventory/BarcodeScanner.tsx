@@ -11,13 +11,19 @@ interface BarcodeScannerProps {
 }
 
 const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
-  const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFlash, setHasFlash] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const codeReader = useRef<BrowserMultiFormatReader | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // The zxing callback outlives the render that started it: read the
+  // parent's latest handlers so a scan sees its current state (e.g. the
+  // products list loaded after the scanner opened).
+  const onScanRef = useRef(onScan);
+  const onCloseRef = useRef(onClose);
+  onScanRef.current = onScan;
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (isOpen) {
@@ -34,11 +40,13 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
   const startScanning = async () => {
     try {
       setError(null);
-      setIsScanning(true);
 
-      // Check for camera permissions
-      const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      if (permission.state === 'denied') {
+      // Check for camera permissions. Older Safari versions reject the
+      // 'camera' name: getUserMedia below then reports the refusal itself.
+      const permission = await navigator.permissions
+        ?.query({ name: 'camera' as PermissionName })
+        .catch(() => null);
+      if (permission?.state === 'denied') {
         setError('Accès à la caméra refusé. Veuillez autoriser l\'accès dans les paramètres.');
         return;
       }
@@ -55,30 +63,25 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      // Check for flash capability
+      // Check for flash capability (getCapabilities is missing before Safari 17)
       const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities();
+      const capabilities = track?.getCapabilities?.() ?? {};
       setHasFlash('torch' in capabilities);
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      if (!videoRef.current) throw new Error('Video element not mounted');
 
-      // Initialize barcode reader
+      // Decode the stream opened above. decodeFromVideoDevice would ask
+      // for a second camera stream, which iOS answers by muting the first.
       codeReader.current = new BrowserMultiFormatReader();
-      
-      // Start decoding
-      codeReader.current.decodeFromVideoDevice(
-        undefined, // Use default video device
-        videoRef.current!,
+      await codeReader.current.decodeFromStream(
+        stream,
+        videoRef.current,
         (result, err) => {
           if (result) {
             const barcode = result.getText();
-            console.log('📱 Barcode detected:', barcode);
-            onScan(barcode);
+            onScanRef.current(barcode);
             stopScanning();
-            onClose();
+            onCloseRef.current();
           }
           if (err && !(err.name === 'NotFoundException')) {
             console.error('Scan error:', err);
@@ -89,13 +92,10 @@ const BarcodeScanner = ({ isOpen, onClose, onScan }: BarcodeScannerProps) => {
     } catch (err) {
       console.error('Error starting camera:', err);
       setError('Impossible d\'accéder à la caméra. Vérifiez les permissions.');
-      setIsScanning(false);
     }
   };
 
   const stopScanning = () => {
-    setIsScanning(false);
-
     // Stop the code reader
     if (codeReader.current) {
       codeReader.current.reset();

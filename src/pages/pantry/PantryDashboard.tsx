@@ -15,6 +15,8 @@ import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useInventory } from '@/hooks/useInventory';
 import { Autocomplete, AutocompleteSuggestion } from '@/components/ui/Autocomplete';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
+import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 
 const PantryDashboard: React.FC = () => {
   // PRP-238 PR2 — user vient du context AuthSessionProvider via le hook.
@@ -82,19 +84,27 @@ const PantryDashboard: React.FC = () => {
       } as any);
 
       setQuick({ name: '', qty: 1, unit: quick.unit });
-      const undoTimer = setTimeout(() => {}, 5000);
+      // The toast's `action` must be a <ToastAction> element: the Toaster
+      // renders it as a React child, so a plain { label, onClick } object
+      // crashed the page right after every successful quick add.
+      const undoAdd = async () => {
+        const { error: undoError } = await supabase.from('inventory').delete().eq('id', createdInv.id);
+        if (undoError) {
+          console.error('Quick add undo error', undoError);
+          toast({ variant: 'destructive', title: 'Annulation impossible', description: 'Le produit est resté dans l\'inventaire.' });
+          return;
+        }
+        dispatchAgentDbChanged(['inventory']);
+        toast({ title: 'Ajout annulé' });
+      };
       toast({
         title: 'Produit ajouté',
         description: `${createdInv?.product?.name || quick.name} ajouté à l'inventaire.`,
-        action: {
-          label: 'Annuler',
-          onClick: async () => {
-            clearTimeout(undoTimer);
-            try {
-              await supabase.from('inventory').delete().eq('id', createdInv.id);
-            } catch {}
-          }
-        }
+        action: (
+          <ToastAction altText="Annuler l'ajout" onClick={() => void undoAdd()}>
+            Annuler
+          </ToastAction>
+        ),
       });
     } catch (error) {
       console.error('Quick add error', error);

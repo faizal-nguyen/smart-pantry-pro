@@ -121,7 +121,7 @@ export const Autocomplete: React.FC<AutocompleteProps> = ({
           {grouped.map(([section, items]) => (
             <div key={section}>
               <div className="px-3 py-1 text-xs text-muted-foreground border-b bg-muted/30">{section}</div>
-              {items.map((s, idx) => {
+              {items.map((s) => {
                 const flatIndex = filtered.findIndex(f => f.id === s.id);
                 const active = flatIndex === activeIndex;
                 return (

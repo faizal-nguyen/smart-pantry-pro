@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, Navigate, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
-import { LayoutPerformanceProvider } from "./components/performance/PerformanceMonitor";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 import { AssistantProvider } from "./components/assistant/AssistantProvider";
@@ -197,15 +196,13 @@ const App = () => (
             transitions login/logout via onAuthStateChange. Les pages
             consomment via useAuthenticatedUser(). */}
         <AuthSessionProvider>
-          <LayoutPerformanceProvider enableAutoOptimizations={true}>
-            <ThemeProvider>
-              <MaterialYouThemeProvider>
-                <RouterProvider router={router} />
-                <Toaster />
-                <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
-              </MaterialYouThemeProvider>
-            </ThemeProvider>
-          </LayoutPerformanceProvider>
+          <ThemeProvider>
+            <MaterialYouThemeProvider>
+              <RouterProvider router={router} />
+              <Toaster />
+              <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
+            </MaterialYouThemeProvider>
+          </ThemeProvider>
         </AuthSessionProvider>
       </ResponsiveProvider>
     </QueryClientProvider>

@@ -10,7 +10,6 @@
  * `<button>` clavier (Enter/Space → ouvre dialog). Slots remplis
  * délèguent leur sémantique à `MenuEntryCard`.
  */
-import React from 'react';
 import { Plus } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -25,15 +24,17 @@ interface MenuWeekGridProps {
   removingId?: string;
 }
 
-// Lundi-first (FR habit) — `day_of_week` valeurs 0..6.
+// `meal_plan_entries.day_of_week` is the offset from the week's Monday
+// (0=Lundi … 6=Dimanche): `plan_recipe` stores isodow-1, useWeeklyMenu
+// adds it to week_start_date and the assistant tools use the same scale.
 const DAYS: { value: number; long: string; short: string }[] = [
-  { value: 1, long: 'Lundi', short: 'Lun.' },
-  { value: 2, long: 'Mardi', short: 'Mar.' },
-  { value: 3, long: 'Mercredi', short: 'Mer.' },
-  { value: 4, long: 'Jeudi', short: 'Jeu.' },
-  { value: 5, long: 'Vendredi', short: 'Ven.' },
-  { value: 6, long: 'Samedi', short: 'Sam.' },
-  { value: 0, long: 'Dimanche', short: 'Dim.' },
+  { value: 0, long: 'Lundi', short: 'Lun.' },
+  { value: 1, long: 'Mardi', short: 'Mar.' },
+  { value: 2, long: 'Mercredi', short: 'Mer.' },
+  { value: 3, long: 'Jeudi', short: 'Jeu.' },
+  { value: 4, long: 'Vendredi', short: 'Ven.' },
+  { value: 5, long: 'Samedi', short: 'Sam.' },
+  { value: 6, long: 'Dimanche', short: 'Dim.' },
 ];
 
 const MEAL_TYPES: { value: MenuMealType; label: string; short: string }[] = [
