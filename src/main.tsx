@@ -4,6 +4,7 @@ import './index.css'
 import './styles/material-you.css'
 
 import { useAppStore } from './store/appStore';
+import { claimChunkReload } from './lib/chunkReload';
 
 if (typeof window !== 'undefined') {
   try {
@@ -17,6 +18,16 @@ if (typeof window !== 'undefined') {
   } catch (error) {
     console.error('main.tsx: Error setting up PWA listeners:', error);
   }
+
+  // Vite fires this when a lazy route's chunk fails to load, typically in a
+  // tab opened before the latest deploy.
+  window.addEventListener('vite:preloadError', () => {
+    try {
+      if (claimChunkReload(window.sessionStorage)) window.location.reload();
+    } catch (error) {
+      console.error('main.tsx: chunk reload skipped:', error);
+    }
+  });
 
   // Perf audit 2026-05-19 — auparavant l'enregistrement du SW se faisait
   // dans le hook usePWA(), donc seulement quand un composant qui l'utilise
