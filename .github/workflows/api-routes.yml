@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Install dependencies
@@ -37,7 +37,7 @@ jobs:
         run: npm run api:build:ts
 
       - name: Run routes-mounted contract
-        run: npm run test:api -- --testPathPattern=routes-mounted
+        run: npm run test:api -- --testPathPattern='routes-mounted|app.cold-start|src/__tests__/cors'
 
       - name: Upload server log on failure
         if: failure()
@@ -61,7 +61,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install production dependencies
         run: npm install --legacy-peer-deps --force --no-audit --no-fund

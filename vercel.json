@@ -2,17 +2,18 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://smart-pantry-api-ifn4.onrender.com/api/$1"
+      "destination": "/api"
     },
     {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
-  "buildCommand": "npm run build:optimized",
+  "buildCommand": "npm run shared:build && npm run api:build:ts && npm run build:optimized",
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps --force",
   "framework": "vite",
+  "regions": ["fra1"],
   "build": {
     "env": {
       "NODE_ENV": "production",

@@ -23,8 +23,11 @@ import { rateLimit } from './middleware/rateLimit.js';
 import { createAuthMiddleware } from './middleware/auth.middleware.js';
 import { userRateLimit } from './middleware/userRateLimit.js';
 
-// Routes (synchronous; v1Router is loaded lazily below to avoid boot blocking)
+// Routes
 import { healthRouter } from './routes/health.js';
+import { v1Router } from './routes/v1.js';
+import { createAdminDeletionsRouter } from './routes/admin.deletions.routes.js';
+import { createAdminAuthMiddleware } from './middleware/adminAuth.middleware.js';
 import { createAssistantStreamRouter } from './routes/assistant.js';
 import { parseVideoRecipeRouter } from './routes/parseVideoRecipe.js';
 import { createInstagramRouter } from './routes/instagram.js';
@@ -44,17 +47,15 @@ import {
 const assistantRateLimit = () => rateLimit({ windowMs: 60_000, max: 30 });
 
 export interface CreateAppOptions {
-  /**
-   * If true, skip the lazy load of /api/v1 (repository-pattern routes)
-   * to keep tests deterministic. Defaults to false.
-   */
-  skipLazyV1?: boolean;
+  /** If true, do not mount /api/v1 (repository-pattern routes) nor /api/admin. */
+  skipV1?: boolean;
 }
 
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
-  // One proxy hop in front of the app (Render). req.ip is then the
-  // address that proxy saw, not a client-supplied X-Forwarded-For entry.
+  // One proxy hop in front of the app (Vercel's edge, which overwrites
+  // X-Forwarded-For; Render before it). req.ip is then the address that
+  // proxy saw, not a client-supplied X-Forwarded-For entry.
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
 
@@ -146,68 +147,15 @@ export function createApp(options: CreateAppOptions = {}): Express {
     return res.json({ success: true, data: { count: routes.length, routes } });
   });
 
-  // === Repository-pattern v1 routes (lazy to avoid boot-time blocking) ===
-  //
-  // FIX: lazy `.then(app.use(...))` was racing with the 404 handler below.
-  // Express middleware order = registration order; the 404 handler was
-  // registered SYNC before the lazy import resolved, so the late
-  // `app.use('/api/v1', v1Router)` landed AFTER the 404 catch-all and
-  // never matched. We now register deferred-handler proxies up-front
-  // (before the 404 handler) and swap in the real router when the
-  // dynamic import resolves.
-  type DeferredHandler = express.RequestHandler;
-  let v1Handler: DeferredHandler | null = null;
-  let adminHandler: DeferredHandler | null = null;
-
-  if (!options.skipLazyV1) {
-    app.use('/api/v1', (req, res, next) => {
-      if (v1Handler) return v1Handler(req, res, next);
-      return res.status(503).json({
-        success: false,
-        error: 'API initializing, retry shortly',
-        code: 'V1_NOT_READY',
-      });
-    });
-
-    app.use('/api/admin', (req, res, next) => {
-      if (adminHandler) return adminHandler(req, res, next);
-      return res.status(503).json({
-        success: false,
-        error: 'API initializing, retry shortly',
-        code: 'ADMIN_NOT_READY',
-      });
-    });
-
-    import('./routes/v1.js')
-      .then(({ v1Router }) => {
-        v1Handler = v1Router as unknown as DeferredHandler;
-        console.log('✓ v1Router (repository-pattern) loaded');
-      })
-      .catch((error) => {
-        console.error('✗ Failed to load v1Router:', error);
-        console.warn('⚠️  Repository-pattern routes are not available');
-      });
-
-    // === Admin routes (token-protected, service-role ops) ===
-    Promise.all([
-      import('express'),
-      import('./routes/admin.deletions.routes.js'),
-      import('./middleware/adminAuth.middleware.js'),
-      import('./config/supabase.js'),
-    ])
-      .then(([expressMod, deletionsMod, authMod, supabaseMod]) => {
-        const adminRouter = expressMod.Router();
-        adminRouter.use(authMod.createAdminAuthMiddleware());
-        adminRouter.use(
-          '/deletions',
-          deletionsMod.createAdminDeletionsRouter(supabaseMod.supabaseAdmin),
-        );
-        adminHandler = adminRouter as unknown as DeferredHandler;
-        console.log('✓ adminRouter loaded');
-      })
-      .catch((error) => {
-        console.error('✗ Failed to load adminRouter:', error);
-      });
+  // === Repository-pattern v1 routes and admin routes ===
+  // Mounted synchronously, before the 404 handler: a serverless cold start
+  // must answer its first request (lazy imports answered 503 meanwhile).
+  if (!options.skipV1) {
+    app.use('/api/v1', v1Router);
+    const adminRouter = express.Router();
+    adminRouter.use(createAdminAuthMiddleware());
+    adminRouter.use('/deletions', createAdminDeletionsRouter(supabaseAdmin));
+    app.use('/api/admin', adminRouter);
   }
 
   // 404 handler (registered last, before error handler)

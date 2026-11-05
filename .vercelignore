@@ -11,7 +11,6 @@ node_modules
 # `src/integrations/supabase/` et `services/` matche `src/services/`,
 # ce qui casse le build Vite (client supabase + services manquants).
 .claude/
-/apps/
 /agents/
 /services/
 /PRP/
