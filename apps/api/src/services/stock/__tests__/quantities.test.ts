@@ -135,3 +135,21 @@ describe('an add tops up the matching lot instead of creating a row', () => {
   test('an empty lot is not revived (its date may be stale)', () =>
     expect(findTopUpLot([potatoes({ quantity: 0 })], { quantity: 2, unit: 'unité' })).toBeNull());
 });
+
+describe('a unit without conversion still counts in itself (audit 2026-11-04)', () => {
+  test.each([[3,'unité(s)','pièce',3], [2,'sachet(s)','sachets',2], [1,'Boîte(s)','boite',1], [4,'paquet (s)','Paquets',4], [2,'tasse','tasses',2], [.5,'kg(s)','g',500]])(
+    '%s %s converts to %s', (quantity,from,to,expected) => expect(convertQuantity(quantity as number,from as string,to as string)).toBe(expected),
+  );
+  test.each([['sachet','unité'], ['boîte(s)','g'], ['sachet','paquet'], ['',''], [null,null]])('%s is never converted to %s', (from,to) =>
+    expect(() => convertQuantity(1,from,to)).toThrow(expect.objectContaining({ code: 'UNIT_UNKNOWN' })));
+  test('a recipe takes its sachet from a lot in sachet(s), and stays to verify against grams', () => {
+    const yeast = (unit: string, id = unit): StockLot => ({ id, product_id: 'levure', product_name: 'Levure', quantity: 3, unit, stock_version: 1 });
+    const need = { ingredient_name: 'levure', quantity: 1, unit: 'sachet', inventory_product_id: null, is_essential: true };
+    expect(allocateRecipeStock([need],[yeast('sachet(s)')],4,4)).toEqual({ missing: [],
+      allocations: [{ ingredient_index: 0, inventory_id: 'sachet(s)', quantity: 1, unit: 'sachet(s)', expected_version: 1 }] });
+    expect(allocateRecipeStock([need],[yeast('g')],4,4).missing[0]).toMatchObject({ reason: 'UNIT_UNKNOWN', quantity: 1 });
+    expect(allocateRecipeStock([need],[],4,4).missing[0].reason).toBe('NOT_IN_STOCK');
+  });
+  test('2 sachets join the lot of sachet(s)', () =>
+    expect(findTopUpLot([{ id: 'lot', quantity: 3, unit: 'sachet(s)' }], { quantity: 2, unit: 'sachets' })?.total).toBe(5));
+});
