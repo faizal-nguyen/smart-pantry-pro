@@ -29,8 +29,8 @@ secret slips through.
 - **Local dev**: `apps/api/.env` (untracked) and `.env.local` (untracked).
   `.env.development`, `.env.staging`, `.env.production` are explicitly
   ignored — see `.gitignore`.
-- **Hosted envs**: deployment provider env vars (Vercel / Render / Fly /
-  GitHub Actions secrets). Never commit these into the repo.
+- **Hosted envs**: Vercel project env vars and GitHub Actions secrets.
+  Never commit these into the repo.
 - **Templates**: `.env.example` and `apps/api/.env.example` only — they
   must contain placeholder values, never live keys.
 

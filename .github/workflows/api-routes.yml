@@ -47,11 +47,12 @@ jobs:
           path: apps/api/.jest-api.log
           if-no-files-found: ignore
 
-  # Same install and build as render.yaml. NODE_ENV=production skips
-  # devDependencies (e.g. @types/jest), so test-only code compiled into
-  # the API fails here instead of failing every Render deploy silently.
-  render-build:
-    name: API production build (Render)
+  # Production install, then the shared and API steps of vercel.json's
+  # buildCommand. NODE_ENV=production skips devDependencies (e.g.
+  # @types/jest), so test-only code compiled into the API fails here
+  # instead of in a deploy.
+  api-build:
+    name: API production build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

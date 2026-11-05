@@ -511,8 +511,8 @@ export function createAssistantAgentRouter(
       }
     };
 
-    // Heartbeat every 15s so proxies (Render, Cloudflare) don't drop
-    // the connection during long LLM calls.
+    // Heartbeat every 15s so proxies don't drop the connection during
+    // long LLM calls.
     const heartbeat = setInterval(() => {
       try { res.write(': ping\n\n'); } catch { /* ignored */ }
     }, 15_000);

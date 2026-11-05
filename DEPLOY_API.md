@@ -1,193 +1,88 @@
 # Déploiement de l'API Smart Pantry
 
-> **Pourquoi ce doc** : avant 2026-05-19, le frontend ship sur Vercel mais
-> l'API Express `apps/api/` n'avait jamais été déployée. Tous les
-> `POST /api/*` en prod retournaient `405 Method Not Allowed` parce que
-> `vercel.json` rewrite tout vers `/index.html` (fallback SPA React Router).
-> Ce guide explique comment monter l'API sur **Render.com** (free tier)
-> et la connecter à Vercel.
+Depuis la PR #58 (2026-11-05), l'API Express (`apps/api`) est servie par le même projet Vercel que l'app : `smart-pantry-pro`, formule Hobby, région `fra1`. Avant, elle tournait sur Render (formule gratuite), avec 30 à 50 s de démarrage à froid après 15 min d'inactivité ; Render est retiré.
 
 ---
 
 ## Architecture
 
 ```
-┌────────────────────────────────────┐
-│  Vercel — smart-pantry-pro.vercel  │
-│  Frontend Vite/React               │
-│                                    │
-│  Vercel rewrite                    │
-│  /api/*  ─►  Render API            │
-│  /*      ─►  /index.html (SPA)     │
-└─────────────┬──────────────────────┘
-              │ HTTPS
-              ▼
-┌────────────────────────────────────┐
-│  Render — smart-pantry-api.onrender│
-│  Express 5 + Node 24               │
-│  apps/api/dist/index.js            │
-│                                    │
-│  ─►  Supabase (DB + auth)          │
-│  ─►  OpenAI (parser + assistant)   │
-│  ─►  OpenFoodFacts (proxy)         │
-└────────────────────────────────────┘
+Vercel — smart-pantry-pro.vercel.app (Hobby, fra1)
+
+  fichiers de dist/ (dont /assets/*)  ─►  statiques
+  /api/*                              ─►  fonction api/index.js
+                                           └─ createApp() de apps/api/dist/app.js
+                                              ─►  Supabase (base + auth)
+                                              ─►  OpenAI (assistant, dictée, parseur)
+                                              ─►  OpenFoodFacts (proxy)
+  /assets/* absent                    ─►  404
+  le reste                            ─►  /index.html (routes React)
 ```
 
----
-
-## Étape 1 — Créer le service Render
-
-1. Connecte-toi à <https://dashboard.render.com>.
-2. **New +** → **Blueprint**.
-3. Connecte le repo `faizal-nguyen/smart-pantry-pro` (ou ton fork).
-4. Render lit automatiquement `render.yaml` à la racine et propose la
-   création du service `smart-pantry-api`.
-5. **Apply** — la première construction prend ~3-5 min.
+- `vercel.json` porte les réécritures, la région et la commande de build : `npm run shared:build && npm run api:build:ts && npm run build:optimized`.
+- Node 24 (`engines` de `package.json`).
+- `apps/api/src/index.ts` (qui écoute un port) ne sert qu'en local : `npm run dev` lance l'API et l'app.
 
 ---
 
-## Étape 2 — Configurer les variables d'environnement Render
+## Variables d'environnement
 
-Dans le dashboard du service `smart-pantry-api` → **Environment**.
+Vercel → projet `smart-pantry-pro` → **Settings → Environment Variables**. Cocher **Production** et **Preview**. Une variable ne s'applique qu'aux nouveaux déploiements : redéployer après chaque modification.
 
-### Variables **obligatoires** (sans elles l'API plante)
-
-| Clé | Valeur | Notes |
+| Clé | Obligatoire | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | `sk-…` | Compte OpenAI avec credits |
-| `SUPABASE_URL` | `https://jwoxacnflphclslpqfzs.supabase.co` | Même que celui du front |
-| `SUPABASE_SERVICE_KEY` | `eyJ…` | Dashboard Supabase → Project Settings → API → `service_role`. **NB**: la var s'appelle `SUPABASE_SERVICE_KEY` (sans `_ROLE_`), c'est ce que le code lit dans `apps/api/src/config/supabase.ts`. |
-| `SUPABASE_ANON_KEY` | `eyJ…` | Idem, `anon public` |
-| `ADMIN_TOKEN` | (≥ 32 chars random) | Génère avec `openssl rand -hex 32`. Requis pour `/api/admin/*` (worker deletion). |
+| `OPENAI_API_KEY` | oui | Sans clé valide, l'assistant répond « L'assistant n'a pas pu répondre » en ~1 s |
+| `SUPABASE_URL` | oui | Même projet que le front |
+| `SUPABASE_SERVICE_KEY` | oui | Clé `service_role`. Le nom exact est `SUPABASE_SERVICE_KEY`, sans `_ROLE_` (`apps/api/src/config/supabase.ts`) |
+| `SUPABASE_ANON_KEY` | oui | Clé `anon public` |
+| `ASSISTANT_HMAC_SECRET` | oui | 32 caractères minimum |
+| `ADMIN_TOKEN` | oui | 32 caractères minimum (`openssl rand -hex 32`), pour `/api/admin/*` |
+| `ALLOWED_ORIGINS` | non | Origines supplémentaires, séparées par des virgules. Le domaine de l'app et ses previews sont acceptés d'office (même domaine) |
+| `OPENFOODFACTS_USER_AGENT` | non | Identifie l'app auprès d'OpenFoodFacts |
+| `OPENAI_PARSE_TEXT_MODEL` | non | Défaut `gpt-4o-mini` |
 
-### Variables **facultatives** (valeurs par défaut déjà OK)
-
-Déjà déclarées dans `render.yaml` :
-
-| Clé | Défaut |
-|---|---|
-| `ALLOWED_ORIGINS` | `https://smart-pantry-pro.vercel.app` |
-| `OPENAI_PARSE_TEXT_MODEL` | `gpt-4o-mini` |
-| `OPENFOODFACTS_USER_AGENT` | `SmartPantryPro/1.0 (+https://…)` |
-| `NODE_ENV` | `production` |
-
-Adapte `ALLOWED_ORIGINS` si tu utilises plusieurs domaines (séparés par virgule).
+Ne pas définir `PORT`, `HOST` ni `NODE_ENV` : Vercel ne les utilise pas pour la fonction.
 
 ---
 
-## Étape 3 — Récupérer l'URL publique Render
-
-Après le premier deploy réussi, Render affiche une URL :
-
-```
-https://smart-pantry-api-XXXX.onrender.com
-```
-
-Copie-la.
-
----
-
-## Étape 4 — Brancher Vercel sur Render
-
-Édite `vercel.json` (commité dans ce repo) — ligne 7 :
-
-```diff
-- "destination": "https://SMART_PANTRY_API_URL.onrender.com/api/$1"
-+ "destination": "https://smart-pantry-api-XXXX.onrender.com/api/$1"
-```
-
-Commit + push. Vercel redéploie automatiquement.
-
----
-
-## Étape 5 — Smoke test
-
-Une fois le redeploy Vercel terminé :
+## Vérifier un déploiement
 
 ```bash
-# 1. Health check direct sur Render
-curl https://smart-pantry-api-XXXX.onrender.com/api/health
-# → {"status":"ok","version":"1.0.0"}
+# La fonction doit apparaître : « λ api/index … [fra1] »
+vercel inspect <url-du-déploiement> --logs
 
-# 2. Health check via Vercel rewrite
+# Santé de l'API en production
 curl https://smart-pantry-pro.vercel.app/api/health
-# → même réponse JSON (plus de 405)
 
-# 3. Recommendations (auth required, 401 attendu mais PAS 405)
-curl -X POST https://smart-pantry-pro.vercel.app/api/v1/recommendations/suggest \
-  -H "Content-Type: application/json" \
-  -d '{}'
-# → 401 Unauthorized (route reconnue ✓)
+# Journaux de la fonction (statut dans responseStatusCode, console dans logs[])
+vercel logs <dpl_id> --since 30m --no-branch --json
 ```
 
-Sur l'app web (`smart-pantry-pro.vercel.app`) :
-- `/kitchen` charge sans erreur 405 dans la console
-- Les recommendations Today populent
-- L'assistant memoires peut être créées
+Les previews de PR sont protégées par la connexion Vercel et **partagent la base de production**.
 
 ---
 
-## Limites du free tier Render
+## Limites de la formule Hobby
 
-- **Sleeps après 15 min d'inactivité** → 1er hit suivant prend ~30s (cold start)
-- **512 MB RAM** — l'API est légère, devrait tenir
-- **750 h/mois** d'uptime — suffit largement pour un seul service
-
-Si le cold start gêne, deux options :
-1. Passer Render au plan payant `Starter` ($7/mois, always-on)
-2. Cron Vercel qui ping `/api/health` toutes les 14 min (gratuit, garde l'API warm)
+- 300 s par requête, 4,5 Mo par requête et par réponse, 2 Go de mémoire.
+- Une seule région, cron au plus une fois par jour, usage personnel non commercial.
+- Pas de Skew Protection : un onglet ouvert avant un déploiement demande les fichiers de l'ancienne version. L'app se recharge alors toute seule (PR #61).
+- Les limiteurs de débit comptent par instance de la fonction.
 
 ---
 
-## Migrations Supabase à appliquer
+## Retour arrière
 
-Le code de cette PR référence 3 migrations qui doivent être appliquées
-sur Supabase prod **avant** que l'API soit utilisable end-to-end :
+- Revert de la PR fautive sur `main` : Vercel redéploie.
+- Ou, plus vite : tableau de bord Vercel → **Deployments** → **Instant Rollback** vers le déploiement de production précédent.
 
-```bash
-# Depuis le repo local
-supabase db push
-```
-
-Migrations concernées :
-- `20260516140000_product_intelligence_schema.sql` (PRP-225 PR1)
-- `20260517081500_process_deletion_requests.sql` (worker RGPD)
-- `20260517161734_recipe_interactions_recipe_fk.sql` (FK manquante)
+Les migrations Supabase ne sont pas appliquées par le déploiement : les appliquer avant de merger le code qui en dépend, et vérifier qu'un retour arrière reste compatible avec le schéma.
 
 ---
 
-## Alternatives à Render
+## Dépannage
 
-Si Render ne convient pas :
-
-| Service | Free tier | Cold start | Setup |
-|---|---|---|---|
-| **Render** | ✓ (sleeps) | ~30s | `render.yaml` (ce repo) |
-| **Railway** | $5 crédit/mois | jamais | `railway.toml` à créer |
-| **Fly.io** | 3 VMs gratuites | jamais | `fly.toml` à créer |
-| **Vercel Serverless** | inclus | <1s | déplacer `apps/api/` vers `/api/[…path].ts` racine |
-
-Le `vercel.json` rewrite cible n'importe quelle URL HTTPS, donc le choix
-du provider est trivial. Render est recommandé pour la simplicité du
-`Blueprint`.
-
----
-
-## Troubleshooting
-
-### `502 Bad Gateway` sur `/api/*`
-- L'API Render est en cold start ou crashée. Vérifier les logs Render.
-
-### `CORS not allowed` dans la console navigateur
-- `ALLOWED_ORIGINS` côté Render ne liste pas le domaine Vercel. L'ajouter
-  (plusieurs valeurs séparées par virgule).
-
-### `405 Method Not Allowed`
-- Le `rewrite` Vercel n'est pas appliqué. Vérifier que `vercel.json` a
-  bien l'URL Render correcte (pas le placeholder `SMART_PANTRY_API_URL`).
-- Vercel a-t-il bien redeployé après ton edit `vercel.json` ?
-
-### `V1_NOT_READY` 503
-- L'API a démarré mais le lazy `v1Router` ou `adminRouter` n'a pas fini
-  de charger. Devrait disparaître après ~2s. Si persistant, vérifier les
-  logs Render pour une erreur d'import.
+- **« L'assistant n'a pas pu répondre », en ~1 s et à 0 $** : appel OpenAI refusé, souvent une clé invalide. `callLLMSafe` ne journalise pas l'erreur. Vérifier `OPENAI_API_KEY`, puis redéployer.
+- **`CORS not allowed`** : la requête vient d'un domaine étranger. L'ajouter à `ALLOWED_ORIGINS`.
+- **`404 ROUTE_NOT_FOUND` sur `/api/...`** : la route n'est pas montée dans `apps/api/src/app.ts`. Le contrôle CI « Routes mounted (no-404 contract) » doit l'attraper.
+- **« Failed to fetch dynamically imported module »** : onglet ouvert avant un déploiement. L'app se recharge une fois ; sinon, la fermer et la rouvrir.

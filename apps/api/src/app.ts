@@ -54,8 +54,8 @@ export interface CreateAppOptions {
 export function createApp(options: CreateAppOptions = {}): Express {
   const app = express();
   // One proxy hop in front of the app (Vercel's edge, which overwrites
-  // X-Forwarded-For; Render before it). req.ip is then the address that
-  // proxy saw, not a client-supplied X-Forwarded-For entry.
+  // X-Forwarded-For). req.ip is then the address that proxy saw, not a
+  // client-supplied X-Forwarded-For entry.
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
 
