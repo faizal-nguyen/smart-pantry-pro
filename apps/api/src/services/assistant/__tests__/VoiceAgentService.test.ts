@@ -13,6 +13,7 @@ import { policy as memoryPolicy,receipt as memoryReceipt,message as memoryMessag
 
 import { ConfirmationTokenSigner } from '../ConfirmationTokenSigner.js';
 import { ToolRegistry } from '../ToolRegistry.js';
+import type { ToolName } from '../schemas/tools.js';
 import {
   ToolHandlerRegistry,
   type ToolHandler,
@@ -1118,6 +1119,29 @@ describe('no change is announced without a write',()=>{
     const result=await run('add_inventory_items',add,"J'ai ajouté deux kilos de pommes de terre à votre stock.");
     expect(add.execute).toHaveBeenCalledTimes(1);
     expect(result.message).toMatch(/J'ai ajouté/);
+  });
+  const AIDE_TOOLS=['read_inventory','read_shopping_list','search_recipes','suggest_recipes_for_context','read_user_memories','ask_clarification'] as const;
+  function scope(allowedTools:readonly ToolName[]|undefined,claim:string) {
+    const requests:AICompletionRequest[]=[];
+    const ai={complete:jest.fn(async(req:AICompletionRequest)=>{requests.push(req);return requests.length===1
+      ? {content:'',model:req.model,usage:{prompt_tokens:10,completion_tokens:10},tool_calls:[{id:'tool-one',name:'read_inventory',arguments:'{}'}]}
+      : {content:claim,model:req.model,usage:{prompt_tokens:10,completion_tokens:10}};})};
+    const registry=new ToolHandlerRegistry();registry.register('read_inventory',{execute:jest.fn(async()=>({result:{items:[]}}))});
+    const result=new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET))
+      .handleRequest({...input,text:'oui ajoute 2 kilos en plus',allowedTools},makeCtx());
+    return {result,requests};
+  }
+  it('in the read-only Aide scope, says the window only reads and points to the conversations (prod case 2026-11-04)',async()=>{
+    const {result,requests}=scope(AIDE_TOOLS,"J'ai ajouté 2 kilos de pommes de terre.");
+    const {message}=await result;
+    expect(message).toMatch(/Ouvrir les conversations/);
+    expect(message).not.toMatch(/ajouté/);
+    expect(String(requests[0].messages[0].content)).toMatch(/READ-ONLY WINDOW/);
+  });
+  it('the full scope gets no read-only instruction',async()=>{
+    const {result,requests}=scope(undefined,"J'ai ajouté 2 kilos de pommes de terre.");
+    expect((await result).message).toMatch(/rien modifié/);
+    expect(String(requests[0].messages[0].content)).not.toMatch(/READ-ONLY WINDOW/);
   });
 });
 
