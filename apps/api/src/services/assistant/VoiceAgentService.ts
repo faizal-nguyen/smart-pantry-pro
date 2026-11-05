@@ -390,12 +390,16 @@ export class VoiceAgentService {
 
     // 2. LLM round 1 with tool catalog
     const tools = this.toolRegistry.toOpenAITools(input.allowedTools);
+    // A scope of reads only (the « Aide » window) can change nothing: the model
+    // must say so and point to the conversations page, never offer the change.
+    const readOnly = tools.every(tool => tool.function.name === 'ask_clarification' || this.toolRegistry.get(tool.function.name).defaultRiskTier === 'read');
+    const basePrompt = readOnly ? `${this.systemPrompt}\n\n${READ_ONLY_SCOPE}` : this.systemPrompt;
 
     // PRP-223 PR4 — enrich the system prompt with the user's memory
     // context (top memories, last summary, recent messages, session
     // context). Best-effort: any ContextBuilder failure leaves the
     // prompt at its baseline.
-    let systemContent = this.systemPrompt;
+    let systemContent = basePrompt;
     let allowedProfileVersion:number|undefined;
     let profileSnapshotVersion:number|undefined;
     let contextPolicy: MemoryPolicy | null = null;
@@ -407,7 +411,7 @@ export class VoiceAgentService {
         profileSnapshotVersion=block.profileVersion;
         if (block.shareProfileWithModel) allowedProfileVersion=block.profileVersion;
         if (block.combinedText) {
-          systemContent = `${this.systemPrompt}\n\n--- Mémoire utilisateur ---\n${block.combinedText}`;
+          systemContent = `${basePrompt}\n\n--- Mémoire utilisateur ---\n${block.combinedText}`;
         }
       } catch (err) {
 
@@ -427,8 +431,8 @@ export class VoiceAgentService {
       // No old tool result, summary, profile detail or context survives a changed
       // revision. The current voluntary question can still be answered.
       allowedProfileVersion = undefined;
-      systemContent = this.systemPrompt;
-      return [{ role: 'system' as const, content: this.systemPrompt }, { role: 'user' as const, content: transcript }];
+      systemContent = basePrompt;
+      return [{ role: 'system' as const, content: basePrompt }, { role: 'user' as const, content: transcript }];
     } : undefined;
 
     const aiMessages: AICompletionRequest['messages'] = [
@@ -764,7 +768,7 @@ export class VoiceAgentService {
         // escalate explicitly for a complex menu; ordinary recipes stay economical.
         const synthesisRole: AssistantRole = chefMode && (this.modelConfig.preset === 'baseline' || /batch|menu|plusieurs repas|adapter.*plusieurs/iu.test(transcript)) ? 'culinary' : 'dialogue';
         const continuation = continuationFor(activeResponse,synthesisRole,currentPolicy);
-        const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? this.systemPrompt : systemContent;
+        const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? basePrompt : systemContent;
         const synthesisSystem = chefMode
           ? `${currentSystem}\n\n${chefSystemPrompt()}`
           : currentSystem;
@@ -868,7 +872,7 @@ export class VoiceAgentService {
     // a read only). Only an executed, pending or unverified write backs it.
     if (!executed.some(a => a.risk_tier !== 'read') && !pending.length && !unverified.length && CHANGE_CLAIM.test(message)) {
       console.warn('[assistant.claim_without_write] replaced');
-      message = NO_CHANGE_MESSAGE;
+      message = readOnly ? READ_ONLY_MESSAGE : NO_CHANGE_MESSAGE;
     }
     let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
     let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
@@ -1209,6 +1213,8 @@ function defaultReasonForTier(tier: RiskTier): string {
 
 const CHANGE_CLAIM = /(?:\bj['’]ai|\bje viens d['’]|\bc['’]est|\b(?:a|ont|est|sont) été)\s+(?:bien\s+)?(?:ajout|retir|supprim|modifi|mis à jour|mise à jour|enregistr|marqu|coch|consomm|vid|déplac)|\bI(?:['’]ve| have)?\s+(?:just\s+)?(?:added|removed|deleted|updated|marked|cleared)\b/iu;
 const NO_CHANGE_MESSAGE = 'Je n’ai encore rien modifié. Redis-moi ce que tu veux ajouter ou changer, par exemple « ajoute 2 kg de pommes de terre au stock ».';
+const READ_ONLY_MESSAGE = 'Je n’ai rien modifié : cette fenêtre d’aide peut seulement consulter ton stock, ta liste et tes recettes. Pour ajouter ou changer quelque chose, touche « Ouvrir les conversations » et redis-le-moi.';
+const READ_ONLY_SCOPE = `READ-ONLY WINDOW: here you can only read (stock, shopping list, recipes, memories). Never offer, promise or announce a change. If the user asks to add, remove, update or mark anything, answer in one short sentence, in their language, that this help window can only consult and that the « Ouvrir les conversations » button opens the assistant that makes changes.`;
 
 function synthesizeMessage(
   executed: ExecutedActionDescriptor[],

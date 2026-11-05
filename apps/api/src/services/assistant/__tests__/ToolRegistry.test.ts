@@ -24,6 +24,13 @@ describe('ToolRegistry', () => {
     expect(() => defaultToolRegistry.get('does_not_exist')).toThrow(UnknownToolError);
   });
 
+  it('asks the model for a unit on every added item (prod case 2026-11-04: "kg" dropped)', () => {
+    for (const name of ['add_inventory_items', 'add_shopping_items']) {
+      const schema = defaultToolRegistry.get(name).jsonSchema as { properties: { items: { items: { required: string[] } } } };
+      expect(schema.properties.items.items.required).toEqual(['name', 'quantity', 'unit']);
+    }
+  });
+
   describe('parseArgs', () => {
     it('returns typed args on valid input', () => {
       const args = defaultToolRegistry.parseArgs('add_inventory_items', {

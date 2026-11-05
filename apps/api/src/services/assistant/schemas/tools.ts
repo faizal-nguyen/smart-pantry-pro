@@ -41,11 +41,13 @@ export type ItemArg = z.infer<typeof ItemArgSchema>;
 
 const itemJsonSchema = {
   type: 'object',
-  required: ['name', 'quantity'],
+  // unit is required so the model never drops a spoken "kg" (1 run in 5 did);
+  // the Zod schema stays lenient and falls back to the product unit.
+  required: ['name', 'quantity', 'unit'],
   properties: {
     name: { type: 'string', maxLength: 200 },
     category: { type: 'string', maxLength: 100 },
-    unit: { type: 'string', maxLength: 50, description: 'the unit the user said (kg, g, L, sachet…); omit only when none was given' },
+    unit: { type: 'string', minLength: 1, maxLength: 50, description: 'the unit the user said (kg, g, L, sachet…); « unité » when the user gave only a count (« 2 pommes de terre »)' },
     quantity: { type: 'number', minimum: 0, maximum: 100_000 },
     expiry_date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
     notes: { type: 'string', maxLength: 500 },
@@ -611,7 +613,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {
     name: 'add_inventory_items',
     description:
-      'Add items to the user inventory. Each item is { name, quantity, optional category/unit/expiry_date/notes }. The server resolves names to product_ids — you do NOT need to know UUIDs. Call it directly when the user asks to add stock, even if the inventory is empty or lacks that product: the server creates or matches the product.',
+      'Add items to the user inventory. Each item is { name, quantity, unit, optional category/expiry_date/notes }. The server resolves names to product_ids — you do NOT need to know UUIDs. Call it directly when the user asks to add stock, even if the inventory is empty or lacks that product: the server creates or matches the product.',
     schema: addInventoryItemsArgs,
     jsonSchema: {
       type: 'object',
