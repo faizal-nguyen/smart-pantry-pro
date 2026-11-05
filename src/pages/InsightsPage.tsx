@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { InsightsDashboard } from '@/components/insights';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { AdaptiveHeroViewport } from '@/components/layout/AdaptiveHeroViewport';
-import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
 import { BarChart3 } from 'lucide-react';
 
 const InsightsPage: React.FC = () => {
@@ -18,7 +17,7 @@ const InsightsPage: React.FC = () => {
   // below renders the actual user data.
 
   return (
-    <LayoutPerformanceProvider>
+    <>
       {/* Enhanced Hero Section with Golden Ratio */}
       <AdaptiveHeroViewport
           content={{ density: 'medium', hasImages: false }}
@@ -58,7 +57,7 @@ const InsightsPage: React.FC = () => {
       >
         <InsightsDashboard />
       </motion.div>
-    </LayoutPerformanceProvider>
+    </>
   );
 };
 

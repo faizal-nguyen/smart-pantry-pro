@@ -65,9 +65,11 @@ interface AddProductDialogProps {
    */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Open the barcode scanner on mount; the scan then fills this form. */
+  startWithScanner?: boolean;
 }
 
-const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddProductDialogProps) => {
+const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWithScanner = false }: AddProductDialogProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : internalOpen;
@@ -77,7 +79,7 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddPr
   };
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'product' | 'inventory'>('product');
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(startWithScanner);
   
   // Product form
   const [productName, setProductName] = useState("");
@@ -448,44 +450,13 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange }: AddPr
                     onClick={() => setScannerOpen(true)}
                     className="shrink-0"
                     disabled={apiLoading}
+                    aria-label="Scanner le code-barres"
                   >
                     {apiLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Camera className="h-4 w-4" />
                     )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      console.log('🧪 Test button clicked in dialog - simulating barcode scan');
-                      console.log('🔍 Form state BEFORE test scan:', { productName, category, unitType, imageUrl });
-                      handleBarcodeScanned('3017620422003');
-                    }}
-                    className="shrink-0"
-                    disabled={apiLoading}
-                    title="Test avec Nutella (3017620422003)"
-                  >
-                    🧪
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      console.log('🔧 Direct form fill test - no API');
-                      setProductName("Test Pain de Mie");
-                      setCategory("Pain et viennoiseries");
-                      setUnitType("unité(s)");
-                      setCategoryAutoFilled(true);
-                      console.log('✅ Direct form fill complete');
-                    }}
-                    className="shrink-0"
-                    title="Test direct form fill"
-                  >
-                    🔧
                   </Button>
                   {barcode && (
                     <Button
