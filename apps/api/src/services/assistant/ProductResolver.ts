@@ -40,6 +40,7 @@
  *     semantic+fuzzy for the misses.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 import { ingredientMatchRank } from '@smart/shared';
 
 import type { EmbeddingService } from '../products/EmbeddingService.js';
@@ -415,9 +416,10 @@ export class ProductResolver {
     // Best-effort: generate the embedding for the new product so the
     // next caller picks it up via the semantic path. We don't block
     // the response on this — a network failure here just leaves the
-    // embedding NULL until the backfill worker picks it up.
+    // embedding NULL until the backfill worker picks it up. waitUntil
+    // keeps a serverless instance alive until it finishes (no-op elsewhere).
     if (this.embeddingService) {
-      void this.attachEmbedding(created);
+      waitUntil(this.attachEmbedding(created));
     }
 
     return { kind: 'created', product: created };

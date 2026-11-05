@@ -9,6 +9,9 @@ import {
   type ProductRow,
 } from '../ProductResolver.js';
 
+const mockWaitUntil = jest.fn();
+jest.mock('@vercel/functions', () => ({ waitUntil: (promise: Promise<unknown>) => mockWaitUntil(promise) }));
+
 const USER_ID = '11111111-1111-1111-1111-111111111111';
 
 function makeProduct(overrides: Partial<ProductRow> = {}): ProductRow {
@@ -629,8 +632,9 @@ describe('ProductResolver.resolve — semantic step', () => {
     const result = await resolver.resolve(USER_ID, { name: 'Skyr nature' });
     expect(result.kind).toBe('created');
 
-    // attachEmbedding runs asynchronously, give it a tick.
-    await new Promise((resolve) => setImmediate(resolve));
+    // attachEmbedding runs after the answer, kept alive by waitUntil on Vercel.
+    expect(mockWaitUntil).toHaveBeenCalledTimes(1);
+    await mockWaitUntil.mock.calls[0][0];
 
     expect(updates).toHaveLength(1);
     expect(updates![0]?.id).toBe('pnew');

@@ -9,6 +9,7 @@
 import type { ImportedRecipeDraft } from '@smart/shared';
 import { ImportedRecipeDraftSchema } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 
 import {
   canonicalizeUrl,
@@ -301,16 +302,17 @@ export class SocialImportService {
     // PRP-220.24 §5.13: snapshot the OG thumbnail to our own storage so
     // we don't depend on the Insta/TikTok CDN's signed-URL TTL. Fire and
     // forget — the failure mode is "stay with the remote URL", never
-    // "fail extract".
+    // "fail extract". waitUntil keeps a serverless instance alive until
+    // it finishes (no-op elsewhere).
     if (this.thumbnailSnapshotter && updated.thumbnail_url) {
-      void this.thumbnailSnapshotter
+      waitUntil(this.thumbnailSnapshotter
         .snapshot({
           userId,
           importId: updated.id,
           remoteUrl: updated.thumbnail_url,
           sourceUrl: updated.source_url ?? undefined,
         })
-        .catch(() => undefined);
+        .catch(() => undefined));
     }
 
     metrics.extractionTotal.inc({ platform: acquired.platform, outcome: 'success' });
