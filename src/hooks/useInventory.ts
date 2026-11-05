@@ -1,4 +1,4 @@
-import { calendarDaysUntil } from '@smart/shared';
+import { calendarDaysUntil, findTopUpLot } from '@smart/shared';
 /**
  * useInventory - Enhanced inventory hook with optimistic updates
  * Phase 1 Implementation: Fast UI feedback + real-time sync ready
@@ -217,11 +217,40 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
     }
   };
 
-  const addToInventory = async (inventoryData: Omit<InventoryItem, 'id' | 'product'>) => {
+  /**
+   * An add joins the one matching lot of its product (see findTopUpLot)
+   * instead of creating a row. Lots are read fresh: bulk adds run back to back.
+   * The intent survives a lost response, so a retry never adds twice.
+   */
+  const topUpExistingLot = async (userId: string, add: Omit<InventoryItem, 'id' | 'product'>) => {
+    const { data: lots, error: lotsError } = await supabase.from('inventory').select('*, product:products(*)')
+      .eq('user_id', userId).eq('product_id', add.product_id).order('created_at', { ascending: true });
+    if (lotsError) throw lotsError;
+    const rows = (lots ?? []) as InventoryItem[];
+    // The product catalogue loads lazily: the lots carry the product unit too.
+    const hit = findTopUpLot(rows.map(lot => ({ ...lot, unit: lot.unit ?? lot.product?.unit_type ?? null })),
+      { quantity: add.quantity, unit: add.unit ?? rows[0]?.product?.unit_type ?? null, expiry_date: add.expiry_date, location: add.location });
+    if (!hit) return null;
+    const intent = `inventory-add:${hit.lot.id}`;
+    const pending = await pendingIntent(intent);
+    const command = pending ?? await commandForIntent('adjust_inventory', intent, { items: [{
+      id: hit.lot.id, quantity: hit.total, unit: hit.lot.unit ?? '', expected_version: hit.lot.stock_version ?? 0,
+    }] });
+    const result = await executeStockCommand(command);
+    await finishIntent(intent);
+    if (pending) throw new Error('Un ajout précédent à ce lot vient d’être confirmé. Vérifie sa quantité avant d’en ajouter.');
+    await fetchInventory();
+    if (enableVoiceFeedback && hit.lot.product?.name) voiceOutputService.announceItemAdded(hit.lot.product.name, add.quantity, hit.lot.unit ?? '');
+    return { ...hit.lot, unit: hit.lot.unit ?? undefined, quantity: hit.total, top_up_command_id: result.command_id };
+  };
+
+  const addToInventory = async (inventoryData: Omit<InventoryItem, 'id' | 'product'>): Promise<InventoryItem & { top_up_command_id?: string }> => {
     beginWrite();
     try {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user || userData.user.id !== user?.id) throw new Error('Reconnectez-vous à ce compte pour ajouter ce lot.');
+      const topUp = await topUpExistingLot(userData.user.id, { ...inventoryData, unit: inventoryData.unit ?? products.find(p => p.id === inventoryData.product_id)?.unit_type });
+      if (topUp) return topUp;
 
       // Generate temporary ID for optimistic update
       const tempId = `temp-${Date.now()}`;

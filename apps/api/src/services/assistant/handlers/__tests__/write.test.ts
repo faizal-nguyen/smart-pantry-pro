@@ -82,6 +82,9 @@ function makeClient(plan: { routes: Record<string, RouteData> }) {
         filters.push({ kind: 'in', col, val });
         return chain;
       },
+      order() {
+        return chain;
+      },
       insert(p: any, _opts?: any) {
         opKind = 'insert';
         payload = p;
@@ -302,6 +305,45 @@ describe('AddInventoryItemsHandler', () => {
       'yaourt nature',
     ]);
     expect(result.reversibleAction).toBeNull();
+  });
+
+  const potato = { ...fakeProduct('p-pdt', 'pomme de terre'), unit_type: 'unité' };
+  const lot = { id: 'lot-1', product_id: 'p-pdt', quantity: 1, unit: 'unité', expiry_date: null, location: null, stock_version: 4 };
+  it('tops up the one matching lot through an undoable stock command (prod case 2026-11-04)', async () => {
+    const { client, calls } = makeClient({ routes: { inventory: { selectRows: [lot] } } });
+    const result = await new AddInventoryItemsHandler().execute(makeCtx(client, { matched: [potato] }),
+      { items: [{ name: 'pomme de terre', quantity: 2, unit: 'unité' }] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, {
+      command_id: '40000000-0000-4000-8000-000000000001', command_type: 'adjust_inventory', payload_version: 1,
+      payload: { items: [{ id: 'lot-1', quantity: 3, unit: 'unité', expected_version: 4 }] },
+    });
+    expect(calls.some((c) => c.op === 'insert')).toBe(false);
+    expect(result.result.added).toEqual([{ inventory_id: 'lot-1', product_id: 'p-pdt', product_name: 'pomme de terre', quantity: 2, topped_up: { total: 3, unit: 'unité' } }]);
+    expect(result.reversibleAction).toEqual({ tool: '_undo_inventory_add', args: { original_command_id: receipt.command_id, inventory_ids: [] } });
+  });
+  it('keeps a new row when the unit cannot join the lot (2 kg next to 1 unité)', async () => {
+    const { client, calls } = makeClient({ routes: { inventory: { selectRows: [lot], insertReturning: [{ id: 'inv-2', product_id: 'p-pdt', quantity: 2 }] } } });
+    const result = await new AddInventoryItemsHandler().execute(makeCtx(client, { matched: [potato] }),
+      { items: [{ name: 'pomme de terre', quantity: 2, unit: 'kg' }] });
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
+    expect(calls.find((c) => c.op === 'insert')?.payload).toEqual([{ user_id: USER, product_id: 'p-pdt', quantity: 2, unit: 'kg', expiry_date: null }]);
+    expect(result.reversibleAction).toEqual({ tool: '_remove_inventory_items', args: { inventory_ids: ['inv-2'] } });
+  });
+  it('undoes a mixed add in one step: the top-up and the new rows', async () => {
+    const tomate = fakeProduct('p-tomate', 'Tomate');
+    const { client } = makeClient({ routes: { inventory: { selectRows: [lot], insertReturning: [{ id: 'inv-2', product_id: 'p-tomate', quantity: 4 }] } } });
+    const result = await new AddInventoryItemsHandler().execute(makeCtx(client, { matched: [potato, tomate] }),
+      { items: [{ name: 'pomme de terre', quantity: 2, unit: 'unité' }, { name: 'Tomate', quantity: 4, unit: 'unit' }] });
+    expect(result.result.added.map((a) => a.inventory_id)).toEqual(['lot-1', 'inv-2']);
+    expect(result.reversibleAction).toEqual({ tool: '_undo_inventory_add', args: { original_command_id: receipt.command_id, inventory_ids: ['inv-2'] } });
+  });
+  it('removes the new rows again when the lot changed meanwhile', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockRejectedValueOnce(new StockCommandError('CONFLICT'));
+    const tomate = fakeProduct('p-tomate', 'Tomate');
+    const { client, calls } = makeClient({ routes: { inventory: { selectRows: [lot], insertReturning: [{ id: 'inv-2', product_id: 'p-tomate', quantity: 4 }] } } });
+    await expect(new AddInventoryItemsHandler().execute(makeCtx(client, { matched: [potato, tomate] }),
+      { items: [{ name: 'pomme de terre', quantity: 2, unit: 'unité' }, { name: 'Tomate', quantity: 4, unit: 'unit' }] })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(calls.find((c) => c.op === 'delete')?.filters).toContainEqual({ kind: 'in', col: 'id', val: ['inv-2'] });
   });
 });
 

@@ -10,8 +10,10 @@ import {
   RestoreInventoryItemSnapshotInternalHandler,
   RestoreShoppingItemsInternalHandler,
   RemoveMealPlanEntriesInternalHandler,
+  UndoInventoryAddInternalHandler,
   INTERNAL_TOOL_NAMES,
 } from '../internal.js';
+import { StockCommandService } from '../../../stock/StockCommandService.js';
 import type { ToolExecutionContext } from '../types.js';
 
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -135,7 +137,29 @@ describe('Internal tool name list', () => {
       '_restore_inventory_item_snapshot',
       '_restore_shopping_items',
       '_remove_meal_plan_entries',
+      '_undo_inventory_add',
     ]);
+  });
+});
+
+describe('UndoInventoryAddInternalHandler', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it('undoes the lot top-up, then removes the new rows', async () => {
+    jest.spyOn(StockCommandService.prototype, 'execute').mockResolvedValue({ command_type: 'undo_stock', status: 'confirmed', affected_tables: ['inventory'] } as never);
+    const { client, calls } = makeClient({ count: 1 });
+    const r = await new UndoInventoryAddInternalHandler().execute(makeCtx(client),
+      { original_command_id: '40000000-0000-4000-8000-000000000001', inventory_ids: ['inv-2'] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, expect.objectContaining({
+      command_type: 'undo_stock', payload: { original_command_id: '40000000-0000-4000-8000-000000000001' } }));
+    expect(calls[0].filters).toContainEqual({ kind: 'in', col: 'id', val: ['inv-2'] });
+    expect(r.result.removed).toBe(1);
+  });
+  it('removes nothing when the lot changed since (the undo is refused)', async () => {
+    jest.spyOn(StockCommandService.prototype, 'execute').mockRejectedValue(new Error('UNDO_CONFLICT'));
+    const { client, calls } = makeClient({ count: 1 });
+    await expect(new UndoInventoryAddInternalHandler().execute(makeCtx(client),
+      { original_command_id: '40000000-0000-4000-8000-000000000001', inventory_ids: ['inv-2'] })).rejects.toThrow('UNDO_CONFLICT');
+    expect(calls).toHaveLength(0);
   });
 });
 

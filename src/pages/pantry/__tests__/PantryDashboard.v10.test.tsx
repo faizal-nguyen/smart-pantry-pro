@@ -20,6 +20,8 @@ jest.mock('@/integrations/supabase/client', () => ({
       : { delete: () => ({ eq: mockDeleteEq }) },
   },
 }));
+const mockUndoStockCommand = jest.fn();
+jest.mock('@/services/stockCommands', () => ({ undoStockCommand: (id: string) => mockUndoStockCommand(id) }));
 
 const quickAdd = async () => {
   render(<MemoryRouter><PantryDashboard /><Toaster /></MemoryRouter>);
@@ -50,4 +52,15 @@ test('a failed undo says the product stayed in the inventory', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
   fireEvent.click(await quickAdd());
   await waitFor(() => expect(screen.getByText('Annulation impossible')).toBeInTheDocument());
+});
+
+test('undoing an add that topped up a lot undoes its stock command, never deletes the lot', async () => {
+  mockAddToInventory.mockResolvedValue({ id: INVENTORY_ID, quantity: 3, unit: 'unité', product: { name: 'Tomates' }, top_up_command_id: 'command-1' });
+  mockUndoStockCommand.mockResolvedValue({ status: 'confirmed' });
+  const undo = await quickAdd();
+  expect(screen.getByText('Tomates : 3 unité au total dans ce lot.')).toBeInTheDocument();
+  fireEvent.click(undo);
+  await screen.findByText('Ajout annulé');
+  expect(mockUndoStockCommand).toHaveBeenCalledWith('command-1');
+  expect(mockDeleteEq).not.toHaveBeenCalled();
 });

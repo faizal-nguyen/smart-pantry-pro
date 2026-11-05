@@ -59,6 +59,23 @@ export class RemoveInventoryItemsInternalHandler
   }
 }
 
+// ---- _undo_inventory_add ---------------------------------------------
+
+/**
+ * Inverse of an add_inventory_items that topped up existing lots: undo that
+ * stock command, then remove the rows the same add created. A lot changed
+ * since refuses the undo, so nothing is removed either.
+ */
+export class UndoInventoryAddInternalHandler
+  implements ToolHandler<{ original_command_id: string; inventory_ids: string[] }>
+{
+  async execute(ctx: ToolExecutionContext, args: { original_command_id: string; inventory_ids: string[] }) {
+    const { result: undo } = await new UndoStockCommandInternalHandler().execute(ctx, { original_command_id: args.original_command_id });
+    const { result: { removed } } = await new RemoveInventoryItemsInternalHandler().execute(ctx, { inventory_ids: args.inventory_ids });
+    return { result: { undo, removed } };
+  }
+}
+
 // ---- _restore_inventory_quantities ----------------------------------
 
 /**
@@ -216,6 +233,7 @@ export const INTERNAL_TOOL_NAMES = [
   '_restore_inventory_item_snapshot',
   '_restore_shopping_items',
   '_remove_meal_plan_entries',
+  '_undo_inventory_add',
 ] as const;
 
 export function registerInternalHandlers(registry: ToolHandlerRegistry): void {
@@ -231,4 +249,5 @@ export function registerInternalHandlers(registry: ToolHandlerRegistry): void {
   );
   registry.register('_restore_shopping_items', new RestoreShoppingItemsInternalHandler());
   registry.register('_remove_meal_plan_entries', new RemoveMealPlanEntriesInternalHandler());
+  registry.register('_undo_inventory_add', new UndoInventoryAddInternalHandler());
 }

@@ -1,4 +1,4 @@
-import { allocateRecipeStock, convertQuantity, ingredientMatchRank, mapLibraryRecipe, normalizeRecipeIngredients, StockCommandSchema, type StockLot } from '@smart/shared';
+import { allocateRecipeStock, convertQuantity, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, normalizeRecipeIngredients, StockCommandSchema, type StockLot } from '@smart/shared';
 
 const lot = (quantity = 1, unit = 'kg'): StockLot => ({ id: 'lot', product_id: 'p', product_name: 'Farine', quantity, unit, stock_version: 2 });
 const ingredient = (quantity = 200, unit = 'g') => ({ ingredient_name: 'Farine', quantity, unit, inventory_product_id: 'p', is_essential: true });
@@ -107,4 +107,31 @@ describe('recipe ingredients checked against the pantry', () => {
     expect(allocateRecipeStock([need('eau',250,'ml'), need('Eau chaude',1,'l'), need('eau du robinet',1,'l')],[],4,4)).toEqual({ allocations: [], missing: [] });
     expect(allocateRecipeStock([need('eau de coco',250,'ml'), need('eau gazeuse',1,'l')],[],4,4).missing.map(item => item.reason)).toEqual(['NOT_IN_STOCK','NOT_IN_STOCK']);
   });
+});
+
+describe('an add tops up the matching lot instead of creating a row', () => {
+  const potatoes = (over: Partial<{ id: string; quantity: number; unit: string | null; expiry_date: string | null; location: string | null }> = {}) =>
+    ({ id: 'lot', quantity: 1, unit: 'unité', expiry_date: null, location: null, ...over });
+  test('2 pommes de terre join the lot of 1 (prod case 2026-11-04)', () =>
+    expect(findTopUpLot([potatoes()], { quantity: 2, unit: 'unité' })).toEqual({ lot: potatoes(), total: 3 }));
+  test('a convertible unit is converted into the lot unit', () =>
+    expect(findTopUpLot([potatoes({ unit: 'kg' })], { quantity: 500, unit: 'g' })?.total).toBe(1.5));
+  test.each([['kg'], ['sachet'], [null]])('2 unités never join a lot whose unit cannot hold them (%s)', unit =>
+    expect(findTopUpLot([potatoes({ unit })], { quantity: 2, unit: 'unité' })).toBeNull());
+  test('another expiry date makes a new lot', () =>
+    expect(findTopUpLot([potatoes({ expiry_date: '2026-11-20' })], { quantity: 2, unit: 'unité', expiry_date: '2026-11-30' })).toBeNull());
+  test('a dated add does not erase an undated lot', () =>
+    expect(findTopUpLot([potatoes()], { quantity: 2, unit: 'unité', expiry_date: '2026-11-30' })).toBeNull());
+  test('an undated add joins the same-date lot first, else the only dated lot', () => {
+    const dated = potatoes({ id: 'dated', expiry_date: '2026-11-20' });
+    expect(findTopUpLot([dated, potatoes({ id: 'undated' })], { quantity: 2, unit: 'unité' })?.lot.id).toBe('undated');
+    expect(findTopUpLot([dated], { quantity: 2, unit: 'unité' })?.lot.id).toBe('dated');
+    expect(findTopUpLot([dated, potatoes({ id: 'other', expiry_date: '2026-12-01' })], { quantity: 2, unit: 'unité' })).toBeNull();
+  });
+  test('another place makes a new lot; an unknown place does not', () => {
+    expect(findTopUpLot([potatoes({ location: 'fridge' })], { quantity: 2, unit: 'unité', location: 'pantry' })).toBeNull();
+    expect(findTopUpLot([potatoes({ location: 'fridge' })], { quantity: 2, unit: 'unité' })?.total).toBe(3);
+  });
+  test('an empty lot is not revived (its date may be stale)', () =>
+    expect(findTopUpLot([potatoes({ quantity: 0 })], { quantity: 2, unit: 'unité' })).toBeNull());
 });
