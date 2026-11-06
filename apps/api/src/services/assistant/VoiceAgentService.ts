@@ -83,7 +83,10 @@ const AGENT_SYSTEM_PROMPT = `You are Smart Pantry Pro's kitchen assistant. The u
 
 You help manage their inventory, shopping list, recipes, and meal plan via tool calls.
 
-GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE suggesting recipes or purchases that depend on stock. A direct command (« ajoute », « retire », « coche », « supprime ») is not a suggestion: call its write tool directly, without reading first.
+GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE suggesting recipes or purchases that depend on stock.
+DIRECT COMMANDS are not suggestions:
+- Adding by name (« ajoute du lait », « mets des œufs sur ma liste ») → call add_inventory_items / add_shopping_items directly, without reading first.
+- Acting on something already there (« j’ai utilisé / mangé / jeté 200 g de riz », « retire le lait de ma liste », « coche le pain », « corrige la date du yaourt ») needs that row's id: first call read_inventory with { "search": "<product>" } or read_shopping_list with { "search": "<item>" }, then call consume_inventory_items / update_inventory_item / remove_shopping_items / mark_shopping_items_bought with the id from that result. Never invent an id; if several rows match and the user did not say which, ask_clarification.
 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
 - Pick the RIGHT tool based on what the user actually asked:
@@ -153,6 +156,8 @@ export interface ExecutedActionDescriptor {
   step_seq: number;
   tool: string;
   args: Record<string, unknown>;
+  /** Names of the rows the action targets, from this turn's reads (display only). */
+  labels?: Record<string, string>;
   result: unknown;
   reversible: boolean;
   undo_expires_at: string | null;
@@ -164,6 +169,8 @@ export interface PendingActionDescriptor {
   step_seq: number;
   tool: string;
   args: Record<string, unknown>;
+  /** Names of the rows the action targets, from this turn's reads (display only). */
+  labels?: Record<string, string>;
   risk_tier: RiskTier;
   reason: string;
 }
@@ -874,7 +881,13 @@ export class VoiceAgentService {
     const memoryOnly = memoryResults.length > 0 && executed.every(a => ['remember_preference','forget_memory','update_response_style'].includes(a.tool)) && pending.length === 0;
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
     if (pending.length) message = synthesizeMessage(executed,pending);
-    if (toolIssue) message = 'Une action n’a pas pu être validée sur cette page. '+synthesizeMessage(executed,pending);
+    if (toolIssue) {
+      const outOfScope = [...outcomes.values()].some(outcome => (outcome as { status?: string } | null)?.status === 'forbidden_scope');
+      const changed = executed.some(action => action.risk_tier !== 'read') || pending.length > 0;
+      message = (outOfScope ? 'Une action n’est pas disponible sur cette page' : 'Une action n’a pas pu être préparée')
+        // Worded so the change-claim guard below does not read « a été modifié ».
+        + (changed ? '. ' + synthesizeMessage(executed, pending) : ' : je n’ai rien changé. Précise le produit et redis-le-moi.');
+    }
     if (unverified.length) message = 'Une action n’a pas pu être confirmée. Vérifie son résultat avant de la répéter. ' + synthesizeMessage(executed,pending);
     // A model can announce a change no write tool made ("J'ai ajouté…" after
     // a read only). Only an executed, pending or unverified write backs it.
@@ -945,8 +958,8 @@ export class VoiceAgentService {
       transcript,
       detected_language: detectedLanguage,
       message,
-      actions_executed: executed,
-      actions_pending: pending,
+      actions_executed: withLabels(executed, executed),
+      actions_pending: withLabels(pending, executed),
       confirmation_token: confirmationToken,
       cost: {
         whisper_usd: transcriptionUsd ?? 0,
@@ -1224,6 +1237,27 @@ const CHANGE_CLAIM = /(?:\bj['’]ai|\bje viens d['’]|\bc['’]est|\b(?:a|ont|
 const NO_CHANGE_MESSAGE = 'Je n’ai encore rien modifié. Redis-moi ce que tu veux ajouter ou changer, par exemple « ajoute 2 kg de pommes de terre au stock ».';
 const READ_ONLY_MESSAGE = 'Je n’ai rien modifié : cette fenêtre d’aide peut seulement consulter ton stock, ta liste et tes recettes. Pour ajouter ou changer quelque chose, touche « Ouvrir les conversations » et redis-le-moi.';
 const READ_ONLY_SCOPE = `READ-ONLY WINDOW: here you can only read (stock, shopping list, recipes, memories). Never offer, promise or announce a change. If the user asks to add, remove, update or mark anything, answer in one short sentence, in their language, that this help window can only consult and that the « Ouvrir les conversations » button opens the assistant that makes changes.`;
+
+/** « 200 g » alone cannot be confirmed: name the rows a write targets, from the reads of the same turn. */
+function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[]): T[] {
+  const names = new Map<string, string>();
+  for (const action of executed) {
+    if (action.tool !== 'read_inventory' && action.tool !== 'read_shopping_list') continue;
+    const items = (action.result as { items?: Array<{ id?: unknown; product_name?: unknown }> } | null)?.items;
+    for (const item of Array.isArray(items) ? items : [])
+      if (typeof item.id === 'string' && typeof item.product_name === 'string' && item.product_name) names.set(item.id, item.product_name);
+  }
+  if (!names.size) return actions;
+  return actions.map(action => {
+    const { args } = action;
+    const ids = [
+      ...(Array.isArray(args.items) ? (args.items as Array<{ inventory_id?: unknown }>).map(item => item?.inventory_id) : []),
+      ...(Array.isArray(args.shopping_item_ids) ? args.shopping_item_ids : []),
+      args.inventory_id,
+    ].filter((id): id is string => typeof id === 'string' && names.has(id));
+    return ids.length ? { ...action, labels: Object.fromEntries(ids.map(id => [id, names.get(id)!])) } : action;
+  });
+}
 
 function synthesizeMessage(
   executed: ExecutedActionDescriptor[],

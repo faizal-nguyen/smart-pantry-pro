@@ -39,15 +39,20 @@ function shortToolName(tool: string): string {
   return tool.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-type Item = { name?: string; quantity?: number; unit?: string };
-function previewArgs(args: Record<string, unknown>): string {
+type Item = { name?: string; inventory_id?: string; quantity?: number; unit?: string };
+function previewArgs(args: Record<string, unknown>, labels: Record<string, string> = {}): string {
   // One bulleted line per item, so a 16-item add reads without horizontal scroll.
+  // Rows chosen by id show the name the server read for them (« 200 g Riz basmati »).
   if (Array.isArray(args.items)) {
     return (args.items as Item[])
-      .map(item => `• ${`${item.quantity ?? ''} ${item.unit ?? ''} ${item.name ?? ''}`.replace(/\s+/g, ' ').trim()}`)
+      .map(item => `• ${`${item.quantity ?? ''} ${item.unit ?? ''} ${item.name ?? labels[item.inventory_id ?? ''] ?? ''}`.replace(/\s+/g, ' ').trim()}`)
       .join('\n');
   }
-  if (Array.isArray(args.shopping_item_ids)) return `${args.shopping_item_ids.length} article(s)`;
+  if (Array.isArray(args.shopping_item_ids)) {
+    const ids = args.shopping_item_ids as string[];
+    return ids.every(id => labels[id]) ? ids.map(id => `• ${labels[id]}`).join('\n') : `${ids.length} article(s)`;
+  }
+  if (typeof args.inventory_id === 'string' && labels[args.inventory_id]) return labels[args.inventory_id];
   if ('recipe_id' in args && 'meal_type' in args) return `${String(args.meal_type)} • ${String(args.week_start ?? '')}`;
   if ('url' in args) return String(args.url);
   if ('category' in args) return String(args.category);
@@ -142,7 +147,7 @@ function ExecutedRow({ action, onUndo, undoing }: { action: ExecutedAction; onUn
           <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
-        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args)}</p>
+        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
       </div>
       {action.reversible && !expired && (
         <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onUndo} disabled={undoing} aria-label="Annuler cette action">
@@ -163,7 +168,7 @@ function PendingRow({ action }: { action: PendingAction }) {
           <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
-        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args)}</p>
+        <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
         {action.reason && <p className="text-xs italic text-amber-800 mt-1.5 break-words">{action.reason}</p>}
       </div>
     </li>

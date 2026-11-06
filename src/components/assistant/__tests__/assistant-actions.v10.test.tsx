@@ -72,6 +72,15 @@ describe('pending and executed actions of a reply', () => {
     expect(patch.mock.calls[0][0].actions_executed[0].reversible).toBe(false);
     expect(mockDbChanged).toHaveBeenCalledWith(['add_shopping_items']);
   });
+  test('a row chosen by id shows the name the server read for it', () => {
+    const LOT = '44444444-4444-4444-8444-444444444444';
+    render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [
+      { ...pending, args: { items: [{ inventory_id: LOT, quantity: 200, unit: 'g' }] }, labels: { [LOT]: 'Riz basmati' } },
+      { ...pending, action_id: 'p2', tool: 'remove_shopping_items', args: { shopping_item_ids: ['s1', 's2'] }, labels: { s1: 'Lait', s2: 'Pain' } },
+    ] })} />);
+    expect(screen.getByText('• 200 g Riz basmati')).toBeInTheDocument();
+    expect(screen.getByText(/• Lait\s+• Pain/)).toBeInTheDocument();
+  });
   test('a reply without actions renders nothing', () => {
     const { container } = render(<AssistantActionsPanel result={reply({ actions_pending: [], confirmation_token: null })} onResultPatched={jest.fn()} />);
     expect(container).toBeEmptyDOMElement();

@@ -937,7 +937,7 @@ describe('V10-03D transport, receipts and replay boundaries',()=>{
     const {service}=makeService({ai,handlers:{add_shopping_items:handler}});
     const response=await service.handleRequest(input,makeCtx());
     expect(handler.execute).not.toHaveBeenCalled();expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','argument_repair']);
-    expect(response.model_receipt?.llm_usd).toBeGreaterThan(0);expect(response.message).toMatch(/validée/);
+    expect(response.model_receipt?.llm_usd).toBeGreaterThan(0);expect(response.message).toMatch(/pas pu être préparée/);
   });
   it('does not repeat an uncertain write inside the same batch',async()=>{
     const handler={execute:jest.fn(async()=>{throw new Error('Reply lost after writing');})};
@@ -1223,5 +1223,52 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     const response=await service.handleRequest({...input,text:'Que cuisiner ce soir ?'},makeCtx());
     expect(response.model_receipt?.calls.map(c=>c.purpose)).not.toContain('tool_followup');
     expect(response.model_receipt?.calls).toHaveLength(2);
+  });
+});
+
+describe('a command on an existing row reads its id first (prod case 2026-11-06 11:46)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const};
+  const LOT='44444444-4444-4444-8444-444444444444';
+  type Step={content?:string;call?:{name:string;arguments:string}};
+  function scripted(steps:Step[]) {
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);const step=steps[requests.length-1] ?? {content:'fin'};
+      return {content:step.content ?? '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(step.call ? {tool_calls:[{id:'call-'+requests.length,...step.call}]} : {})};
+    }};
+    return {ai,requests};
+  }
+  it('the prompt sends « j’ai utilisé », « retire », « coche » to a read with a search, never to an invented id',async()=>{
+    const {ai,requests}=scripted([{content:'ok'}]);
+    const {service}=makeService({ai,handlers:{},modelConfig:benchmarkConfig('baseline')});
+    await service.handleRequest({...input,text:'Bonjour'},makeCtx());
+    const system=String(requests[0].messages[0].content);
+    expect(system).toMatch(/read_inventory with \{ "search"/);
+    expect(system).toMatch(/read_shopping_list with \{ "search"/);
+    expect(system).toMatch(/Never invent an id/);
+    expect(system).not.toMatch(/call its write tool directly, without reading first\./);
+  });
+  it('« J’ai utilisé 200 g de riz »: read, then a consume to confirm that names the product',async()=>{
+    const {ai,requests}=scripted([{call:{name:'read_inventory',arguments:'{"search":"riz"}'}},
+      {call:{name:'consume_inventory_items',arguments:JSON.stringify({items:[{inventory_id:LOT,quantity:200,unit:'g'}]})}},
+      {content:'Je décompte 200 g de riz basmati, à confirmer.'}]);
+    const consume={execute:jest.fn()};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{
+      read_inventory:{execute:async()=>({result:{items:[{id:LOT,product_name:'Riz basmati',quantity:1,unit_type:'kg'}]}})},consume_inventory_items:consume}});
+    const response=await service.handleRequest({...input,text:'J’ai utilisé 200 g de riz'},makeCtx());
+    expect((requests[1].tools ?? []).map(t=>t.function.name)).toContain('consume_inventory_items');
+    expect(consume.execute).not.toHaveBeenCalled();
+    expect(response.actions_pending).toHaveLength(1);
+    expect(response.actions_pending[0]).toMatchObject({tool:'consume_inventory_items',labels:{[LOT]:'Riz basmati'}});
+    expect(response.confirmation_token).toBeTruthy();
+  });
+  it('an action that could not be prepared does not blame the page',async()=>{
+    const {ai}=scripted([{call:{name:'consume_inventory_items',arguments:'{"items":[{"inventory_id":"riz","quantity":200}]}'}},
+      {call:{name:'consume_inventory_items',arguments:'{"items":[{"inventory_id":"riz","quantity":200}]}'}}]);
+    const {service}=makeService({ai,handlers:{},modelConfig:benchmarkConfig('baseline')});
+    const response=await service.handleRequest({...input,text:'J’ai utilisé 200 g de riz'},makeCtx());
+    expect(response.message).not.toMatch(/sur cette page/);
+    expect(response.message).toMatch(/pas pu être préparée : je n’ai rien changé/);
   });
 });

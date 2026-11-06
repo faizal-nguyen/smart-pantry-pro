@@ -29,6 +29,8 @@ export interface ExecutedAction {
   step_seq: number;
   tool: string;
   args: Record<string, unknown>;
+  /** Names of the targeted rows (inventory or shopping ids), display only. */
+  labels?: Record<string, string>;
   result: unknown;
   reversible: boolean;
   undo_expires_at: string | null;
@@ -40,6 +42,8 @@ export interface PendingAction {
   step_seq: number;
   tool: string;
   args: Record<string, unknown>;
+  /** Names of the targeted rows (inventory or shopping ids), display only. */
+  labels?: Record<string, string>;
   risk_tier: RiskTier;
   reason: string;
 }

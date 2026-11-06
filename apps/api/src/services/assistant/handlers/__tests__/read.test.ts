@@ -260,6 +260,17 @@ describe('ReadShoppingListHandler', () => {
   });
 });
 
+describe('ReadShoppingListHandler search', () => {
+  it('« retire le lait »: search keeps the matching rows, accents and plurals aside', async () => {
+    const row = (id: string, name: string) => ({ id, product_id: 'p-' + id, quantity: 1, is_purchased: false, priority: 1,
+      estimated_price: null, store_section: null, products: { id: 'p-' + id, name, category: 'laitier', unit_type: 'L' } });
+    const { client } = makeClient({ routes: { shopping_list: { data: [row('s1', 'Lait demi-écrémé'), row('s2', 'Pâtes'), row('s3', 'Laits de coco')] } } });
+    const result = await new ReadShoppingListHandler().execute(makeCtx(client), { search: 'lait' });
+    expect(result.result.items.map(i => i.id)).toEqual(['s1', 's3']);
+    expect((await new ReadShoppingListHandler().execute(makeCtx(client), { search: 'pates' })).result.items.map(i => i.id)).toEqual(['s2']);
+  });
+});
+
 describe('ReadRecentRecipesHandler', () => {
   it('orders by created_at DESC, applies limit', async () => {
     const { client, calls } = makeClient({
