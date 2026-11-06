@@ -608,7 +608,7 @@ export class VoiceAgentService {
         } else if (planned.status === 'planned' && ['medium','high'].includes(planned.risk_tier)) {
           outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
           pending.push({action_id:planned.id,step_seq:stepSeq,tool:planned.tool,args:parsedArgs as Record<string,unknown>,
-            risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier)});
+            risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier,planned.tool)});
         } else if (planned.risk_tier !== 'read') {
           outcomes.set(tc.id,{status:'verification_required',action_id:planned.id});
           unverified.push({action_id:planned.id,tool:planned.tool});
@@ -687,7 +687,7 @@ export class VoiceAgentService {
           tool: tc.name,
           args: parsedArgs as Record<string, unknown>,
           risk_tier: risk.tier,
-          reason: risk.reason ?? defaultReasonForTier(risk.tier),
+          reason: risk.reason ?? defaultReasonForTier(risk.tier, tc.name),
         });
       }
       // Permit one bounded follow-up after reads, so read → write ("ajoute…"
@@ -1226,12 +1226,19 @@ export class VoiceAgentService {
 
 // ---- helpers --------------------------------------------------------
 
-function defaultReasonForTier(tier: RiskTier): string {
+// What a confirmation is about, in the user's words: « ton stock », not « l'état ».
+const CONFIRMATION_TARGET: Record<string, string> = {
+  consume_inventory_items: 'ton stock', update_inventory_item: 'ton stock', clear_inventory_category: 'ton stock', cook_recipe: 'ton stock',
+  remove_shopping_items: 'ta liste de courses', clear_shopping_list: 'ta liste de courses',
+  delete_recipe: 'tes recettes', import_recipe_from_url: 'tes recettes',
+};
+function defaultReasonForTier(tier: RiskTier, tool?: string): string {
+  const target = (tool && CONFIRMATION_TARGET[tool]) ?? 'tes données';
   switch (tier) {
     case 'medium':
-      return 'Action modifiant l\'état — confirme.';
+      return `Cette action modifie ${target} : vérifie-la avant de confirmer.`;
     case 'high':
-      return 'Action sensible — confirmation requise.';
+      return `Action sensible sur ${target} : vérifie-la avant de confirmer.`;
     default:
       return '';
   }

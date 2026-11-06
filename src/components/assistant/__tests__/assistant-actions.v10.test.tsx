@@ -82,6 +82,21 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText('• 200 g Riz basmati')).toBeInTheDocument();
     expect(screen.getByText(/• Lait\s+• Pain/)).toBeInTheDocument();
   });
+  test('reads are not listed as changes; tools have French names; quantities use a decimal comma', () => {
+    const LOT = '44444444-4444-4444-8444-444444444444';
+    const read = { ...executed, action_id: 'r1', tool: 'read_inventory', args: { search: 'riz' }, reversible: false, risk_tier: 'read' as const };
+    render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_executed: [read], actions_pending: [
+      { ...pending, args: { items: [{ inventory_id: LOT, quantity: 0.2, unit: 'kg' }] }, labels: { [LOT]: 'Riz Ponni' } }] })} />);
+    expect(screen.queryByText(/Exécutées/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Read Inventory|read_inventory/)).not.toBeInTheDocument();
+    expect(screen.getByText('Décompter du stock')).toBeInTheDocument();
+    expect(screen.getByText('• 0,2 kg Riz Ponni')).toBeInTheDocument();
+  });
+  test('a reply whose only action was a read renders nothing', () => {
+    const read = { ...executed, tool: 'read_inventory', reversible: false, risk_tier: 'read' as const };
+    const { container } = render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [], confirmation_token: null, actions_executed: [read] })} />);
+    expect(container).toBeEmptyDOMElement();
+  });
   test('a reply without actions renders nothing', () => {
     const { container } = render(<AssistantActionsPanel result={reply({ actions_pending: [], confirmation_token: null })} onResultPatched={jest.fn()} />);
     expect(container).toBeEmptyDOMElement();

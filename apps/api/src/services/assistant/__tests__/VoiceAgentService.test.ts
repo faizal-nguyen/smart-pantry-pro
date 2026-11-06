@@ -1280,6 +1280,7 @@ describe('a command on an existing row reads its id first (prod case 2026-11-06 
     expect(response.confirmation_token).toBeTruthy();
     // The read changed nothing: it is not announced as « 1 action exécutée ».
     expect(response.message).toBe('1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».');
+    expect(response.actions_pending[0].reason).toBe('Cette action modifie ton stock : vérifie-la avant de confirmer.');
   });
   it('an action that could not be prepared does not blame the page',async()=>{
     const {ai}=scripted([{call:{name:'consume_inventory_items',arguments:'{"items":[{"inventory_id":"riz","quantity":200}]}'}},
