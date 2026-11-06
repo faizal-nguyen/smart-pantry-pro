@@ -1263,22 +1263,15 @@ function synthesizeMessage(
   executed: ExecutedActionDescriptor[],
   pending: PendingActionDescriptor[]
 ): string {
-  if (executed.length === 0 && pending.length === 0) {
-    return 'Rien à faire.';
-  }
+  // A read that only found the row to change is not news next to a pending write.
+  const changes = executed.filter(action => action.risk_tier !== 'read');
+  const done = changes.length || pending.length ? changes : executed;
+  if (done.length === 0 && pending.length === 0) return 'Rien à faire.';
   const parts: string[] = [];
-  if (executed.length > 0) {
-    parts.push(
-      `${executed.length} action${executed.length > 1 ? 's' : ''} exécutée${
-        executed.length > 1 ? 's' : ''
-      }.`
-    );
-  }
-  if (pending.length > 0) {
-    parts.push(
-      `${pending.length} action${pending.length > 1 ? 's' : ''} en attente de confirmation.`
-    );
-  }
+  if (done.length > 0) parts.push(`${done.length} action${done.length > 1 ? 's' : ''} exécutée${done.length > 1 ? 's' : ''}.`);
+  if (pending.length > 0) parts.push(pending.length > 1
+    ? `${pending.length} actions à confirmer : vérifie-les ci-dessous, puis touche « Confirmer ».`
+    : '1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».');
   return parts.join(' ');
 }
 

@@ -1262,6 +1262,8 @@ describe('a command on an existing row reads its id first (prod case 2026-11-06 
     expect(response.actions_pending).toHaveLength(1);
     expect(response.actions_pending[0]).toMatchObject({tool:'consume_inventory_items',labels:{[LOT]:'Riz basmati'}});
     expect(response.confirmation_token).toBeTruthy();
+    // The read changed nothing: it is not announced as « 1 action exécutée ».
+    expect(response.message).toBe('1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».');
   });
   it('an action that could not be prepared does not blame the page',async()=>{
     const {ai}=scripted([{call:{name:'consume_inventory_items',arguments:'{"items":[{"inventory_id":"riz","quantity":200}]}'}},
