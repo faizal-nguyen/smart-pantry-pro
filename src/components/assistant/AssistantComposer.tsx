@@ -43,6 +43,10 @@ interface AssistantComposerProps {
   expectedUserId?: string;
   sessionMessages?: import('@smart/shared').AssistantSessionMessage[];
   sessionRevision?: number;
+  /** A question brought by a « Demander à l'assistant » button, sent once on arrival. */
+  initialRequest?: string;
+  /** Called when that question is taken, so the parent can forget it (no resend on reload). */
+  onInitialRequestTaken?: () => void;
 }
 
 export default function AssistantComposer({
@@ -52,7 +56,7 @@ export default function AssistantComposer({
   onResponse,
   onError,
   autoFocus = false,
-  disabled, sessionMessages, sessionRevision, expectedUserId,
+  disabled, sessionMessages, sessionRevision, expectedUserId, initialRequest, onInitialRequestTaken,
 }: AssistantComposerProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -92,7 +96,22 @@ export default function AssistantComposer({
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
-    const trimmed = text.trim();
+    await submit(text);
+  };
+
+  const initialTaken = useRef(false);
+  useEffect(() => {
+    // Wait for the account: the composer is keyed by it and remounts once it is known.
+    if (!initialRequest || initialTaken.current || !expectedUserId || disabled) return;
+    initialTaken.current = true;
+    onInitialRequestTaken?.();
+    setText(initialRequest);
+    void submit(initialRequest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRequest, expectedUserId, disabled]);
+
+  async function submit(value: string) {
+    const trimmed = value.trim();
     if (!trimmed || disabled || sending || isRecording || isTranscribing) return;
     setSending(true);setError(null);
     if (!request.current || request.current.text !== trimmed || request.current.conversationId !== conversationId)
@@ -112,7 +131,7 @@ export default function AssistantComposer({
       focusAfterSend.current = true;
       setSending(false);
     }
-  };
+  }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter envoie, Shift+Enter newline (PRP-224 §15 a11y).

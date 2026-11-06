@@ -5,12 +5,11 @@
  * pour utiliser » qui prompte l'assistant en mode anti_waste. Source
  * = `useTodayAntiWaste`.
  */
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Leaf } from 'lucide-react';
 
 import { useTodayAntiWaste } from '@/hooks/useTodayAntiWaste';
-import { useToast } from '@/hooks/use-toast';
+import { useAskAssistant } from '@/hooks/useAskAssistant';
 import {
   PanelChrome,
   PanelEmpty,
@@ -18,10 +17,6 @@ import {
   PanelSkeleton,
 } from '@/components/kitchen/TodayPanelShell';
 import { Button } from '@/components/ui/button';
-import {
-  getAssistantRequestId,
-  postAssistantText,
-} from '@/services/assistantApi';
 
 const TITLE = 'Anti-gaspi';
 
@@ -35,9 +30,8 @@ function urgencyLabel(daysToExpiry: number): { text: string; urgent: boolean } {
 
 export default function TodayAntiWastePanel() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const ask = useAskAssistant();
   const { items, isLoading, isError, refetch } = useTodayAntiWaste(7);
-  const [pending, setPending] = React.useState(false);
 
   if (isLoading) return <PanelSkeleton title={TITLE} />;
   if (isError) {
@@ -59,29 +53,9 @@ export default function TodayAntiWastePanel() {
     );
   }
 
-  const askAssistant = async () => {
-    if (pending) return;
-    setPending(true);
-    try {
-      const namesPreview = items.slice(0, 4).map((it) => it.product_name).join(', ');
-      const { client_request_id } = await getAssistantRequestId();
-      await postAssistantText({
-        text: `J’ai besoin d’utiliser bientôt : ${namesPreview}. Propose-moi des recettes anti-gaspi.`,
-        clientRequestId: client_request_id,
-      });
-      toast({
-        title: 'Demande envoyée à l’assistant',
-        description: 'Sa réponse arrive dans la conversation.',
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Assistant indisponible',
-        description: err instanceof Error ? err.message : 'Erreur inconnue',
-      });
-    } finally {
-      setPending(false);
-    }
+  const askAssistant = () => {
+    const namesPreview = items.slice(0, 4).map((it) => it.product_name).join(', ');
+    ask(`J’ai besoin d’utiliser bientôt : ${namesPreview}. Propose-moi des recettes anti-gaspi.`);
   };
 
   return (
@@ -129,8 +103,7 @@ export default function TodayAntiWastePanel() {
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs gap-1 text-muted-foreground"
-          disabled={pending}
-          onClick={() => void askAssistant()}
+          onClick={askAssistant}
         >
           <Leaf className="h-3 w-3" aria-hidden="true" />
           Voir recettes

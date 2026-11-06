@@ -11,7 +11,7 @@
  * `add_recipe_to_meal_plan` ; `useAgentDbInvalidation` rafraîchit
  * automatiquement.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2 } from 'lucide-react';
 import { addDays, format } from 'date-fns';
 import { calendarWeekStart } from '@smart/shared';
@@ -21,13 +21,12 @@ import { fr } from 'date-fns/locale';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
 import { useWeeklyMenu } from '@/hooks/useWeeklyMenu';
 import MenuWeekGrid from '@/components/meal-planning/MenuWeekGrid';
 import AddRecipeToMenuDialog, {
   type MenuSlot,
 } from '@/components/meal-planning/AddRecipeToMenuDialog';
-import { getAssistantRequestId, postAssistantText } from '@/services/assistantApi';
+import { useAskAssistant } from '@/hooks/useAskAssistant';
 
 function isoWeekStart(date: Date): string {
   return calendarWeekStart(date)!;
@@ -44,14 +43,13 @@ function weekLabel(weekStart: string): string {
 }
 
 export default function MenusPage() {
-  const { toast } = useToast();
   // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
   const user = useAuthenticatedUser();
   void user;
   const [weekStart, setWeekStart] = useState<string>(() => isoWeekStart(new Date()));
   const [openDialog, setOpenDialog] = useState(false);
   const [slot, setSlot] = useState<MenuSlot | null>(null);
-  const [assistantLoading, setAssistantLoading] = useState(false);
+  const ask = useAskAssistant();
 
   const menu = useWeeklyMenu(weekStart);
 
@@ -82,30 +80,8 @@ export default function MenusPage() {
     }
   };
 
-  const askAssistant = async () => {
-    if (assistantLoading) return;
-    setAssistantLoading(true);
-    try {
-      const { client_request_id } = await getAssistantRequestId();
-      await postAssistantText({
-        text: `Aide-moi à planifier mes repas de la ${weekLabel(weekStart).toLowerCase()}. Tu peux ajouter des recettes à mon menu directement.`,
-        clientRequestId: client_request_id,
-      });
-      toast({
-        title: 'Demande envoyée à l’assistant',
-        description: 'Sa réponse arrive dans la conversation.',
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur inconnue';
-      toast({
-        variant: 'destructive',
-        title: 'Assistant indisponible',
-        description: message,
-      });
-    } finally {
-      setAssistantLoading(false);
-    }
-  };
+  const askAssistant = () =>
+    ask(`Aide-moi à planifier mes repas de la ${weekLabel(weekStart).toLowerCase()}. Tu peux ajouter des recettes à mon menu directement.`);
 
   const shiftWeek = (deltaDays: number) => {
     const monday = new Date(`${weekStart}T00:00:00`);
@@ -124,14 +100,9 @@ export default function MenusPage() {
             type="button"
             variant="outline"
             onClick={askAssistant}
-            disabled={assistantLoading}
             className="gap-2 self-start md:self-auto"
           >
-            {assistantLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
-            )}
+            <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             Demander à l&apos;assistant
           </Button>}/>
 
