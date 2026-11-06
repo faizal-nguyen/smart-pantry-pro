@@ -22,7 +22,8 @@ import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
 import AssistantModelDetails from './AssistantModelDetails';
-import { useAssistantConversation } from '@/hooks/useAssistantConversation';
+import { AssistantActionsPanel } from './AssistantActionsPanel';
+import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
   AssistantConversationMode,
@@ -46,13 +47,17 @@ export default function AssistantConversationSurface({
   const [session, setSession] = useState<{ owner?: string; messages: AssistantSessionMessage[]; revision?: number }>({ messages: [] });
   const [latest, setLatest] = useState<{ owner?: string; result: AssistantPlanResponse } | null>(null);
   const currentSession = session.owner === owner ? session : { messages: [] };
+  // Only the reply of this conversation (or of this session) may be confirmed here.
+  const latestHere = latest && latest.owner === owner && (latest.result.conversation_id ?? null) === conversationId ? latest.result : null;
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const awaitingConfirmation = !!latestHere?.confirmation_token && latestHere.actions_pending.length > 0;
+  useEffect(() => { if (awaitingConfirmation) actionsRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [awaitingConfirmation, latestHere]);
   useEffect(() => {
     const clear = (event: Event) => { if ((event as CustomEvent<{owner?:string}>).detail?.owner === owner) setSession({ owner, messages: [] }); };
     window.addEventListener('assistant-memory-changed', clear);
     return () => window.removeEventListener('assistant-memory-changed', clear);
   }, [owner]);
   const queryClient = useQueryClient();
-  const { conversation } = useAssistantConversation(conversationId);
   const { messages, isLoading: messagesLoading } = useAssistantMessages(
     conversationId,
     { limit: 50, enabled: !!conversationId },
@@ -64,6 +69,8 @@ export default function AssistantConversationSurface({
   const handleResponse = (response: AssistantPlanResponse) => {
     if (ownerRef.current !== owner) return;
     setLatest({ owner, result: response });
+    // Stock, shopping or menu pages refresh what an executed action changed.
+    dispatchAgentDbChanged(response.actions_executed.flatMap(action => tablesForTool(action.tool)));
     if (!response.conversation_id) setSession(previous => ({ owner, revision: response.memory_revision,
       messages: [...(previous.owner === owner && keepsSessionTurns(previous.revision, response) ? previous.messages : []),
         { role: 'user' as const, content: response.transcript.slice(0,500) }, { role: 'assistant' as const, content: response.message.slice(0,500) }].slice(-8) }));
@@ -99,6 +106,12 @@ export default function AssistantConversationSurface({
           <div className="space-y-3 py-6"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ou dicte ta question ci-dessous.</p></div>
         ) : (
           <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
+        )}
+        {latestHere && (
+          <div ref={actionsRef} className="mt-4">
+            <AssistantActionsPanel result={latestHere}
+              onResultPatched={patch => setLatest(previous => previous && previous.result === latestHere ? { ...previous, result: { ...previous.result, ...patch } } : previous)} />
+          </div>
         )}
       </CardContent>
       <AssistantComposer
