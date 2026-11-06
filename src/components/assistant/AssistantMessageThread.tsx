@@ -83,6 +83,8 @@ function ChefContent({
 interface AssistantMessageThreadProps {
   messages: AssistantMessage[];
   isLoading?: boolean;
+  /** Shown after the last message and before the scroll marker, so it stays in view (actions to confirm). */
+  footer?: React.ReactNode;
 }
 
 function formatTime(iso: string): string {
@@ -168,6 +170,7 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
 export default function AssistantMessageThread({
   messages,
   isLoading,
+  footer,
 }: AssistantMessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -198,6 +201,7 @@ export default function AssistantMessageThread({
       {messages.map(msg => (
         <MessageBubble key={msg.id} msg={msg} />
       ))}
+      {footer}
       <div ref={bottomRef} />
     </div>
   );
