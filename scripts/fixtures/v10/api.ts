@@ -1,3 +1,4 @@
+import { discoveryFixtureRequest, isDiscoveryFixturePath } from './discovery';
 import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
@@ -46,6 +47,7 @@ let privacy={ hasConsent:false,allowAnalytics:false,saveHistory:true,assistantMe
 const memoryReceipts=new Map<string,MemoryWriteResult>();
 const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('POST', path, body) as Promise<T>;
   if (path==='/v1/settings/privacy') { privacy={...privacy,...body as typeof privacy};memoryRevision++;return {settings:privacy} as T; }
   if (path==='/assistant/memory-commands') {
     const c=MemoryCommandSchema.parse(body),row=data.assistant_memory_items.find(r=>r.id===c.memory_id);
@@ -173,6 +175,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
+  if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('GET', path) as Promise<T>;
   if(path==='/assistant/models') {
     if(failures.modelsOffline) throw new ApiError('Catalogue fictif indisponible.',{status:503});
     return {catalog:modelCatalog} as T;
@@ -197,5 +200,8 @@ export async function apiGet<T>(path:string):Promise<T> {
   if (path==='/imports/social/counts') return { total:0,active:0,byPlatform:{},byStatus:{},quota:{ tier:'free',limit:50,remaining:50 } } as T;
   throw new ApiError('Service absent du jeu de test visuel.',{ status:503 });
 }
-export const apiPatch = apiPost;
+export async function apiPatch<T>(path:string,body?:unknown):Promise<T> {
+  if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('PATCH',path,body) as Promise<T>;
+  return apiPost<T>(path,body);
+}
 export const apiDelete = apiGet;

@@ -54,7 +54,7 @@ export const ImportCard: React.FC<ImportCardProps> = ({
   return (
     <Card className={cn('overflow-hidden', className)} data-testid={`import-card-${import_.id}`}>
       <CardContent className="p-4">
-        <div className="flex gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3">
           {/* Thumbnail / icon */}
           <div className="shrink-0">
             {displayThumbnail ? (
@@ -113,7 +113,7 @@ export const ImportCard: React.FC<ImportCardProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="shrink-0 self-start sm:self-center">
+          <div className="w-full sm:w-auto shrink-0 self-start sm:self-center [&_button]:min-h-11 [&_a]:min-h-11">
             <ImportActions
               import_={import_}
               onExtract={onExtract}

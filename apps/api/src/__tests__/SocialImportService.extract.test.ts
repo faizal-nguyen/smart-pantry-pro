@@ -36,7 +36,7 @@ const validDraft = () => ({
     platform: 'instagram',
     sourceUrl: 'https://www.instagram.com/reel/abc/',
     importedAt: new Date().toISOString(),
-    extractionMethod: 'ai_inference',
+    extractionMethod: 'transcript',
   },
   confidence: 0.85,
   extractionWarnings: [],
@@ -73,6 +73,15 @@ function makeRepo(overrides: Record<string, unknown> = {}) {
 }
 
 describe('SocialImportService.extract (PRP-220.11)', () => {
+  it('does not mark metadata/oEmbed-only content ready just because confidence is high', async () => {
+    const repo = makeRepo();
+    const draft = { ...validDraft(), confidence: 1, source: { ...validDraft().source, extractionMethod: 'oembed' } };
+    const result = await new SocialImportService(repo, { extractionService: { extract: jest.fn().mockResolvedValue({ draft }) } })
+      .extract('user-a', 'imp-1');
+    expect(result.import.status).toBe('needs_review');
+    expect(result.quality).toMatchObject({ metadata_only: true, can_save: false });
+  });
+
   it('throws ImportNotFoundError when the row does not exist', async () => {
     const repo = makeRepo({ findById: jest.fn().mockResolvedValue(null) });
     const svc = new SocialImportService(repo, {
@@ -113,7 +122,7 @@ describe('SocialImportService.extract (PRP-220.11)', () => {
       expect.objectContaining({
         importId: 'imp-1',
         userId: 'user-a',
-        sourceExtractionMethod: 'ai_inference',
+        sourceExtractionMethod: 'transcript',
         aiModel: 'gpt-4o-mini',
       })
     );

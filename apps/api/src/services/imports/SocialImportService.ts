@@ -7,7 +7,7 @@
  * is given a user-scoped repository (already RLS-bound) by the route.
  */
 import type { ImportedRecipeDraft } from '@smart/shared';
-import { ImportedRecipeDraftSchema } from '@smart/shared';
+import { ImportedRecipeDraftSchema, assessImportedRecipeQuality, type ImportedRecipeQuality } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { waitUntil } from '@vercel/functions';
 
@@ -15,7 +15,7 @@ import {
   canonicalizeUrl,
   detectPlatform,
 } from './canonicalUrl.js';
-import { computeSourceHash } from './sourceHash.js';
+import { computeSourceHash, computeLegacySourceHash } from './sourceHash.js';
 import {
   type SocialImportRepository,
   type SocialImportRow,
@@ -32,7 +32,6 @@ import {
 } from './extractionContract.js';
 import {
   type SaveImportedDraftAsRecipe,
-  type SaveDraftAsRecipeOptions,
   notImplementedSaveImportedDraftAsRecipe,
 } from './saveContract.js';
 import {
@@ -46,6 +45,7 @@ import { metrics } from '../../lib/metrics.js';
 import { logExtraction, logger } from '../../lib/logger.js';
 import type { ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
 import { sanitizeImportedDraft } from '../recipeQuality/sanitizeImportedDraft.js';
+import { ImportReviewError, preserveImportProvenance, editedRecipeFields, importAdaptations, type ImportAdaptation, type ReviewedSaveOptions } from './ImportReview.js';
 
 export interface CaptureResult {
   import: SocialImportRow;
@@ -64,11 +64,14 @@ export interface ExtractFlowResult {
   cost?: ExtractionResult['cost'];
   modelUsed?: string;
   durationMs?: number;
+  quality: ImportedRecipeQuality;
 }
 
 export interface SaveFlowResult {
   import: SocialImportRow;
   recipeId: string;
+  reconciled: boolean;
+  quality: ImportedRecipeQuality | null;
 }
 
 export interface SocialImportServiceOptions {
@@ -124,6 +127,15 @@ export class SocialImportService {
     // a 23505 from Postgres on the common "duplicate" path.
     const existing = await this.repo.findByHash(userId, sourceHash);
     if (existing) return { import: existing, duplicate: true };
+    const legacyHash = computeLegacySourceHash(canonicalUrl);
+    if (legacyHash !== sourceHash) {
+      const legacy = await this.repo.findByHash(userId, legacyHash);
+      // Legacy hashing dropped all queries and lowercased paths. Reuse only
+      // an actually identical source; never inherit its historical collision.
+      if (legacy && computeSourceHash(legacy.source_url) === sourceHash) {
+        return { import: legacy, duplicate: true };
+      }
+    }
 
     try {
       const row = await this.repo.insertCaptured({
@@ -156,11 +168,13 @@ export class SocialImportService {
         const result = await this.capture(userId, url);
         results.push({ url, result });
       } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : error && typeof error === 'object' && 'message' in error ? String(error.message) : 'Capture failed';
+        const quotaExceeded = message.includes('QUOTA_EXCEEDED');
         results.push({
           url,
           error: {
-            code: 'CAPTURE_FAILED',
-            message: error instanceof Error ? error.message : 'Capture failed',
+            code: quotaExceeded ? 'QUOTA_EXCEEDED' : 'CAPTURE_FAILED',
+            message: quotaExceeded ? 'Limite gratuite de 25 imports actifs atteinte' : message,
           },
         });
       }
@@ -176,7 +190,13 @@ export class SocialImportService {
     return this.repo.findById(userId, id);
   }
 
-  patch(userId: string, id: string, fields: PatchImportFields): Promise<SocialImportRow | null> {
+  async patch(userId: string, id: string, fields: PatchImportFields): Promise<SocialImportRow | null> {
+    if (fields.status === 'captured') {
+      const existing = await this.repo.findById(userId, id);
+      if (!existing) return null;
+      const savedId = await this.repo.findSavedRecipeId(userId, id);
+      if (savedId) return this.repo.updateLifecycle(userId, id, { ...fields, status: 'saved', recipe_id: savedId });
+    }
     return this.repo.patch(userId, id, fields);
   }
 
@@ -189,11 +209,34 @@ export class SocialImportService {
   async getWithCurrentDraft(
     userId: string,
     importId: string
-  ): Promise<{ import: SocialImportRow; draft: ImportedRecipeDraftRow | null } | null> {
+  ): Promise<{ import: SocialImportRow; draft: ImportedRecipeDraftRow | null; quality: ImportedRecipeQuality | null; adaptations: ImportAdaptation[] } | null> {
     const imp = await this.repo.findById(userId, importId);
     if (!imp) return null;
     const draft = await this.repo.findCurrentDraft(importId);
-    return { import: imp, draft };
+    const parsed = ImportedRecipeDraftSchema.safeParse(draft?.draft_json);
+    return { import: imp, draft, quality: parsed.success ? assessImportedRecipeQuality(parsed.data, { sourceReviewed: imp.metadata.source_reviewed === true }) : null,
+      adaptations: parsed.success ? importAdaptations(parsed.data) : [] };
+  }
+
+  /** Preview a final correction and its mandatory substitutions, without writes or AI. */
+  async review(userId: string, importId: string, options: { draft?: unknown; expectedRevision?: number; sourceReviewed?: boolean } = {}) {
+    const existing = await this.repo.findById(userId, importId);
+    if (!existing) throw new ImportNotFoundError(importId);
+    const current = await this.repo.findCurrentDraft(importId);
+    if (!current) throw new NoDraftAvailableError(importId);
+    const stored = ImportedRecipeDraftSchema.safeParse(current.draft_json);
+    if (!stored.success) throw new SaveFailedError('Le brouillon enregistré ne peut pas être relu.');
+    if (options.draft !== undefined && options.expectedRevision === undefined) {
+      throw new ImportReviewError('REVISION_REQUIRED', 'La révision du brouillon est nécessaire.', 409);
+    }
+    if (options.expectedRevision !== undefined && options.expectedRevision !== current.version) {
+      throw new ImportReviewError('REVISION_CONFLICT', 'Ce brouillon a changé. Rechargez sa version actuelle.', 409);
+    }
+    const edited = options.draft === undefined ? stored : ImportedRecipeDraftSchema.safeParse(options.draft);
+    if (!edited.success) throw new SaveFailedError('Le brouillon corrigé est incomplet ou invalide.');
+    const draft = preserveImportProvenance(edited.data, stored.data);
+    return { draft, revision: current.version, quality: assessImportedRecipeQuality(draft, { sourceReviewed: options.sourceReviewed }),
+      adaptations: importAdaptations(draft, stored.data) };
   }
 
   /**
@@ -224,6 +267,7 @@ export class SocialImportService {
       throw new ImportInvalidStateError(existing.status);
     }
 
+    const previousDraft = await this.repo.findCurrentDraft(importId);
     const t0 = Date.now();
     let result: ExtractionResult;
     try {
@@ -272,7 +316,9 @@ export class SocialImportService {
       });
       throw new ExtractionFailedError(acquired.platform, message);
     }
-    const validatedDraft: ImportedRecipeDraft = validation.data;
+    const previous = ImportedRecipeDraftSchema.safeParse(previousDraft?.draft_json);
+    const validatedDraft: ImportedRecipeDraft = previous.success ? preserveImportProvenance(validation.data, previous.data) : validation.data;
+    const quality = assessImportedRecipeQuality(validatedDraft);
 
     const draftRow = await this.repo.insertNewDraft({
       importId: acquired.id,
@@ -283,10 +329,11 @@ export class SocialImportService {
       aiInputTokens: result.cost?.inputTokens,
       aiOutputTokens: result.cost?.outputTokens,
       costUsdEstimate: result.cost?.usd,
+      expectedRevision: previousDraft?.version ?? 0,
     });
 
     const newStatus =
-      validatedDraft.confidence >= CONFIDENCE_REVIEW_THRESHOLD ? 'draft_ready' : 'needs_review';
+      quality.can_save && validatedDraft.confidence >= CONFIDENCE_REVIEW_THRESHOLD ? 'draft_ready' : 'needs_review';
     const updated = await this.repo.updateLifecycle(userId, importId, {
       status: newStatus,
       title: validatedDraft.title,
@@ -348,6 +395,7 @@ export class SocialImportService {
       cost: result.cost,
       modelUsed: result.modelUsed,
       durationMs: result.durationMs,
+      quality,
     };
   }
 
@@ -361,28 +409,54 @@ export class SocialImportService {
    *   create the row in `recipes` and return its id.
    * - Updates the import to status=saved + recipe_id.
    *
-   * Idempotence: re-saving an import that is already `saved` raises
-   * INVALID_STATE so the client surfaces it as a 409. The actual
-   * recipe row is keyed by import_id at the persistence layer, so the
-   * underlying call is also idempotent.
+   * Replays reconcile against an owned recipe keyed by import_id.
+   * Edited drafts are version-checked and saved in the recipe RPC's
+   * transaction; no provisional draft write can lose a user's revision.
    */
   async save(
-    client: SupabaseClient<any, any, any>,
+    client: SupabaseClient,
     userId: string,
     importId: string,
     options: {
       draft?: unknown;
       collections?: string[];
       personalNotes?: string;
+      expectedRevision?: number;
+      acknowledgeUnknowns?: boolean;
+      sourceReviewed?: boolean;
+      acknowledgeAdaptations?: boolean;
     } = {}
   ): Promise<SaveFlowResult> {
     const existing = await this.repo.findById(userId, importId);
     if (!existing) throw new ImportNotFoundError(importId);
-    if (existing.status === 'saved') throw new ImportInvalidStateError(existing.status);
+    const savedId = await this.repo.findSavedRecipeId(userId, importId);
+    if (savedId) {
+      const receipt = existing.status === 'saved' && existing.recipe_id === savedId ? existing :
+        await this.repo.updateLifecycle(userId, importId, { status: 'saved', recipe_id: savedId });
+      if (!receipt) throw new ImportNotFoundError(importId);
+      const current = await this.repo.findCurrentDraft(importId);
+      const parsed = ImportedRecipeDraftSchema.safeParse(current?.draft_json);
+      return { import: receipt, recipeId: savedId, reconciled: true,
+        quality: parsed.success ? assessImportedRecipeQuality(parsed.data, { sourceReviewed: receipt.metadata.source_reviewed === true }) : null };
+    }
+    if (existing.status === 'saved') {
+      throw new ImportReviewError('SAVE_RECEIPT_MISSING', 'La recette sauvegardée ne peut pas être confirmée. Réessayez après vérification.', 409);
+    }
     if (existing.status === 'archived') throw new ImportInvalidStateError(existing.status);
-
-    let draft: ImportedRecipeDraft;
-
+    if (existing.status === 'extracting' || existing.status === 'video_processing') {
+      throw new ImportInvalidStateError(existing.status);
+    }
+    const current = await this.repo.findCurrentDraft(importId);
+    if (!current) throw new NoDraftAvailableError(importId);
+    const stored = ImportedRecipeDraftSchema.safeParse(current.draft_json);
+    if (!stored.success) throw new SaveFailedError('Le brouillon enregistré ne peut pas être relu.');
+    if (options.draft !== undefined && options.expectedRevision === undefined) {
+      throw new ImportReviewError('REVISION_REQUIRED', 'La révision du brouillon est nécessaire pour conserver votre correction.', 409);
+    }
+    if (options.expectedRevision !== undefined && current.version !== options.expectedRevision) {
+      throw new ImportReviewError('REVISION_CONFLICT', 'Ce brouillon a changé. Rechargez sa version actuelle avant de confirmer.', 409);
+    }
+    let draft: ImportedRecipeDraft = stored.data;
     if (options.draft !== undefined) {
       const validation = ImportedRecipeDraftSchema.safeParse(options.draft);
       if (!validation.success) {
@@ -392,28 +466,7 @@ export class SocialImportService {
             .join('; ')}`
         );
       }
-      draft = validation.data;
-      // Persist the user-edited version so subsequent reads see what
-      // was actually saved (history is preserved through the version
-      // bump).
-      await this.repo.insertNewDraft({
-        importId,
-        userId,
-        draftJson: draft,
-        sourceExtractionMethod: draft.source.extractionMethod,
-      });
-    } else {
-      const current = await this.repo.findCurrentDraft(importId);
-      if (!current) throw new NoDraftAvailableError(importId);
-      const validation = ImportedRecipeDraftSchema.safeParse(current.draft_json);
-      if (!validation.success) {
-        throw new SaveFailedError(
-          `Stored draft failed validation: ${validation.error.issues
-            .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
-            .join('; ')}`
-        );
-      }
-      draft = validation.data;
+      draft = preserveImportProvenance(validation.data, stored.data);
     }
 
     // PRP-239 PR1b §7.4 — every import passes through the policy
@@ -421,29 +474,51 @@ export class SocialImportService {
     // ingredient name/notes in place and flags description/instructions
     // violations for review (we don't auto-rewrite prose).
     const policy = sanitizeImportedDraft(draft);
+    const adaptations = importAdaptations(draft, stored.data);
+    if (adaptations.length > 0 && options.acknowledgeAdaptations !== true) {
+      throw new ImportReviewError('ADAPTATIONS_REVIEW_REQUIRED', 'Des substitutions alimentaires sont nécessaires. Vérifiez la version adaptée avant de confirmer.');
+    }
     if (policy.hasChanges) {
       draft = policy.sanitized;
-      // Persist the sanitized version as a new draft revision so the
-      // audit trail shows what was actually saved (mirrors the
-      // user-edit path above).
-      await this.repo.insertNewDraft({
-        importId,
-        userId,
-        draftJson: draft,
-        sourceExtractionMethod: draft.source.extractionMethod,
-      });
     }
+
+    const quality = assessImportedRecipeQuality(draft, { sourceReviewed: options.sourceReviewed === true });
+    if (options.sourceReviewed !== true) {
+      throw new ImportReviewError('SOURCE_REVIEW_REQUIRED', 'Relisez les ingrédients et les étapes dans la source avant de confirmer.');
+    }
+    if (!quality.can_save) {
+      throw new ImportReviewError('RECIPE_INCOMPLETE', 'Des ingrédients et des étapes sont nécessaires pour ajouter une recette.');
+    }
+    if (quality.requires_acknowledgement && options.acknowledgeUnknowns !== true) {
+      throw new ImportReviewError('UNKNOWN_FIELDS_REVIEW_REQUIRED', 'Vérifiez les informations inconnues avant de confirmer.');
+    }
+    const edits = editedRecipeFields(stored.data, draft);
 
     let recipeId: string;
     try {
-      const saveOpts: SaveDraftAsRecipeOptions = {
+      const saveOpts: ReviewedSaveOptions = {
         importId,
         collections: options.collections,
         personalNotes: options.personalNotes,
+        expectedRevision: current.version,
+        draftEdited: options.draft !== undefined || policy.hasChanges,
+        quality,
+        acknowledgeUnknowns: options.acknowledgeUnknowns,
+        sourceReviewed: options.sourceReviewed,
+        acknowledgeAdaptations: options.acknowledgeAdaptations,
+        adaptations,
+        editProvenance: { base_revision: current.version, edited_fields: edits,
+          reviewed_at: new Date().toISOString(), source_reviewed: options.sourceReviewed === true },
       };
       recipeId = await this.saveImportedDraftAsRecipe(client, userId, draft, saveOpts);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Save failed';
+      if (message.includes('REVISION_CONFLICT')) throw new ImportReviewError('REVISION_CONFLICT', 'Ce brouillon a changé. Rechargez sa version actuelle.', 409);
+      if (message.includes('SOURCE_REVIEW_REQUIRED')) throw new ImportReviewError('SOURCE_REVIEW_REQUIRED', 'Relisez les ingrédients et les étapes dans la source avant de confirmer.');
+      if (message.includes('RECIPE_INCOMPLETE')) throw new ImportReviewError('RECIPE_INCOMPLETE', 'Des ingrédients et des étapes sont nécessaires pour ajouter une recette.');
+      if (message.includes('UNKNOWN_FIELDS_REVIEW_REQUIRED')) throw new ImportReviewError('UNKNOWN_FIELDS_REVIEW_REQUIRED', 'Vérifiez les informations inconnues avant de confirmer.');
+      if (message.includes('ADAPTATIONS_REVIEW_REQUIRED')) throw new ImportReviewError('ADAPTATIONS_REVIEW_REQUIRED', 'Vérifiez les substitutions alimentaires avant de confirmer.');
+      if (message.includes('DIETARY_REVIEW_REQUIRED')) throw new ImportReviewError('DIETARY_REVIEW_REQUIRED', 'Un ingrédient à base de porc ou d’alcool reste présent. Corrigez la recette avant de confirmer.');
       throw new SaveFailedError(message, error);
     }
 
@@ -476,7 +551,7 @@ export class SocialImportService {
     });
     if (!updated) throw new ImportNotFoundError(importId);
 
-    return { import: updated, recipeId };
+    return { import: updated, recipeId, reconciled: false, quality };
   }
 
   /**
@@ -486,7 +561,7 @@ export class SocialImportService {
    * shouldn't happen, but defense-in-depth) don't duplicate flags.
    */
   private async tagRecipeWithQualityFlags(
-    client: SupabaseClient<any, any, any>,
+    client: SupabaseClient,
     recipeId: string,
     qualityFlags: readonly string[],
   ): Promise<void> {

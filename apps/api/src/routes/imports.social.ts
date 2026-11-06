@@ -18,7 +18,7 @@ import { userRateLimit } from '../middleware/userRateLimit.js';
 import {
   canonicalizeUrl,
 } from '../services/imports/canonicalUrl.js';
-import { computeSourceHash } from '../services/imports/sourceHash.js';
+import { computeSourceHash, computeLegacySourceHash } from '../services/imports/sourceHash.js';
 import { SocialImportRepository } from '../services/imports/SocialImportRepository.js';
 import {
   SocialImportService,
@@ -26,6 +26,7 @@ import {
 } from '../services/imports/SocialImportService.js';
 import { ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
 import { MediaAssetResolver } from '../services/media/MediaAssetResolver.js';
+import { ImportReviewError } from '../services/imports/ImportReview.js';
 import {
   CaptureRequestSchema,
   BulkCaptureRequestSchema,
@@ -46,7 +47,7 @@ import { ok, fail } from '../utils/responses.js';
 export interface CreateImportsSocialRouterOptions extends SocialImportServiceOptions {}
 
 export function createImportsSocialRouter(
-  adminClient: SupabaseClient<any, any, any>,
+  adminClient: SupabaseClient,
   options: CreateImportsSocialRouterOptions = {}
 ): Router {
   const router = Router();
@@ -163,8 +164,13 @@ export function createImportsSocialRouter(
       // Avoid penalising idempotent re-captures of an already-stored
       // URL: try to find it before refusing.
       const repo = buildRepo(req);
-      const sourceHash = computeSourceHash(canonicalizeUrl(parsed.data.url));
-      const existing = await repo.findByHash(userId, sourceHash);
+      const canonicalUrl = canonicalizeUrl(parsed.data.url);
+      const sourceHash = computeSourceHash(canonicalUrl);
+      let existing = await repo.findByHash(userId, sourceHash);
+      if (!existing) {
+        const legacy = await repo.findByHash(userId, computeLegacySourceHash(canonicalUrl));
+        if (legacy && computeSourceHash(legacy.source_url) === sourceHash) existing = legacy;
+      }
       if (!existing) {
         return res.status(402).json({
           success: false,
@@ -190,6 +196,9 @@ export function createImportsSocialRouter(
         result.duplicate ? 200 : 201
       );
     } catch (error) {
+      if (error && typeof error === 'object' && 'message' in error && String(error.message).includes('QUOTA_EXCEEDED')) {
+        return fail(res, 'Limite gratuite de 25 imports actifs atteinte', 402, 'QUOTA_EXCEEDED');
+      }
       console.error('[imports.social.capture] error:', error);
       return fail(res, 'Failed to capture import', 500, 'CAPTURE_FAILED');
     }
@@ -336,13 +345,33 @@ export function createImportsSocialRouter(
       const [enrichedImport] = await enrichWithSnapshot(req, [result.import]);
       return ok(
         res,
-        { import: enrichedImport, draft: result.draft },
+        { import: enrichedImport, draft: result.draft, quality: result.quality, adaptations: result.adaptations },
         result.draft ? 'OK' : 'No draft yet',
         result.draft ? 'CURRENT_DRAFT_OK' : 'NO_DRAFT_YET'
       );
     } catch (error) {
       console.error('[imports.social.current-draft] error:', error);
       return fail(res, 'Failed to fetch draft', 500, 'CURRENT_DRAFT_FAILED');
+    }
+  });
+
+  // Pure preview of edited content and dietary substitutions before confirmation.
+  router.post('/:id/review', async (req: Request, res: Response) => {
+    const parsed = SaveRequestSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return fail(res, 'Invalid request body', 400, 'INVALID_BODY');
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    try {
+      const result = await buildService(req).review(req.user.id, req.params.id, {
+        draft: parsed.data.draft, expectedRevision: parsed.data.expected_revision,
+        sourceReviewed: parsed.data.source_reviewed,
+      });
+      return ok(res, result, 'Review ready', 'REVIEW_OK');
+    } catch (error) {
+      if (error instanceof ImportReviewError) return fail(res, error.message, error.status, error.code);
+      if (isImportNotFound(error)) return fail(res, 'Not found', 404, 'NOT_FOUND');
+      if (isNoDraftAvailable(error)) return fail(res, 'No draft available', 409, 'NO_DRAFT_AVAILABLE');
+      if (isSaveFailed(error)) return fail(res, error.message, 422, 'REVIEW_INVALID');
+      return fail(res, 'Review unavailable', 500, 'REVIEW_FAILED');
     }
   });
 
@@ -368,6 +397,7 @@ export function createImportsSocialRouter(
           modelUsed: result.modelUsed,
           durationMs: result.durationMs,
           cost: result.cost,
+          quality: result.quality,
         },
         'Draft ready',
         'EXTRACT_OK'
@@ -413,14 +443,19 @@ export function createImportsSocialRouter(
         draft: parsed.data.draft,
         collections: parsed.data.collections,
         personalNotes: parsed.data.personal_notes,
+        expectedRevision: parsed.data.expected_revision,
+        acknowledgeUnknowns: parsed.data.acknowledge_unknowns,
+        sourceReviewed: parsed.data.source_reviewed,
+        acknowledgeAdaptations: parsed.data.acknowledge_adaptations,
       });
       return ok(
         res,
-        { import: result.import, recipe_id: result.recipeId },
+        { import: result.import, recipe_id: result.recipeId, reconciled: result.reconciled, quality: result.quality },
         'Saved',
         'SAVE_OK'
       );
     } catch (error) {
+      if (error instanceof ImportReviewError) return fail(res, error.message, error.status, error.code);
       if (isImportNotFound(error)) {
         return fail(res, 'Not found', 404, 'NOT_FOUND');
       }

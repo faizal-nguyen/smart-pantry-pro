@@ -6,7 +6,7 @@
  * extraction. We DO NOT try to fetch the video itself or any
  * authenticated user data.
  */
-import { canonicalizeUrl } from '../canonicalUrl.js';
+import { canonicalizeUrl, detectPlatform } from '../canonicalUrl.js';
 import { safeFetchJson } from './ssrfGuard.js';
 import type { PlatformAdapter, PlatformContext } from './types.js';
 
@@ -22,7 +22,7 @@ export class TikTokAdapter implements PlatformAdapter {
   canHandle(url: string): boolean {
     try {
       const u = new URL(url);
-      return u.hostname.toLowerCase().endsWith('tiktok.com');
+      return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password && detectPlatform(url) === 'tiktok';
     } catch {
       return false;
     }

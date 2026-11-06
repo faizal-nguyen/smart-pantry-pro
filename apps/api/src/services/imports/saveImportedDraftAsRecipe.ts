@@ -26,6 +26,7 @@ import type {
   SaveDraftAsRecipeOptions,
   SaveImportedDraftAsRecipe,
 } from './saveContract.js';
+import type { ReviewedSaveOptions } from './ImportReview.js';
 
 interface RpcRecipeShape {
   name: string;
@@ -43,6 +44,14 @@ interface RpcRecipeShape {
   source_platform: string;
   source_url?: string;
   source_metadata: Record<string, unknown>;
+  import_revision?: number;
+  draft_json?: ImportedRecipeDraft;
+  review_quality?: ReviewedSaveOptions['quality'];
+  acknowledge_unknowns?: boolean;
+  source_reviewed?: boolean;
+  edit_provenance?: ReviewedSaveOptions['editProvenance'];
+  acknowledge_adaptations?: boolean;
+  adaptations?: ReviewedSaveOptions['adaptations'];
 }
 
 interface RpcIngredientShape {
@@ -54,7 +63,7 @@ interface RpcIngredientShape {
 }
 
 export const saveImportedDraftAsRecipe: SaveImportedDraftAsRecipe = async (
-  client: SupabaseClient<any, any, any>,
+  client: SupabaseClient,
   _userId: string,
   draft: ImportedRecipeDraft,
   options: SaveDraftAsRecipeOptions
@@ -81,7 +90,7 @@ export const saveImportedDraftAsRecipe: SaveImportedDraftAsRecipe = async (
 
 function buildRecipePayload(
   draft: ImportedRecipeDraft,
-  options: SaveDraftAsRecipeOptions
+  options: ReviewedSaveOptions
 ): RpcRecipeShape {
   const tags = mergeTags(draft.tags ?? [], options.collections ?? []);
 
@@ -109,6 +118,9 @@ function buildRecipePayload(
     extractionWarnings: draft.extractionWarnings ?? [],
     instructions: draft.instructions,
     personalNotes: options.personalNotes,
+    reviewQuality: options.quality,
+    editProvenance: options.editProvenance,
+    adaptations: options.adaptations,
   };
 
   return {
@@ -127,6 +139,14 @@ function buildRecipePayload(
     source_platform: draft.source.platform,
     source_url: draft.source.sourceUrl,
     source_metadata: sourceMetadata,
+    import_revision: options.expectedRevision,
+    draft_json: options.draftEdited ? draft : undefined,
+    review_quality: options.quality,
+    acknowledge_unknowns: options.acknowledgeUnknowns ?? false,
+    source_reviewed: options.sourceReviewed ?? false,
+    edit_provenance: options.editProvenance,
+    acknowledge_adaptations: options.acknowledgeAdaptations ?? false,
+    adaptations: options.adaptations,
   };
 }
 

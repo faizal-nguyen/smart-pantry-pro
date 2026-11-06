@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { importsApi } from '@/services/recipe-import/api';
@@ -46,7 +46,6 @@ const TERMINAL_FILTERS: FilterValue[] = ['saved', 'archived'];
  * just observes via React Query and dispatches mutations.
  */
 export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, className }) => {
-  const navigate = useNavigate();
   const user = useAuthenticatedUser();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
@@ -79,7 +78,6 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
     isFetching,
     capture,
     extract,
-    save,
     archive,
     unarchive,
     getCurrentDraft,
@@ -126,31 +124,6 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
   const handleExtract = (id: string, force?: boolean) =>
     wrap(id, () => extract(id, { force }), undefined);
 
-  const handleSave = async (import_: SocialImport) => {
-    setBusyId(import_.id);
-    try {
-      // PRP-220.17: surface the new recipe id so the user can jump
-      // straight to the detail page instead of re-discovering the
-      // recipe in the list.
-      const result = await save(import_.id);
-      void queryClient.invalidateQueries({ queryKey:['routine-shared-import',user.id,import_.id] });
-      const recipeId = (result as { recipe_id?: string } | undefined)?.recipe_id;
-      toast.success('Recette sauvegardée dans Mes Recettes', {
-        action: recipeId
-          ? {
-              label: 'Voir',
-              onClick: () => navigate(`/kitchen/recipes/${recipeId}`),
-            }
-          : undefined,
-      });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Échec';
-      toast.error(msg);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleArchive = (id: string) =>
     wrap(id, () => archive(id), 'Import archivé');
 
@@ -158,6 +131,10 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
     wrap(id, () => unarchive(id), 'Import restauré');
 
   const handleVerify = async (import_: SocialImport) => {
+    if (!onVerifyDraft) {
+      toast.error('Ouvre cet import dans Cuisiner pour vérifier la recette avant l’ajout.');
+      return;
+    }
     setBusyId(import_.id);
     try {
       const payload = await getCurrentDraft(import_.id);
@@ -182,7 +159,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
         <h2 className="font-semibold mb-2">Votre lien partagé</h2>
         {shared.isLoading && <p role="status">Lecture de ce lien…</p>}
         {shared.isError && <><p role="alert">Ce lien ne peut pas être lu. Sa source est conservée dans le partage.</p><Button className="min-h-11" variant="outline" onClick={() => void shared.refetch()}>Réessayer</Button></>}
-        {shared.data && <ImportCard import_={shared.data} busy={busyId===shared.data.id} onExtract={handleExtract} onVerify={handleVerify} onSave={handleSave} onArchive={handleArchive} onUnarchive={handleUnarchive}/>}
+        {shared.data && <ImportCard import_={shared.data} busy={busyId===shared.data.id} onExtract={handleExtract} onVerify={handleVerify} onSave={handleVerify} onArchive={handleArchive} onUnarchive={handleUnarchive}/>}
       </div>}
       <RecipeImportOnboarding />
 
@@ -244,7 +221,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
               busy={busyId === import_.id}
               onExtract={handleExtract}
               onVerify={handleVerify}
-              onSave={handleSave}
+              onSave={handleVerify}
               onArchive={handleArchive}
               onUnarchive={handleUnarchive}
             />

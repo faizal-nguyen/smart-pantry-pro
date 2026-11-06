@@ -18,10 +18,11 @@ export function detectPlatform(url: string): SocialPlatform {
   try {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
-    if (host.includes('instagram.com')) return 'instagram';
-    if (host.includes('tiktok.com')) return 'tiktok';
-    if (host.includes('youtube.com') || host === 'youtu.be') return 'youtube';
-    if (host.includes('pinterest.')) return 'pinterest';
+    const belongsTo = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+    if (belongsTo('instagram.com')) return 'instagram';
+    if (belongsTo('tiktok.com')) return 'tiktok';
+    if (belongsTo('youtube.com') || host === 'youtu.be') return 'youtube';
+    if (['pinterest.com', 'pinterest.fr', 'pinterest.co.uk'].some(belongsTo)) return 'pinterest';
     return 'web';
   } catch {
     return 'unknown';
@@ -36,7 +37,14 @@ export function detectPlatform(url: string): SocialPlatform {
 export function canonicalizeUrl(url: string): string {
   try {
     const u = new URL(url);
-    u.search = '';
+    // Keep parameters that identify a recipe/video. Dropping every query
+    // collapsed all YouTube /watch?v=… videos and parameterized web recipes.
+    for (const key of [...u.searchParams.keys()]) {
+      if (/^(utm(?:_.+)?|fbclid|gclid|dclid|msclkid|igsh|igshid|si|share_id|share_app_id|_r|_t)$/i.test(key)) {
+        u.searchParams.delete(key);
+      }
+    }
+    u.searchParams.sort();
     u.hash = '';
     u.hostname = u.hostname.toLowerCase().replace(/^m\.|^www\./, '');
     let s = u.toString();

@@ -22,6 +22,7 @@ import {
   Settings,
   Home,
   CalendarDays,
+  Compass,
   Heart,
 } from 'lucide-react';
 import { NavigationSection } from '@/types/family-mode';
@@ -74,6 +75,7 @@ export interface NavigationSubItem {
 export const NAVIGATION_CONFIG: NavigationItem[] = [
   { id:'today',label:'Aujourd’hui',icon:Home,path:'/kitchen',section:'kitchen',description:'La prochaine action pour ton repas',isMainSection:true },
   { id:'kitchen',label:'Recettes',icon:BookOpen,path:'/kitchen/recipes',section:'kitchen',description:'Toutes tes recettes',isMainSection:true,subItems:[
+    { id:'kitchen-discover',label:'Découvrir',path:'/kitchen/recipes?tab=discover',icon:Compass,description:'Inspirations et liens de créateurs' },
     { id:'kitchen-favorites',label:'Favoris',path:'/kitchen/recipes?tab=library&filter=favorites',icon:Heart,description:'Recettes favorites' },
     { id:'kitchen-meal-planning',label:'Menus',path:'/kitchen/meal-planning',icon:CalendarDays,description:'Menus de la semaine' },
   ] },

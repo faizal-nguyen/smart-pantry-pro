@@ -46,12 +46,18 @@ describe('computeSourceHash (PRP-220.09)', () => {
     expect(a).toBe(c);
   });
 
-  it('drops query and fragment', () => {
+  it('drops tracking and fragment, while keeping functional parameters', () => {
     const clean = computeSourceHash('https://example.com/recipe');
-    const withQuery = computeSourceHash('https://example.com/recipe?utm=foo&x=1');
+    const withQuery = computeSourceHash('https://example.com/recipe?utm=foo');
     const withFragment = computeSourceHash('https://example.com/recipe#top');
     expect(clean).toBe(withQuery);
     expect(clean).toBe(withFragment);
+  });
+
+  it('keeps distinct video IDs and case-sensitive paths', () => {
+    expect(computeSourceHash('https://youtube.com/watch?v=One')).not.toBe(computeSourceHash('https://youtube.com/watch?v=Two'));
+    expect(computeSourceHash('https://instagram.com/reel/AbC')).not.toBe(computeSourceHash('https://instagram.com/reel/abc'));
+    expect(computeSourceHash('https://example.com/recipe?id=One')).not.toBe(computeSourceHash('https://example.com/recipe?id=one'));
   });
 
   it('returns a stable hash for empty input', () => {

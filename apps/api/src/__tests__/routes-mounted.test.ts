@@ -33,6 +33,9 @@ const STABLE_ROUTES: Probe[] = [
   { method: 'post', path: '/api/imports/social' },
   { method: 'post', path: '/api/imports/social/bulk' },
   { method: 'get',  path: '/api/imports/social' },
+  { method: 'get', path: '/api/recipes/discovery' },
+  { method: 'get', path: '/api/recipes/discovery/links' },
+  { method: 'post', path: '/api/recipes/discovery/items' },
   // PRP-220.11: extract + save sub-resources. Auth strips them to 401
   // before the :id ever resolves, but the prefix is what matters for
   // the no-404 contract.
@@ -49,6 +52,8 @@ const V1_ROUTES: Probe[] = [
   { method: 'post', path: '/api/v1/assistant/stream' },
   { method: 'post', path: '/api/v1/imports/social' },
   { method: 'get',  path: '/api/v1/imports/social' },
+  { method: 'get', path: '/api/v1/recipes/discovery' },
+  { method: 'post', path: '/api/v1/recipes/discovery/items' },
 ];
 
 // Public routes removed in the 2026-11 security pass (no live caller):

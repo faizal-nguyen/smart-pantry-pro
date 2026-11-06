@@ -11,7 +11,7 @@
  */
 import { canonicalizeUrl, detectPlatform } from '../canonicalUrl.js';
 import { parseOpenGraph } from './htmlParsers.js';
-import { safeFetch, safeFetchJson, safeFetchText } from './ssrfGuard.js';
+import { safeFetchJson, safeFetchText } from './ssrfGuard.js';
 import type { PlatformAdapter, PlatformContext } from './types.js';
 
 interface InstagramOEmbedResponse {
@@ -25,22 +25,23 @@ export class InstagramAdapter implements PlatformAdapter {
   canHandle(url: string): boolean {
     try {
       const u = new URL(url);
-      return u.hostname.toLowerCase().endsWith('instagram.com');
+      return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password && detectPlatform(url) === 'instagram';
     } catch {
       return false;
     }
   }
 
   async fetchContext(url: string): Promise<PlatformContext> {
-    const oembed = await this.fetchOEmbed(url).catch((err) => {
-      console.warn('[InstagramAdapter] oEmbed failed:', (err as Error)?.message);
+    const oembed = await this.fetchOEmbed(url).catch(() => {
+      // HTTP errors can contain the endpoint's access_token query string.
+      console.warn('[InstagramAdapter] oEmbed failed');
       return null;
     });
 
     let og = null as ReturnType<typeof parseOpenGraph> | null;
     if (!oembed?.title || !oembed?.thumbnail_url) {
-      og = await this.fetchOpenGraph(url).catch((err) => {
-        console.warn('[InstagramAdapter] OG fallback failed:', (err as Error)?.message);
+      og = await this.fetchOpenGraph(url).catch(() => {
+        console.warn('[InstagramAdapter] OG fallback failed');
         return null;
       });
     }

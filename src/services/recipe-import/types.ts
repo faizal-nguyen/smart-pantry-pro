@@ -6,7 +6,7 @@
  * (PRP-220.06) — kept here as plain TypeScript to avoid pulling Zod
  * into the client bundle just for type inference.
  */
-import type { ImportedRecipeDraft } from '@smart/shared';
+import type { ImportedRecipeDraft, ImportedRecipeQuality } from '@smart/shared';
 
 export type ImportStatus =
   | 'captured'
@@ -94,6 +94,10 @@ export interface ExtractRequest {
 
 export interface SaveRequest {
   draft?: ImportedRecipeDraft;
+  expected_revision?: number;
+  acknowledge_unknowns?: boolean;
+  source_reviewed?: boolean;
+  acknowledge_adaptations?: boolean;
   collections?: string[];
   personal_notes?: string;
 }
@@ -126,17 +130,30 @@ export interface ExtractResponse {
   modelUsed?: string;
   durationMs?: number;
   cost?: { inputTokens: number; outputTokens: number; usd: number };
+  quality?: ImportedRecipeQuality;
 }
 
 export interface SaveResponse {
   import: SocialImport;
   recipe_id: string;
+  reconciled?: boolean;
+  quality?: ImportedRecipeQuality | null;
 }
 
 export interface CurrentDraftResponse {
   import: SocialImport;
   /** null when no extraction has run yet for this import. */
   draft: ImportedRecipeDraftRow | null;
+  quality?: ImportedRecipeQuality | null;
+  adaptations?: ImportAdaptation[];
+}
+
+export interface ImportAdaptation { path: string; from: string; to: string }
+export interface ReviewDraftResponse {
+  draft: ImportedRecipeDraft;
+  revision: number;
+  quality: ImportedRecipeQuality;
+  adaptations: ImportAdaptation[];
 }
 
 /** PRP-220.19: aggregated counts + quota info for the inbox. */

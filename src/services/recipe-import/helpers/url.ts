@@ -12,10 +12,11 @@ export function detectPlatform(url: string): SocialPlatform {
   try {
     const u = new URL(url);
     const host = u.hostname.toLowerCase();
-    if (host.includes('instagram.com')) return 'instagram';
-    if (host.includes('tiktok.com')) return 'tiktok';
-    if (host.includes('youtube.com') || host === 'youtu.be') return 'youtube';
-    if (host.includes('pinterest.')) return 'pinterest';
+    const belongsTo = (domain: string) => host === domain || host.endsWith(`.${domain}`);
+    if (belongsTo('instagram.com')) return 'instagram';
+    if (belongsTo('tiktok.com')) return 'tiktok';
+    if (belongsTo('youtube.com') || host === 'youtu.be') return 'youtube';
+    if (['pinterest.com', 'pinterest.fr', 'pinterest.co.uk'].some(belongsTo)) return 'pinterest';
     return 'web';
   } catch {
     return 'unknown';
@@ -30,7 +31,14 @@ export function detectPlatform(url: string): SocialPlatform {
 export function canonicalizeUrl(url: string): string {
   try {
     const u = new URL(url);
-    u.search = '';
+    // Preserve parameters that identify the video or recipe. Keep this in
+    // sync with the server helper; dropping ?v= would merge distinct videos.
+    for (const key of [...u.searchParams.keys()]) {
+      if (/^(utm(?:_.+)?|fbclid|gclid|dclid|msclkid|igsh|igshid|si|share_id|share_app_id|_r|_t)$/i.test(key)) {
+        u.searchParams.delete(key);
+      }
+    }
+    u.searchParams.sort();
     u.hash = '';
     u.hostname = u.hostname.toLowerCase().replace(/^m\.|^www\./, '');
     // Drop default ports, normalise trailing slash.
@@ -79,14 +87,7 @@ export function isRecipeLikely(url: string): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    const host = u.hostname.toLowerCase();
-    return (
-      host.endsWith('instagram.com') ||
-      host.endsWith('tiktok.com') ||
-      host.endsWith('youtube.com') ||
-      host === 'youtu.be' ||
-      host.includes('pinterest.')
-    );
+    return ['instagram', 'tiktok', 'youtube', 'pinterest'].includes(detectPlatform(url));
   } catch {
     return false;
   }

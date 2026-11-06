@@ -15,8 +15,9 @@
  *
  * Rights posture (cf. PRP §5.13):
  *   origin        = 'thumbnail_snapshot'
- *   rights_status = 'platform_embed'    (legitimate preview)
- *   rights_basis  = NULL                (no user attestation involved)
+ *   rights_status = 'licensed' | 'user_provided'
+ *   rights_basis  = explicit permission to store a copy
+ * An embed URL alone never authorizes downloading or storing its image.
  *   source_url    = original CDN URL    (attribution preserved)
  */
 import { createHash, randomUUID } from 'node:crypto';
@@ -49,6 +50,12 @@ export interface SnapshotInput {
    * audit trail stays intact even if the CDN rotates the asset URL.
    */
   sourceUrl?: string;
+  /** Trusted permission supplied by the server, never inferred from oEmbed. */
+  rights?: {
+    status: 'licensed' | 'user_provided';
+    basis: string;
+    copyAllowed: boolean;
+  };
 }
 
 export interface SnapshotResult {
@@ -107,8 +114,8 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
   private readonly fetchImpl: typeof safeFetch;
 
   constructor(
-    private readonly userClient: SupabaseClient<any, any, any>,
-    private readonly adminClient: SupabaseClient<any, any, any>,
+    private readonly userClient: SupabaseClient,
+    private readonly adminClient: SupabaseClient,
     options: ThumbnailSnapshotServiceOptions = {}
   ) {
     this.repository = new MediaAssetRepository(userClient);
@@ -119,6 +126,12 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
   }
 
   async snapshot(input: SnapshotInput): Promise<SnapshotResult | null> {
+    if (!input.rights?.copyAllowed ||
+      !['licensed', 'user_provided'].includes(input.rights.status) ||
+      !input.rights.basis?.trim()) {
+      logger.info({ importId: input.importId, reason: 'copy_permission_missing' }, 'thumbnail-snapshot skipped');
+      return null;
+    }
     if (!isAllowedFetchUrl(input.remoteUrl)) {
       logger.warn(
         { importId: input.importId, reason: 'ssrf_blocked' },
@@ -157,8 +170,8 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
         importId: input.importId,
         kind: 'thumbnail',
         origin: 'thumbnail_snapshot',
-        rightsStatus: 'platform_embed',
-        rightsBasis: null,
+        rightsStatus: input.rights.status,
+        rightsBasis: input.rights.status === 'licensed' ? 'licensed' : 'user_has_permission',
         storageProvider: 'supabase',
         storageBucket: this.bucket,
         storageKey,
@@ -167,6 +180,7 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
         byteSize: download.buffer.byteLength,
         checksumSha256: createHash('sha256').update(download.buffer).digest('hex'),
         metadata: {
+          copyPermissionBasis: input.rights.basis.trim().slice(0, 2000),
           remoteUrl: input.remoteUrl,
           snapshottedAt: new Date().toISOString(),
         },

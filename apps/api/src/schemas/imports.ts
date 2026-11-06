@@ -68,6 +68,10 @@ export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
 // ImportedRecipeDraftSchema before persisting.
 export const SaveRequestSchema = z.object({
   draft: z.unknown().optional(),
+  expected_revision: z.number().int().positive().optional(),
+  acknowledge_unknowns: z.boolean().optional(),
+  source_reviewed: z.boolean().optional(),
+  acknowledge_adaptations: z.boolean().optional(),
   collections: z.array(z.string().uuid()).max(20).optional(),
   personal_notes: z.string().max(2000).optional(),
 });

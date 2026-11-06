@@ -3,6 +3,7 @@ import { Archive, ArchiveRestore, CheckCircle2, ExternalLink, Loader2, RefreshCw
 import { Link } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
+import { recipeDetailPath } from '@/lib/recipeLinks';
 import type { SocialImport } from '@/services/recipe-import/types';
 
 interface ImportActionsProps {
@@ -113,7 +114,7 @@ export const ImportActions: React.FC<ImportActionsProps> = ({
     case 'saved':
       return import_.recipe_id ? (
         <Button asChild size="sm" variant="ghost">
-          <Link to={`/recipes/${import_.recipe_id}`}>
+          <Link to={recipeDetailPath({ id: import_.recipe_id, source: 'recipes' })}>
             <ExternalLink className="h-4 w-4 mr-1.5" />
             Voir la recette
           </Link>

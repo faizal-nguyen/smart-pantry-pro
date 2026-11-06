@@ -17,7 +17,7 @@ interface InboxEmptyStateProps {
 export const InboxEmptyState: React.FC<InboxEmptyStateProps> = ({
   className,
   title = 'Ton inbox est vide',
-  description = 'Colle une URL Instagram, TikTok ou YouTube pour capturer une recette. L\'app la transforme automatiquement en recette structurée.',
+  description = 'Colle le lien d’une recette ou d’une publication. Vérifie le brouillon et complète les informations manquantes avant de l’ajouter à tes recettes.',
 }) => (
   <div className={cn('text-center py-12 px-4', className)} data-testid="inbox-empty-state">
     <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-muted flex items-center justify-center">
