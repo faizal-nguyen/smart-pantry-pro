@@ -1,4 +1,4 @@
-import { completionParams,parseCompletion,createOpenAICompletionClient,ProviderOutputError } from '../OpenAITransport.js';
+import { completionParams,parseCompletion,createOpenAICompletionClient,ProviderOutputError,providerErrorSummary } from '../OpenAITransport.js';
 import { measureCost } from '../ModelPricing.js';
 import { benchmarkConfig,freezeConfig,loadAssistantModelConfig,modelCatalog,observeModel } from '../ModelConfig.js';
 import { ModelInvocation } from '../ModelInvocation.js';
@@ -121,4 +121,12 @@ test('associated paid tool estimates are included, while an unknown surcharge st
   expect(invocation.receipt().llm_usd).toBeGreaterThan(0.01);
   invocation.addToolCost('action-2','unknown-tool',null);expect(invocation.receipt().llm_usd).toBeNull();
   await expect(invocation.complete('dialogue',{messages:[]},'second')).rejects.toThrow('COST_LIMIT');expect(ai.complete).toHaveBeenCalledTimes(1);
+});
+test('a failed call is summarised without its free-text message, which can quote the API key or the user',()=>{
+  const sdk=Object.assign(new Error('Incorrect API key provided: sk-proj-abcd****wxyz'),{name:'AuthenticationError',status:401,code:'invalid_api_key',type:'invalid_request_error'});
+  expect(providerErrorSummary(sdk)).toEqual({name:'AuthenticationError',status:401,code:'invalid_api_key',type:'invalid_request_error'});
+  expect(providerErrorSummary(new Error('PROVIDER_TIMEOUT'))).toEqual({name:'Error',code:'PROVIDER_TIMEOUT'});
+  expect(providerErrorSummary(new ProviderOutputError('PROVIDER_TOOL_INVALID'))).toEqual({name:'Error',code:'PROVIDER_TOOL_INVALID'});
+  expect(providerErrorSummary(new Error('ajoute 1 pot de tahini'))).toEqual({name:'Error'});
+  expect(providerErrorSummary('boom')).toEqual({name:'unknown'});
 });

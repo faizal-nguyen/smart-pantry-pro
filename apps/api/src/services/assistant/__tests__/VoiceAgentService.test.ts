@@ -1126,6 +1126,22 @@ describe('session continuity when durable history is off',()=>{
   });
 });
 
+describe('a failed model call is logged (prod case 2026-11-05: dead OpenAI key)',()=>{
+  it('logs why the provider refused, without the key quoted by the SDK or the user text',async()=>{
+    const warn=jest.spyOn(console,'warn').mockImplementation(()=>{});
+    try {
+      const refused=Object.assign(new Error('Incorrect API key provided: sk-proj-abcd****wxyz'),{name:'AuthenticationError',status:401,code:'invalid_api_key',type:'invalid_request_error'});
+      const ai={complete:jest.fn(async()=>{throw refused;})};
+      const result=await new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),new ToolHandlerRegistry(),new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET))
+        .handleRequest({userId:USER,clientRequestId:'33333333-3333-4333-8333-333333333333',source:'text',text:'ajoute 1 pot de tahini'},makeCtx());
+      expect(result.message).toMatch(/n’a pas pu répondre/);
+      const logged=warn.mock.calls.find(([label])=>label==='[assistant.llm] call failed:');
+      expect(logged?.[1]).toMatchObject({role:'dialogue',purpose:'tool_selection',name:'AuthenticationError',status:401,code:'invalid_api_key'});
+      expect(JSON.stringify(logged)).not.toMatch(/sk-proj|tahini/);
+    } finally { warn.mockRestore(); }
+  });
+});
+
 describe('no change is announced without a write',()=>{
   const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'Ajoute deux kilos de pommes de terre au stock.'};
   function run(tool:string,handler:ToolHandler,claim:string) {

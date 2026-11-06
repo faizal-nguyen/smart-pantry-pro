@@ -66,6 +66,7 @@ import type { RiskTier } from './schemas/tools.js';
 import type { AssistantModelReceipt, AssistantRole } from '@smart/shared';
 import { loadAssistantModelConfig, freezeConfig, type AssistantModelConfig } from '../ai/ModelConfig.js';
 import { ModelInvocation } from '../ai/ModelInvocation.js';
+import { providerErrorSummary } from '../ai/OpenAITransport.js';
 
 // PRP-239 PR4 — chef agent helpers (round-2 escalation + post-check).
 import {
@@ -1164,7 +1165,10 @@ export class VoiceAgentService {
     try {
       return await invocation.complete(role,{messages:safe,temperature:0.2,tools,tool_choice:tools?.length ? 'auto' : 'none',
         ...(safe === messages && invocation.config.roles[role].transport === 'responses' ? {continuation} : {})},purpose);
-    } catch { throw new VoiceAgentError('LLM_FAILED','Appel du modèle indisponible ou limite atteinte.'); }
+    } catch (error) {
+      console.warn('[assistant.llm] call failed:', { role, purpose, model: invocation.config.roles[role].model, ...providerErrorSummary(error) });
+      throw new VoiceAgentError('LLM_FAILED','Appel du modèle indisponible ou limite atteinte.');
+    }
   }
   private async callLLMStreamSafe(
     invocation: ModelInvocation, role: AssistantRole, messages: AICompletionRequest['messages'],
