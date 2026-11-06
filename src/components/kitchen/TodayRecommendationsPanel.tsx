@@ -11,6 +11,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Check, ChefHat, Plus, Sparkles } from 'lucide-react';
 
 import { useToast } from '@/hooks/use-toast';
+import { useAskAssistant } from '@/hooks/useAskAssistant';
 import { useTodayRecommendations } from '@/hooks/useTodayRecommendations';
 import {
   PanelChrome,
@@ -21,8 +22,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  getAssistantRequestId,
-  postAssistantText,
 } from '@/services/assistantApi';
 import type { RecommendedRecipeView } from '@/services/recommendationsApi';
 import { fireRecipeAssistantAction, type RecipeAction } from '@/lib/recipeActions';
@@ -127,7 +126,7 @@ export default function TodayRecommendationsPanel() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isLoading, isError, refetch } = useTodayRecommendations();
-  const [pending, setPending] = React.useState(false);
+  const ask = useAskAssistant();
   const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
 
   const handleRowAction = async (
@@ -165,29 +164,7 @@ export default function TodayRecommendationsPanel() {
   const almost = data?.almost_cookable ?? [];
   const visible = cookable.length > 0 ? cookable.slice(0, 3) : almost.slice(0, 3);
 
-  const askAssistant = async () => {
-    if (pending) return;
-    setPending(true);
-    try {
-      const { client_request_id } = await getAssistantRequestId();
-      await postAssistantText({
-        text: 'Que puis-je cuisiner ce soir avec ce que j’ai ?',
-        clientRequestId: client_request_id,
-      });
-      toast({
-        title: 'Demande envoyée à l’assistant',
-        description: 'Sa réponse arrive dans la conversation.',
-      });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Assistant indisponible',
-        description: err instanceof Error ? err.message : 'Erreur inconnue',
-      });
-    } finally {
-      setPending(false);
-    }
-  };
+  const askAssistant = () => ask('Que puis-je cuisiner ce soir avec ce que j’ai ?');
 
   if (visible.length === 0) {
     return (
@@ -196,7 +173,7 @@ export default function TodayRecommendationsPanel() {
         message="Pas encore assez d’inventaire pour suggérer une recette."
         cta={{
           label: 'Demander à l’assistant',
-          onClick: () => void askAssistant(),
+          onClick: askAssistant,
         }}
       />
     );
@@ -228,8 +205,7 @@ export default function TodayRecommendationsPanel() {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs gap-1 text-muted-foreground"
-            disabled={pending}
-            onClick={() => void askAssistant()}
+            onClick={askAssistant}
           >
             <Sparkles className="h-3 w-3" aria-hidden="true" />
             Demander à l’assistant

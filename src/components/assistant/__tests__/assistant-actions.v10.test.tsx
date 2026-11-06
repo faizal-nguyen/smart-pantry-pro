@@ -22,7 +22,10 @@ jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => 
 jest.mock('../AssistantMemoryNotice', () => ({ __esModule: true, default: () => null }));
 // The composer is replaced by a button that delivers the next reply.
 jest.mock('../AssistantComposer', () => ({ __esModule: true,
-  default: ({ onResponse }: { onResponse: (r: AssistantPlanResponse) => void }) => <button onClick={() => mockReply && onResponse(mockReply)}>Envoyer</button> }));
+  default: ({ onResponse, initialRequest, onInitialRequestTaken }: { onResponse: (r: AssistantPlanResponse) => void; initialRequest?: string; onInitialRequestTaken?: () => void }) => <>
+    <button onClick={() => mockReply && onResponse(mockReply)}>Envoyer</button>
+    {initialRequest && <button onClick={onInitialRequestTaken}>Question apportée : {initialRequest}</button>}
+  </> }));
 
 const pending = { action_id: 'p1', step_seq: 1, tool: 'consume_inventory_items', args: { items: [{ name: 'riz', quantity: 200, unit: 'g' }] },
   risk_tier: 'medium' as const, reason: 'Décompte du stock à confirmer.' };
@@ -127,6 +130,12 @@ describe('the /assistant page (mobile has no floating button)', () => {
     render(page('conversation-a'));
     fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
     expect(within(screen.getByTestId('thread')).getByRole('button', { name: 'Confirmer (1)' })).toBeInTheDocument();
+  });
+  test('a question brought by a button reaches the composer once, then is forgotten', () => {
+    render(<MemoryRouter initialEntries={[{ pathname: '/assistant', state: { assistantAsk: 'Que cuisiner ce soir ?' } }]}>
+      <AssistantConversationSurface conversationId={null} mode="general" onModeChange={jest.fn()} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Question apportée : Que cuisiner ce soir ?' }));
+    expect(screen.queryByText(/Question apportée/)).not.toBeInTheDocument();
   });
   test('the actions of another conversation are not offered', () => {
     mockReply = reply({ conversation_id: 'conversation-a' });

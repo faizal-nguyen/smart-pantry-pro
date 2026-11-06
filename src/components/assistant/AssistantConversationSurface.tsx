@@ -15,7 +15,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { readAssistantAsk } from '@/hooks/useAskAssistant';
 import { Card, CardContent } from '@/components/ui/card';
 
 import AssistantMessageThread from './AssistantMessageThread';
@@ -42,6 +43,8 @@ export default function AssistantConversationSurface({
   onModeChange,
 }: AssistantConversationSurfaceProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const askedByButton = readAssistantAsk(location.state);
   const owner = useAuthSessionOptional().user?.id;
   const ownerRef = useRef(owner); ownerRef.current = owner;
   const [session, setSession] = useState<{ owner?: string; messages: AssistantSessionMessage[]; revision?: number }>({ messages: [] });
@@ -125,6 +128,8 @@ export default function AssistantConversationSurface({
         mode={mode}
         onModeChange={onModeChange}
         onResponse={handleResponse}
+        initialRequest={askedByButton ?? undefined}
+        onInitialRequestTaken={() => navigate(location.pathname + location.search, { replace: true, state: null })}
       />
     </Card>
   );
