@@ -280,9 +280,9 @@ export default function DataPrivacySection() {
           </Button>
 
           <p className="pt-1 text-xs text-muted-foreground">
-            La suppression n’est pas immédiate : ta demande est enregistrée et
-            traitée sous quelques jours. Tu recevras une confirmation par email
-            une fois finalisée.
+            La suppression n’est pas immédiate : ta demande est enregistrée puis
+            traitée automatiquement dans l’heure. Ton compte de connexion reste
+            ouvert.
           </p>
         </CardContent>
       </Card>
@@ -292,10 +292,11 @@ export default function DataPrivacySection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Demander la suppression de mes données</AlertDialogTitle>
             <AlertDialogDescription>
-              Cette demande sera enregistrée et traitée par notre équipe. Une
-              fois validée, toutes tes données (inventaire, recettes, courses,
-              historique, préférences) seront effacées de manière définitive et
-              irréversible.
+              Cette demande sera traitée automatiquement dans l’heure : toutes
+              tes données (inventaire, recettes, courses, historique,
+              préférences, mémoire de l’assistant) seront alors effacées de
+              manière définitive et irréversible. Ton compte de connexion reste
+              ouvert.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

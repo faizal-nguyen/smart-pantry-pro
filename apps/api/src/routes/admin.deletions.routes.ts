@@ -10,8 +10,9 @@
  *   - RPC restreint à `service_role` (REVOKE EXECUTE FROM PUBLIC)
  *   - Hard cap `max_batch` à 50 côté SQL — défensive
  *
- * Invocation V1 : cron externe (Vercel Cron, GitHub Actions, etc.)
- * qui fire toutes les N minutes avec :
+ * Le job pg_cron horaire `process-deletion-requests` (migration
+ * 20261106140000) appelle déjà ce RPC ; la route sert à un traitement
+ * manuel immédiat :
  *   curl -X POST https://api.example.com/api/admin/deletions/process \
  *     -H "X-Admin-Token: <token>" \
  *     -H "Content-Type: application/json" \
