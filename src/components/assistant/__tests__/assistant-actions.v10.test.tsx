@@ -1,0 +1,108 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { AssistantActionsPanel } from '../AssistantActionsPanel';
+import AssistantConversationSurface from '../AssistantConversationSurface';
+import type { AssistantPlanResponse } from '@/services/assistantApi';
+
+const mockConfirm = jest.fn(), mockUndo = jest.fn(), mockDbChanged = jest.fn(), mockToast = jest.fn();
+let mockOwner = 'owner-a';
+let mockReply: AssistantPlanResponse | null = null;
+jest.mock('@/services/assistantApi', () => ({
+  postAssistantConfirm: (...args: unknown[]) => mockConfirm(...args),
+  postAssistantUndo: (...args: unknown[]) => mockUndo(...args),
+}));
+jest.mock('@/lib/agentEvents', () => ({ tablesForTool: (tool: string) => [tool], dispatchAgentDbChanged: (...args: unknown[]) => mockDbChanged(...args) }));
+jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }) }));
+jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: mockOwner } }) }));
+jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
+jest.mock('@/hooks/useAssistantConversations', () => ({ useAssistantMessages: () => ({ messages: [], isLoading: false }) }));
+jest.mock('../AssistantMessageThread', () => ({ __esModule: true, default: () => <p>Fil de la conversation</p> }));
+jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => null }));
+jest.mock('../AssistantMemoryNotice', () => ({ __esModule: true, default: () => null }));
+// The composer is replaced by a button that delivers the next reply.
+jest.mock('../AssistantComposer', () => ({ __esModule: true,
+  default: ({ onResponse }: { onResponse: (r: AssistantPlanResponse) => void }) => <button onClick={() => mockReply && onResponse(mockReply)}>Envoyer</button> }));
+
+const pending = { action_id: 'p1', step_seq: 1, tool: 'consume_inventory_items', args: { items: [{ name: 'riz', quantity: 200, unit: 'g' }] },
+  risk_tier: 'medium' as const, reason: 'Décompte du stock à confirmer.' };
+const executed = { action_id: 'e1', step_seq: 0, tool: 'add_shopping_items', args: { items: [{ name: 'lait', quantity: 1, unit: 'L' }] },
+  result: {}, reversible: true, undo_expires_at: new Date(Date.now() + 60_000).toISOString(), risk_tier: 'low' as const };
+const reply = (changes: Partial<AssistantPlanResponse> = {}): AssistantPlanResponse => ({
+  session_id: 's', transcript: 'J’ai utilisé 200 g de riz', message: 'Je décompte 200 g de riz ?', actions_executed: [], actions_pending: [pending],
+  confirmation_token: 'token-1', cost: { whisper_usd: 0, llm_usd: 0, total_usd: 0 }, model_used: null, duration_ms: 10, ...changes,
+});
+beforeEach(() => { mockConfirm.mockReset(); mockUndo.mockReset(); mockDbChanged.mockReset(); mockToast.mockReset(); mockOwner = 'owner-a'; mockReply = null; });
+
+describe('pending and executed actions of a reply', () => {
+  test('Confirmer executes the pending actions with their token and refreshes the touched data', async () => {
+    const patch = jest.fn();
+    mockConfirm.mockResolvedValue({ actions_executed: [{ ...executed, action_id: 'p1', tool: 'consume_inventory_items', reversible: false }], actions_failed: [] });
+    render(<AssistantActionsPanel result={reply()} onResultPatched={patch} />);
+    expect(screen.getByText('• 200 g riz')).toBeInTheDocument();
+    expect(screen.getByText('Décompte du stock à confirmer.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(patch).toHaveBeenCalledWith(expect.objectContaining({ actions_pending: [], confirmation_token: null })));
+    expect(mockConfirm).toHaveBeenCalledWith('token-1');
+    expect(patch.mock.calls[0][0].actions_executed.map((a: { action_id: string }) => a.action_id)).toEqual(['p1']);
+    expect(mockDbChanged).toHaveBeenCalledWith(['consume_inventory_items']);
+  });
+  test('a failed confirmation stays visible and can be retried', async () => {
+    const patch = jest.fn();
+    mockConfirm.mockRejectedValue(new Error('Confirmation expirée. Relance ta demande.'));
+    render(<AssistantActionsPanel result={reply()} onResultPatched={patch} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Confirmation expirée. Relance ta demande.');
+    expect(patch).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirmer (1)' })).toBeEnabled();
+  });
+  test('Annuler drops the pending actions without calling the server', () => {
+    const patch = jest.fn();
+    render(<AssistantActionsPanel result={reply()} onResultPatched={patch} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ne pas faire' }));
+    expect(patch).toHaveBeenCalledWith({ actions_pending: [], confirmation_token: null });
+    expect(mockConfirm).not.toHaveBeenCalled();
+  });
+  test('an executed reversible action can be undone once', async () => {
+    const patch = jest.fn();
+    mockUndo.mockResolvedValue({ undone: true });
+    render(<AssistantActionsPanel result={reply({ actions_pending: [], confirmation_token: null, actions_executed: [executed] })} onResultPatched={patch} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler cette action' }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(mockUndo).toHaveBeenCalledWith('e1');
+    expect(patch.mock.calls[0][0].actions_executed[0].reversible).toBe(false);
+    expect(mockDbChanged).toHaveBeenCalledWith(['add_shopping_items']);
+  });
+  test('a reply without actions renders nothing', () => {
+    const { container } = render(<AssistantActionsPanel result={reply({ actions_pending: [], confirmation_token: null })} onResultPatched={jest.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('the /assistant page (mobile has no floating button)', () => {
+  const page = (conversationId: string | null = null) =>
+    <MemoryRouter><AssistantConversationSurface conversationId={conversationId} mode="general" onModeChange={jest.fn()} /></MemoryRouter>;
+  test('shows the confirmation of the last reply and confirms it', async () => {
+    mockConfirm.mockResolvedValue({ actions_executed: [{ ...executed, action_id: 'p1', tool: 'consume_inventory_items', reversible: false }], actions_failed: [] });
+    mockReply = reply();
+    render(page());
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+    const actions = screen.getByRole('region', { name: 'Actions de l’assistant' });
+    fireEvent.click(within(actions).getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(within(actions).queryByRole('button', { name: 'Confirmer (1)' })).not.toBeInTheDocument());
+    expect(mockConfirm).toHaveBeenCalledWith('token-1');
+  });
+  test('refreshes the data an executed action changed', () => {
+    mockReply = reply({ actions_pending: [], confirmation_token: null, actions_executed: [executed] });
+    render(page());
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+    expect(mockDbChanged).toHaveBeenCalledWith(['add_shopping_items']);
+  });
+  test('the actions of another conversation are not offered', () => {
+    mockReply = reply({ conversation_id: 'conversation-a' });
+    const view = render(page('conversation-a'));
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+    expect(screen.getByRole('button', { name: 'Confirmer (1)' })).toBeInTheDocument();
+    view.rerender(page('conversation-b'));
+    expect(screen.queryByRole('button', { name: 'Confirmer (1)' })).not.toBeInTheDocument();
+  });
+});
