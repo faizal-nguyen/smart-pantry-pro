@@ -138,7 +138,7 @@ export default function DataPrivacySection() {
             Mes données
           </CardTitle>
           <CardDescription>
-            Contrôler comment Smart Pantry utilise tes informations.
+            Contrôler comment Kitchen OS utilise tes informations.
             Conforme RGPD — tu peux exporter ou demander la suppression à
             tout moment.
           </CardDescription>

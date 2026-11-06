@@ -1,3 +1,4 @@
+import { carnetScene, fixtureStorageKey, seedCarnetScene } from './carnet';
 /* Fictitious local QA data, persisted only on this dedicated localhost origin. */
 export const OWNER = '00000000-0000-4000-8000-000000000001';
 export const RECIPE = '30000000-0000-4000-8000-000000000001';
@@ -25,7 +26,8 @@ export const data: Record<string, Row[]> = {
   user_recipes: [], recipes_catalog: [], stock_commands: [], cooking_journal_entries: [],
   mobile_routine_preferences: [],routine_recipe_favorites: [],user_meal_preferences: [],nutrition_profiles:[],assistant_memory_items:[],recipe_interactions:[],recommendation_events:[],
 };
-try { Object.assign(data,JSON.parse(localStorage.getItem('v10-fixture-data') ?? '{}')); } catch { /* New fixture. */ }
+if (carnetScene) seedCarnetScene(data,OWNER,RECIPE);
+try { Object.assign(data,JSON.parse(localStorage.getItem(fixtureStorageKey) ?? '{}')); } catch { /* New fixture. */ }
 if (!data.recipes_catalog.some(row=>row.id===CATALOG)) data.recipes_catalog.push({ id:CATALOG,title:'Riz express',prep_time:5,cook_time:15,servings:2,instructions:'Rincer le riz.\nCuire le riz.',ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }],tags:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });
 if (!data.user_recipes.some(row=>row.id===WRAPPER)) data.user_recipes.push({ id:WRAPPER,user_id:OWNER,is_from_catalog:false,custom_title:'Soupe personnelle',custom_instructions:'Couper les tomates.\nFaire cuire.',custom_ingredients_json:[{ name:'Tomate',amount:'2',unit:'pièce' }],custom_modifications:{},personal_tags:[],collections:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });
 // SVGs are explicitly labelled test images, never production recipe photos.
@@ -36,11 +38,11 @@ if (!catalogue.photo_url) catalogue.photo_url='/scripts/fixtures/v10/assets/riz.
 const personal=data.user_recipes.find(row=>row.id===WRAPPER)!;
 if (!personal.custom_photo_url) personal.custom_photo_url='/scripts/fixtures/v10/assets/soupe.svg';
 const broken='30000000-0000-4000-8000-000000000002',absent='30000000-0000-4000-8000-000000000003';
-if (!data.recipes.some(row=>row.id===broken)) data.recipes.push({ ...recipe,id:broken,name:'Recette de test avec une image cassée et un titre assez long pour vérifier la lecture sur petit écran',image_url:'/scripts/fixtures/v10/assets/missing-image.jpg' });
-if (!data.recipes.some(row=>row.id===absent)) data.recipes.push({ ...recipe,id:absent,name:'Recette de test sans photo',image_url:null,prep_time:null });
-export function persistFixtureData() { localStorage.setItem('v10-fixture-data',JSON.stringify(data)); }
+if (!carnetScene && !data.recipes.some(row=>row.id===broken)) data.recipes.push({ ...recipe,id:broken,name:'Recette de test avec une image cassée et un titre assez long pour vérifier la lecture sur petit écran',image_url:'/scripts/fixtures/v10/assets/missing-image.jpg' });
+if (!carnetScene && !data.recipes.some(row=>row.id===absent)) data.recipes.push({ ...recipe,id:absent,name:'Recette de test sans photo',image_url:null,prep_time:null });
+export function persistFixtureData() { localStorage.setItem(fixtureStorageKey,JSON.stringify(data)); }
 export const failures = { nextCommand: false,nextReplyLost:false,evaluationOffline:false,memoryConflict:false,memoryOffline:false,memoryReplyLost:false,modelsOffline:false };
-const session = { user: { id: OWNER, email: 'test@example.invalid' }, access_token: 'local-test-only' };
+const session = { user: { id: OWNER, email: 'test@example.invalid', user_metadata: { full_name:carnetScene ? 'Foyer démo':'Test local' } }, access_token: 'local-test-only' };
 class Query implements PromiseLike<{ data: unknown; error: null; count: number }> {
   private filters: Array<(row: Row) => boolean> = [];
   private mode = 'read'; private patch: Row = {}; private added: Row[] = []; private singleResult = false;
@@ -89,6 +91,7 @@ class Query implements PromiseLike<{ data: unknown; error: null; count: number }
     if (this.sortKey) rows=[...rows].sort((a,b)=>String(a[this.sortKey!] ?? '').localeCompare(String(b[this.sortKey!] ?? ''))*(this.ascending ? 1:-1));
     const mapped = rows.slice(this.offset,this.offset+this.maximum).map(row => ({ ...row,
       ...(row.product_id ? { product: data.products.find(product => product.id === row.product_id), products: data.products.find(product => product.id === row.product_id) } : {}),
+      ...(this.table === 'weekly_meal_plans' ? { meal_plan_entries:(data.meal_plan_entries ?? []).filter(entry=>entry.meal_plan_id===row.id) } : {}),
       ...(this.table === 'recipes' ? { recipe_ingredients: data.recipe_ingredients.filter(ingredient => ingredient.recipe_id === row.id) } : {}),
       ...(this.table === 'user_recipes' && row.recipe_id ? { catalog_recipe: data.recipes_catalog.find(catalog=>catalog.id===row.recipe_id) } : {}),
     }));

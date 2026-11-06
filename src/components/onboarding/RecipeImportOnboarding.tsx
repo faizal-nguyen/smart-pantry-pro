@@ -94,8 +94,8 @@ export const RecipeImportOnboarding: React.FC<RecipeImportOnboardingProps> = ({ 
           </div>
           <SheetDescription>
             Sauvegarde tes Reels, TikTok et vidéos YouTube préférés au
-            même endroit. Smart Pantry les classe et extrait les
-            ingrédients automatiquement.
+            même endroit. Vérifie le brouillon et complète les
+            informations manquantes avant d’ajouter la recette.
           </SheetDescription>
         </SheetHeader>
 
@@ -134,7 +134,7 @@ export const RecipeImportOnboarding: React.FC<RecipeImportOnboardingProps> = ({ 
         <SheetFooter className="mt-4 sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Astuce : utilise le bouton « Partager » d&apos;Instagram ou
-            TikTok et choisis Smart Pantry.
+            TikTok et choisis Kitchen OS.
           </p>
           <Button variant="ghost" onClick={handleDismiss}>
             Plus tard

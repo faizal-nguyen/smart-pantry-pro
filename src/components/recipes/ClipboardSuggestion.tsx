@@ -15,7 +15,7 @@ interface ClipboardSuggestionProps {
  * In-inbox banner that prompts the user to import a URL detected in
  * their clipboard (PRP-220.18). Two-step flow:
  *
- *   1. Consent banner: "Smart Pantry can detect URLs in your clipboard
+ *   1. Consent banner: "Kitchen OS can detect URLs in your clipboard
  *      — enable / dismiss." Stored in localStorage so we ask once.
  *   2. Once granted, a recipe-like URL detected in the clipboard
  *      surfaces a one-click "Import" banner. The user can also
@@ -42,7 +42,7 @@ export const ClipboardSuggestion: React.FC<ClipboardSuggestionProps> = ({ classN
         <Clipboard className="h-4 w-4" aria-hidden />
         <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>
-            Smart Pantry peut détecter les URLs de recettes dans ton
+            Kitchen OS peut détecter les URLs de recettes dans ton
             presse-papiers et te proposer de les importer.
           </span>
           <span className="flex shrink-0 gap-2">

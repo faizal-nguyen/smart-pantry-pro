@@ -11,7 +11,7 @@ const entry = (day_of_week: number, recipe_name: string): MenuEntryView => ({
 });
 
 const renderGrid = (entries: MenuEntryView[], onAddSlot = jest.fn()) => {
-  render(<MenuWeekGrid entries={entries} onAddSlot={onAddSlot} onRemoveEntry={jest.fn()} />);
+  render(<MenuWeekGrid weekStart="2026-11-02" entries={entries} onAddSlot={onAddSlot} onRemoveEntry={jest.fn()} />);
   return onAddSlot;
 };
 
@@ -19,8 +19,8 @@ const renderGrid = (entries: MenuEntryView[], onAddSlot = jest.fn()) => {
 // the grid must use the same Monday-based offset.
 test('a stored day_of_week of 0 is shown on Monday and 6 on Sunday', () => {
   renderGrid([entry(0, 'Gratin du lundi'), entry(6, 'Rôti du dimanche')]);
-  expect(within(screen.getByRole('gridcell', { name: 'Lundi — Dîner' })).getByText('Gratin du lundi')).toBeInTheDocument();
-  expect(within(screen.getByRole('gridcell', { name: 'Dimanche — Dîner' })).getByText('Rôti du dimanche')).toBeInTheDocument();
+  expect(within(within(screen.getByRole('group', { name: 'Menus de la semaine' })).getByRole('group', { name: 'Lundi — Dîner' })).getByText('Gratin du lundi')).toBeInTheDocument();
+  expect(within(within(screen.getByRole('group', { name: 'Menus de la semaine' })).getByRole('group', { name: 'Dimanche — Dîner' })).getByText('Rôti du dimanche')).toBeInTheDocument();
 });
 
 test('adding on Monday sends offset 0 and on Sunday offset 6', () => {

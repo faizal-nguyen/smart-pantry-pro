@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { defaultMealContext, type MealContext } from '@/lib/mealContext';
+import { Search } from 'lucide-react';
 
-export default function MealContextPanel({ value, onChange, defaults }: { value: MealContext; onChange: (value: MealContext) => void; defaults?: { minutes?: number | null; servings?: number | null } }) {
+export default function MealContextPanel({ value, onChange, defaults, variant='inline' }: { value: MealContext; onChange: (value: MealContext) => void; defaults?: { minutes?: number | null; servings?: number | null }; variant?: 'inline' | 'prompt' }) {
   const [open, setOpen] = useState(false);
   const update = (patch: Partial<MealContext>) => onChange({ ...value, ...patch });
   const minutes=value.minutes || defaults?.minutes,servings=value.servings || defaults?.servings;
   const summary = [value.occasion === 'lunch' ? 'Ce midi' : value.occasion === 'snack' ? 'Collation' : 'Ce soir', minutes ? `${minutes} min` : null, servings ? `${servings} ${Number(servings)===1 ? 'personne' : 'personnes'}` : null, value.query || null, value.craving === 'warm' ? 'Chaud' : value.craving === 'fresh' ? 'Frais' : value.craving === 'comfort' ? 'Réconfortant' : null].filter(Boolean).join(' · ');
   return <Dialog open={open} onOpenChange={setOpen}>
-    <div className="flex min-h-11 items-center justify-between gap-3 border-b pb-2">
+    {variant==='prompt' ? <DialogTrigger asChild><button className="kitchen-meal-prompt"><Search className="h-5 w-5 shrink-0" strokeWidth={1.4} aria-hidden="true" /><span>Une envie, une contrainte ?</span><span className="sr-only">Modifier le repas : {summary}</span></button></DialogTrigger> : <div className="flex min-h-11 items-center justify-between gap-3 border-b pb-2">
       <p className="text-sm font-medium break-words" aria-label="Contexte du repas">{summary}</p>
       <DialogTrigger asChild><Button variant="ghost" className="min-h-11 shrink-0">Modifier le repas</Button></DialogTrigger>
-    </div>
+    </div>}
     <DialogContent className="routine-dialog">
       <DialogHeader><DialogTitle>Le repas qui te ferait envie</DialogTitle><DialogDescription>Ces choix concernent ce repas. Les champs laissés libres reprennent ton profil ou la recette.</DialogDescription></DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">

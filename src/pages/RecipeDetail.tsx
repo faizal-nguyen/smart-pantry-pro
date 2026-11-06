@@ -165,8 +165,8 @@ function RecipeDetailContent({ id }: { id?: string }) {
     canCook: canUseStock, canEdit,
     canAddMissing: canUseStock && purchaseCount > 0,
   };
-  return <div className="culinary-page mx-auto max-w-4xl p-4 md:p-6 pb-[calc(var(--content-bottom-pad)+5rem)] md:pb-6">
-    <div className="mb-4 flex items-center justify-between gap-2">
+  return <div className="culinary-page kitchen-page kitchen-recipe-detail">
+    <div className="kitchen-recipe-toolbar">
       <Button variant="ghost" aria-label="Retour aux recettes" onClick={() => navigate('/kitchen/recipes')}><ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />Recettes</Button>
       <div className="flex gap-2">
         <Button variant="outline" size="icon" className="h-11 w-11" aria-label={favorites.isFavorite(recipe.id) ? 'Retirer des favoris' : 'Mettre en favori'} aria-pressed={favorites.isFavorite(recipe.id)} disabled={favoriting || favorites.isLoading || favorites.isError}
@@ -175,7 +175,9 @@ function RecipeDetailContent({ id }: { id?: string }) {
         {ownsRecipe && <Button variant="outline" size="icon" className="h-11 w-11" aria-label="Supprimer cette recette" onClick={() => setShowDeleteDialog(true)}><Trash2 className="w-4 h-4" aria-hidden="true" /></Button>}
       </div>
     </div>
+    <div className="kitchen-recipe-hero">
     <RecipeMediaFrame imageUrl={overrideImageUrl ?? recipe.image_url} alt={recipe.name} editable={ownsRecipe} onUpload={handlePhotoUpload} imageCaption={!overrideImageUrl && recipe.source==='user_recipes' && recipe.image_origin==='catalog' ? 'Photo du catalogue' : undefined} />
+    <div className="kitchen-recipe-summary">
     <header className="mb-3">
       <h1 className="culinary-title mb-2">{recipe.name}</h1>
       <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
@@ -185,7 +187,6 @@ function RecipeDetailContent({ id }: { id?: string }) {
         {recipe.difficulty != null && <span className="flex gap-1" aria-label={'Difficulté ' + recipe.difficulty + '/5'}>{Array.from({ length: 5 }, (_, index) => <Star key={index} className={'w-4 h-4 ' + (index < recipe.difficulty! ? 'fill-warning text-warning' : '')} aria-hidden="true" />)}</span>}
       </div>
     </header>
-    <div className="hidden md:block"><RecipePrimaryActions {...actions} /></div>
     {details.error && <div role="alert" className="mb-4 space-y-2 rounded-md border p-3 text-sm">
       <p>La recette déjà chargée reste consultable. Son actualisation a échoué : {details.error.message}</p>
       <Button variant="outline" onClick={()=>void details.refetch()}>Relire la recette</Button>
@@ -198,8 +199,10 @@ function RecipeDetailContent({ id }: { id?: string }) {
     {!hasBaseServings && <p className="mb-4 rounded-md border p-3 text-sm" role="note">Les portions de base ne sont pas renseignées. Les quantités et les commandes de stock restent à vérifier avant de lancer la cuisine.</p>}
     <RecipeEvaluationPanel evaluation={evaluation.data} loading={evaluation.isLoading} refreshing={evaluation.isFetching || details.isFetching}
       error={details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={evaluation.validServings} />
-    <div className="grid md:grid-cols-2 gap-6">
-      <Card className="border-0 shadow-none bg-transparent"><CardContent className="p-0">
+    <div className="kitchen-recipe-primary"><RecipePrimaryActions {...actions} /></div>
+    </div></div>
+    <div className="kitchen-recipe-method">
+      <Card className="kitchen-ingredient-card"><CardContent className="kitchen-recipe-card-content">
         <h2 className="text-xl font-semibold mb-4">Ingrédients</h2>
         {!ingredients.length ? <p className="text-muted-foreground">Liste d'ingrédients à renseigner.</p> : <ul className="space-y-3">
           {ingredients.map(ingredient => <li key={ingredient.id} className="border-b pb-3">
@@ -209,9 +212,9 @@ function RecipeDetailContent({ id }: { id?: string }) {
           </li>)}
         </ul>}
       </CardContent></Card>
-      <Card className="border-0 shadow-none bg-transparent"><CardContent className="p-0">
+      <Card className="kitchen-instruction-card"><CardContent className="kitchen-recipe-card-content">
         <h2 className="text-xl font-semibold mb-4">Instructions</h2>
-        {!instructions.length ? <p className="text-muted-foreground">Aucune instruction disponible.</p> : <ol className="space-y-4">
+        {!instructions.length ? <p className="text-muted-foreground">Aucune instruction disponible.</p> : <ol className="kitchen-instructions">
           {instructions.map((instruction, index) => <li key={index} className="flex gap-3">
             <span className="shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-medium">{index + 1}</span><p className="pt-1">{instruction}</p>
           </li>)}

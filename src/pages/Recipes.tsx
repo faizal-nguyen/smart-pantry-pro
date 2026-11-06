@@ -9,7 +9,7 @@
  *  - le layout Tabs.
  * Le contenu de chaque onglet vit dans `src/components/recipes/tabs/`.
  */
-import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { BookOpen, Plus } from 'lucide-react';
 
@@ -29,6 +29,7 @@ import { useSocialRecipeImports } from '@/hooks/useSocialRecipeImports';
 //   - RecipeOnboarding (494L) : flow first-time-user seulement
 // RecipeLibraryTab reste eager — c'est le default tab.
 import RoutineRecipeLibrary from '@/components/recipes/RoutineRecipeLibrary';
+import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 const RecipeImportTab = lazy(() => import('@/components/recipes/tabs/RecipeImportTab'));
 const AddRecipeDialog = lazy(() => import('@/components/recipes/AddRecipeDialog'));
 const ExtractedRecipeModal = lazy(() =>
@@ -71,6 +72,7 @@ export default function Recipes() {
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showExtractedModal, setShowExtractedModal] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Existing legacy import-modal payload, outside this visual change.
   const [extractedRecipe, setExtractedRecipe] = useState<any>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
@@ -97,6 +99,7 @@ export default function Recipes() {
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Preserve the existing import-modal persistence contract.
   const handleExtractedConfirm = async (editedRecipe: any) => {
     try {
       const { ingredients, ...recipeData } = editedRecipe;
@@ -114,29 +117,12 @@ export default function Recipes() {
   };
 
   return (
-    <div className="min-h-screen bg-background culinary-page">
-      <div className="mx-auto max-w-5xl p-4 md:p-6">
-        <header className="mb-3 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="culinary-title">
-              Cuisiner
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{activeTab==='library' ? 'Trouve le plat qui te fait envie.' : 'Garde une recette pour plus tard.'}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              className="min-h-11"
-              onClick={() => setShowAddDialog(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
-              Écrire
-            </Button>
-          </div>
-        </header>
+    <div className="culinary-page kitchen-page kitchen-recipes-page">
+      <div className="kitchen-recipes-content">
+        <KitchenPageHeader title="Recettes" description={activeTab==='library' ? 'Les plats que tu aimes, et ceux qu’il te reste à découvrir.' : 'Garde une recette pour plus tard.'} actions={<Button className="min-h-11" onClick={()=>setShowAddDialog(true)}><Plus className="h-4 w-4" aria-hidden="true"/>Écrire une recette</Button>} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-3 min-h-11 h-auto flex flex-wrap w-full justify-start gap-1">
+          <TabsList className="kitchen-recipe-tabs">
             <TabsTrigger value="library" className="gap-2 min-h-11 text-sm">
               <BookOpen className="h-4 w-4" aria-hidden="true" />
               Bibliothèque

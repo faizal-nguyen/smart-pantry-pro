@@ -8,25 +8,17 @@
  * Cette page utilise `useAuthenticatedUser()` pour récupérer le user.
  */
 import React from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import SettingsShell from '@/components/settings/SettingsShell';
+import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 
 const SettingsPage: React.FC = () => {
   const user = useAuthenticatedUser();
 
   return (
-    <div className="culinary-page container mx-auto max-w-5xl p-4 md:p-6 app-content">
-      <header className="mb-6 flex flex-col gap-1">
-        <h1 className="culinary-title flex items-center gap-2">
-          <SettingsIcon className="h-6 w-6" aria-hidden="true" />
-          Paramètres
-        </h1>
-        <p className="text-sm text-muted-foreground md:text-base">
-          Ton compte, ta mémoire assistant, tes préférences et ta confidentialité.
-        </p>
-      </header>
+    <div className="culinary-page kitchen-page kitchen-settings-page">
+      <KitchenPageHeader title="Paramètres" description="Ta cuisine, selon tes envies et tes préférences."/>
       <SettingsShell user={user} />
     </div>
   );

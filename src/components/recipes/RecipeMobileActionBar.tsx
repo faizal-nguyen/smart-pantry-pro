@@ -40,7 +40,7 @@ export default function RecipeMobileActionBar({
   return (
     <div
       data-testid="recipe-action-bar-mobile"
-      className="md:hidden app-action-bar-mobile bg-background/95 backdrop-blur-md border-t shadow-lg"
+      className="kitchen-recipe-actionbar app-action-bar-mobile bg-background/95 backdrop-blur-md border-t shadow-lg"
     >
       <div className="grid grid-cols-3 gap-2 p-2">
         <Button

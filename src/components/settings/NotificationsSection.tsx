@@ -91,7 +91,7 @@ export default function NotificationsSection() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Activer les notifications</p>
               <p className="text-xs text-muted-foreground">
-                Smart Pantry te demandera l&apos;autorisation du navigateur.
+                Kitchen OS te demandera l&apos;autorisation du navigateur.
               </p>
             </div>
             <Button

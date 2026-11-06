@@ -13,7 +13,9 @@
  */
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2 } from 'lucide-react';
-import { addDays, format, startOfWeek } from 'date-fns';
+import { addDays, format } from 'date-fns';
+import { calendarWeekStart } from '@smart/shared';
+import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { fr } from 'date-fns/locale';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
@@ -28,9 +30,7 @@ import AddRecipeToMenuDialog, {
 import { getAssistantRequestId, postAssistantText } from '@/services/assistantApi';
 
 function isoWeekStart(date: Date): string {
-  // Lundi-first (FR convention)
-  const monday = startOfWeek(date, { weekStartsOn: 1 });
-  return format(monday, 'yyyy-MM-dd');
+  return calendarWeekStart(date)!;
 }
 
 function weekLabel(weekStart: string): string {
@@ -119,16 +119,8 @@ export default function MenusPage() {
     : undefined;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Menus</h1>
-            <p className="mt-1 text-muted-foreground">
-              Organiser les repas de la semaine avec tes recettes et ton inventaire.
-            </p>
-          </div>
-          <Button
+    <div className="culinary-page kitchen-page kitchen-menus-page">
+        <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<Button
             type="button"
             variant="outline"
             onClick={askAssistant}
@@ -141,11 +133,10 @@ export default function MenusPage() {
               <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             )}
             Demander à l&apos;assistant
-          </Button>
-        </div>
+          </Button>}/>
 
         {/* Week navigator */}
-        <div className="flex items-center justify-between gap-3 rounded-md border bg-surface/40 p-3">
+        <div className="kitchen-week-navigation">
           <Button
             type="button"
             variant="ghost"
@@ -198,6 +189,7 @@ export default function MenusPage() {
         ) : (
           <>
             <MenuWeekGrid
+              weekStart={weekStart}
               entries={entries}
               onAddSlot={handleAddSlot}
               onRemoveEntry={handleRemoveEntry}

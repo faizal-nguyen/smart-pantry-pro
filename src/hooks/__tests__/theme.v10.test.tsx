@@ -5,6 +5,21 @@ function Probe({ label }: { label: string }) {
   const { theme, toggleTheme } = useTheme();
   return <button onClick={toggleTheme}>{label}: {theme}</button>;
 }
+afterEach(()=>jest.restoreAllMocks());
+test('a first visit starts light even when the device prefers dark',()=>{
+  localStorage.removeItem('theme');
+  const media=window.matchMedia('(prefers-color-scheme: dark)');
+  jest.spyOn(window,'matchMedia').mockReturnValue({...media,matches:true});
+  render(<Probe label="Shell"/>);
+  expect(screen.getByRole('button',{name:'Shell: light'})).toBeInTheDocument();
+  expect(document.documentElement).not.toHaveClass('dark');
+});
+test('an explicit saved dark preference survives a new visit',()=>{
+  localStorage.setItem('theme','dark');
+  render(<Probe label="Shell"/>);
+  expect(screen.getByRole('button',{name:'Shell: dark'})).toBeInTheDocument();
+  expect(document.documentElement).toHaveClass('dark');
+});
 test('one toggle updates the shell, Material theme and notification consumers together', async () => {
   localStorage.setItem('theme','light');
   render(<><Probe label="Shell"/><Probe label="Material"/><Probe label="Notifications"/></>);

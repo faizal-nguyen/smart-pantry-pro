@@ -1,6 +1,8 @@
 import { readShareCapture } from '@/services/shareCaptures';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Leaf, Milk, Package } from 'lucide-react';
+import KitchenWeekPreview from '@/components/meal-planning/KitchenWeekPreview';
 import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useInventory } from '@/hooks/useInventory';
@@ -36,25 +38,39 @@ export default function KitchenDashboard() {
   const bought = shopping.getPurchasedCount();
   const next = active ? { title:`Reprendre ${active.name}`,detail:active.state==='pending' ? 'Une confirmation reste à vérifier.' : `Étape ${active.step+1} · ${active.servings} ${active.servings===1 ? 'portion' : 'portions'}`,path:`/kitchen/cooking/${active.id}`,cta:'Reprendre ma cuisine' }
     : shopping.pendingTransfer || bought>0 ? { title:'Tes achats attendent leur rangement',detail:shopping.pendingTransfer ? 'Un rangement reste à confirmer.' : `${bought} ${bought===1 ? 'produit coché' : 'produits cochés'}.`,path:'/shopping/list',cta:'Ranger mes achats' }
-    : soon.length ? { title:`Vérifier ${soon[0].product?.name ?? 'un produit'}`,detail:pantryDateLabel(soon[0].expiry_date,now),path:`/pantry/inventory?product=${soon[0].id}`,cta:'Vérifier mon stock' }
     : null;
   const advance = async (introduction:'stock'|'recipe'|'done'|'skipped') => { if (saving) return; setSaving(true); setError(null); try { await preferences.update({ introduction }); } catch (failure) { setError((failure as Error).message); } finally { setSaving(false); } };
   const intro = preferences.data?.introduction;
   const updateContext = (values:Partial<typeof context>) => { try { setContext({ ...context,...values }); } catch (failure) { setError((failure as Error).message); } };
-  return <div className="culinary-page mx-auto max-w-4xl p-4 space-y-5" data-culinary-view={design}>
-    <header><p className="culinary-eyebrow">Ta cuisine, au quotidien</p><h1 className="culinary-title">Aujourd’hui</h1></header>
-    {next && <Card className="border-primary/30"><CardContent className="p-4 space-y-2"><h2 className="text-xl font-semibold break-words">{next.title}</h2><p className="text-sm text-muted-foreground">{next.detail}</p><Button className="min-h-11 w-full sm:w-auto" asChild><Link to={next.path}>{next.cta}</Link></Button></CardContent></Card>}
-    {(stock.loading || shopping.loading) && <p role="status" className="text-sm">Vérification du stock et des achats…</p>}
-    {(stock.error || shopping.error || sessionsError) && <div role="alert" className="rounded-lg border p-3 text-sm"><p>Certaines données n’ont pas pu être lues.</p><Button variant="outline" className="min-h-11" onClick={() => { void stock.refetch(); void shopping.refetch().catch(() => undefined); }}>Réessayer</Button></div>}
-    {share && !['saved','captured'].includes(share.status) && <div className="rounded-lg border p-3 space-y-2"><p>Un lien de recette reste à reprendre.</p><Button className="min-h-11" variant="outline" asChild><Link to="/share-target">Reprendre le partage</Link></Button></div>}
+  return <div className="culinary-page kitchen-today" data-culinary-view={design}>
+    <header className="kitchen-today-heading">
+      <h1 className="culinary-title"><span className="hidden md:inline">Qu’est-ce qu’on cuisine {context.occasion==='lunch' ? 'ce midi' : context.occasion==='snack' ? 'pour une pause' : 'ce soir'} ?</span><span className="md:hidden">{context.occasion==='lunch' ? 'Ce midi' : context.occasion==='snack' ? 'Pour une pause' : 'Ce soir'}, on cuisine ?</span></h1>
+      <p className="kitchen-date">{now.toLocaleDateString('fr-FR',{ weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Paris' })}</p>
+    </header>
+    {next && <Card className="kitchen-next"><CardContent><div><h2>{next.title}</h2><p>{next.detail}</p></div><Button className="min-h-11" asChild><Link to={next.path}>{next.cta}</Link></Button></CardContent></Card>}
+    {(stock.error || shopping.error || sessionsError) && <div role="alert" className="kitchen-notice"><p>Certaines données n’ont pas pu être lues.</p><Button variant="outline" onClick={() => { void stock.refetch(); void shopping.refetch().catch(() => undefined); }}>Réessayer</Button></div>}
+    {share && !['saved','captured'].includes(share.status) && <div className="kitchen-notice"><p>Un lien de recette reste à reprendre.</p><Button variant="outline" asChild><Link to="/share-target">Reprendre le partage</Link></Button></div>}
     {error && <p role="alert" className="text-destructive">{error}</p>}
-    <section className="space-y-3" aria-labelledby="meal-ideas"><h2 id="meal-ideas" className="text-lg font-semibold">À cuisiner {context.occasion==='lunch' ? 'ce midi' : context.occasion==='snack' ? 'pour une pause' : 'ce soir'}</h2>
-      <MealContextPanel value={context} onChange={value=>updateContext(value)} defaults={profile.error ? undefined : { minutes:profile.data?.profile.settings.usualTimeMinutes,servings:profile.data?.profile.settings.usualServings }} />
-      <PersonalizedRecipeSuggestions input={input} onAddStock={()=>setAdd(true)} />
+    <div className="kitchen-today-grid">
+      <section className="min-w-0" aria-label="Idée pour ton repas"><PersonalizedRecipeSuggestions featured input={input} onAddStock={()=>setAdd(true)} /></section>
+      <KitchenWeekPreview now={now} mealType={input.mealType ?? 'dinner'} />
+    </div>
+    <section className="kitchen-use-soon" aria-labelledby="use-soon">
+      <h2 id="use-soon" className="kitchen-section-title">À utiliser bientôt</h2>
+      {stock.loading ? <p className="text-sm text-muted-foreground" role="status">Lecture de ton stock…</p> : soon.length>0 ? <ul className="kitchen-stock-strip">{soon.map(item => {
+        const days=calendarDaysUntil(item.expiry_date,now)!;
+        const label=days<0 ? 'Date dépassée' : days===0 ? 'Aujourd’hui' : `${days} ${days===1 ? 'jour' : 'jours'}`;
+        const photo=item.product?.image_url;
+        const category=item.product?.category?.toLocaleLowerCase('fr-FR');
+        const StockIcon=category==='légumes' || category==='fruits et légumes' ? Leaf : category==='produits laitiers' ? Milk : Package;
+        return <li key={item.id}><Link className="kitchen-stock-item" to={`/pantry/inventory?product=${item.id}`}>
+          <span className="kitchen-stock-symbol"><StockIcon aria-hidden="true" strokeWidth={1.25} />{photo && /^(https?:\/\/|\/(?!\/))/.test(photo) && <img key={photo} src={photo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e=>{e.currentTarget.hidden=true;}} />}</span>
+          <span><span className="font-medium">{item.product?.name ?? 'Produit à vérifier'}</span><span className="kitchen-stock-separator"> · </span><span className={days<0 ? 'text-destructive' : ''}>{label}</span><span className="sr-only"> · {item.quantity} {item.unit ?? item.product?.unit_type} · {pantryDateLabel(item.expiry_date,now)}</span></span>
+        </Link></li>;
+      })}</ul> : <p className="text-sm text-muted-foreground">{stock.error ? 'Dates non disponibles pour le moment.' : 'Aucune date proche renseignée.'}</p>}
     </section>
-    {intro && !['done','skipped'].includes(intro) && <Card><CardContent className="p-4 space-y-3"><h2 className="font-semibold">Prendre tes repères</h2><p className="text-sm">{intro==='new' || intro==='stock' ? 'Ajoute quelques ingrédients, puis choisis un repas. Tu peux compléter ton profil plus tard.' : 'Enregistre ou commence une recette. Tes préférences peuvent attendre.'}</p><div className="flex flex-wrap gap-2">{intro!=='recipe' && <Button className="min-h-11" onClick={() => setAdd(true)}>Ajouter quelques ingrédients</Button>}<Button className="min-h-11" variant="outline" asChild><Link to="/kitchen/recipes">Choisir une première recette</Link></Button><Button className="min-h-11" variant="ghost" disabled={saving} onClick={() => void advance('skipped')}>Passer l’introduction</Button><Button className="min-h-11" variant="ghost" disabled={saving} onClick={() => void advance('done')}>J’ai pris mes repères</Button></div></CardContent></Card>}
-    <section className="space-y-3" aria-labelledby="use-soon"><h2 id="use-soon" className="text-xl font-semibold">À utiliser bientôt</h2>{soon.length>0 ? <ul className="space-y-2">{soon.map(item => <li key={item.id}><Link className="min-h-11 flex flex-wrap justify-between items-center gap-2 rounded-lg border p-3" to={`/pantry/inventory?product=${item.id}`}><span>{item.product?.name} · {item.quantity} {item.unit ?? item.product?.unit_type}</span><span className="text-sm">{pantryDateLabel(item.expiry_date,now)}</span></Link></li>)}</ul> : <p className="text-sm text-muted-foreground">{stock.error ? 'Dates non disponibles pour le moment.' : 'Aucune date proche renseignée pour les produits disponibles.'}</p>}<Button className="min-h-11" variant="outline" asChild><Link to="/pantry/inventory">Voir mon stock</Link></Button></section>
-    <nav className="flex flex-wrap gap-2" aria-label="Autres outils"><Button className="min-h-11" variant="ghost" asChild><Link to="/kitchen/meal-planning">Menus de la semaine</Link></Button><Button className="min-h-11" variant="ghost" asChild><Link to="/settings?section=cooking">Préférences alimentaires</Link></Button><Button className="min-h-11" variant="ghost" asChild><Link to="/kitchen/recipes?tab=import">Enregistrer une recette</Link></Button></nav>
+    <MealContextPanel variant="prompt" value={context} onChange={value=>updateContext(value)} defaults={profile.error ? undefined : { minutes:profile.data?.profile.settings.usualTimeMinutes,servings:profile.data?.profile.settings.usualServings }} />
+    {intro && !['done','skipped'].includes(intro) && <details className="kitchen-onboarding"><summary>Prendre tes repères</summary><div><p className="text-sm text-muted-foreground">Ajoute quelques ingrédients, puis choisis un repas. Ton profil peut attendre.</p><div className="flex flex-wrap gap-2"><Button onClick={()=>setAdd(true)}>Ajouter des ingrédients</Button><Button variant="outline" asChild><Link to="/kitchen/recipes">Choisir une recette</Link></Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('skipped')}>Passer l’introduction</Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('done')}>J’ai pris mes repères</Button></div></div></details>}
     <QuickStockDialog firstUse open={add} onOpenChange={setAdd} onSaved={() => { void advance('recipe'); void stock.refetch(); setAdd(false); }} />
   </div>;
 }

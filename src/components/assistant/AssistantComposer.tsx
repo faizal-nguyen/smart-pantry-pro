@@ -142,7 +142,7 @@ export default function AssistantComposer({
   return (
     <form
       onSubmit={handleSubmit}
-      className="sticky bottom-0 bg-background/95 backdrop-blur border-t p-3 z-20"
+      className="kitchen-assistant-composer"
     >
       {error && <p role="alert" className="mb-2 text-sm text-destructive">{error}</p>}
       <DictationStatusLine dictation={dictation} className="mb-2" />

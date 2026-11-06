@@ -12,6 +12,14 @@ export function calendarDate(value: string | Date = new Date(), zone = PANTRY_TI
   const part = (type: string) => parts.find(item => item.type === type)?.value;
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
+/** Monday of the same reference-zone week; independent of the device timezone. */
+export function calendarWeekStart(value: string | Date = new Date(), zone = PANTRY_TIME_ZONE): string | null {
+  const key = calendarDate(value, zone);
+  if (!key) return null;
+  const date = new Date(`${key}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+  return date.toISOString().slice(0, 10);
+}
 export function calendarDaysUntil(value: string | null | undefined, now = new Date(), zone = PANTRY_TIME_ZONE): number | null {
   if (!value) return null;
   const target = calendarDate(value,zone), today = calendarDate(now,zone);

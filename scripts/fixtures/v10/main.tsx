@@ -1,3 +1,4 @@
+import { carnetScene } from './carnet';
 /* eslint-disable react-refresh/only-export-components -- Isolated visual QA entrypoint, HMR disabled. */
 import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -15,6 +16,7 @@ import AddRecipeDialog from '@/components/recipes/AddRecipeDialog';
 import Settings from '@/pages/Settings';
 import Inventory from '@/pages/Inventory';
 import KitchenDashboard from '@/pages/kitchen/KitchenDashboard';
+import MenusPage from '@/pages/kitchen/MenusPage';
 import CookingSessionPage from '@/pages/kitchen/CookingSessionPage';
 import Recipes from '@/pages/Recipes';
 import { Toaster } from '@/components/ui/toaster';
@@ -25,6 +27,8 @@ import { useTheme } from '@/hooks/useTheme';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { CulinaryDesignContext } from '@/contexts/CulinaryDesignContext';
 import AssistantDashboard from '@/pages/assistant/AssistantDashboard';
+
+if(carnetScene) document.title='Kitchen OS — Démo · données fictives';
 
 // This harness starts after onboarding and uses a dedicated local origin.
 localStorage.setItem('skipOnboarding','1');
@@ -66,8 +70,7 @@ function Fixture() {
     }
     persistFixtureData();dispatchAgentDbChanged(['inventory','products']);
   };
-  return <CulinaryDesignContext.Provider value={design}>
-    <details className="relative z-10 bg-muted px-3 py-2 text-xs" aria-label="Contrôles du test local"><summary className="flex min-h-11 cursor-pointer items-center">Test local — données fictives · contrôles</summary><div className="flex flex-wrap gap-3 py-2">
+  const controls = <details className="relative z-10 bg-muted px-3 py-2 text-xs" aria-label="Contrôles du test local"><summary className="flex min-h-11 cursor-pointer items-center">Test local — données fictives · contrôles</summary><div className="flex flex-wrap gap-3 py-2">
       <strong>Test local — données fictives</strong>
       <button onClick={loadMemory}>Charger les souvenirs fictifs</button>
       <button onClick={()=>{failures.memoryConflict=true;}}>Simuler un conflit mémoire</button>
@@ -84,9 +87,11 @@ function Fixture() {
       <button onClick={() => { failures.nextCommand = true; setFailure(true); }}>{failure ? 'Prochain refus activé' : 'Simuler une coupure'}</button>
       <button onClick={() => { failures.nextReplyLost=true;setFailure(true); }}>Perdre la prochaine réponse après écriture</button>
       <button onClick={()=>{ failures.evaluationOffline=!evaluationOffline;setEvaluationOffline(!evaluationOffline);if (!evaluationOffline) dispatchAgentDbChanged(['inventory']); }}>{evaluationOffline ? 'Rétablir la vérification' : 'Refuser la vérification'}</button>
-    </div></details>
+    </div></details>;
+  return <CulinaryDesignContext.Provider value={design}>
+    {!carnetScene && controls}
     <Routes><Route element={<AuthenticatedLayout/>}>
-      <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
+      <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
       <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/>
       <Route path="/settings" element={<Settings/>}/><Route path="/fixture/manual" element={<ManualRecipe/>}/>
       <Route path="/assistant" element={<AssistantDashboard/>}/>
@@ -95,6 +100,7 @@ function Fixture() {
       <Route path="/shopping" element={<Navigate to="/shopping/list" replace/>}/>
       <Route path="*" element={<RecipeDetail/>}/>
     </Route></Routes>
+    {carnetScene && controls}
     <Toaster/><Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)"/>
   </CulinaryDesignContext.Provider>;
 }

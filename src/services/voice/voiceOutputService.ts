@@ -1,5 +1,5 @@
 /**
- * Voice Output Service - Text-to-Speech (TTS) for Smart Pantry Pro
+ * Voice Output Service - Text-to-Speech (TTS) for Kitchen OS
  * Phase 1 Implementation: Web Speech API synthesis with French optimization
  *
  * Features:
@@ -91,7 +91,7 @@ const RESPONSE_TEMPLATES: Record<VoiceContext, string[]> = {
   ],
   greeting: [
     "Bonjour ! Comment puis-je vous aider ?",
-    "Bienvenue dans Smart Pantry. Que souhaitez-vous faire ?",
+    "Bienvenue dans Kitchen OS. Que souhaitez-vous faire ?",
     "Je suis là pour vous aider avec votre garde-manger."
   ],
   general: [
@@ -437,7 +437,7 @@ export class VoiceOutputService {
   }
 
   // =========================================
-  // Convenience methods for Smart Pantry
+  // Convenience methods for Kitchen OS
   // =========================================
 
   /**
