@@ -58,12 +58,18 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
     };
   };
   const cookable = list(result.cookable_now).slice(0, 3);
+  // The user's own words for this request, not profile data: shared even with a private profile.
+  const requested = object(result.request_constraints);
   return {
+    ...(requested ? { request_constraints: {
+      exclude_ingredients: list(requested.exclude_ingredients).slice(0, 10).map(value => text(value, 80)),
+      diets: list(requested.diets).slice(0, 8).map(value => text(value, 40)),
+    } } : {}),
     cookable_now: cookable.map(candidate),
     almost_cookable: list(result.almost_cookable).slice(0, 3 - cookable.length).map(candidate),
     verify_suggestions: list(result.verify_suggestions).slice(0, 2).map(candidate),
     excluded_suggestions: list(result.excluded_suggestions).filter(mayShare).slice(0, 2).map(candidate),
     ...(Array.isArray(result.recipes) ? { recipes: result.recipes.slice(0, 3).map(candidate) } : {}),
-    note: 'Les cartes dans l’application portent les explications complètes. Seules les raisons présentes ici peuvent être expliquées. Ne déduisez aucune allergie ni besoin de santé et ne certifiez pas une compatibilité.',
+    note: 'Les cartes dans l’application portent les explications complètes. Seules les raisons présentes ici peuvent être expliquées. Ne déduisez aucune allergie ni besoin de santé et ne certifiez pas une compatibilité. Une exclusion de la demande (« sans X ») n’est appliquée que si elle figure dans request_constraints, et seulement d’après le nom des ingrédients.',
   };
 }

@@ -58,6 +58,8 @@ export interface RecommendationContext extends MealContext {
   nearExpiryDays?: number;
   /** If false, suppress the fallback bucket. Default true. */
   includeRecentFallback?: boolean;
+  /** Ingredients left out of this request only (« sans crème »); never stored. */
+  excludedIngredients?: string[];
 }
 
 // ---- Score parts -----------------------------------------------------
@@ -142,6 +144,8 @@ export interface RecommendationResult {
   memory_revision?:number;
   calculated_at?:string;
   has_constraints?:boolean;
+  /** Exclusions and diets of the current request that were applied; absent when none. */
+  request_constraints?:{ exclude_ingredients:string[];diets:string[] };
 }
 
 // ---- Engine inputs (loaded by orchestrator) -------------------------

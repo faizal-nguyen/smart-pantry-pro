@@ -49,6 +49,12 @@ const allergyAliases:Record<string,string> = { lait:'milk',dairy:'milk',milk:'mi
 const supplierAllergen = (tag:string) => allergyAliases[norm(tag.replace(/^[a-z]{2}:/,''))] ?? norm(tag.replace(/^[a-z]{2}:/,''));
 function facts(name:string) { return foods.find(food => food.aliases.some(alias => norm(alias)===norm(name))); }
 const compoundNames=['pain','bread','pates','pasta','spaghetti','couscous','fromage','cheese','yaourt','yogurt','moutarde','mustard','tofu','tahini'];
+/** Whether excluding a term means something: a known food, or words of one of these
+ * recipes' ingredients under the same alias matching as evaluateConstraints. */
+export function namesIngredient(term:string,recipes:RecipeWithIngredients[]):boolean {
+  return !!facts(term) || ingredientAliases.some(group=>group.some(alias=>norm(alias)===norm(term))) ||
+    recipes.some(recipe=>(recipe.recipe_ingredients ?? []).some(item=>aliasesFor(term).some(alias=>contains(item.ingredient_name ?? '',alias))));
+}
 export function normalizeEquipment(name:string) {
   const value=norm(name);
   return ({ four:'oven',oven:'oven',plaque:'stove','plaque de cuisson':'stove',stove:'stove',mixeur:'blender',blender:'blender','micro ondes':'microwave',microwave:'microwave',poele:'pan',pan:'pan',casserole:'pot',pot:'pot' } as Record<string,string>)[value] ?? value;

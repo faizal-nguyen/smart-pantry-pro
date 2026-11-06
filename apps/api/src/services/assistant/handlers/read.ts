@@ -580,6 +580,7 @@ export class SuggestRecipesForContextHandler
       servings: args.servings,
       almostThreshold: args.almost_threshold,
       limitPerBucket: args.limit_per_bucket,
+      excludedIngredients: args.exclude_ingredients,
       // Used for this meal; the writer never stores the raw conversation.
       requestText: ctx.requestText,
     };

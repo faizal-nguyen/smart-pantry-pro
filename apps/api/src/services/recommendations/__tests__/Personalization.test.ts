@@ -184,3 +184,46 @@ describe('V10-03 one server pipeline, changes and contextual feedback',()=>{
     await expect(new NutritionProfileService(clientFor({ nutrition_profiles:{ ...stored(),user_id:OTHER } }) as unknown as SupabaseClient).read(USER)).rejects.toMatchObject({ code:'PROFILE_UNAVAILABLE' });
   });
 });
+
+describe('constraints said in the current request',()=>{
+  const tables=()=>({ recipes:[recipe('cream','Poulet à la crème','Crème'),recipe('rice','Riz','Riz')],inventory:[lot('cream'),lot('rice')] });
+  const proposed=(result:Awaited<ReturnType<typeof suggest>>)=>[...result.cookable_now,...result.almost_cookable].map(item=>item.id);
+  test('« Et sans crème ? » leaves out recipes with cream and reports the exclusion',async()=>{
+    const result=await suggest(tables(),{ requestText:'Et sans crème ?' });
+    expect(proposed(result)).toEqual(['rice']);
+    expect(result.excluded_suggestions!.map(item=>item.id)).toEqual(['cream']);
+    expect(result.request_constraints).toEqual({ exclude_ingredients:['crème'],diets:[] });
+    expect(result.has_constraints).toBe(true);
+  });
+  test('exclusions passed by the tool apply when the sentence no longer says them',async()=>{
+    const result=await suggest(tables(),{ requestText:'Et en moins de 20 minutes ?',excludedIngredients:['Crème'] });
+    expect(proposed(result)).toEqual(['rice']);
+    expect(result.request_constraints).toEqual({ exclude_ingredients:['crème'],diets:[] });
+  });
+  test('a diet said for tonight applies',async()=>{
+    const result=await suggest({ recipes:[recipe('pasta','Pâtes','Farine'),recipe('rice','Riz','Riz')],inventory:[lot('pasta'),lot('rice')] },{ requestText:'Un plat sans gluten ce soir' });
+    expect(proposed(result)).toEqual(['rice']);
+    expect(result.request_constraints).toEqual({ exclude_ingredients:[],diets:['gluten_free'] });
+  });
+  test('a phrase naming no food (« sans os ») neither filters nor demotes recipes',async()=>{
+    const sauce={ recipes:[recipe('sauce','Plat maison','Sauce maison')],inventory:[lot('sauce')] };
+    const result=await suggest(sauce,{ requestText:'Poulet sans os' });
+    expect(proposed(result)).toEqual(['sauce']);
+    expect(result.request_constraints).toBeUndefined();
+    // With a real exclusion the unknown blend is only « to verify », never certified.
+    const cream=await suggest(sauce,{ requestText:'sans crème ça serait mieux' });
+    expect(cream.request_constraints).toEqual({ exclude_ingredients:['crème'],diets:[] });
+    expect(cream.verify_suggestions!.map(item=>item.id)).toEqual(['sauce']);
+  });
+  test('without a request constraint nothing changes',async()=>{
+    const result=await suggest(tables(),{ requestText:'Propose-moi un dîner' });
+    expect(proposed(result).sort()).toEqual(['cream','rice']);
+    expect(result.request_constraints).toBeUndefined();
+  });
+  test('a result shaped by the request is neither cached nor stored with its terms',async()=>{
+    const writer={ readCache:jest.fn(async()=>({ hit:null,expired:false })),writeCache:jest.fn(),recordEvent:jest.fn(async()=>'event') };
+    await suggest(tables(),{ requestText:'sans arachides',excludedIngredients:['crème'] },{ eventWriter:writer as unknown as RecommendationEventWriter });
+    expect(writer.writeCache).not.toHaveBeenCalled();
+    expect(writer.recordEvent).toHaveBeenCalledWith(expect.objectContaining({ requestText:null }));
+  });
+});
