@@ -24,7 +24,7 @@ import {
   SocialImportService,
   type SocialImportServiceOptions,
 } from '../services/imports/SocialImportService.js';
-import { ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
+import { PublicThumbnailCopier, ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
 import { MediaAssetResolver } from '../services/media/MediaAssetResolver.js';
 import {
   CaptureRequestSchema,
@@ -92,6 +92,7 @@ export function createImportsSocialRouter(
     return new SocialImportService(new SocialImportRepository(userClient), {
       ...options,
       thumbnailSnapshotter,
+      thumbnailCopier: options.thumbnailCopier ?? new PublicThumbnailCopier(adminClient),
     });
   };
   const buildRepo = (req: Request) =>

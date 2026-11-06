@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2, Clock, Users, ChefHat, Link } from 'lucide-react';
+import { Loader2, Plus, Trash2, Clock, Link } from 'lucide-react';
 
 interface Ingredient {
   name: string;
@@ -71,6 +71,10 @@ const MEAL_TYPE_OPTIONS = [
   { value: "appetizer", label: "Entrée" }
 ];
 
+// Imports give the thumbnail as a plain URL, older extractors as { url }.
+const thumbnailUrl = (metadata: ExtractedRecipe['metadata']) =>
+  typeof metadata.thumbnail === 'string' ? metadata.thumbnail : metadata.thumbnail?.url;
+
 export const ExtractedRecipeModal: React.FC<ExtractedRecipeModalProps> = ({
   open,
   onOpenChange,
@@ -99,7 +103,7 @@ export const ExtractedRecipeModal: React.FC<ExtractedRecipeModalProps> = ({
         difficulty: 3,
         tags: [],
         is_public: false,
-        image_url: recipe.metadata?.thumbnail?.url || recipe.metadata?.thumbnail_base64 || null,
+        image_url: thumbnailUrl(recipe.metadata) || recipe.metadata?.thumbnail_base64 || null,
         source_url: sourceUrl || null,
         ingredients: recipe.ingredients.map((ing, index) => ({
           ingredient_name: ing.name,
@@ -159,9 +163,7 @@ export const ExtractedRecipeModal: React.FC<ExtractedRecipeModalProps> = ({
             <div className="flex justify-center">
               <img 
                 src={
-                  recipe.metadata.thumbnail_base64 || 
-                  (typeof recipe.metadata.thumbnail === 'string' ? recipe.metadata.thumbnail : recipe.metadata.thumbnail?.url) ||
-                  ''
+                  recipe.metadata.thumbnail_base64 || thumbnailUrl(recipe.metadata) || ''
                 }
                 alt={recipe.title}
                 className="max-w-xs max-h-48 object-cover rounded-lg shadow-md"

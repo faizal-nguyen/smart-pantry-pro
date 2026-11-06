@@ -124,6 +124,35 @@ describe('SocialImportService.extract (PRP-220.11)', () => {
     expect(result.modelUsed).toBe('gpt-4o-mini');
   });
 
+  it('points the draft image at a durable public copy of the thumbnail, the import keeping the source URL', async () => {
+    const remote = 'https://scontent.cdninstagram.com/v/t51/og.jpg?oe=1';
+    const durable = 'https://project.supabase.co/storage/v1/object/public/recipe-images/users/user-a/imports/imp-1-0123456789abcdef.jpg';
+    const repo = makeRepo();
+    const copy = jest.fn().mockResolvedValue(durable);
+    const draft = { ...validDraft(), source: { ...validDraft().source, thumbnailUrl: remote } };
+    const svc = new SocialImportService(repo, {
+      extractionService: { extract: jest.fn().mockResolvedValue({ draft, durationMs: 1 }) },
+      thumbnailCopier: { copy },
+    });
+    await svc.extract('user-a', 'imp-1');
+    expect(copy).toHaveBeenCalledWith({ userId: 'user-a', importId: 'imp-1', remoteUrl: remote });
+    expect(repo.insertNewDraft.mock.calls[0][0].draftJson.imageUrl).toBe(durable);
+    expect(repo.updateLifecycle.mock.calls.at(-1)![2].thumbnail_url).toBe(remote);
+  });
+
+  it('keeps the remote thumbnail when the copy fails', async () => {
+    const remote = 'https://scontent.cdninstagram.com/v/t51/og.jpg?oe=1';
+    const repo = makeRepo();
+    const draft = { ...validDraft(), source: { ...validDraft().source, thumbnailUrl: remote } };
+    const svc = new SocialImportService(repo, {
+      extractionService: { extract: jest.fn().mockResolvedValue({ draft, durationMs: 1 }) },
+      thumbnailCopier: { copy: jest.fn().mockResolvedValue(null) },
+    });
+    await svc.extract('user-a', 'imp-1');
+    expect(repo.insertNewDraft.mock.calls[0][0].draftJson.imageUrl).toBeUndefined();
+    expect(repo.updateLifecycle.mock.calls.at(-1)![2].thumbnail_url).toBe(remote);
+  });
+
   it('flips status to needs_review when confidence < 0.6', async () => {
     const repo = makeRepo();
     const lowConfidenceDraft = { ...validDraft(), confidence: 0.4 };

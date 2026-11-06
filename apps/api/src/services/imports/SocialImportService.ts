@@ -44,7 +44,7 @@ import {
 } from './importErrors.js';
 import { metrics } from '../../lib/metrics.js';
 import { logExtraction, logger } from '../../lib/logger.js';
-import type { ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
+import type { ThumbnailCopier, ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
 import { sanitizeImportedDraft } from '../recipeQuality/sanitizeImportedDraft.js';
 
 export interface CaptureResult {
@@ -91,6 +91,12 @@ export interface SocialImportServiceOptions {
    * weeks). Failure is silent — the caller falls back to the remote URL.
    */
   thumbnailSnapshotter?: ThumbnailSnapshotter;
+  /**
+   * Durable public copy of the thumbnail, set as the draft image so the
+   * verification dialog and the saved recipe can show it. Null or absent:
+   * the draft keeps the remote URL.
+   */
+  thumbnailCopier?: ThumbnailCopier;
 }
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
@@ -99,6 +105,7 @@ export class SocialImportService {
   private readonly extractionService: RecipeExtractionService;
   private readonly saveImportedDraftAsRecipe: SaveImportedDraftAsRecipe;
   private readonly thumbnailSnapshotter?: ThumbnailSnapshotter;
+  private readonly thumbnailCopier?: ThumbnailCopier;
 
   constructor(
     private readonly repo: SocialImportRepository,
@@ -108,6 +115,7 @@ export class SocialImportService {
     this.saveImportedDraftAsRecipe =
       options.saveImportedDraftAsRecipe ?? notImplementedSaveImportedDraftAsRecipe;
     this.thumbnailSnapshotter = options.thumbnailSnapshotter;
+    this.thumbnailCopier = options.thumbnailCopier;
   }
 
   /**
@@ -272,7 +280,11 @@ export class SocialImportService {
       });
       throw new ExtractionFailedError(acquired.platform, message);
     }
-    const validatedDraft: ImportedRecipeDraft = validation.data;
+    const remoteThumbnail = validation.data.imageUrl ?? validation.data.source.thumbnailUrl ?? null;
+    const durableImage = remoteThumbnail && this.thumbnailCopier
+      ? await this.thumbnailCopier.copy({ userId, importId, remoteUrl: remoteThumbnail })
+      : null;
+    const validatedDraft: ImportedRecipeDraft = durableImage ? { ...validation.data, imageUrl: durableImage } : validation.data;
 
     const draftRow = await this.repo.insertNewDraft({
       importId: acquired.id,
@@ -290,7 +302,8 @@ export class SocialImportService {
     const updated = await this.repo.updateLifecycle(userId, importId, {
       status: newStatus,
       title: validatedDraft.title,
-      thumbnail_url: validatedDraft.imageUrl ?? validatedDraft.source.thumbnailUrl ?? null,
+      // The source URL: the snapshot below copies it for the import itself.
+      thumbnail_url: remoteThumbnail,
       author_name: validatedDraft.source.authorName ?? null,
       author_handle: validatedDraft.source.authorHandle ?? null,
       confidence: Number(validatedDraft.confidence.toFixed(3)),

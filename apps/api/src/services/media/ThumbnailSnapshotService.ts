@@ -99,6 +99,55 @@ function sniffImageMime(buf: Buffer): string | null {
   return null;
 }
 
+/**
+ * Downloads a remote image through the SSRF-guarded fetch, capped at
+ * `maxBytes`, and checks its magic bytes (the remote Content-Type is not
+ * trusted). Throws on any failure.
+ */
+export async function downloadRemoteImage(
+  url: string,
+  options: { fetchImpl: typeof safeFetch; timeoutMs: number; maxBytes: number }
+): Promise<{ buffer: Buffer; mimeType: string }> {
+  const res = await options.fetchImpl(url, {
+    timeoutMs: options.timeoutMs,
+    headers: { Accept: 'image/*,*/*;q=0.5' },
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+
+  const reader = res.body?.getReader();
+  let buffer: Buffer;
+
+  if (!reader) {
+    const ab = await res.arrayBuffer();
+    buffer = Buffer.from(ab);
+    if (buffer.byteLength > options.maxBytes) {
+      throw new Error('PAYLOAD_TOO_LARGE');
+    }
+  } else {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > options.maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error('PAYLOAD_TOO_LARGE');
+      }
+      chunks.push(Buffer.from(value));
+    }
+    buffer = Buffer.concat(chunks);
+  }
+
+  const mimeType = sniffImageMime(buffer);
+  if (!mimeType) {
+    throw new Error('UNSUPPORTED_MIME');
+  }
+  return { buffer, mimeType };
+}
+
 export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
   private readonly repository: MediaAssetRepository;
   private readonly bucket: string;
@@ -198,45 +247,8 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
     };
   }
 
-  private async downloadImage(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
-    const res = await this.fetchImpl(url, {
-      timeoutMs: this.timeoutMs,
-      headers: { Accept: 'image/*,*/*;q=0.5' },
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const reader = res.body?.getReader();
-    let buffer: Buffer;
-
-    if (!reader) {
-      const ab = await res.arrayBuffer();
-      buffer = Buffer.from(ab);
-      if (buffer.byteLength > this.maxBytes) {
-        throw new Error('PAYLOAD_TOO_LARGE');
-      }
-    } else {
-      const chunks: Buffer[] = [];
-      let total = 0;
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        total += value.byteLength;
-        if (total > this.maxBytes) {
-          await reader.cancel().catch(() => undefined);
-          throw new Error('PAYLOAD_TOO_LARGE');
-        }
-        chunks.push(Buffer.from(value));
-      }
-      buffer = Buffer.concat(chunks);
-    }
-
-    const mimeType = sniffImageMime(buffer);
-    if (!mimeType) {
-      throw new Error('UNSUPPORTED_MIME');
-    }
-    return { buffer, mimeType };
+  private downloadImage(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    return downloadRemoteImage(url, { fetchImpl: this.fetchImpl, timeoutMs: this.timeoutMs, maxBytes: this.maxBytes });
   }
 
   private buildStorageKey(userId: string, extension: string): string {
@@ -264,5 +276,56 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
       return false;
     }
     return true;
+  }
+}
+
+export interface ThumbnailCopier {
+  copy(input: { userId: string; importId: string; remoteUrl: string }): Promise<string | null>;
+}
+
+/**
+ * Copies an import's thumbnail into the public `recipe-images` bucket and
+ * returns its public URL, for the draft and the recipe saved from it.
+ * Instagram forbids showing its CDN images on another site and signs their
+ * URLs for a few days; the snapshot above lives in a private bucket, only
+ * reachable through one-hour signed URLs. The copy sits under users/<id>/,
+ * which the account erasure removes. Never throws: null keeps the remote URL.
+ */
+export class PublicThumbnailCopier implements ThumbnailCopier {
+  private readonly bucket: string;
+  private readonly maxBytes: number;
+  private readonly timeoutMs: number;
+  private readonly fetchImpl: typeof safeFetch;
+
+  constructor(
+    private readonly adminClient: Pick<SupabaseClient, 'storage'>,
+    options: ThumbnailSnapshotServiceOptions = {}
+  ) {
+    this.bucket = options.bucket ?? 'recipe-images';
+    this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.fetchImpl = options.fetchImpl ?? safeFetch;
+  }
+
+  async copy(input: { userId: string; importId: string; remoteUrl: string }): Promise<string | null> {
+    if (!isAllowedFetchUrl(input.remoteUrl)) return null;
+    try {
+      const { buffer, mimeType } = await downloadRemoteImage(input.remoteUrl, {
+        fetchImpl: this.fetchImpl, timeoutMs: this.timeoutMs, maxBytes: this.maxBytes,
+      });
+      // Same image, same key: a new extraction does not duplicate the file.
+      const hash = createHash('sha256').update(buffer).digest('hex').slice(0, 16);
+      const key = `users/${input.userId}/imports/${input.importId}-${hash}.${IMAGE_MIME_TO_EXT[mimeType]}`;
+      const storage = this.adminClient.storage.from(this.bucket);
+      const { error } = await storage.upload(key, buffer, { contentType: mimeType, upsert: true, cacheControl: '31536000' });
+      if (error) throw new Error(error.message);
+      return storage.getPublicUrl(key).data.publicUrl;
+    } catch (error) {
+      logger.warn(
+        { importId: input.importId, reason: 'public_copy_failed', err: error instanceof Error ? error.message : String(error) },
+        'thumbnail public copy skipped'
+      );
+      return null;
+    }
   }
 }
