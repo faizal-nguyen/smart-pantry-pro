@@ -35,9 +35,35 @@ const RISK_TONE: Record<RiskTier, string> = {
   high: 'bg-red-100 text-red-800',
 };
 
-function shortToolName(tool: string): string {
-  return tool.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+const TOOL_LABELS: Record<string, string> = {
+  add_inventory_items: 'Ajouter au stock',
+  consume_inventory_items: 'Décompter du stock',
+  update_inventory_item: 'Corriger un produit du stock',
+  clear_inventory_category: 'Vider une catégorie du stock',
+  add_shopping_items: 'Ajouter à la liste de courses',
+  mark_shopping_items_bought: 'Cocher dans la liste de courses',
+  unmark_shopping_items_bought: 'Décocher dans la liste de courses',
+  remove_shopping_items: 'Retirer de la liste de courses',
+  clear_shopping_list: 'Vider la liste de courses',
+  cook_recipe: 'Cuisiner une recette',
+  add_recipe_to_meal_plan: 'Ajouter au menu',
+  delete_recipe: 'Supprimer une recette',
+  import_recipe_from_url: 'Importer une recette',
+  enrich_product: 'Compléter un produit',
+  confirm_product_candidate: 'Confirmer un produit',
+  remember_preference: 'Mémoriser une préférence',
+  forget_memory: 'Oublier un souvenir',
+  update_response_style: 'Adapter le style de réponse',
+  record_recipe_feedback: 'Noter une recette',
+  undo_action: 'Annuler une action',
+};
+function toolLabel(tool: string): string {
+  return TOOL_LABELS[tool] ?? tool.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
 }
+// A read, or a question back, changed nothing: listing it as « exécutée » is noise.
+const NOT_A_CHANGE = new Set(['ask_clarification', 'summarize_session']);
+const isChange = (action: ExecutedAction) => action.risk_tier !== 'read' && !NOT_A_CHANGE.has(action.tool);
+const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 
 type Item = { name?: string; inventory_id?: string; quantity?: number; unit?: string };
 function previewArgs(args: Record<string, unknown>, labels: Record<string, string> = {}): string {
@@ -45,7 +71,7 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
   // Rows chosen by id show the name the server read for them (« 200 g Riz basmati »).
   if (Array.isArray(args.items)) {
     return (args.items as Item[])
-      .map(item => `• ${`${item.quantity ?? ''} ${item.unit ?? ''} ${item.name ?? labels[item.inventory_id ?? ''] ?? ''}`.replace(/\s+/g, ' ').trim()}`)
+      .map(item => `• ${`${typeof item.quantity === 'number' ? number.format(item.quantity) : ''} ${item.unit ?? ''} ${item.name ?? labels[item.inventory_id ?? ''] ?? ''}`.replace(/\s+/g, ' ').trim()}`)
       .join('\n');
   }
   if (Array.isArray(args.shopping_item_ids)) {
@@ -65,7 +91,8 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
   const pending = result.confirmation_token ? result.actions_pending : [];
-  if (!result.actions_executed.length && !pending.length) return null;
+  const changes = result.actions_executed.filter(isChange);
+  if (!changes.length && !pending.length) return null;
 
   const confirm = async () => {
     if (!result.confirmation_token || confirming) return;
@@ -104,11 +131,11 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
 
   return (
     <section className="space-y-4" role="region" aria-label="Actions de l’assistant">
-      {result.actions_executed.length > 0 && (
+      {changes.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exécutées ({result.actions_executed.length})</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Exécutées ({changes.length})</h3>
           <ul className="space-y-2">
-            {result.actions_executed.map(action => (
+            {changes.map(action => (
               <ExecutedRow key={action.action_id} action={action} undoing={undoing === action.action_id} onUndo={() => void undo(action)} />
             ))}
           </ul>
@@ -144,7 +171,7 @@ function ExecutedRow({ action, onUndo, undoing }: { action: ExecutedAction; onUn
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <Check className="h-4 w-4 text-emerald-600 shrink-0" aria-hidden="true" />
-          <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
+          <span className="text-sm font-medium">{toolLabel(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
@@ -165,7 +192,7 @@ function PendingRow({ action }: { action: PendingAction }) {
       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <span className="text-sm font-medium">{shortToolName(action.tool)}</span>
+          <span className="text-sm font-medium">{toolLabel(action.tool)}</span>
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
