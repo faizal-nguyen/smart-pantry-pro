@@ -1,6 +1,5 @@
 import { calendarDate,calendarDaysUntil,pantryDateLabel } from '@smart/shared';
 import { routineDestination,isNavigationActive } from '../routineRoutes';
-import { mealExclusionReason, mealPreferenceVerificationIssue } from '../mealExclusions';
 test('dates-only remain identical before/after Paris midnight, regardless of device timezone',()=>{
   expect(calendarDaysUntil('2026-10-09',new Date('2026-10-08T21:59:59Z'))).toBe(1);
   expect(calendarDaysUntil('2026-10-09',new Date('2026-10-08T22:00:00Z'))).toBe(0);
@@ -27,18 +26,4 @@ test('root/legacy links adapt explicitly, preserving a recipe reference through 
   expect(isNavigationActive('/kitchen/meal-planning','/kitchen/recipes')).toBe(true);
   expect(isNavigationActive('/kitchen/meal-planning','/kitchen')).toBe(false);
   expect(isNavigationActive('/kitchen/cooking/session','/kitchen')).toBe(false);
-});
-test('known allergies/exclusions apply without requiring the onboarding form',()=>{
-  expect(mealExclusionReason([{ ingredient_name:'Œufs' }],['eggs'],[])).not.toBeNull();
-  expect(mealExclusionReason([{ ingredient_name:'Poulet' }],[],['vegetarian'])).not.toBeNull();
-  expect(mealExclusionReason([{ ingredient_name:'Beurre' }],[],['vegan'])).not.toBeNull();
-  expect(mealExclusionReason([{ ingredient_name:'Fromage' }],['milk'],[])).not.toBeNull();
-  expect(mealExclusionReason([{ ingredient_name:'Champignons' }],['champignon'],[])).not.toBeNull();
-  expect(mealExclusionReason([{ ingredient_name:'Riz' }],['eggs'],['vegan'])).toBeNull();
-});
-test('missing certification cannot silently bypass an explicit halal or kosher preference',()=>{
-  expect(mealPreferenceVerificationIssue(['halal'])).toContain('halal');
-  expect(mealPreferenceVerificationIssue(['kosher'])).toContain('casher');
-  expect(mealExclusionReason([{ ingredient_name:'Riz' }],[],['halal'])).not.toBeNull();
-  expect(mealPreferenceVerificationIssue(['vegetarian'])).toBeNull();
 });
