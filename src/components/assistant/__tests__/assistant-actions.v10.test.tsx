@@ -16,7 +16,8 @@ jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }) }
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: mockOwner } }) }));
 jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
 jest.mock('@/hooks/useAssistantConversations', () => ({ useAssistantMessages: () => ({ messages: [], isLoading: false }) }));
-jest.mock('../AssistantMessageThread', () => ({ __esModule: true, default: () => <p>Fil de la conversation</p> }));
+jest.mock('../AssistantMessageThread', () => ({ __esModule: true,
+  default: ({ footer }: { footer?: React.ReactNode }) => <div data-testid="thread"><p>Fil de la conversation</p>{footer}</div> }));
 jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AssistantMemoryNotice', () => ({ __esModule: true, default: () => null }));
 // The composer is replaced by a button that delivers the next reply.
@@ -105,6 +106,12 @@ describe('the /assistant page (mobile has no floating button)', () => {
     render(page());
     fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
     expect(mockDbChanged).toHaveBeenCalledWith(['add_shopping_items']);
+  });
+  test('in a saved conversation the block sits at the end of the thread, where it scrolls to (iPhone 2026-11-06 14:32)', () => {
+    mockReply = reply({ conversation_id: 'conversation-a' });
+    render(page('conversation-a'));
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+    expect(within(screen.getByTestId('thread')).getByRole('button', { name: 'Confirmer (1)' })).toBeInTheDocument();
   });
   test('the actions of another conversation are not offered', () => {
     mockReply = reply({ conversation_id: 'conversation-a' });

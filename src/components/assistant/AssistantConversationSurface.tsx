@@ -58,6 +58,14 @@ export default function AssistantConversationSurface({
     return () => window.removeEventListener('assistant-memory-changed', clear);
   }, [owner]);
   const queryClient = useQueryClient();
+  // In a saved conversation the thread scrolls to its end when the new messages
+  // arrive: the block goes inside it, after the reply, or it ends up off screen.
+  const actions = latestHere && (
+    <div ref={actionsRef} className="mt-4">
+      <AssistantActionsPanel result={latestHere}
+        onResultPatched={patch => setLatest(previous => previous && previous.result === latestHere ? { ...previous, result: { ...previous.result, ...patch } } : previous)} />
+    </div>
+  );
   const { messages, isLoading: messagesLoading } = useAssistantMessages(
     conversationId,
     { limit: 50, enabled: !!conversationId },
@@ -105,14 +113,9 @@ export default function AssistantConversationSurface({
         {!conversationId && currentSession.messages.length === 0 ? (
           <div className="space-y-3 py-6"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ou dicte ta question ci-dessous.</p></div>
         ) : (
-          <AssistantMessageThread messages={messages} isLoading={messagesLoading} />
+          <AssistantMessageThread messages={messages} isLoading={messagesLoading} footer={conversationId ? actions : null} />
         )}
-        {latestHere && (
-          <div ref={actionsRef} className="mt-4">
-            <AssistantActionsPanel result={latestHere}
-              onResultPatched={patch => setLatest(previous => previous && previous.result === latestHere ? { ...previous, result: { ...previous.result, ...patch } } : previous)} />
-          </div>
-        )}
+        {!conversationId && actions}
       </CardContent>
       <AssistantComposer
         key={owner}
