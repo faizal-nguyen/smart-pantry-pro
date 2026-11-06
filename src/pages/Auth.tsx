@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { routineDestination } from '@/lib/routineRoutes';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 
+import KitchenBrand from '@/components/navigation/KitchenBrand';
+
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -99,7 +101,7 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md bg-card rounded-lg border shadow-lg">
         <div className="p-6 text-center border-b">
-          <h1 className="text-2xl font-bold text-primary">Smart Pantry Pro</h1>
+          <h1 className="flex justify-center"><KitchenBrand /></h1>
           <p className="text-sm text-muted-foreground mt-2">
             Gérez votre inventaire et vos courses intelligemment
           </p>

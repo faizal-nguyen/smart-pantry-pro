@@ -128,7 +128,7 @@ export function usePrivacySettings() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `smart-pantry-data-${new Date().toISOString()}.json`;
+      a.download = `kitchen-os-data-${new Date().toISOString()}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Données exportées');

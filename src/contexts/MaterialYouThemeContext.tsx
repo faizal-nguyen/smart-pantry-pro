@@ -53,7 +53,7 @@ interface MaterialYouThemeProviderProps {
 
 export function MaterialYouThemeProvider({
   children,
-  defaultSourceColor = '#2DD4BF',
+  defaultSourceColor = '#965229',
   enableAutoContext = true,
 }: MaterialYouThemeProviderProps) {
   const { theme: systemTheme } = useTheme();

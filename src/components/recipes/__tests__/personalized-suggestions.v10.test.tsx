@@ -1,4 +1,4 @@
-import { fireEvent,render,screen } from '@testing-library/react';
+import { fireEvent,render,screen,within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient,QueryClientProvider } from '@tanstack/react-query';
 import PersonalizedRecipeSuggestions from '../PersonalizedRecipeSuggestions';
@@ -60,4 +60,27 @@ test('before choosing, dismissal is temporary and durable feedback requires open
   expect(post).toHaveBeenCalledWith(owner,expect.objectContaining({ recipe:{ id:'a',source:'recipes' },feedback:'not_today' }));
   fireEvent.click(screen.getAllByText('Donner un retour sur cette recette')[0]);
   expect(screen.getAllByRole('button',{ name:'À refaire',hidden:true })[0]).toBeVisible();
+});
+
+test('featured layout keeps dietary warnings visible and alternatives accessible without changing recipe identities',()=>{
+  const first=candidate('a');
+  first.constraints={ ...first.constraints,findings:[{ code:'INGREDIENT_UNRESOLVED',ingredient:'Sauce',message:'Composition à vérifier.' }] };
+  mockResult={ ...mockResult,cookable_now:[first,candidate('b')] };
+  const { container }=render(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByText('Sauce : Composition à vérifier.')).toBeVisible();
+  expect(within(container.querySelector('.culinary-featured-list') as HTMLElement).getByRole('link',{name:'Voir la recette'})).toHaveAttribute('href','/kitchen/recipes/a?source=recipes&servings=2');
+  expect(screen.queryByRole('heading',{name:'Recette b'})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Autres idées'}));
+  expect(screen.getByRole('dialog',{name:'D’autres idées pour ton repas'})).toBeVisible();
+  expect(screen.getByRole('heading',{name:'Recette b'})).toBeVisible();
+  expect(screen.getByRole('link',{name:'Voir Recette b'})).toHaveAttribute('href','/kitchen/recipes/b?source=recipes&servings=2');
+});
+
+test('feedback from the compact presentation is confirmed inside its open dialog',async()=>{
+  mockPostFeedback.mockResolvedValue({id:'confirmed'});
+  render(wrap(<PersonalizedRecipeSuggestions featured/>));
+  fireEvent.click(screen.getByRole('button',{name:'Autres idées'}));
+  const dialog=screen.getByRole('dialog');
+  fireEvent.click(within(dialog).getAllByRole('button',{name:'Pas ce soir'})[0]);
+  expect(await within(dialog).findByText(/Ce choix concerne seulement ce repas/)).toBeVisible();
 });

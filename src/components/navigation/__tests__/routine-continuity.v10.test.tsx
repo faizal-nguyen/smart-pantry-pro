@@ -53,3 +53,15 @@ test('a dictated question is shown for review and asked with the same read-only 
   expect(mockPost.mock.calls[0][0].allowedTools).toEqual(['read_inventory','read_shopping_list','search_recipes','suggest_recipes_for_context','read_user_memories','ask_clarification']);
   mockCancel.mockClear();fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'});await waitFor(()=>expect(mockCancel).toHaveBeenCalled());
 });
+
+test('recipe menu opens by keyboard and exposes the library and weekly menus',async()=>{
+  render(page());
+  const trigger=screen.getByRole('button',{name:'Recettes'});
+  trigger.focus();
+  fireEvent.keyDown(trigger,{key:'Enter',code:'Enter'});
+  expect(await screen.findByRole('menuitem',{name:'Toutes les recettes'})).toHaveAttribute('href','/kitchen/recipes');
+  expect(screen.getByRole('menuitem',{name:'Menus'})).toHaveAttribute('href','/kitchen/meal-planning');
+  fireEvent.keyDown(screen.getByRole('menu'),{key:'Escape',code:'Escape'});
+  await waitFor(()=>expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+  expect(screen.getByRole('link',{name:'Kitchen OS — accueil'})).toHaveAttribute('href','/kitchen');
+});

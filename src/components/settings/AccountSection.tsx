@@ -129,7 +129,7 @@ export default function AccountSection({ user }: AccountSectionProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la déconnexion</AlertDialogTitle>
             <AlertDialogDescription>
-              Voulez-vous vraiment vous déconnecter de Smart Pantry Pro ?
+              Voulez-vous vraiment vous déconnecter de Kitchen OS ?
             </AlertDialogDescription>
             {accountError && <p role="alert" className="text-sm text-destructive">{accountError}</p>}
           </AlertDialogHeader>

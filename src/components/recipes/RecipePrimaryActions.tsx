@@ -31,7 +31,7 @@ export default function RecipePrimaryActions({
   canEdit = true,
 }: RecipePrimaryActionsProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+    <div className="kitchen-recipe-actions">
       <Button onClick={onCook} disabled={cooking || !canCook}>
         {cooking ? (
           <>

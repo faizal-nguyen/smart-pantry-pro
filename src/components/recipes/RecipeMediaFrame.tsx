@@ -54,9 +54,9 @@ export default function RecipeMediaFrame({
   };
 
   return (
-    <div className="mb-4 flex justify-center">
-      <div className="relative w-full md:max-w-[420px] group">
-        <RecipePreview imageUrl={imageUrl} title={alt} caption={imageCaption} variant="detail" priority className={imageUrl ? 'aspect-[16/9] md:aspect-[4/3]' : undefined} />
+    <div className="kitchen-recipe-media">
+      <div className="kitchen-recipe-media-frame group">
+        <RecipePreview imageUrl={imageUrl} title={alt} caption={imageCaption} variant="detail" priority className="kitchen-detail-photo" />
 
         {editable && (
           <>

@@ -2,6 +2,9 @@ import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutr
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
 
+// Only for the isolated visual fixture; never supplies a real access token.
+export async function authHeader(): Promise<Record<string,string>> { return {}; }
+
 export class ApiError extends Error {
   status: number; code?: string;
   constructor(message: string, opts: { status: number; code?: string }) { super(message); this.status = opts.status; this.code = opts.code; }

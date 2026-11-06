@@ -3,9 +3,9 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MealContextPanel from '../MealContextPanel';
 import type { MealContext } from '@/lib/mealContext';
 
-function Meal() {
+function Meal({ variant='inline' }:{ variant?:'inline'|'prompt' }) {
   const [value, setValue] = useState<MealContext>({ minutes:'20',query:'riz',occasion:'dinner',servings:'2',craving:'warm' });
-  return <MealContextPanel value={value} onChange={setValue} />;
+  return <MealContextPanel value={value} onChange={setValue} variant={variant} />;
 }
 test('editing one meal field preserves the other choices and returns focus to its opener', async () => {
   render(<Meal />);
@@ -27,4 +27,16 @@ test('only explicit reset clears the meal choices', async () => {
   fireEvent.click(screen.getByRole('button',{ name:'Réinitialiser ce repas' }));
   expect(screen.getByRole('combobox',{ name:'Envie' })).toHaveValue('');
   expect(screen.getByRole('combobox',{ name:'Temps disponible' })).toHaveValue('');
+});
+
+test('the quiet prompt opens the same meal controls and preserves the selected portions',async()=>{
+  render(<Meal variant="prompt"/>);
+  const opener=screen.getByRole('button',{name:/Une envie, une contrainte/});
+  fireEvent.click(opener);
+  fireEvent.change(screen.getByRole('combobox',{name:'Portions pour ce repas'}),{target:{value:'3'}});
+  fireEvent.click(screen.getByRole('button',{name:'Voir les idées'}));
+  await waitFor(()=>expect(opener).toHaveFocus());
+  expect(opener).toHaveAccessibleName(/3 personnes/);
+  fireEvent.click(opener);
+  expect(screen.getByRole('combobox',{name:'Portions pour ce repas'})).toHaveValue('3');
 });

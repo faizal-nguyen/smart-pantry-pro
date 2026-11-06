@@ -97,7 +97,7 @@ const DesktopNavigation: React.FC<DesktopNavigationProps> = ({
                 "font-semibold text-foreground leading-tight",
                 isChildMode ? "text-xl" : "text-base"
               )}>
-                Smart Pantry Pro
+                Kitchen OS
               </p>
               {currentProfile && (
                 <p className={cn(

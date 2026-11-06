@@ -5,12 +5,13 @@
  * Menus : nom de la recette, temps total (prep+cook), nombre de
  * portions, bouton « Ouvrir » (si recipe_id) et bouton « Retirer ».
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Clock, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { recipeDetailPath } from '@/lib/recipeLinks';
 import { fireRecipeAssistantAction } from '@/lib/recipeActions';
 import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
 
@@ -24,16 +25,17 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
   const navigate = useNavigate();
   const { toast } = useToast();
   const totalTime = entry.prep_time + entry.cook_time;
-  const canOpen = !!entry.recipe_id;
+  const reference = entry.recipe_reference ?? (entry.recipe_id ? { id:entry.recipe_id,source:'auto' as const } : null);
+  const canOpen = !!reference;
   const [cookedPending, setCookedPending] = useState(false);
 
   const open = () => {
-    if (!canOpen) return;
-    navigate(`/kitchen/recipes/${entry.recipe_id}`);
+    if (!reference) return;
+    navigate(recipeDetailPath(reference,entry.servings));
   };
 
   const handleCooked = async () => {
-    if (cookedPending) return;
+    if (cookedPending || !reference) return;
     setCookedPending(true);
     try {
       // PRP-234 PR4 — délégué à l'assistant : il appellera
@@ -42,7 +44,7 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
       // l'undo 15 min PRP-221.
       const title = await fireRecipeAssistantAction(
         {
-          id: entry.recipe_id ?? entry.id,
+          ...reference,
           name: entry.recipe_name,
           servings: entry.servings,
         },
@@ -61,18 +63,18 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
   };
 
   return (
-    <div className="rounded-md border bg-surface/80 p-2 text-left text-sm shadow-sm flex flex-col gap-1">
+    <div className="kitchen-menu-entry">
       {canOpen ? (
         <button
           type="button"
           onClick={open}
-          className="font-medium leading-snug line-clamp-2 hover:underline text-left"
+          className="kitchen-menu-entry-title"
           aria-label={`Ouvrir ${entry.recipe_name}`}
         >
           {entry.recipe_name}
         </button>
       ) : (
-        <p className="font-medium leading-snug line-clamp-2">{entry.recipe_name}</p>
+        <p className="kitchen-menu-entry-title">{entry.recipe_name}</p>
       )}
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
         {totalTime > 0 && (
@@ -94,7 +96,7 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-[11px] gap-1"
+            className="min-h-11 px-2 text-xs gap-1"
             disabled={disabled || cookedPending}
             onClick={() => void handleCooked()}
             aria-label={`Marquer ${entry.recipe_name} comme cuisinée`}
@@ -109,7 +111,7 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-[11px] gap-1 text-muted-foreground"
+          className="min-h-11 px-2 text-xs gap-1 text-muted-foreground"
           disabled={disabled}
           onClick={() => onRemove(entry.id)}
           aria-label={`Retirer ${entry.recipe_name} du menu`}

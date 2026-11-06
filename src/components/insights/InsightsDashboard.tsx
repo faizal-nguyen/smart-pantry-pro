@@ -81,14 +81,14 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Mes Insights Smart Pantry',
-          text: `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Smart Pantry Pro!`,
+          title: 'Mes Insights Kitchen OS',
+          text: `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Kitchen OS!`,
           url: window.location.href
         });
       } else {
         // Fallback: copy to clipboard
         await navigator.clipboard.writeText(
-          `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Smart Pantry Pro! ${window.location.href}`
+          `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Kitchen OS! ${window.location.href}`
         );
         toast({
           title: "Lien copié",
@@ -192,7 +192,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className 
       </motion.div>
 
       {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={value => { if (value === 'overview' || value === 'charts') setActiveTab(value); }} className="space-y-6">
         <div className="flex items-center justify-between">
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="overview" className="flex items-center gap-2">

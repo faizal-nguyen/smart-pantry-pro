@@ -7,8 +7,6 @@
  *     `NavigationPredictor` et `useCipherMealPlanning` les lisent
  *     encore avec des defaults — leur suppression complète est cadrée
  *     par PRP-234.
- *   - Place Assistant en position 1 : PRP-224/233 mergée (PR #4 sur
- *     main), donc la condition PRP-237 §9 est remplie.
  *   - Supprime `getAdaptiveIcon` qui ne servait qu'au mode profil.
  *
  * L'ordre du tableau fait foi (pas de champ `order` séparé).
@@ -17,7 +15,7 @@
 import { useMemo } from 'react';
 import {
   Package,
-  ChefHat,
+  BookOpen,
   ShoppingCart,
   MessageCircle,
   BarChart3,
@@ -72,15 +70,14 @@ export interface NavigationSubItem {
   requiresParentalApproval?: boolean; // allow: legacy field
 }
 
-// PRP-237 PR2 — order is Assistant first (PRP-224/233 done, see §9),
-// then Recettes → Inventaire → Courses → Anti-gaspi.
+// Kitchen OS: the same four destinations on desktop and mobile.
 export const NAVIGATION_CONFIG: NavigationItem[] = [
   { id:'today',label:'Aujourd’hui',icon:Home,path:'/kitchen',section:'kitchen',description:'La prochaine action pour ton repas',isMainSection:true },
-  { id:'pantry',label:'Stock',icon:Package,path:'/pantry/inventory',section:'pantry',description:'Les ingrédients disponibles',isMainSection:true },
-  { id:'kitchen',label:'Cuisiner',icon:ChefHat,path:'/kitchen/recipes',section:'kitchen',description:'Toutes tes recettes',isMainSection:true,subItems:[
+  { id:'kitchen',label:'Recettes',icon:BookOpen,path:'/kitchen/recipes',section:'kitchen',description:'Toutes tes recettes',isMainSection:true,subItems:[
     { id:'kitchen-favorites',label:'Favoris',path:'/kitchen/recipes?tab=library&filter=favorites',icon:Heart,description:'Recettes favorites' },
     { id:'kitchen-meal-planning',label:'Menus',path:'/kitchen/meal-planning',icon:CalendarDays,description:'Menus de la semaine' },
   ] },
+  { id:'pantry',label:'Mon stock',icon:Package,path:'/pantry/inventory',section:'pantry',description:'Les ingrédients disponibles',isMainSection:true },
   { id:'shopping',label:'Courses',icon:ShoppingCart,path:'/shopping/list',section:'shopping',description:'Acheter puis ranger',isMainSection:true },
 ];
 export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [

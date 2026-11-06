@@ -8,7 +8,7 @@
  *
  * Les préférences d'accessibilité (reduced-motion, high-contrast,
  * large-text, forced-colors) sont contrôlées au niveau OS via les
- * media queries `prefers-*`. Smart Pantry les respecte
+ * media queries `prefers-*`. Kitchen OS les respecte
  * automatiquement (classes CSS posées sur `<html>`). On les expose
  * en read-only pour transparence — un toggle UI serait une
  * fausse promesse (pas d'override possible depuis l'app).
@@ -103,7 +103,7 @@ export default function AppearanceSection() {
             Préférences système détectées
           </CardTitle>
           <CardDescription>
-            Smart Pantry respecte automatiquement les réglages
+            Kitchen OS respecte automatiquement les réglages
             d&apos;accessibilité de ton système. Pour les modifier, va dans les
             réglages de ton OS.
           </CardDescription>

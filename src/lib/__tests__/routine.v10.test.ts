@@ -24,6 +24,8 @@ test('root/legacy links adapt explicitly, preserving a recipe reference through 
   expect(isNavigationActive('/kitchen/recipes/id','/kitchen')).toBe(false);
   expect(isNavigationActive('/kitchen/recipes/id','/kitchen/recipes')).toBe(true);
   expect(isNavigationActive('/kitchen/cooking/session','/kitchen/recipes')).toBe(true);
+  expect(isNavigationActive('/kitchen/meal-planning','/kitchen/recipes')).toBe(true);
+  expect(isNavigationActive('/kitchen/meal-planning','/kitchen')).toBe(false);
   expect(isNavigationActive('/kitchen/cooking/session','/kitchen')).toBe(false);
 });
 test('known allergies/exclusions apply without requiring the onboarding form',()=>{

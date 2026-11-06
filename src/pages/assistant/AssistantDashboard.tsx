@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
+import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
 import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
 import type { AssistantConversationMode } from '@/services/assistantApi';
@@ -63,36 +64,21 @@ const AssistantDashboard: React.FC = () => {
   return (
     <div
       className={cn(
-        'culinary-page container mx-auto p-4 sm:p-6 space-y-4',
+        'culinary-page kitchen-page kitchen-assistant-page',
         getStyleClasses(),
         adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
       )}
     >
-        <header className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <h1
-              className={cn(
-                'font-semibold text-foreground',
-                adaptiveInterface.largerText ? 'text-3xl' : 'text-2xl',
-              )}
-            >
-              Assistant
-            </h1>
-            <Link to="/settings?section=assistant-memory" className="inline-flex min-h-11 items-center text-sm underline">Mémoire</Link>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Pose ta question ci-dessous ou utilise le bouton micro.
-          </p>
-        </header>
+        <KitchenPageHeader title="Assistant" description="Un coup de main pour cuisiner avec ce que tu as." actions={<Link to="/settings?section=assistant-memory" className="kitchen-inline-link">Ma mémoire</Link>}/>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div className="kitchen-assistant-layout">
           <AssistantConversationSurface
             conversationId={conversationId}
             mode={mode}
             onModeChange={handleModeChange}
           />
 
-          <aside className="space-y-6 hidden lg:block">
+          <aside className="kitchen-assistant-sidebar">
             <MemoryPanel />
             <ConversationHistoryList />
           </aside>

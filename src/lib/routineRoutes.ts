@@ -22,6 +22,6 @@ export function routineDestination(input: string | null | undefined): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 export function isNavigationActive(pathname: string, target: string): boolean {
-  if (target === '/kitchen/recipes' && pathname.startsWith('/kitchen/cooking/')) return true;
+  if (target === '/kitchen/recipes' && (pathname.startsWith('/kitchen/cooking/') || pathname === '/kitchen/meal-planning')) return true;
   return target === '/kitchen' ? pathname === target : pathname === target || pathname.startsWith(`${target}/`);
 }
