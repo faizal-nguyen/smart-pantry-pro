@@ -2,8 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import AssistantComposer from '../AssistantComposer';
-import TodayAntiWastePanel from '@/components/kitchen/TodayAntiWastePanel';
-import { readAssistantAsk } from '@/hooks/useAskAssistant';
+import { readAssistantAsk, useAskAssistant } from '@/hooks/useAskAssistant';
 
 const mockPost = jest.fn();
 jest.mock('@/services/assistantApi', () => ({ postAssistantText: (...args: unknown[]) => mockPost(...args), newClientRequestId: () => 'request', patchAssistantConversation: jest.fn() }));
@@ -11,8 +10,6 @@ jest.mock('@/hooks/useDictation', () => ({ ...jest.requireActual('@/hooks/useDic
   useDictation: () => ({ status: 'idle', recordingMs: 0, toggle: jest.fn(), cancel: jest.fn(), error: null }) }));
 jest.mock('../AssistantModePicker', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
-jest.mock('@/hooks/useTodayAntiWaste', () => ({ useTodayAntiWaste: () => ({ isLoading: false, isError: false, refetch: jest.fn(),
-  items: [{ id: 'i1', product_name: 'Yaourt', days_to_expiry: 1, quantity: 1 }, { id: 'i2', product_name: 'Épinards', days_to_expiry: 2, quantity: 1 }] }) }));
 
 beforeEach(() => mockPost.mockReset());
 const client = () => new QueryClient();
@@ -21,13 +18,18 @@ function Probe() {
   return <p>Question reçue : {readAssistantAsk(useLocation().state) ?? 'aucune'}</p>;
 }
 
-test('« Voir recettes » on Aujourd’hui opens the assistant with the question instead of sending it unseen', () => {
-  render(<MemoryRouter initialEntries={['/today']}><Routes>
-    <Route path="/today" element={<TodayAntiWastePanel />} />
+function AskButton() {
+  const ask = useAskAssistant();
+  return <button onClick={() => ask('Aide-moi à planifier mes repas de la semaine.')}>Demander à l’assistant</button>;
+}
+
+test('« Demander à l’assistant » opens the assistant with the question instead of sending it unseen', () => {
+  render(<MemoryRouter initialEntries={['/kitchen/meal-planning']}><Routes>
+    <Route path="/kitchen/meal-planning" element={<AskButton />} />
     <Route path="/assistant" element={<Probe />} />
   </Routes></MemoryRouter>);
-  fireEvent.click(screen.getByRole('button', { name: 'Voir recettes' }));
-  expect(screen.getByText(/Question reçue : J’ai besoin d’utiliser bientôt : Yaourt, Épinards/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Demander à l’assistant' }));
+  expect(screen.getByText('Question reçue : Aide-moi à planifier mes repas de la semaine.')).toBeInTheDocument();
   expect(mockPost).not.toHaveBeenCalled();
 });
 
