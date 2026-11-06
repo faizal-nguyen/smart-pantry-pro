@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Data deletion requests on real local PostgreSQL: the hourly job erases every row the user owns.
+"""Data deletion requests on real local PostgreSQL: the hourly job erases every row the user owns,
+and list_user_storage_objects lists the files the API erases through the Storage API.
 
 Same disposable database and local socket as test-v10-stock-db.py, on the
-memory schema (the widest fixture). pg_cron is stubbed: cron.schedule records
-the job in cron.job.
+memory schema (the widest fixture). pg_cron and storage.objects are stubbed.
 """
 import importlib.util
 import json
@@ -16,6 +16,9 @@ spec.loader.exec_module(stock)
 run, literal, check, equal = stock.run, stock.literal, stock.check, stock.assert_equal
 A, B, PRODUCT, ROOT = stock.A, stock.B, stock.PRODUCT, stock.ROOT
 MIGRATION = ROOT / "supabase/migrations/20261106140000_process_deletion_requests_hourly.sql"
+FILES_MIGRATION = ROOT / "supabase/migrations/20261106160000_list_user_storage_objects.sql"
+STORAGE_STUB = """CREATE SCHEMA storage;
+CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text,owner uuid,owner_id text);"""
 CRON_STUB = """CREATE SCHEMA cron;
 CREATE TABLE cron.job(jobname text PRIMARY KEY,schedule text NOT NULL,command text NOT NULL);
 CREATE FUNCTION cron.schedule(job_name text,schedule text,command text) RETURNS bigint LANGUAGE sql AS $$
@@ -115,6 +118,22 @@ def tests():
             run("SELECT private.delete_user_rows(" + literal(A) + ");", role=role, error="permission denied")
     check("only the service role and the job run the deletion", only_the_service_role)
 
+    def lists_the_user_files_only():
+        run("INSERT INTO storage.objects(bucket_id,name,owner,owner_id) VALUES"
+            "('recipe-images','recipe-1.jpg',NULL," + literal(A) + "),"
+            "('product-images','0.42.jpg'," + literal(A) + ",NULL),"
+            "('recipe-media','users/" + A + "/image/2026/11/a.webp',NULL,NULL),"
+            "('recipe-images','recipe-2.jpg',NULL," + literal(B) + "),"
+            "('recipe-media','users/" + B + "/thumbnail/2026/11/b.jpg',NULL,NULL),"
+            "('recipe-media','shared/users/" + A + "/c.jpg',NULL,NULL);")
+        listed = "SELECT string_agg(bucket_id||':'||name,',') FROM public.list_user_storage_objects(" + literal(A) + ",1000);"
+        equal(run(listed, role="service_role"),
+              "product-images:0.42.jpg,recipe-images:recipe-1.jpg,recipe-media:users/" + A + "/image/2026/11/a.webp")
+        equal(run("SELECT count(*) FROM public.list_user_storage_objects(" + literal(A) + ",2);", role="service_role"), "2")
+        for role in ("authenticated", "anon"):
+            run("SELECT * FROM public.list_user_storage_objects(" + literal(A) + ");", role=role, error="permission denied")
+    check("the files listed for erasure are the user's uploads and their users/<id>/ folder, for the service role only", lists_the_user_files_only)
+
 
 if __name__ == "__main__":
     run("CREATE DATABASE " + stock.DATABASE + ";", database="postgres")
@@ -124,6 +143,9 @@ if __name__ == "__main__":
                      "20261009095426_v10_personalization.sql", "20261011184535_v10_assistant_memory.sql"]:
             run(file=ROOT / "supabase/migrations" / name)
         run(CRON_STUB)
+        run(STORAGE_STUB)
+        run(file=FILES_MIGRATION)
+        run(file=FILES_MIGRATION)
         tests()
         print(f"{stock.checks} groups passed on real local PostgreSQL (deletion requests).")
     finally:

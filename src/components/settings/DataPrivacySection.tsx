@@ -293,7 +293,7 @@ export default function DataPrivacySection() {
             <AlertDialogTitle>Demander la suppression de mes données</AlertDialogTitle>
             <AlertDialogDescription>
               Cette demande sera traitée automatiquement dans l’heure : toutes
-              tes données (inventaire, recettes, courses, historique,
+              tes données (inventaire, recettes et photos, courses, historique,
               préférences, mémoire de l’assistant) seront alors effacées de
               manière définitive et irréversible. Ton compte de connexion reste
               ouvert.

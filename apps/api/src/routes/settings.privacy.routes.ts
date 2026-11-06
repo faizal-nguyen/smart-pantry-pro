@@ -18,9 +18,9 @@
  *
  * Décision : pas de wrapper destructeur direct. Le bouton
  * « Supprimer » côté UI crée un row `data_deletion_requests` (status
- * `pending`) ; le job pg_cron horaire `process-deletion-requests`
- * (migration 20261106140000) efface ensuite toutes les lignes de
- * l'utilisateur.
+ * `pending`) et efface tout de suite ses fichiers Storage
+ * (`deleteUserFiles`) ; le job pg_cron horaire `process-deletion-requests`
+ * (migration 20261106140000) efface ensuite toutes ses lignes.
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -28,6 +28,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { ok, fail } from '../utils/responses.js';
 import { userRateLimit } from '../middleware/userRateLimit.js';
+import { deleteUserFiles } from '../services/privacy/deleteUserFiles.js';
 import type { Database } from '../types/supabase.js';
 
 // `Database` ne contient pas les tables `user_privacy_settings` ni
@@ -71,7 +72,7 @@ const DEFAULT_SETTINGS: PrivacySettings = {
 };
 
 export function createSettingsPrivacyRouter(
-  _adminClient: SupabaseClient<Database>,
+  adminClient: SupabaseClient<Database>,
 ): Router {
   const router = Router();
 
@@ -197,28 +198,33 @@ export function createSettingsPrivacyRouter(
         .maybeSingle();
       if (readErr) throw readErr;
 
-      if (existing) {
-        const row = existing as { id: string; status: string; requested_at: string };
-        return ok(
-          res,
-          { id: row.id, status: row.status, requestedAt: row.requested_at, alreadyPending: true },
-          'OK',
-          'PRIVACY_DELETE_PENDING',
-        );
+      let row = existing as { id: string; status: string; requested_at: string } | null;
+      const alreadyPending = !!row;
+      if (!row) {
+        const { data: inserted, error: insertErr } = await userClient
+          .from('data_deletion_requests')
+          .insert({ user_id: req.user.id, status: 'pending' })
+          .select('id, status, requested_at')
+          .single();
+        if (insertErr) throw insertErr;
+        row = inserted as { id: string; status: string; requested_at: string };
       }
 
-      const { data: inserted, error: insertErr } = await userClient
-        .from('data_deletion_requests')
-        .insert({ user_id: req.user.id, status: 'pending' })
-        .select('id, status, requested_at')
-        .single();
-      if (insertErr) throw insertErr;
-      const row = inserted as { id: string; status: string; requested_at: string };
+      // Files are erased now, through the Storage API (the hourly SQL job
+      // can only delete rows). Also on a pending request, so a failed
+      // removal is redone by asking again.
+      try {
+        await deleteUserFiles(adminClient as unknown as LooseClient, req.user.id);
+      } catch (error) {
+        console.error('[settings.privacy.delete-request] files not deleted:', error instanceof Error ? error.name : 'unknown');
+        return fail(res, 'tes photos n’ont pas pu être effacées, réessaie dans un instant.', 502, 'PRIVACY_FILES_DELETE_FAILED');
+      }
+
       return ok(
         res,
-        { id: row.id, status: row.status, requestedAt: row.requested_at, alreadyPending: false },
-        'Demande enregistrée',
-        'PRIVACY_DELETE_REQUESTED',
+        { id: row.id, status: row.status, requestedAt: row.requested_at, alreadyPending },
+        alreadyPending ? 'OK' : 'Demande enregistrée',
+        alreadyPending ? 'PRIVACY_DELETE_PENDING' : 'PRIVACY_DELETE_REQUESTED',
       );
     } catch (err) {
       console.error('[settings.privacy.delete-request] failed');
