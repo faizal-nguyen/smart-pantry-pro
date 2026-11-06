@@ -12,6 +12,13 @@ export interface ProviderSDK {
 export class ProviderOutputError extends Error {
   constructor(readonly code: string, readonly measured?: AICompletionResponse) { super(code); }
 }
+/** Loggable fields of a failed call. Never the free-text message: the SDK's can quote part of the API key. */
+export function providerErrorSummary(error: unknown): Record<string, string | number> {
+  const e = obj(error);
+  const code = str(e.code) || (/^[A-Z][A-Z0-9_]+$/.test(str(e.message)) ? str(e.message) : '');
+  return { name: error instanceof Error ? error.name : 'unknown',
+    ...(typeof e.status === 'number' ? { status: e.status } : {}), ...(code ? { code } : {}), ...(str(e.type) ? { type: str(e.type) } : {}) };
+}
 export function completionParams(req: AICompletionRequest, stream = false): ObjectValue {
   if (req.transport !== 'responses') {
     if (req.continuation?.length) throw new Error('CHAT_CONTINUATION_NOT_SUPPORTED');
