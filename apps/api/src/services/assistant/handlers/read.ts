@@ -235,6 +235,7 @@ export class ReadShoppingListHandler
       .limit(200);
     if (error) throw error;
 
+    const search = args.search ? nameKey(args.search) : '';
     const items = ((data ?? []) as RawShoppingRow[]).map((row) => {
       const p = flattenProduct(row.products);
       return {
@@ -249,7 +250,7 @@ export class ReadShoppingListHandler
         estimated_price: row.estimated_price,
         store_section: row.store_section,
       } satisfies ShoppingItemView;
-    });
+    }).filter(item => !search || nameKey(item.product_name).includes(search));
 
     return { result: { items } };
   }

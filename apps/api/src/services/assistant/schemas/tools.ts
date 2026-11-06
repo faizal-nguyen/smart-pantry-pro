@@ -88,6 +88,7 @@ export type ReadInventoryArgs = z.infer<typeof readInventoryArgs>;
 
 const readShoppingListArgs = z.object({
   purchased: z.boolean().optional(),
+  search: z.string().max(200).optional(),
 });
 export type ReadShoppingListArgs = z.infer<typeof readShoppingListArgs>;
 
@@ -427,6 +428,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
       type: 'object',
       properties: {
         purchased: { type: 'boolean', description: 'filter on is_purchased state' },
+        search: { type: 'string', description: 'optional item-name filter, e.g. "lait" before removing or checking it' },
       },
       additionalProperties: false,
     },
@@ -661,7 +663,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'mark_shopping_items_bought',
-    description: 'Mark shopping list items as purchased.',
+    description: 'Mark shopping list items as purchased, by the ids of a read_shopping_list result.',
     schema: markShoppingItemsBoughtArgs,
     jsonSchema: {
       type: 'object',
@@ -776,7 +778,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {
     name: 'consume_inventory_items',
     description:
-      'Decrement inventory quantities (e.g. user cooked something or threw it away). Each item references an inventory row by id, a positive quantity and its unit. Use the inventory unit if no unit was specified. For a cooked recipe use cook_recipe so stock and journal remain atomic.',
+      'Decrement inventory quantities (e.g. user cooked something or threw it away). Each item references an inventory row by the id of a read_inventory result (never invented), a positive quantity and its unit. Use the inventory unit if no unit was specified. For a cooked recipe use cook_recipe so stock and journal remain atomic.',
     schema: consumeInventoryItemsArgs,
     jsonSchema: {
       type: 'object',
@@ -805,7 +807,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'update_inventory_item',
-    description: 'Update quantity / expiry_date / location of a single inventory row.',
+    description: 'Update quantity / expiry_date / location of a single inventory row, by the id of a read_inventory result.',
     schema: updateInventoryItemArgs,
     jsonSchema: {
       type: 'object',
@@ -827,7 +829,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'remove_shopping_items',
-    description: 'Delete shopping list rows by id.',
+    description: 'Delete shopping list rows by the ids of a read_shopping_list result.',
     schema: removeShoppingItemsArgs,
     jsonSchema: {
       type: 'object',
