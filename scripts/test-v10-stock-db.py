@@ -375,14 +375,40 @@ def routine_tests(capability=2):
     check("explicit replacement consumes only the chosen product and lot; inverse restores it",explicit_substitution)
 
 
+
+def cache_trigger_tests():
+    # Supabase runs pg_safeupdate in API (PostgREST) requests, triggers
+    # included: an UPDATE or DELETE without WHERE fails with 21000 and rolls
+    # back the write that fired it. PostgreSQL here has no pg_safeupdate, so
+    # the second group checks every function body for such a statement.
+    def public_product_change():
+        run("INSERT INTO stock_context_versions(user_id,revision) VALUES(" + literal(A) + ",1),(" + literal(B) + ",1)"
+            " ON CONFLICT (user_id) DO UPDATE SET revision=1;")
+        run("INSERT INTO recipe_inventory_cache(user_id) VALUES(" + literal(A) + "),(" + literal(B) + ");")
+        run("UPDATE products SET name=name WHERE id=" + literal(PRODUCT) + ";")
+        assert_equal(run("SELECT string_agg(revision::text,',' ORDER BY user_id) FROM stock_context_versions"
+                         " WHERE user_id IN (" + literal(A) + "," + literal(B) + ");"), "2,2")
+        assert_equal(run("SELECT count(*) FROM recipe_inventory_cache;"), "0")
+    check("a public product change still invalidates every user's caches", public_product_change)
+
+    def no_write_without_where():
+        offenders = run("SELECT coalesce(string_agg(DISTINCT n.nspname||'.'||p.proname,', '),'')"
+                        " FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace,"
+                        " LATERAL regexp_matches(p.prosrc,'(UPDATE\\s+[a-z_.]+\\s+SET\\s[^;]*|DELETE\\s+FROM\\s+[a-z_.]+[^;]*);','gi') AS m"
+                        " WHERE n.nspname IN ('public','private') AND m[1] !~* '\\mWHERE\\M';")
+        assert_equal(offenders, "")
+    check("no function runs an UPDATE or DELETE without WHERE (pg_safeupdate)", no_write_without_where)
+
 if __name__ == "__main__":
     run("CREATE DATABASE " + DATABASE + ";", database="postgres")
     try:
         run(file=ROOT / "supabase/tests/v10-schema.sql")
         run(file=ROOT / "supabase/migrations/20261008151704_v10_reliability_commands.sql")
         run(file=ROOT / "supabase/migrations/20261008210917_v10_mobile_routine.sql")
+        run(file=ROOT / "supabase/migrations/20261106120000_stock_cache_trigger_where.sql")
         tests()
         routine_tests()
+        cache_trigger_tests()
         print(f"{checks} groups passed on real PostgreSQL (local reconstructed schema).")
     finally:
         run("DROP DATABASE " + DATABASE + ";", database="postgres")
