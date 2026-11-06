@@ -18,10 +18,9 @@
  *
  * Décision : pas de wrapper destructeur direct. Le bouton
  * « Supprimer » côté UI crée un row `data_deletion_requests` (status
- * `pending`) et un worker backend (futur) finalisera. Aujourd'hui :
- * cette row sert de trace + de signal qu'on devra processer
- * manuellement OU via le `delete_user_data` RPC déclenché depuis un
- * job admin.
+ * `pending`) ; le job pg_cron horaire `process-deletion-requests`
+ * (migration 20261106140000) efface ensuite toutes les lignes de
+ * l'utilisateur.
  */
 import { Router } from 'express';
 import { z } from 'zod';
