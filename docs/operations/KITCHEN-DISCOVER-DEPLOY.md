@@ -1,10 +1,12 @@
 # Kitchen OS — Livraison de Découvrir
 
-## État du 6 novembre 2026
+## État du 7 novembre 2026
 
 L’intégration reprend le main récent et conserve ses correctifs de sécurité, de suppression des données et la refonte Kitchen OS. Elle ajoute le pilote manuel de Découvrir et un éditeur canonique commun aux imports. Aucun scheduler, scraping ou fournisseur IA payant n’est activé par Découvrir. Les appels d’extraction historiques restent distincts.
 
-Le projet de production est `jwoxacnflphclslpqfzs`. Les lectures de schéma via son API confirment que `imported_recipe_drafts` existe et que les tables de découverte n’existent pas encore. Les accès de gestion disponibles donnent accès à SB OS (connecteur) ou CT Dashboard (CLI), et refusent le projet Kitchen OS. Aucun SQL distant n’a été appliqué. La PR reste en brouillon jusqu’à l’accès au projet cible et à la validation de sa migration.
+Le projet de production est `jwoxacnflphclslpqfzs`. Le propriétaire a exporté les définitions avant modification puis appliqué les deux migrations dans une seule transaction via SQL Editor. Il a transmis les dix contrôles post-migration, tous à true, notamment RLS, permissions, triggers et historique des deux migrations. Une vérification indépendante en lecture seule via l’API du projet confirme les cinq tables, la vue et les trois RPC publiques attendues ; les lectures anonymes des six relations sont refusées (401). Aucun SQL distant n’a été exécuté par l’agent. Les accès de gestion de l’agent restent limités à d’autres projets.
+
+Le lot reprend aussi le correctif Instagram fusionné dans main (PR #72) : suppression de l’ancien extracteur et utilisation de l’API d’imports sociaux. La page Importer conserve son inbox et son éditeur canonique, qui maintiennent l’identité et la révision de l’import. Le dialogue personnel monté depuis Recettes conserve ses onglets d’import de liens désactivés, pour empêcher une copie sans provenance dans une recette manuelle.
 
 ## Migrations requises et ordre
 
@@ -29,9 +31,9 @@ Une fois le schéma distant vérifié, rendre la PR prête, attendre ses contrô
 
 - Build complet partagé/API/frontend : PASS.
 - Tests API ciblés : 129 tests puis test de raccordement stable/v1 réussi après adaptation au main récent, soit 130 tests ; fournisseurs simulés.
-- Tests client V10 : 232 tests dans 62 suites, avec reprise réussie des trois tests de persistance après deux dépassements de délai dans le passage global ; reprise du test d’import canonique également réussie.
+- Tests client V10 après intégration du main récent : 236 tests dans 63 suites, tous réussis dans un même passage.
 - PostgreSQL réel jetable, socket local : 13 groupes passent, dont RLS à deux comptes, reprises, révisions, sauvegardes concurrentes, quotas, intégrité de provenance et rollback d’échec. Aucune base distante sollicitée par ces tests.
 - Navigateur fictif : six largeurs 320/390/440/768/1024/1280, aperçu expiré, garder, relecture, inconnues non inventées, réponse perdue et ajout unique, fiche commune, retour après cuisine, pause conservant les recettes, aide de premier lancement puis onglet Importer.
 - Lint ciblé des nouveaux modules et du parcours canonique : PASS ; le lint historique de tous les fichiers backend touchés contient aussi des types any préexistants.
 
-Les tests locaux ne prouvent pas l’application des migrations cloud ni un parcours connecté avec les données réelles. Ces deux points restent non exécutés tant que l’accès de gestion à Kitchen OS manque.
+Le lot SQL manuel a également passé les 13 groupes PostgreSQL avec ses contrôles intégrés, un test d’annulation après erreur tardive et un refus de rejeu sans modification. La base de test est reconstruite depuis les migrations du dépôt, pas copiée de production. Le schéma cloud est maintenant confirmé comme décrit plus haut. Le parcours navigateur authentifié avec les données réelles reste à distinguer des fixtures et des vérifications publiques après publication.

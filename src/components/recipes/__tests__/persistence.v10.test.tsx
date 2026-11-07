@@ -7,7 +7,9 @@ jest.mock('@/services/recipePersistence', () => ({ saveRecipeWithIngredients: je
 jest.mock('@/services/stockCommands', () => ({ pendingIntent: jest.fn(async () => null) }));
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: 'account-A' }, isLoading: false }) }));
 jest.mock('@/hooks/useRecipeParser', () => ({ useRecipeParser: () => ({ loading: false, error: null, extractRecipeFromURL: jest.fn() }) }));
-jest.mock('@/hooks/useSocialRecipeParser', () => ({ useSocialRecipeParser: () => ({ loading: false, error: null, parseRecipeFromSocial: jest.fn() }) }));
+const capture = jest.fn();
+const extract = jest.fn();
+jest.mock('@/hooks/useSocialRecipeImports', () => ({ useSocialRecipeImports: () => ({ capture, extract, getCurrentDraft: jest.fn() }) }));
 jest.mock('../RecipeBookScanner', () => ({ __esModule: true, default: () => null }));
 jest.mock('../RecipeVoiceInput', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
@@ -64,5 +66,23 @@ describe('manual recipe persistence', () => {
     await waitFor(() => expect(close).toHaveBeenCalledWith(false));
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[0][0]).toEqual(save.mock.calls[1][0]);
+  });
+});
+
+describe('Social tab', () => {
+  test('a link read through the imports API fills the manual form for verification', async () => {
+    capture.mockResolvedValue({ import: { id: 'import-1' }, duplicate: false });
+    extract.mockResolvedValue({ import: { id: 'import-1' }, draft: { draft_json: {
+      title: 'Pâtes au citron', description: null, prepTimeMinutes: 10, cookTimeMinutes: 12, servings: 2, difficulty: 1, tags: [],
+      source: { thumbnailUrl: null }, ingredients: [{ name: 'Pâtes', quantity: 200, unit: 'g' }], instructions: [{ step: 1, description: 'Cuire les pâtes.' }],
+    } } });
+    render(<AddRecipeDialog open onOpenChange={jest.fn()} />);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Social' }), { button: 0 });
+    fireEvent.change(await screen.findByLabelText(/URL à capturer/), { target: { value: 'https://www.instagram.com/reel/abc/' } });
+    fireEvent.click(screen.getByRole('button', { name: /Capturer/ }));
+    await waitFor(() => expect(screen.getByLabelText(/Nom de la recette/)).toHaveValue('Pâtes au citron'));
+    expect(capture).toHaveBeenCalledWith('https://www.instagram.com/reel/abc/');
+    expect(screen.getByPlaceholderText('Nom ingrédient')).toHaveValue('Pâtes');
+    expect(screen.getByLabelText(/Instructions/)).toHaveValue('1. Cuire les pâtes.');
   });
 });
