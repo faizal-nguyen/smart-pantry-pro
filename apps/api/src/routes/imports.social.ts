@@ -24,7 +24,7 @@ import {
   SocialImportService,
   type SocialImportServiceOptions,
 } from '../services/imports/SocialImportService.js';
-import { ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
+import { PersonalImageKeeper, ThumbnailSnapshotService } from '../services/media/ThumbnailSnapshotService.js';
 import { MediaAssetResolver } from '../services/media/MediaAssetResolver.js';
 import { ImportReviewError } from '../services/imports/ImportReview.js';
 import {
@@ -93,6 +93,7 @@ export function createImportsSocialRouter(
     return new SocialImportService(new SocialImportRepository(userClient), {
       ...options,
       thumbnailSnapshotter,
+      imageKeeper: options.imageKeeper ?? new PersonalImageKeeper(userClient, adminClient),
     });
   };
   const buildRepo = (req: Request) =>
@@ -447,6 +448,7 @@ export function createImportsSocialRouter(
         acknowledgeUnknowns: parsed.data.acknowledge_unknowns,
         sourceReviewed: parsed.data.source_reviewed,
         acknowledgeAdaptations: parsed.data.acknowledge_adaptations,
+        keepImageCopy: parsed.data.keep_image_copy,
       });
       return ok(
         res,

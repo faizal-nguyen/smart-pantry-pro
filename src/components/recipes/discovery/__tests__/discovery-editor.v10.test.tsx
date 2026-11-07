@@ -39,6 +39,27 @@ test('an edited import saves through its canonical id and revision with the orig
   expect(localStorage.getItem(`v10-routine:${OWNER}:discovery-review:${item.id}`)).toBeNull();
 });
 
+test('keeping the post image is an explicit choice, off by default, sent with the save', async () => {
+  const withImage = { ...draft, source: { ...draft.source, thumbnailUrl: 'https://scontent.cdninstagram.com/v/og.jpg' } };
+  const view = show({ ...prepared, draft: { ...draftRow, draft_json: withImage } });
+  const keep = screen.getByRole('checkbox', { name: /Garder une copie de l’image du post/ });
+  expect(keep).not.toBeChecked();
+  fireEvent.click(keep);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'J’ai vérifié les ingrédients et les étapes dans la source.' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter à mes recettes' }));
+  await waitFor(() => expect(view.onAdded).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0][1].keep_image_copy).toBe(true);
+});
+
+test('a post without image offers no copy, and the save does not ask for one', async () => {
+  const view = show();
+  expect(screen.queryByRole('checkbox', { name: /Garder une copie de l’image du post/ })).toBeNull();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'J’ai vérifié les ingrédients et les étapes dans la source.' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter à mes recettes' }));
+  await waitFor(() => expect(view.onAdded).toHaveBeenCalled());
+  expect(mockSave.mock.calls[0][1].keep_image_copy).toBe(false);
+});
+
 test('an incomplete recipe keeps blank facts and requires source and unknown-field acknowledgement', async () => {
   const incomplete = { ...draft, prepTimeMinutes: undefined, cookTimeMinutes: undefined, servings: undefined,
     ingredients: [{ name: 'Carotte' }], source: { ...draft.source, extractionMethod: 'metadata' as const } };

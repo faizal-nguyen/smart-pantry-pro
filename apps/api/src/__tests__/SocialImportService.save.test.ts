@@ -95,6 +95,34 @@ describe('SocialImportService.save (PRP-220.11)', () => {
       .rejects.toMatchObject({ code: 'RECIPE_INCOMPLETE' });
   });
 
+  it('keeps a copy of the post image only when the owner allows it at save time (PRP-V10-03F §11)', async () => {
+    const remote = 'https://scontent.cdninstagram.com/v/og.jpg';
+    const kept = 'https://project.supabase.co/storage/v1/object/public/recipe-images/users/user-a/thumbnail/2026/11/og-1.jpg';
+    const withImage = { ...validDraft(), source: { ...validDraft().source, thumbnailUrl: remote } };
+    const keep = jest.fn().mockResolvedValue(kept);
+    const savedImage = async (keepImageCopy?: boolean) => {
+      const repo = makeRepo({ findCurrentDraft: jest.fn().mockResolvedValue({ version: 1, draft_json: withImage }) });
+      const saveImpl = jest.fn().mockResolvedValue('rec-1');
+      await new SocialImportService(repo, { saveImportedDraftAsRecipe: saveImpl, imageKeeper: { keep } })
+        .save(fakeClient, 'user-a', 'imp-1', { sourceReviewed: true, keepImageCopy });
+      return saveImpl.mock.calls[0][2].imageUrl;
+    };
+    expect(await savedImage()).toBeUndefined();
+    expect(keep).not.toHaveBeenCalled();
+    expect(await savedImage(true)).toBe(kept);
+    expect(keep).toHaveBeenCalledWith({ userId: 'user-a', importId: 'imp-1', remoteUrl: remote, sourceUrl: 'https://www.instagram.com/reel/abc/' });
+  });
+
+  it('still saves the recipe when keeping its image fails', async () => {
+    const withImage = { ...validDraft(), source: { ...validDraft().source, thumbnailUrl: 'https://scontent.cdninstagram.com/v/og.jpg' } };
+    const repo = makeRepo({ findCurrentDraft: jest.fn().mockResolvedValue({ version: 1, draft_json: withImage }) });
+    const saveImpl = jest.fn().mockResolvedValue('rec-1');
+    const result = await new SocialImportService(repo, { saveImportedDraftAsRecipe: saveImpl, imageKeeper: { keep: jest.fn().mockResolvedValue(null) } })
+      .save(fakeClient, 'user-a', 'imp-1', { sourceReviewed: true, keepImageCopy: true });
+    expect(result.recipeId).toBe('rec-1');
+    expect(saveImpl.mock.calls[0][2].imageUrl).toBeUndefined();
+  });
+
   it('shows a manually edited dietary substitution and requires its confirmation', async () => {
     const original = { ...validDraft(), ingredients: [{ name: 'porc hache', quantity: 200, unit: 'g' }] };
     const edited = { ...original, ingredients: [{ name: 'poulet hache', quantity: 200, unit: 'g' }] };

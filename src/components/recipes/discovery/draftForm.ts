@@ -20,11 +20,14 @@ export const DiscoveryReviewSchema = z.object({
   owner: z.string(), itemId: z.string(), importId: z.string(), revision: z.number().int().positive(),
   original: ImportedRecipeDraftSchema, form: DiscoveryDraftFormSchema,
   acknowledgeUnknowns: z.boolean(), sourceReviewed: z.boolean(), acknowledgeAdaptations: z.boolean(),
+  // Reviews kept on a device before this choice existed read as « no copy ».
+  keepImageCopy: z.boolean().default(false),
   reviewedDraft: ImportedRecipeDraftSchema.nullable(),
   adaptations: z.array(z.object({ path: z.string(), from: z.string(), to: z.string() })),
   pendingSave: z.object({
     draft: ImportedRecipeDraftSchema, expected_revision: z.number().int().positive(),
     acknowledge_unknowns: z.boolean(), source_reviewed: z.boolean(), acknowledge_adaptations: z.boolean(),
+    keep_image_copy: z.boolean().default(false),
   }).nullable(),
 });
 export type DiscoveryReview = z.infer<typeof DiscoveryReviewSchema>;

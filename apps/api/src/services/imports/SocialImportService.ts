@@ -43,7 +43,7 @@ import {
 } from './importErrors.js';
 import { metrics } from '../../lib/metrics.js';
 import { logExtraction, logger } from '../../lib/logger.js';
-import type { ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
+import type { ImageKeeper, ThumbnailSnapshotter } from '../media/ThumbnailSnapshotService.js';
 import { sanitizeImportedDraft } from '../recipeQuality/sanitizeImportedDraft.js';
 import { ImportReviewError, preserveImportProvenance, editedRecipeFields, importAdaptations, type ImportAdaptation, type ReviewedSaveOptions } from './ImportReview.js';
 
@@ -94,6 +94,8 @@ export interface SocialImportServiceOptions {
    * weeks). Failure is silent — the caller falls back to the remote URL.
    */
   thumbnailSnapshotter?: ThumbnailSnapshotter;
+  /** Copy of the recipe image, made at save time only with the owner's permission. */
+  imageKeeper?: ImageKeeper;
 }
 
 const CONFIDENCE_REVIEW_THRESHOLD = 0.6;
@@ -102,6 +104,7 @@ export class SocialImportService {
   private readonly extractionService: RecipeExtractionService;
   private readonly saveImportedDraftAsRecipe: SaveImportedDraftAsRecipe;
   private readonly thumbnailSnapshotter?: ThumbnailSnapshotter;
+  private readonly imageKeeper?: ImageKeeper;
 
   constructor(
     private readonly repo: SocialImportRepository,
@@ -111,6 +114,7 @@ export class SocialImportService {
     this.saveImportedDraftAsRecipe =
       options.saveImportedDraftAsRecipe ?? notImplementedSaveImportedDraftAsRecipe;
     this.thumbnailSnapshotter = options.thumbnailSnapshotter;
+    this.imageKeeper = options.imageKeeper;
   }
 
   /**
@@ -425,6 +429,8 @@ export class SocialImportService {
       acknowledgeUnknowns?: boolean;
       sourceReviewed?: boolean;
       acknowledgeAdaptations?: boolean;
+      /** The owner allows keeping a copy of the post image (PRP-V10-03F §11). */
+      keepImageCopy?: boolean;
     } = {}
   ): Promise<SaveFlowResult> {
     const existing = await this.repo.findById(userId, importId);
@@ -493,6 +499,12 @@ export class SocialImportService {
       throw new ImportReviewError('UNKNOWN_FIELDS_REVIEW_REQUIRED', 'Vérifiez les informations inconnues avant de confirmer.');
     }
     const edits = editedRecipeFields(stored.data, draft);
+    const remoteImage = draft.imageUrl ?? draft.source.thumbnailUrl;
+    if (options.keepImageCopy === true && this.imageKeeper && remoteImage) {
+      const kept = await this.imageKeeper.keep({ userId, importId, remoteUrl: remoteImage, sourceUrl: existing.source_url ?? undefined });
+      // Without a kept copy the recipe is saved as before, with the remote URL.
+      if (kept) draft = { ...draft, imageUrl: kept };
+    }
 
     let recipeId: string;
     try {
