@@ -24,7 +24,9 @@ Reponds UNIQUEMENT en JSON : { "items": [{ "name": string, "quantity"?: number, 
 
 REGLES :
 - Un element par produit distinct ; regroupe les exemplaires identiques et compte-les dans "quantity".
-- "name" en francais, generique et court (ex. "Lait demi-ecreme", "Pommes", "Riz basmati").
+- "name" : le nom du produit tel qu'il est imprime sur l'emballage, dans sa langue d'origine. Ne le traduis JAMAIS. Sans la marque. Garde les precisions imprimees qui distinguent le produit (100 % cacao, de cuisine, demi-ecreme, piquant...). Ex. "Spice Paste for Szechuan Chilli Ginger Garlic Stir Fry", "Mayonnaise", "Cacao en poudre 100 % cacao".
+- Produit sans etiquette (fruits, legumes en vrac) : un nom francais court (ex. "Pommes").
+- "brand" : la marque imprimee, a part (ex. "Asian Home Gourmet", "Kewpie", "Cailler").
 - Lis l'emballage : un poids ou un volume net imprime donne quantity + unit (g, kg, ml, cl, l). Sinon compte les exemplaires avec unit "piece", ou un contenant visible (paquet, boite, sachet, bouteille, pot, brique).
 - "brand" et "expiry_date" seulement s'ils sont lisibles sur la photo.
 - "confidence" : high si le produit et sa quantite sont nets, medium si l'un des deux est deduit, low si tu devines.

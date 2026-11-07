@@ -41,7 +41,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { waitUntil } from '@vercel/functions';
-import { ingredientMatchRank } from '@smart/shared';
+import { ingredientMatchRank, ingredientNameTokens } from '@smart/shared';
 
 import type { EmbeddingService } from '../products/EmbeddingService.js';
 import { classifyByName } from '../products/CategoryClassifier.js';
@@ -58,6 +58,7 @@ export interface ProductRow {
   category: string;
   unit_type: string;
   barcode: string | null;
+  brand?: string | null;
   image_url: string | null;
   normalized_name: string;
   source: string | null;
@@ -73,6 +74,8 @@ export interface ResolveInput {
   category?: string;
   /** Optional unit hint. Defaults to 'unit'. */
   unitType?: string;
+  /** Brand read on the pack; the name already carries it (productNameWithBrand). */
+  brand?: string;
 }
 
 export type ResolveResult =
@@ -120,6 +123,16 @@ export interface ProductResolverOptions {
 function sameNameCandidate<T extends { product: ProductRow }>(name: string, candidates: T[]): T | undefined {
   const same = candidates.filter((c) => ingredientMatchRank(name, c.product.name) === 1);
   return same.length === 1 ? same[0] : undefined;
+}
+
+/**
+ * With a brand, a close name is the same product only if it carries that
+ * brand too: "Mayonnaise Kewpie" never tops up a plain "Mayonnaise" lot.
+ */
+function sameBrand<T extends { product: ProductRow }>(brand: string | undefined, candidates: T[]): T[] {
+  const brandWords = ingredientNameTokens(brand ?? '').join(' ');
+  if (!brandWords) return candidates;
+  return candidates.filter((c) => ` ${ingredientNameTokens(c.product.name).join(' ')} `.includes(` ${brandWords} `));
 }
 
 export function normalizeProductName(name: string): string {
@@ -175,11 +188,11 @@ export class ProductResolver {
       return { kind: 'matched', product: exact, confidence: 1, via: 'exact' };
     }
 
-    const semantic = await this.findSemantic(normalized);
+    const semantic = sameBrand(input.brand, await this.findSemantic(normalized));
     const semanticVerdict = this.classifySemantic(input.name, semantic);
     if (semanticVerdict) return semanticVerdict;
 
-    const candidates = await this.findFuzzy(normalized);
+    const candidates = sameBrand(input.brand, await this.findFuzzy(normalized));
     return this.classifyFuzzyOrCreate(userId, input, candidates);
   }
 
@@ -230,12 +243,12 @@ export class ProductResolver {
 
         const embedding = embeddingFor.get(idx) ?? null;
         if (embedding) {
-          const semantic = await this.findSemanticByVector(embedding);
+          const semantic = sameBrand(input.brand, await this.findSemanticByVector(embedding));
           const semanticVerdict = this.classifySemantic(input.name, semantic);
           if (semanticVerdict) return semanticVerdict;
         }
 
-        const candidates = await this.findFuzzy(key);
+        const candidates = sameBrand(input.brand, await this.findFuzzy(key));
         return this.classifyFuzzyOrCreate(userId, input, candidates);
       })
     );
@@ -391,6 +404,7 @@ export class ProductResolver {
       unit_type: input.unitType?.trim() || this.defaultUnitType,
       source: 'assistant_auto',
       created_by: userId,
+      ...(input.brand?.trim() ? { brand: input.brand.trim() } : {}),
     };
 
     const { data, error } = await this.client

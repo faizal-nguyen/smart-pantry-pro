@@ -648,3 +648,21 @@ describe('PRP-226 PR4 — recommendation cache invalidation', () => {
     expect(result.result.added).toHaveLength(1);
   });
 });
+
+describe('AddInventoryItemsHandler — brand read on the pack', () => {
+  it('resolves the product by its printed name, brand last, and passes the brand on', async () => {
+    const { client } = makeClient({
+      routes: { inventory: { insertReturning: [{ id: 'inv-k', product_id: 'p-Mayonnaise Kewpie', quantity: 1 }] } },
+    });
+    const ctx = makeCtx(client);
+    const resolveBatch = jest.spyOn(ctx.productResolver, 'resolveBatch');
+    const result = await new AddInventoryItemsHandler().execute(ctx, {
+      items: [{ name: 'Mayonnaise', quantity: 1, unit: 'pot', brand: 'Kewpie' }, { name: 'Riz', quantity: 1, unit: 'kg' }],
+    });
+    expect(resolveBatch.mock.calls[0][1]).toEqual([
+      { name: 'Mayonnaise Kewpie', category: undefined, unitType: 'pot', brand: 'Kewpie' },
+      { name: 'Riz', category: undefined, unitType: 'kg', brand: undefined },
+    ]);
+    expect(result.result.added[0]).toMatchObject({ product_name: 'Mayonnaise Kewpie' });
+  });
+});

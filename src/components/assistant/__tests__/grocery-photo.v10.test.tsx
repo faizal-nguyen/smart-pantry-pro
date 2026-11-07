@@ -41,13 +41,26 @@ test('reads the photos, lets the owner fix and drop products, then adds the kept
   fireEvent.click(screen.getByRole('button', { name: 'Ajouter 2 produits au stock' }));
   await screen.findByText('2 produits ajoutés au stock.');
   expect(keep).toHaveBeenCalledWith({ clientRequestId: '99999999-9999-4999-8999-999999999999', expectedUserId: 'owner-1', items: [
-    { name: 'Lait demi-écrémé', quantity: 6, unit: 'bouteille', expiry_date: '2026-11-20' },
+    { name: 'Lait demi-écrémé', quantity: 6, unit: 'bouteille', brand: 'Lactel', expiry_date: '2026-11-20' },
     { name: 'Pommes', quantity: 5, unit: 'piece' },
   ] });
   expect(dispatchAgentDbChanged).toHaveBeenCalledWith(['inventory']);
   fireEvent.click(screen.getByRole('button', { name: 'Annuler cet ajout' }));
   await waitFor(() => expect(undo).toHaveBeenCalledWith('act-1'));
   expect(await screen.findByText('Ajout annulé.')).toBeInTheDocument();
+});
+
+test('the brand read on the pack can be fixed, and the stock name puts it last', async () => {
+  recognize.mockResolvedValue({ items: [{ name: 'Kewpie Mayonnaise', quantity: 310, unit: 'ml', brand: 'Kewpie', expiry_date: null, confidence: 'high' }] });
+  pick([photo('a.jpg')]);
+  expect(await screen.findByLabelText('Marque du produit 1')).toHaveValue('Kewpie');
+  expect(screen.getByText('Dans le stock : Mayonnaise Kewpie')).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Marque du produit 1'), { target: { value: '' } });
+  expect(screen.queryByText(/Dans le stock/)).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText('Marque du produit 1'), { target: { value: ' Kewpie ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter 1 produit au stock' }));
+  await screen.findByText(/au stock\./);
+  expect(keep).toHaveBeenCalledWith(expect.objectContaining({ items: [{ name: 'Kewpie Mayonnaise', quantity: 310, unit: 'ml', brand: 'Kewpie' }] }));
 });
 
 test('a kept product without quantity blocks the add and says why', async () => {

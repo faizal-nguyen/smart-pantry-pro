@@ -26,6 +26,8 @@ test('sends the photos to the vision role and returns a clean French list', asyn
   ]);
   const request = ai.complete.mock.calls[0][0];
   expect(request.model).toBe('gpt-6-luna');
+  // Pack names stay in their language; the brand comes apart (« Mayonnaise » + « Kewpie »).
+  expect(request.messages[0].content).toContain('Ne le traduis JAMAIS');
   expect(request.messages[1].images).toEqual([{ url: `data:image/jpeg;base64,${JPEG.toString('base64')}`, detail: 'high' }]);
   expect(result.model_receipt.calls[0]).toMatchObject({ role: 'vision', purpose: 'grocery_photo', status: 'completed' });
 });

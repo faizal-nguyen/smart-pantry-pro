@@ -9,6 +9,7 @@
  */
 import { useId, useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
+import { productNameWithBrand } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -31,7 +32,7 @@ interface Row {
   quantity: string;
   unit: string;
   expiry: string;
-  brand: string | null;
+  brand: string;
   confidence: RecognizedGrocery['confidence'];
 }
 type Stage =
@@ -44,7 +45,7 @@ type Stage =
 
 const toRow = (item: RecognizedGrocery): Row => ({
   keep: true, name: item.name, quantity: item.quantity == null ? '' : String(item.quantity),
-  unit: item.unit ?? '', expiry: item.expiry_date ?? '', brand: item.brand, confidence: item.confidence,
+  unit: item.unit ?? '', expiry: item.expiry_date ?? '', brand: item.brand ?? '', confidence: item.confidence,
 });
 const parseQuantity = (value: string) => {
   const quantity = Number(value.replace(',', '.'));
@@ -106,6 +107,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
         clientRequestId: request.current, expectedUserId: owner,
         items: kept.map(row => ({
           name: row.name.trim(), quantity: parseQuantity(row.quantity) as number, unit: row.unit.trim(),
+          ...(row.brand.trim() ? { brand: row.brand.trim() } : {}),
           ...(row.expiry ? { expiry_date: row.expiry } : {}),
         })),
       });
@@ -169,7 +171,9 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
                       onChange={event => update(index, { name: event.target.value })} />
                     {row.confidence === 'low' && <span className="shrink-0 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">À vérifier</span>}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <Input aria-label={`Marque du produit ${n}`} placeholder="Marque" value={row.brand} disabled={busy || !row.keep}
+                      onChange={event => update(index, { brand: event.target.value })} />
                     <Input aria-label={`Quantité du produit ${n}`} inputMode="decimal" placeholder="Quantité" value={row.quantity} disabled={busy || !row.keep}
                       onChange={event => update(index, { quantity: event.target.value })} />
                     <Input aria-label={`Unité du produit ${n}`} list={unitsId} placeholder="Unité" value={row.unit} disabled={busy || !row.keep}
@@ -177,7 +181,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
                     <Input aria-label={`Date limite du produit ${n}`} type="date" value={row.expiry} disabled={busy || !row.keep}
                       onChange={event => update(index, { expiry: event.target.value })} />
                   </div>
-                  {row.brand && <p className="text-xs text-muted-foreground">Marque lue : {row.brand}</p>}
+                  {row.brand.trim() && row.name.trim() && <p className="text-xs text-muted-foreground">Dans le stock : {productNameWithBrand(row.name, row.brand)}</p>}
                 </li>;
               })}</ul>
               {incomplete && <p className="text-sm text-muted-foreground">Indique la quantité et l’unité de chaque produit gardé.</p>}

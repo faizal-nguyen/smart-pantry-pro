@@ -26,6 +26,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ingredientNameTokens } from '@smart/shared';
 import type { Database } from '../../types/supabase.js';
 import {
   ProductResolver,
@@ -57,6 +58,10 @@ import type {
 } from './productTypes.js';
 
 const DEFAULT_AMBIGUITY_MARGIN = 0.05;
+// Open Food Facts allows 10 searches a minute: one photo add enriches at most 5.
+const MAX_BRANDED_ENRICHMENTS = 5;
+// Share of the product's own words (brand aside) an OFF name must contain.
+const MIN_NAME_OVERLAP = 0.5;
 
 export interface ProductIntelligenceServiceOptions {
   resolver?: ProductResolver;
@@ -310,6 +315,35 @@ export class ProductIntelligenceService {
     };
   }
 
+  /**
+   * Fills branded products never enriched (Nutri-Score, NOVA, ingredients,
+   * allergens) from their Open Food Facts match: the same brand and most of
+   * the product's words. Best-effort and never throws: no match, or OFF
+   * down or rate-limited, leaves the product as it was (searches are
+   * cached). The OFF photo is not copied: its licence asks for a credit
+   * the stock does not show.
+   */
+  async enrichBrandedProducts(productIds: readonly string[]): Promise<void> {
+    const ids = [...new Set(productIds)];
+    if (ids.length === 0) return;
+    try {
+      const { data, error } = await this.admin
+        .from('products')
+        .select('id, name, brand')
+        .in('id', ids)
+        .not('brand', 'is', null)
+        .in('enrichment_status', ['none', 'stale'])
+        .limit(MAX_BRANDED_ENRICHMENTS);
+      if (error) throw error;
+      for (const product of (data ?? []) as Array<{ id: string; name: string; brand: string | null }>) {
+        const match = brandedMatch(product.name, product.brand ?? '', await this.searchOff(product.name));
+        if (match) await this.tryApplyEnrichment(product.id, { ...match, imageUrl: null });
+      }
+    } catch (err) {
+      console.warn('[ProductIntelligence] branded enrichment failed:', errorMessage(err));
+    }
+  }
+
   // ---- Step helpers -----------------------------------------------
 
   private async findByBarcode(barcode: string): Promise<ProductRow | null> {
@@ -505,6 +539,32 @@ export class ProductIntelligenceService {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/** The OFF candidate of the same brand that names the product best, if any. */
+export function brandedMatch(
+  name: string,
+  brand: string,
+  candidates: readonly ExternalProductCandidate[]
+): ExternalProductCandidate | null {
+  const brandWords = ingredientNameTokens(brand);
+  const sameBrand = (other: string | null | undefined) => {
+    const words = ingredientNameTokens(other ?? '').join(' ');
+    const own = brandWords.join(' ');
+    return Boolean(words && own) && (` ${words} `.includes(` ${own} `) || ` ${own} `.includes(` ${words} `));
+  };
+  const words = ingredientNameTokens(name).filter((word) => !brandWords.includes(word));
+  let best: { candidate: ExternalProductCandidate; overlap: number } | null = null;
+  for (const candidate of candidates) {
+    if (!sameBrand(candidate.brand)) continue;
+    const offWords = new Set(ingredientNameTokens(`${candidate.name} ${candidate.genericName ?? ''}`));
+    const overlap = words.length ? words.filter((word) => offWords.has(word)).length / words.length : 1;
+    if (overlap < MIN_NAME_OVERLAP) continue;
+    if (!best || overlap > best.overlap || (overlap === best.overlap && candidate.confidence > best.candidate.confidence)) {
+      best = { candidate, overlap };
+    }
+  }
+  return best?.candidate ?? null;
 }
 
 function externalAsCandidate(c: ExternalProductCandidate): ProductCandidate {
