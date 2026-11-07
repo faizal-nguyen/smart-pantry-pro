@@ -6,10 +6,23 @@ describe('RecipeSourceCard (PRP-220.17)', () => {
   it('renders nothing for a manually-typed recipe', () => {
     const { container } = render(
       <RecipeSourceCard
-        recipe={{ source_platform: 'manual', source_url: 'https://x', source_metadata: {} }}
+        recipe={{ source_platform: 'manual', source_url: null, source_metadata: {} }}
       />
     );
     expect(container.firstChild).toBeNull();
+  });
+
+  it('keeps the explicit source of a manually reviewed legacy recipe without trusting lookalike domains', () => {
+    render(<RecipeSourceCard recipe={{ source_platform: 'manual', source_url: 'https://instagram.com.evil.example/recipe' }} />);
+    expect(screen.getByText('Importé depuis le web')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Voir la source originale/ })).toHaveAttribute('href', 'https://instagram.com.evil.example/recipe');
+  });
+
+  it('does not render unsafe source or author links', () => {
+    render(<RecipeSourceCard recipe={{ source_platform: 'web', source_url: 'javascript:alert(1)',
+      source_metadata: { authorName: 'Auteur', authorUrl: 'https://user:password@example.org/' } }} />);
+    expect(screen.getByText('Auteur')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
   });
 
   it('renders nothing when no source platform is set', () => {

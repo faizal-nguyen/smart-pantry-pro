@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { canonicalizeUrl } from './canonicalUrl.js';
 
 /**
  * Deterministic hash for the dedup column on `social_recipe_imports`
@@ -13,7 +14,7 @@ import { createHash } from 'node:crypto';
  *
  * The output is the first 32 hex chars (128 bits) of
  * `sha256(normalize(canonicalUrl))`. 128 bits is overkill for dedup
- * but cheap to store and impossible to brute-force back to the URL.
+ * while remaining cheap to store. A hash is a dedupe key, not encryption.
  */
 export function computeSourceHash(canonicalUrl: string): string {
   const normalized = normalize(canonicalUrl);
@@ -22,18 +23,17 @@ export function computeSourceHash(canonicalUrl: string): string {
 
 function normalize(input: string): string {
   if (!input) return '';
-  let value = input.trim().toLowerCase();
+  try {
+    const parsed = new URL(canonicalizeUrl(input.trim()));
+    return `${parsed.host}${parsed.pathname.replace(/\/+$/, '')}${parsed.search}`;
+  } catch {
+    return input.trim();
+  }
+}
 
-  // Strip protocol so http vs https doesn't break the hash.
-  value = value.replace(/^https?:\/\//, '');
-
-  // Drop the leading "www." or "m." subdomain - users paste the same
-  // URL via desktop and mobile and expect a single import.
-  value = value.replace(/^(www\.|m\.)/, '');
-
-  // Drop trailing slashes / hashes / queries that callers should have
-  // already normalised, but defend against drift.
-  value = value.replace(/[?#].*$/, '').replace(/\/+$/, '');
-
-  return value;
+/** Compatibility lookup only. Always compare the stored source URL as well. */
+export function computeLegacySourceHash(input: string): string {
+  const normalized = input.trim().toLowerCase().replace(/^https?:\/\//, '')
+    .replace(/^(www\.|m\.)/, '').replace(/[?#].*$/, '').replace(/\/+$/, '');
+  return createHash('sha256').update(normalized).digest('hex').slice(0, 32);
 }

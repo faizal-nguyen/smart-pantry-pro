@@ -11,3 +11,6 @@ export * from './personalization.js';
 export * from './recipe-evaluation.js';
 export * from './assistant-memory.js';
 export * from './assistant-models.js';
+
+export * from './recipe-import-quality.js';
+export * from './recipe-discovery.js';

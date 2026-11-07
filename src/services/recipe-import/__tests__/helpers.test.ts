@@ -17,13 +17,29 @@ describe('helpers/url', () => {
     expect(detectPlatform('not a url')).toBe('unknown');
   });
 
-  it('canonicalizeUrl drops query, fragment, www, and trailing slash', () => {
+  it('canonicalizeUrl drops tracking, fragment, www, and trailing slash', () => {
     expect(canonicalizeUrl('https://www.instagram.com/reel/abc/?utm_source=foo#bar')).toBe(
       'https://instagram.com/reel/abc'
     );
     expect(canonicalizeUrl('https://m.instagram.com/reel/abc/')).toBe(
       'https://instagram.com/reel/abc'
     );
+  });
+
+  it('preserves different videos and parameterized recipes instead of collapsing their identity', () => {
+    expect(canonicalizeUrl('https://www.youtube.com/watch?v=RecipeA&utm_source=share#t=12'))
+      .toBe('https://youtube.com/watch?v=RecipeA');
+    expect(canonicalizeUrl('https://youtube.com/watch?v=RecipeB'))
+      .toBe('https://youtube.com/watch?v=RecipeB');
+    expect(canonicalizeUrl('https://example.com/Recipe?id=AbC&lang=fr&utm=share'))
+      .toBe('https://example.com/Recipe?id=AbC&lang=fr');
+    expect(canonicalizeUrl('https://example.com/Recipe?id=AbC')).not.toBe(canonicalizeUrl('https://example.com/Recipe?id=abc'));
+  });
+
+  it('does not classify lookalike hosts as social sources', () => {
+    expect(detectPlatform('https://evilinstagram.com/reel/abc')).toBe('web');
+    expect(detectPlatform('https://instagram.com.evil.example/reel/abc')).toBe('web');
+    expect(detectPlatform('https://pinterest.evil.example/pin/abc')).toBe('web');
   });
 
   it('canonicalizeUrl is idempotent', () => {

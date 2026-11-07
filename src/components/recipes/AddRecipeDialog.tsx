@@ -95,6 +95,8 @@ interface AddRecipeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRecipeAdded?: (recipe: Recipe) => void;
+  /** V10 routes send external links through the canonical import inbox. */
+  allowLinkImport?: boolean;
   /**
    * Pre-fill the form from a canonical ImportedRecipeDraft (PRP-220.08).
    * Used by the Inbox flow (PRP-220.12) to hand over an extracted draft
@@ -103,7 +105,7 @@ interface AddRecipeDialogProps {
   initialDraft?: ImportedRecipeDraft;
 }
 
-const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: AddRecipeDialogProps) => {
+const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allowLinkImport = true }: AddRecipeDialogProps) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuthSessionOptional();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -569,22 +571,22 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
         <fieldset disabled={loading || pendingSave} className="min-w-0">
         {/* Tabs pour différents modes d'ajout (pattern Cipher) */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-4">
+          <TabsList className={`grid w-full ${allowLinkImport ? 'grid-cols-5' : 'grid-cols-3'} mb-4`}>
             <TabsTrigger value="manual" className="text-xs">
               Manuel
             </TabsTrigger>
-            <TabsTrigger value="url" className="text-xs">
+            {allowLinkImport && <TabsTrigger value="url" className="text-xs">
               URL
-            </TabsTrigger>
+            </TabsTrigger>}
             <TabsTrigger value="voice" className="text-xs">
               Vocal
             </TabsTrigger>
             <TabsTrigger value="scan" className="text-xs">
               Scanner
             </TabsTrigger>
-            <TabsTrigger value="social" className="text-xs">
+            {allowLinkImport && <TabsTrigger value="social" className="text-xs">
               Social
-            </TabsTrigger>
+            </TabsTrigger>}
           </TabsList>
           
           {/* Mode manuel */}

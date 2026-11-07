@@ -75,7 +75,7 @@ describe('ImportActions', () => {
     );
     expect(screen.getByRole('link', { name: /Voir la recette/ })).toHaveAttribute(
       'href',
-      '/recipes/rec-42'
+      '/kitchen/recipes/rec-42?source=recipes'
     );
   });
 

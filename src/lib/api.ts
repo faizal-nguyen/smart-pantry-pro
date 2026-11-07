@@ -104,7 +104,7 @@ export async function apiPost<T = unknown>(path: string, body?: unknown, options
   return value;
 }
 
-export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>, options?: { expectedUserId?: string }): Promise<T> {
+export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
   const url = new URL(`${resolveBase()}${path}`, window.location.origin);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -113,6 +113,7 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
   }
   const res = await fetch(url.pathname + url.search, {
     method: 'GET',
+    signal: options?.signal,
     headers: { ...(await authHeader(options?.expectedUserId)) },
   });
   const value = await unwrap<T>(res);
@@ -120,9 +121,10 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
   return value;
 }
 
-export async function apiPatch<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string }): Promise<T> {
+export async function apiPatch<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
   const res = await fetch(`${resolveBase()}${path}`, {
     method: 'PATCH',
+    signal: options?.signal,
     headers: {
       'Content-Type': 'application/json',
       ...(await authHeader(options?.expectedUserId)),

@@ -6,8 +6,6 @@
  * `apiPost / apiGet / apiPatch` helpers (PRP-220.02) so the user's
  * Supabase JWT is automatically attached.
  */
-import type { ImportedRecipeDraft } from '@smart/shared';
-
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 
 import type {
@@ -23,6 +21,7 @@ import type {
   SaveRequest,
   SaveResponse,
   SocialImport,
+  ReviewDraftResponse,
 } from './types';
 
 const BASE = '/imports/social';
@@ -58,12 +57,16 @@ export const importsApi = {
     return apiPost<ExtractResponse>(`${BASE}/${id}/extract`, body);
   },
 
-  save(id: string, body: SaveRequest = {}) {
-    return apiPost<SaveResponse>(`${BASE}/${id}/save`, body);
+  save(id: string, body: SaveRequest = {}, expectedUserId?: string, signal?: AbortSignal) {
+    return apiPost<SaveResponse>(`${BASE}/${id}/save`, body, { expectedUserId, signal });
   },
 
-  getCurrentDraft(id: string) {
-    return apiGet<CurrentDraftResponse>(`${BASE}/${id}/current-draft`);
+  review(id: string, body: SaveRequest = {}, expectedUserId?: string, signal?: AbortSignal) {
+    return apiPost<ReviewDraftResponse>(`${BASE}/${id}/review`, body, { expectedUserId, signal });
+  },
+
+  getCurrentDraft(id: string, expectedUserId?: string, signal?: AbortSignal) {
+    return apiGet<CurrentDraftResponse>(`${BASE}/${id}/current-draft`, undefined, { expectedUserId, signal });
   },
 
   // PRP-220.19: counts + quota in one round-trip.

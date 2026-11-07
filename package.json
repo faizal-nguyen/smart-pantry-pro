@@ -97,7 +97,10 @@
     "test:assistant:memory:db": "python3 scripts/test-assistant-memory-thread-db.py",
     "audit:v10:memory": "node --import tsx scripts/audit-v10-memory.ts",
     "test:v10:ui": "vite --config scripts/vite-v10-fixture.config.ts",
-    "benchmark:v10:models": "node --import tsx scripts/benchmark-v10-models.ts"
+    "benchmark:v10:models": "node --import tsx scripts/benchmark-v10-models.ts",
+    "test:v10:03f:api": "jest -c apps/api/jest.unit.config.cjs --runInBand --testPathPattern \"Discovery|discovery|SocialImport|RecipeExtractionService|PlatformAdapters|saveImportedDraftAsRecipe|canonicalUrl|sourceHash|ThumbnailSnapshot|imports.wiring\" --no-coverage",
+    "test:v10:03f:client": "jest --runInBand --testPathPattern \"discovery.*v10.test|draft-form.v10.test|recipes-discovery.v10.test|recipes-import-canonical.v10.test\" --no-coverage",
+    "test:v10:03f:db": "python3 scripts/test-v10-discovery-db.py"
   },
   "dependencies": {
     "@deepgram/sdk": "^3.13.0",

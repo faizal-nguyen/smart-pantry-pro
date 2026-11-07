@@ -81,6 +81,27 @@ function makeFetchOk(body: Buffer) {
 }
 
 describe('ThumbnailSnapshotService', () => {
+  it('does not download, upload, or invent copy rights from a public preview URL', async () => {
+    const insertCalls: InsertCall[] = [];
+    const uploadCalls: Array<{ key: string; buffer: Buffer; contentType: string }> = [];
+    const fetchImpl = makeFetchOk(PNG_1x1);
+    const service = new ThumbnailSnapshotService(makeUserClient(insertCalls) as any,
+      makeAdminClient(uploadCalls, []) as any, { fetchImpl: fetchImpl as any });
+    expect(await service.snapshot({ userId: 'user-1', importId: 'import-1', remoteUrl: 'https://cdn.example.com/preview.png' })).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(uploadCalls).toHaveLength(0);
+    expect(insertCalls).toHaveLength(0);
+  });
+
+  it('requires a concrete copy basis, even when an embed label is supplied', async () => {
+    const fetchImpl = makeFetchOk(PNG_1x1);
+    const service = new ThumbnailSnapshotService(makeUserClient([]) as any,
+      makeAdminClient([], []) as any, { fetchImpl: fetchImpl as any });
+    expect(await service.snapshot({ userId: 'user-1', importId: 'import-1', remoteUrl: 'https://cdn.example.com/preview.png',
+      rights: { status: 'licensed', basis: ' ', copyAllowed: true } })).toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('persists a fetched PNG as a thumbnail_snapshot media asset', async () => {
     const insertCalls: InsertCall[] = [];
     const uploadCalls: Array<{ key: string; buffer: Buffer; contentType: string }> = [];
@@ -93,6 +114,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://scontent.cdninstagram.com/t/og.jpg?oh=abc&oe=def',
@@ -110,8 +132,9 @@ describe('ThumbnailSnapshotService', () => {
       import_id: 'import-1',
       kind: 'thumbnail',
       origin: 'thumbnail_snapshot',
-      rights_status: 'platform_embed',
-      rights_basis: null,
+      rights_status: 'licensed',
+      rights_basis: 'licensed',
+      metadata: expect.objectContaining({ copyPermissionBasis: 'Creator allows preview storage' }),
       source_url: 'https://www.instagram.com/reel/DW1P7ooCGeq',
       mime_type: 'image/png',
       storage_provider: 'supabase',
@@ -128,6 +151,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.tiktok.com/foo.jpg',
@@ -149,6 +173,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'http://169.254.169.254/latest/meta-data/',
@@ -171,6 +196,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.example.com/expired.jpg',
@@ -192,6 +218,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.example.com/huge.jpg',
@@ -213,6 +240,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.example.com/foo.jpg',
@@ -234,6 +262,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.example.com/og.png',
@@ -257,6 +286,7 @@ describe('ThumbnailSnapshotService', () => {
     );
 
     const result = await service.snapshot({
+      rights: { status: 'licensed', basis: 'Creator allows preview storage', copyAllowed: true },
       userId: 'user-1',
       importId: 'import-1',
       remoteUrl: 'https://cdn.example.com/og.png',

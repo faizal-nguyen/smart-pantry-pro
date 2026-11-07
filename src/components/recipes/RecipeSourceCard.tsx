@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { PlatformIcon, platformLabel, type SourcePlatform } from './PlatformIcon';
+import { detectPlatform } from '@/services/recipe-import/helpers/url';
+import { safeRecipeSourceUrl } from '@/lib/recipeLinks';
 
 /**
  * The shape this card consumes is the legacy `recipes` row enriched
@@ -47,12 +49,7 @@ const LOW_CONFIDENCE_THRESHOLD = 0.6;
  */
 function inferPlatformFromUrl(url: string | null | undefined): SourcePlatform {
   if (!url) return 'unknown';
-  const lower = url.toLowerCase();
-  if (lower.includes('instagram.com')) return 'instagram';
-  if (lower.includes('tiktok.com')) return 'tiktok';
-  if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'youtube';
-  if (lower.includes('pinterest.')) return 'pinterest';
-  return 'web';
+  return detectPlatform(url);
 }
 
 /**
@@ -69,14 +66,15 @@ function inferPlatformFromUrl(url: string | null | undefined): SourcePlatform {
  */
 export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, className }) => {
   const rawPlatform = (recipe.source_platform ?? null) as SourcePlatform | string | null;
+  const sourceUrl = safeRecipeSourceUrl(recipe.source_url);
   // Hide only when both signals are missing. If we have a URL alone
   // (seeded rows, legacy imports before PRP-220.16), infer and show.
-  if ((!rawPlatform || rawPlatform === 'manual') && !recipe.source_url) return null;
+  if ((!rawPlatform || rawPlatform === 'manual') && !sourceUrl) return null;
 
   const platform: SourcePlatform =
     rawPlatform && rawPlatform !== 'manual'
       ? (rawPlatform as SourcePlatform)
-      : inferPlatformFromUrl(recipe.source_url ?? null);
+      : inferPlatformFromUrl(sourceUrl);
 
   const meta = recipe.source_metadata ?? {};
   const confidence = typeof meta.confidence === 'number' ? meta.confidence : null;
@@ -106,11 +104,11 @@ export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, clas
           <p className="text-sm text-muted-foreground italic">« {meta.originalTitle} »</p>
         )}
 
-        {recipe.source_url && (
+        {sourceUrl && (
           <div>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" className="min-h-11" asChild>
               <a
-                href={recipe.source_url}
+                href={sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
                 aria-label={`Voir la source originale sur ${platformLabel(platform)}`}
@@ -139,16 +137,17 @@ export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, clas
 
 function renderAuthor(meta: NonNullable<RecipeSourceLike['source_metadata']>): React.ReactNode {
   const { authorName, authorHandle, authorUrl } = meta;
+  const safeAuthorUrl = safeRecipeSourceUrl(authorUrl);
   if (!authorName && !authorHandle) return null;
   const display = authorName ?? authorHandle ?? '';
   const handle = authorHandle && authorHandle !== authorName ? ` (@${authorHandle})` : '';
 
-  if (authorUrl) {
+  if (safeAuthorUrl) {
     return (
       <p className="text-sm">
         Par{' '}
         <a
-          href={authorUrl}
+          href={safeAuthorUrl}
           target="_blank"
           rel="noopener noreferrer nofollow"
           className="font-medium underline underline-offset-2"

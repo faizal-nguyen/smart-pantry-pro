@@ -97,10 +97,11 @@ export interface InsertDraftInput {
   aiInputTokens?: number;
   aiOutputTokens?: number;
   costUsdEstimate?: number;
+  expectedRevision?: number;
 }
 
 export class SocialImportRepository {
-  constructor(private readonly client: SupabaseClient<any, any, any>) {}
+  constructor(private readonly client: SupabaseClient) {}
 
   /**
    * Insert a captured row. Caller MUST handle the `23505` unique
@@ -189,6 +190,14 @@ export class SocialImportRepository {
     return (data as SocialImportRow | null) ?? null;
   }
 
+  /** Durable, owned receipt used after a lost save response. */
+  async findSavedRecipeId(userId: string, importId: string): Promise<string | null> {
+    const { data, error } = await this.client.from('recipes').select('id')
+      .eq('user_id', userId).eq('import_id', importId).maybeSingle();
+    if (error) throw error;
+    return data?.id ?? null;
+  }
+
   async patch(
     userId: string,
     id: string,
@@ -240,66 +249,47 @@ export class SocialImportRepository {
     fields: ImportLifecycleFields
   ): Promise<SocialImportRow | null> {
     if (Object.keys(fields).length === 0) return this.findById(userId, importId);
-    const { data, error } = await this.client
+    let query = this.client
       .from('social_recipe_imports')
       .update(fields)
       .eq('user_id', userId)
-      .eq('id', importId)
+      .eq('id', importId);
+    const preserveTerminal = fields.status !== undefined && !['saved', 'archived'].includes(fields.status);
+    if (preserveTerminal) query = query.not('status', 'in', '(saved,archived)');
+    const { data, error } = await query
       .select('*')
       .maybeSingle();
     if (error) throw error;
+    if (!data && preserveTerminal) {
+      const current = await this.findById(userId, importId);
+      if (current && ['saved', 'archived'].includes(current.status)) return current;
+    }
     return (data as SocialImportRow | null) ?? null;
   }
 
   /**
-   * Persist a new extracted draft as the current version. Two writes
-   * (mark previous as not-current; insert new with version+1). Wrapped
-   * in a try/catch that compensates for a partial failure by deleting
-   * the just-inserted draft if the un-flag step throws — the partial
-   * UNIQUE INDEX `idx_ird_one_current_per_import` keeps the invariant
-   * but we still want a clean error path.
+   * Persist a new draft using the atomic, owner-scoped RPC. Its row
+   * lock and current-version constraint protect concurrent replacements.
    */
   async insertNewDraft(input: InsertDraftInput): Promise<ImportedRecipeDraftRow> {
-    // Compute the next version number. Best-effort race-safe: if two
-    // extractions land within the same millisecond, both get the same
-    // version, the partial unique index forces one of them to fail,
-    // and the loser sees a 23505 - which the service surfaces as a
-    // retryable error.
-    const { data: existing } = await this.client
-      .from('imported_recipe_drafts')
-      .select('version')
-      .eq('import_id', input.importId)
-      .order('version', { ascending: false })
-      .limit(1);
-    const nextVersion = existing && existing.length > 0 ? (existing[0].version as number) + 1 : 1;
-
-    // Mark previous current draft as not-current (best-effort: there
-    // might not be one).
-    const { error: clearErr } = await this.client
-      .from('imported_recipe_drafts')
-      .update({ is_current: false })
-      .eq('import_id', input.importId)
-      .eq('is_current', true);
-    if (clearErr) throw clearErr;
-
-    const { data, error } = await this.client
-      .from('imported_recipe_drafts')
-      .insert({
-        import_id: input.importId,
-        user_id: input.userId,
-        draft_json: input.draftJson,
-        version: nextVersion,
-        is_current: true,
-        source_extraction_method: input.sourceExtractionMethod ?? null,
-        ai_model: input.aiModel ?? null,
-        ai_input_tokens: input.aiInputTokens ?? null,
-        ai_output_tokens: input.aiOutputTokens ?? null,
-        cost_usd_estimate: input.costUsdEstimate ?? null,
-      })
-      .select('*')
-      .single();
+    // One transaction: lock the owned import, check the revision, replace
+    // its current draft. Failure leaves the previous draft current.
+    const { data, error } = await this.client.rpc('replace_social_import_draft', {
+      p_import_id: input.importId,
+      p_expected_revision: input.expectedRevision ?? null,
+      p_draft_json: input.draftJson,
+      p_source_extraction_method: input.sourceExtractionMethod ?? null,
+      p_ai_model: input.aiModel ?? null,
+      p_ai_input_tokens: input.aiInputTokens ?? null,
+      p_ai_output_tokens: input.aiOutputTokens ?? null,
+      p_cost_usd_estimate: input.costUsdEstimate ?? null,
+    });
     if (error) throw error;
-    return data as ImportedRecipeDraftRow;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row || row.user_id !== input.userId || row.import_id !== input.importId) {
+      throw new Error('replace_social_import_draft returned no owned draft');
+    }
+    return row as ImportedRecipeDraftRow;
   }
 
   async findCurrentDraft(importId: string): Promise<ImportedRecipeDraftRow | null> {

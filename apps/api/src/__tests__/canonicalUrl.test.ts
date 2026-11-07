@@ -15,10 +15,20 @@ describe('canonicalUrl (PRP-220.10)', () => {
   });
 
   describe('canonicalizeUrl', () => {
-    it('drops query and fragment', () => {
+    it('drops tracking and fragment but keeps functional recipe parameters', () => {
       expect(canonicalizeUrl('https://example.com/recipe?utm=foo&x=1#top')).toBe(
-        'https://example.com/recipe'
+        'https://example.com/recipe?x=1'
       );
+    });
+
+    it('keeps distinct YouTube video identities', () => {
+      expect(canonicalizeUrl('https://youtube.com/watch?v=abc&utm_source=share')).toBe('https://youtube.com/watch?v=abc');
+      expect(canonicalizeUrl('https://youtube.com/watch?v=def')).not.toBe(canonicalizeUrl('https://youtube.com/watch?v=abc'));
+    });
+
+    it('sorts meaningful parameters and rejects lookalike platform domains', () => {
+      expect(canonicalizeUrl('https://example.com/recipe?variant=2&id=3')).toBe('https://example.com/recipe?id=3&variant=2');
+      expect(detectPlatform('https://instagram.com.evil.example/reel/1')).toBe('web');
     });
 
     it('drops trailing slash', () => {

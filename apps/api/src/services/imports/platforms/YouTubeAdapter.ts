@@ -13,7 +13,7 @@
  */
 import { YoutubeTranscript } from 'youtube-transcript';
 
-import { canonicalizeUrl } from '../canonicalUrl.js';
+import { canonicalizeUrl, detectPlatform } from '../canonicalUrl.js';
 import { safeFetchJson } from './ssrfGuard.js';
 import type { PlatformAdapter, PlatformContext } from './types.js';
 
@@ -45,8 +45,7 @@ export class YouTubeAdapter implements PlatformAdapter {
   canHandle(url: string): boolean {
     try {
       const u = new URL(url);
-      const host = u.hostname.toLowerCase();
-      return host.endsWith('youtube.com') || host === 'youtu.be';
+      return ['http:', 'https:'].includes(u.protocol) && !u.username && !u.password && detectPlatform(url) === 'youtube';
     } catch {
       return false;
     }

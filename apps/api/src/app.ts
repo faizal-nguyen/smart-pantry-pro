@@ -33,6 +33,7 @@ import { parseVideoRecipeRouter } from './routes/parseVideoRecipe.js';
 import { createInstagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
+import { createRecipeDiscoveryRouter } from './routes/recipes.discovery.js';
 import { createMediaRouter } from './routes/media.js';
 import { createAssistantAgentRouter } from './routes/assistant.agent.js';
 import { createAssistantMemoryRouter } from './routes/assistant.memory.js';
@@ -101,6 +102,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
     })
   );
   app.use('/api/media', createMediaRouter(supabaseAdmin));
+  const discoveryRouter = createRecipeDiscoveryRouter(supabaseAdmin);
+  app.use('/api/recipes/discovery', discoveryRouter);
   // PRP-221: voice / text agent — sub-paths only, doesn't collide with
   // the chat-streaming `assistantRouter` mounted on '/' above.
   app.use('/api/assistant', createAssistantAgentRouter(supabaseAdmin));
@@ -126,9 +129,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
     '/api/v1/imports/social',
     createImportsSocialRouter(supabaseAdmin, {
       extractionService: defaultExtractionService(),
+      saveImportedDraftAsRecipe,
     })
   );
   app.use('/api/v1/media', createMediaRouter(supabaseAdmin));
+  app.use('/api/v1/recipes/discovery', discoveryRouter);
   app.use('/api/v1/assistant', createAssistantAgentRouter(supabaseAdmin));
   app.use('/api/v1/assistant', createAssistantMemoryRouter(supabaseAdmin));
 

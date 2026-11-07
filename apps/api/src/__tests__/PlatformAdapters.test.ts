@@ -38,6 +38,28 @@ afterEach(() => {
   delete process.env.YOUTUBE_API_KEY;
 });
 
+it.each([
+  [new InstagramAdapter(), 'instagram.com'],
+  [new TikTokAdapter(), 'tiktok.com'],
+  [new YouTubeAdapter(), 'youtube.com'],
+])('social adapters reject lookalike domains, credentials and non-HTTP schemes (%s)', (adapter, domain) => {
+  expect(adapter.canHandle(`https://www.${domain}/recipe`)).toBe(true);
+  for (const url of [`https://not${domain}/recipe`, `https://${domain}.evil.example/recipe`,
+    `ftp://${domain}/recipe`, `https://user:password@${domain}/recipe`]) {
+    expect(adapter.canHandle(url)).toBe(false);
+  }
+});
+
+it('Instagram failures never log the credential-bearing endpoint', async () => {
+  process.env.INSTAGRAM_OEMBED_TOKEN = 'mock-sensitive-token';
+  mockFetch(() => new Response('Provider failed', { status: 500 }));
+  const warnings = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  await new InstagramAdapter().fetchContext('https://www.instagram.com/p/example/');
+  expect(warnings).toHaveBeenCalled();
+  expect(JSON.stringify(warnings.mock.calls)).not.toContain('mock-sensitive-token');
+  expect(JSON.stringify(warnings.mock.calls)).not.toContain('access_token');
+});
+
 describe('SSRF guard', () => {
   it('blocks RFC1918, link-local, localhost, and AWS metadata', () => {
     expect(isAllowedFetchUrl('http://localhost/')).toBe(false);
