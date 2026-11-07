@@ -260,6 +260,22 @@ describe('ReadShoppingListHandler', () => {
   });
 });
 
+describe('ReadInventoryHandler (audit 2026-11-07)', () => {
+  const lot = (id: string, name: string, expiry: string | null) => ({ id, product_id: 'p-' + id, quantity: 1, unit: 'kg', expiry_date: expiry,
+    location: null, products: { id: 'p-' + id, name, category: 'frais', unit_type: 'kg', image_url: null } });
+  it('« qu’est-ce qui périme bientôt ? » also names what is already past its date', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+    const { client } = makeClient({ routes: { inventory: { data: [lot('a', 'Yaourt', day(-2)), lot('b', 'Lait', day(2)), lot('c', 'Riz', day(30))] } } });
+    const result = await new ReadInventoryHandler().execute(makeCtx(client), { near_expiry_days: 3 });
+    expect(result.result.items.map(i => i.product_name).sort()).toEqual(['Lait', 'Yaourt']);
+  });
+  it('a search looks beyond the 200 most recent rows', async () => {
+    const { client, calls } = makeClient({ routes: { inventory: { data: [lot('a', 'Riz', null)] } } });
+    await new ReadInventoryHandler().execute(makeCtx(client), { search: 'riz' });
+    expect(JSON.stringify(calls)).toContain('1000');
+  });
+});
+
 describe('ReadShoppingListHandler search', () => {
   it('« retire le lait »: search keeps the matching rows, accents and plurals aside', async () => {
     const row = (id: string, name: string) => ({ id, product_id: 'p-' + id, quantity: 1, is_purchased: false, priority: 1,

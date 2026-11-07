@@ -30,7 +30,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
-import { memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
+import { calendarDate, calendarWeekStart, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
 import { memoryModelToolResult } from './MemoryModelOutput.js';
 import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
@@ -81,6 +81,7 @@ const DEFAULT_MAX_TOOL_CALLS = 6;
 const DEFAULT_CONFIRMATION_TTL_MS = 5 * 60_000;
 
 const AGENT_SYSTEM_PROMPT = `You are Smart Pantry Pro's kitchen assistant. The user speaks to you in French (default) or English.
+In French, always use « tu » (Tutoie toujours l'utilisateur), never « vous ».
 
 You help manage their inventory, shopping list, recipes, and meal plan via tool calls.
 
@@ -228,6 +229,8 @@ export interface VoiceAgentOptions {
   maxToolCalls?: number;
   confirmationTtlMs?: number;
   systemPrompt?: string;
+  /** Clock for the date given to the model (tests). */
+  now?: () => Date;
   /** Default undo window for low/medium successful actions. */
   undoWindowMs?: number;
   /**
@@ -281,6 +284,7 @@ export class VoiceAgentService {
   private readonly maxToolCalls: number;
   private readonly undoWindowMs: number;
   private readonly systemPrompt: string;
+  private readonly now: () => Date;
   private readonly confirmationTtlMs: number;
   /** PRP-223 PR3 — optional memory persistence; null disables conversation logging. */
   private readonly memoryService: import('./MemoryService.js').MemoryService | null;
@@ -307,6 +311,7 @@ export class VoiceAgentService {
     this.confirmationTtlMs = options.confirmationTtlMs ?? DEFAULT_CONFIRMATION_TTL_MS;
     this.undoWindowMs = options.undoWindowMs ?? DEFAULT_UNDO_WINDOW_MS;
     this.systemPrompt = options.systemPrompt ?? AGENT_SYSTEM_PROMPT;
+    this.now = options.now ?? (() => new Date());
     this.memoryService = options.memoryService ?? null;
     this.contextBuilder = options.contextBuilder ?? null;
     this.memoryExtractor = options.memoryExtractor ?? null;
@@ -405,7 +410,8 @@ export class VoiceAgentService {
     // A scope of reads only (the « Aide » window) can change nothing: the model
     // must say so and point to the conversations page, never offer the change.
     const readOnly = tools.every(tool => tool.function.name === 'ask_clarification' || this.toolRegistry.get(tool.function.name).defaultRiskTier === 'read');
-    const basePrompt = readOnly ? `${this.systemPrompt}\n\n${READ_ONLY_SCOPE}` : this.systemPrompt;
+    // Without today's date the model invents a week for « demain soir » (audit 2026-11-07).
+    const basePrompt = `${readOnly ? `${this.systemPrompt}\n\n${READ_ONLY_SCOPE}` : this.systemPrompt}\n\n${todayContext(this.now())}`;
 
     // PRP-223 PR4 — enrich the system prompt with the user's memory
     // context (top memories, last summary, recent messages, session
@@ -467,7 +473,7 @@ export class VoiceAgentService {
         duration_ms:Date.now()-start,conversation_id:conversationId,memory_results:memoryResults,memory_revision:requestPolicy?.revision,history_floor:requestPolicy ? memoryHistoryFloor(requestPolicy) : undefined};
     }
     if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId)))
-      ai1 = { ...ai1, content: "Vos réglages ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.", tool_calls: [] };
+      ai1 = { ...ai1, content: "Tes réglages ont changé pendant cet échange. Relance ta demande pour utiliser tes choix actuels.", tool_calls: [] };
     let repaired = false;
     const outcomes = new Map<string, unknown>();
     const attemptedWrites = new Map<string, string>();
@@ -523,6 +529,7 @@ export class VoiceAgentService {
             // PRP-223 PR4 — keep the enriched system prompt on retry so
             // the fallback model sees the same memory context.
             { role: 'system', content: systemContent },
+            ...sessionTurns,
             { role: 'user', content: transcript },
             {
               role: 'assistant',
@@ -533,10 +540,11 @@ export class VoiceAgentService {
             },
           ];
           let ai2: AICompletionResponse;
-          try { ai2 = await this.callLLMSafe(invocation, 'culinary', retryMessages, tools.filter(t=>t.function.name===tc.name), providerGuard, 'argument_repair'); }
+          // Reformatting JSON needs no culinary model.
+          try { ai2 = await this.callLLMSafe(invocation, 'dialogue', retryMessages, tools.filter(t=>t.function.name===tc.name), providerGuard, 'argument_repair'); }
           catch { toolIssue=true; break; }
           if (this.memoryService && !sameMemoryPolicy(lastProviderPolicy, await this.memoryService.readPolicySafe(input.userId))) {
-            activeResponse = { ...ai2, content: 'Vos réglages ont changé pendant cet échange. Relancez votre demande.', tool_calls: [] };
+            activeResponse = { ...ai2, content: 'Tes réglages ont changé pendant cet échange. Relance ta demande.', tool_calls: [] };
             break;
           }
           activeResponse = ai2;
@@ -696,13 +704,14 @@ export class VoiceAgentService {
       // after a recipe tool, whose synthesis already runs.
       // Once a write was attempted, only the later text synthesis can run.
       const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
-      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool))) &&
+      // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe.
+      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
         followupUsed=true;
         const policy=this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const continuation=continuationFor(activeResponse,'dialogue',policy);
-        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+JSON.stringify(modelOutcome(call,policy)).slice(0,1500));
+        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+JSON.stringify(compactForModel(modelOutcome(call,policy))).slice(0,MODEL_RESULT_CHARS));
         const messages:AICompletionRequest['messages']=[
           {role:'system',content:systemContent},...aiMessages.slice(1),
           ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
@@ -768,7 +777,7 @@ export class VoiceAgentService {
             stillAdmitted(currentPolicy) ? currentPolicy : null)
             : recommendationModelContext(a.result, allowedProfileVersion) ?? a.result;
           // Tool arguments can contain private preferences. Results are enough.
-          return '• ' + a.tool + ' → ' + JSON.stringify(result).slice(0, 1500);
+          return '• ' + a.tool + ' → ' + JSON.stringify(compactForModel(result)).slice(0, MODEL_RESULT_CHARS);
         });
 
         // PRP-239 PR4 §10.3 — escalate to the quality model when a
@@ -883,11 +892,15 @@ export class VoiceAgentService {
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
     if (pending.length) message = synthesizeMessage(executed,pending);
     if (toolIssue) {
-      const outOfScope = [...outcomes.values()].some(outcome => (outcome as { status?: string } | null)?.status === 'forbidden_scope');
+      const statuses = [...outcomes.values()].map(outcome => (outcome as { status?: string; reason?: string } | null));
+      const outOfScope = statuses.some(outcome => outcome?.status === 'forbidden_scope');
+      const unavailable = statuses.some(outcome => outcome?.status === 'unknown_tool' || outcome?.reason === 'handler_unavailable');
       const changed = executed.some(action => action.risk_tier !== 'read') || pending.length > 0;
-      message = (outOfScope ? 'Une action n’est pas disponible sur cette page' : 'Une action n’a pas pu être préparée')
+      message = (outOfScope ? 'Une action n’est pas disponible sur cette page'
+        : unavailable ? 'Cette action n’est pas encore disponible' : 'Une action n’a pas pu être préparée')
         // Worded so the change-claim guard below does not read « a été modifié ».
-        + (changed ? '. ' + synthesizeMessage(executed, pending) : ' : je n’ai rien changé. Précise le produit et redis-le-moi.');
+        + (changed ? '. ' + synthesizeMessage(executed, pending)
+          : unavailable ? ' : je n’ai rien changé.' : ' : je n’ai rien changé. Précise le produit et redis-le-moi.');
     }
     if (unverified.length) message = 'Une action n’a pas pu être confirmée. Vérifie son résultat avant de la répéter. ' + synthesizeMessage(executed,pending);
     // A model can announce a change no write tool made ("J'ai ajouté…" after
@@ -898,7 +911,7 @@ export class VoiceAgentService {
     }
     let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
     let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
-    if (!canRecordResponse && !memoryOnly) message = 'Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
+    if (!canRecordResponse && !memoryOnly) message = 'Tes réglages ou tes souvenirs ont changé pendant cet échange. Relance ta demande pour utiliser tes choix actuels.';
 
     let summaryResult: SummaryResult = { status: 'disabled', costUsd: 0 };
     if (this.memoryService && conversationId && canRecordResponse && lastProviderPolicy?.saveHistory) {
@@ -910,7 +923,7 @@ export class VoiceAgentService {
     if(this.memoryService) {
       currentAfterProvider=await this.memoryService.readPolicySafe(input.userId);
       canRecordResponse=sameMemoryPolicy(lastProviderPolicy,currentAfterProvider);
-      if(!canRecordResponse&&!memoryOnly) message='Vos réglages ou vos souvenirs ont changé pendant cet échange. Relancez votre demande pour utiliser les choix actuels.';
+      if(!canRecordResponse&&!memoryOnly) message='Tes réglages ou tes souvenirs ont changé pendant cet échange. Relance ta demande pour utiliser tes choix actuels.';
     }
     if(onProgress&&message) onProgress({type:'delta',text:message});
 
@@ -1051,16 +1064,24 @@ export class VoiceAgentService {
       payload = this.signer.verify(input.confirmationToken, input.userId);
     } catch (err) {
       if (err instanceof ConfirmationTokenError) {
-        const code: VoiceAgentError['code'] =
-          err.code === 'EXPIRED' ? 'CONFIRMATION_EXPIRED' : 'CONFIRMATION_INVALID';
-        throw new VoiceAgentError(code, err.code);
+        // The client shows this text as is.
+        if (err.code === 'EXPIRED') throw new VoiceAgentError('CONFIRMATION_EXPIRED', 'Cette confirmation date de plus de 5 minutes : redis-moi ta demande pour la préparer à nouveau.');
+        throw new VoiceAgentError('CONFIRMATION_INVALID', 'Cette confirmation n’est plus valable : redis-moi ta demande.');
       }
       throw err;
     }
 
-    const rows = await this.writer.fetchPlanned(input.userId, payload.actionLogIds);
+    const rows = await this.writer.claimPlanned(input.userId, payload.actionLogIds);
     const executed: ExecutedActionDescriptor[] = [];
     const failed: Array<{ action_id: string; tool: string; error_code: string }> = [];
+    // Rows another confirmation already took: report what that run did instead of « 0 exécutée ».
+    const claimed = new Set(rows.map(row => row.id));
+    const earlier = await this.writer.fetchByIds(input.userId, payload.actionLogIds.filter(id => !claimed.has(id)));
+    for (const row of earlier) {
+      if (row.status === 'executed') executed.push({ action_id: row.id, step_seq: row.step_seq, tool: row.tool, args: row.tool_args,
+        result: row.result, reversible: Boolean(row.reversible_action), undo_expires_at: row.undo_expires_at, risk_tier: row.risk_tier });
+      else if (row.status === 'failed') failed.push({ action_id: row.id, tool: row.tool, error_code: row.error_code ?? 'EXECUTION_FAILED' });
+    }
 
     for (const row of rows) {
       try {
@@ -1248,6 +1269,32 @@ const CHANGE_CLAIM = /(?:\bj['’]ai|\bje viens d['’]|\bc['’]est|\b(?:a|ont|
 const NO_CHANGE_MESSAGE = 'Je n’ai encore rien modifié. Redis-moi ce que tu veux ajouter ou changer, par exemple « ajoute 2 kg de pommes de terre au stock ».';
 const READ_ONLY_MESSAGE = 'Je n’ai rien modifié : cette fenêtre d’aide peut seulement consulter ton stock, ta liste et tes recettes. Pour ajouter ou changer quelque chose, touche « Ouvrir les conversations » et redis-le-moi.';
 const READ_ONLY_SCOPE = `READ-ONLY WINDOW: here you can only read (stock, shopping list, recipes, memories). Never offer, promise or announce a change. If the user asks to add, remove, update or mark anything, answer in one short sentence, in their language, that this help window can only consult and that the « Ouvrir les conversations » button opens the assistant that makes changes.`;
+
+// Past cooking or a meal to plan: the recipe tool only finds the id, a write must follow.
+// \b ignores accented letters (« cuisiné »), hence the \p{L} lookarounds.
+const RECIPE_ACTION = new RegExp(['(?:j[\'’]ai|on a|nous avons)\\s+(?:cuisiné|préparé|fait|mangé|terminé)',
+  '(?:mets|ajoute|place|planifie|programme|prévois)[^.?!]{0,60}(?:menu|planning|programme|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain)',
+  'supprim\\p{L}*[^.?!]{0,40}recette'].map(part => `(?<![\\p{L}\\p{N}])${part}(?![\\p{L}\\p{N}])`).join('|'), 'iu');
+
+function todayContext(now: Date): string {
+  const label = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  return `TODAY: Aujourd’hui : ${label} (${calendarDate(now)}, Europe/Paris). Demain : ${calendarDate(new Date(now.getTime() + 86400000))}. `
+    + `Semaine en cours : week_start ${calendarWeekStart(now)} (day_of_week 0 = lundi … 6 = dimanche). Use these dates for the meal plan; never guess a week.`;
+}
+
+// Tool results reach the model as text. Stock and shopping rows keep only what it
+// needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
+const MODEL_RESULT_CHARS = 6000;
+const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'expiry_date', 'days_to_expiry', 'is_purchased', 'location'];
+function compactForModel(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const object = value as Record<string, unknown>;
+  if (Array.isArray(object.items) && object.items.every(item => item && typeof item === 'object' && 'product_name' in (item as object))) {
+    return { ...object, total: object.items.length, items: (object.items as Array<Record<string, unknown>>).slice(0, 80)
+      .map(item => Object.fromEntries(ROW_FIELDS.filter(key => item[key] !== undefined && item[key] !== null).map(key => [key, item[key]]))) };
+  }
+  return 'result' in object ? { ...object, result: compactForModel(object.result) } : object;
+}
 
 /** « 200 g » alone cannot be confirmed: name the rows a write targets, from the reads of the same turn. */
 function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[]): T[] {

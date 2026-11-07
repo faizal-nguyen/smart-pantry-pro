@@ -155,7 +155,8 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
 
     if (args.category) q = q.eq('products.category', args.category);
 
-    const { data, error } = await q.order('updated_at', { ascending: false }).limit(200);
+    // The search filter runs in memory: look further than the 200 most recent rows.
+    const { data, error } = await q.order('updated_at', { ascending: false }).limit(args.search ? 1000 : 200);
     if (error) throw error;
     // Accent-, case- and plural-insensitive, so "pommes de terre" finds "Pomme de terre".
     const search = args.search ? nameKey(args.search) : '';
@@ -187,8 +188,8 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
       args.near_expiry_days !== undefined
         ? rows.filter(
             (r) =>
+              // Already past its date is the most urgent « bientôt ».
               r.days_to_expiry !== null &&
-              r.days_to_expiry >= 0 &&
               r.days_to_expiry <= args.near_expiry_days!
           )
         : rows;

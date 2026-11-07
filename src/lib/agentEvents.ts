@@ -90,18 +90,8 @@ const TOOL_TABLES: Record<string, AgentAffectedTable[]> = {
   update_response_style: ['assistant_memory_items'],
   record_recipe_feedback: ['cooking_journal'],
 
-  // Meta — ask_clarification + summarize_session don't write
+  // Meta — ask_clarification doesn't write
   ask_clarification: [],
-  summarize_session: [],
-  undo_action: [
-    // Undo's actual effect depends on the inverse tool — we err on the
-    // side of broad invalidation since undo can target anything.
-    'inventory',
-    'shopping_list',
-    'recipes',
-    'recipe_ingredients',
-    'meal_plan_entries',
-  ],
 
   // Internal handlers (only invoked through reversible_action)
   _remove_inventory_items: ['inventory'],

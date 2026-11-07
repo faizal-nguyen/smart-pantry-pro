@@ -201,16 +201,7 @@ export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForConte
 
 // ---- READ: Product Intelligence (PRP-225 PR5) -----------------------
 
-const searchProductCandidatesArgs = z.object({
-  query: z.string().min(1).max(200),
-  limit: z.number().int().min(1).max(10).optional(),
-});
-export type SearchProductCandidatesArgs = z.infer<typeof searchProductCandidatesArgs>;
 
-const resolveProductByBarcodeArgs = z.object({
-  barcode: z.string().min(1).max(64),
-});
-export type ResolveProductByBarcodeArgs = z.infer<typeof resolveProductByBarcodeArgs>;
 
 // ---- LOW write tools -------------------------------------------------
 
@@ -244,18 +235,7 @@ export type AddRecipeToMealPlanArgs = z.infer<typeof addRecipeToMealPlanArgs>;
 
 // ---- LOW: Product Intelligence (PRP-225 PR5) ------------------------
 
-const enrichProductArgs = z.object({
-  product_id: z.string().uuid(),
-});
-export type EnrichProductArgs = z.infer<typeof enrichProductArgs>;
 
-const confirmProductCandidateArgs = z.object({
-  raw_input: z.string().min(1).max(500),
-  product_id: z.string().uuid(),
-  /** Optional alias to memorise for future resolutions. */
-  alias: z.string().min(1).max(200).optional(),
-});
-export type ConfirmProductCandidateArgs = z.infer<typeof confirmProductCandidateArgs>;
 
 // ---- MEDIUM write tools ----------------------------------------------
 
@@ -327,13 +307,7 @@ const askClarificationArgs = z.object({
 });
 export type AskClarificationArgs = z.infer<typeof askClarificationArgs>;
 
-const summarizeSessionArgs = z.object({});
-export type SummarizeSessionArgs = z.infer<typeof summarizeSessionArgs>;
 
-const undoActionArgs = z.object({
-  action_id: z.string().uuid(),
-});
-export type UndoActionArgs = z.infer<typeof undoActionArgs>;
 
 // ---- PRP-223 PR4 memory READ tools ----------------------------------
 
@@ -585,39 +559,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     reversible: false,
   },
   // PRP-225 PR5 — Product Intelligence read tools.
-  {
-    name: 'search_product_candidates',
-    description:
-      'Search local + cached OpenFoodFacts products by free-text. Use when the user mentions a product the assistant might not recognise and you want candidates before any write action. Read-only ; no inventory side effects.',
-    schema: searchProductCandidatesArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['query'],
-      properties: {
-        query: { type: 'string', minLength: 1, maxLength: 200 },
-        limit: { type: 'integer', minimum: 1, maximum: 10, description: 'default 5' },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'read',
-    reversible: false,
-  },
-  {
-    name: 'resolve_product_by_barcode',
-    description:
-      'Resolve a scanned barcode to a single product (local first, then OpenFoodFacts). Returns matched / created / ambiguous / not_found. Read-only ; never writes inventory.',
-    schema: resolveProductByBarcodeArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['barcode'],
-      properties: {
-        barcode: { type: 'string', minLength: 1, maxLength: 64 },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'read',
-    reversible: false,
-  },
 
   // ===== LOW write =====
   {
@@ -728,40 +669,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     reversible: true,
   },
   // PRP-225 PR5 — Product Intelligence write tools.
-  {
-    name: 'enrich_product',
-    description:
-      'Fetch fresh OpenFoodFacts data for a product (brand, image, nutrition, allergens). Stores the result on the product row and is reversible only in the sense that the prior state is recoverable from the cache — no destructive change.',
-    schema: enrichProductArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['product_id'],
-      properties: {
-        product_id: { type: 'string', format: 'uuid' },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'confirm_product_candidate',
-    description:
-      'Confirm that a free-text input the user said earlier maps to a known product id, and optionally record an alias so future resolutions skip the clarification step.',
-    schema: confirmProductCandidateArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['raw_input', 'product_id'],
-      properties: {
-        raw_input: { type: 'string', minLength: 1, maxLength: 500 },
-        product_id: { type: 'string', format: 'uuid' },
-        alias: { type: 'string', minLength: 1, maxLength: 200 },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
 
   // ===== MEDIUM write =====
   {
@@ -928,30 +835,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
           maxItems: 5,
           items: { type: 'string', maxLength: 200 },
         },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'summarize_session',
-    description: 'Return a short summary of all actions taken in the current session.',
-    schema: summarizeSessionArgs,
-    jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'undo_action',
-    description:
-      'Undo a previous action by its assistant_action_log id. Only works within the 15-minute window and on actions marked reversible.',
-    schema: undoActionArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['action_id'],
-      properties: {
-        action_id: { type: 'string', format: 'uuid' },
       },
       additionalProperties: false,
     },

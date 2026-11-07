@@ -49,19 +49,16 @@ const TOOL_LABELS: Record<string, string> = {
   add_recipe_to_meal_plan: 'Ajouter au menu',
   delete_recipe: 'Supprimer une recette',
   import_recipe_from_url: 'Importer une recette',
-  enrich_product: 'Compléter un produit',
-  confirm_product_candidate: 'Confirmer un produit',
   remember_preference: 'Mémoriser une préférence',
   forget_memory: 'Oublier un souvenir',
   update_response_style: 'Adapter le style de réponse',
   record_recipe_feedback: 'Noter une recette',
-  undo_action: 'Annuler une action',
 };
 function toolLabel(tool: string): string {
   return TOOL_LABELS[tool] ?? tool.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
 }
 // A read, or a question back, changed nothing: listing it as « exécutée » is noise.
-const NOT_A_CHANGE = new Set(['ask_clarification', 'summarize_session']);
+const NOT_A_CHANGE = new Set(['ask_clarification']);
 const isChange = (action: ExecutedAction) => action.risk_tier !== 'read' && !NOT_A_CHANGE.has(action.tool);
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 
