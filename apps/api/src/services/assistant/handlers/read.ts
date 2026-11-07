@@ -12,7 +12,7 @@
  * nested.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ingredientNameTokens } from '@smart/shared';
+import { calendarWeekStart, ingredientNameTokens } from '@smart/shared';
 
 import type {
   ToolHandler,
@@ -155,7 +155,8 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
 
     if (args.category) q = q.eq('products.category', args.category);
 
-    const { data, error } = await q.order('updated_at', { ascending: false }).limit(200);
+    // The search filter runs in memory: look further than the 200 most recent rows.
+    const { data, error } = await q.order('updated_at', { ascending: false }).limit(args.search ? 1000 : 200);
     if (error) throw error;
     // Accent-, case- and plural-insensitive, so "pommes de terre" finds "Pomme de terre".
     const search = args.search ? nameKey(args.search) : '';
@@ -187,8 +188,8 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
       args.near_expiry_days !== undefined
         ? rows.filter(
             (r) =>
+              // Already past its date is the most urgent « bientôt ».
               r.days_to_expiry !== null &&
-              r.days_to_expiry >= 0 &&
               r.days_to_expiry <= args.near_expiry_days!
           )
         : rows;
@@ -496,7 +497,7 @@ export class ReadMealPlanHandler
       .from('weekly_meal_plans')
       .select('id, user_id, week_start_date, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings)')
       .eq('user_id', ctx.userId)
-      .eq('week_start_date', args.week_start)
+      .eq('week_start_date', args.week_start ?? calendarWeekStart(`${args.date}T12:00:00Z`))
       .maybeSingle();
     if (error) {
       // weekly_meal_plans may not exist in some envs (cf. types.augmented).

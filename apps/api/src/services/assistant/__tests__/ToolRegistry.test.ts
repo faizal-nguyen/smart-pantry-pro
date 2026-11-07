@@ -7,9 +7,23 @@ import {
 import { TOOL_SPECS } from '../schemas/tools.js';
 
 describe('ToolRegistry', () => {
-  it('exposes all 21 tool specs from the catalog', () => {
-    expect(TOOL_SPECS.length).toBe(21);
-    expect(defaultToolRegistry.list().length).toBe(21);
+  // The exact catalog the model sees: a tool added or removed must be a deliberate change.
+  const CATALOG = ['read_inventory', 'read_shopping_list', 'read_recent_recipes', 'read_meal_plan', 'find_cookable_recipes',
+    'search_recipes', 'find_recipes_using_ingredient', 'suggest_recipes_for_context', 'add_inventory_items', 'add_shopping_items',
+    'mark_shopping_items_bought', 'unmark_shopping_items_bought', 'add_recipe_to_meal_plan', 'cook_recipe', 'consume_inventory_items',
+    'update_inventory_item', 'remove_shopping_items', 'delete_recipe', 'clear_shopping_list', 'clear_inventory_category',
+    'import_recipe_from_url', 'ask_clarification', 'read_user_memories', 'search_conversation_history', 'remember_preference',
+    'forget_memory', 'update_response_style', 'record_recipe_feedback'];
+  it('exposes exactly the tools the assistant can use', () => {
+    expect(TOOL_SPECS.map((s) => s.name)).toEqual(CATALOG);
+    expect(defaultToolRegistry.list()).toEqual(CATALOG);
+  });
+
+  it('offers no tool the model cannot complete (audit 2026-11-07)', () => {
+    // No handler was ever registered for the product tools, and undo_action /
+    // summarize_session need ids the model never sees.
+    for (const name of ['search_product_candidates', 'resolve_product_by_barcode', 'enrich_product', 'confirm_product_candidate',
+      'summarize_session', 'undo_action']) expect(defaultToolRegistry.has(name)).toBe(false);
   });
 
   it('rejects duplicate tool names at construction time', () => {
@@ -97,9 +111,9 @@ describe('ToolRegistry', () => {
   });
 
   describe('toOpenAITools', () => {
-    it('returns all 21 functions when no whitelist is given', () => {
+    it('returns every function when no whitelist is given', () => {
       const tools = defaultToolRegistry.toOpenAITools();
-      expect(tools.length).toBe(21);
+      expect(tools.length).toBe(TOOL_SPECS.length);
       expect(tools[0].type).toBe('function');
       expect(tools[0].function).toEqual(
         expect.objectContaining({

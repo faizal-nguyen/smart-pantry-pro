@@ -99,6 +99,14 @@ class MockWriter {
   async fetchPlanned(_userId: string, ids: readonly string[]) {
     return this.rows.filter((r) => ids.includes(r.id) && r.status === 'planned');
   }
+  async claimPlanned(_userId: string, ids: readonly string[]) {
+    const taken = this.rows.filter((r) => ids.includes(r.id) && r.status === 'planned');
+    for (const row of taken) row.status = 'executed';
+    return taken.map((r) => ({ ...r }));
+  }
+  async fetchByIds(_userId: string, ids: readonly string[]) {
+    return this.rows.filter((r) => ids.includes(r.id));
+  }
   async fetchById(_userId: string, id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
   }
@@ -555,7 +563,8 @@ describe('VoiceAgentService.handleRequest (text)', () => {
     // model after the tool succeeded and the original response had no
     // textual content).
     expect(aiSpy).toHaveBeenCalledTimes(3);
-    expect(aiSpy.mock.calls[1][0].model).toBe('gpt-4o');
+    // A JSON repair stays on the dialogue model (audit 2026-11-07).
+    expect(aiSpy.mock.calls[1][0].model).toBe('gpt-4o-mini');
     expect(aiSpy.mock.calls[2][0].model).toBe('gpt-4o-mini');
     expect(res.actions_executed).toHaveLength(1);
   });
@@ -1289,5 +1298,95 @@ describe('a command on an existing row reads its id first (prod case 2026-11-06 
     const response=await service.handleRequest({...input,text:'J’ai utilisé 200 g de riz'},makeCtx());
     expect(response.message).not.toMatch(/sur cette page/);
     expect(response.message).toMatch(/pas pu être préparée : je n’ai rien changé/);
+  });
+});
+
+describe('assistant reliability (audit 2026-11-07)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const};
+  const RECIPE='55555555-5555-4555-8555-555555555555';
+  type Step={content?:string;call?:{name:string;arguments:string}};
+  function scripted(steps:Step[]) {
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);const step=steps[requests.length-1] ?? {content:'fin'};
+      return {content:step.content ?? '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(step.call ? {tool_calls:[{id:'call-'+requests.length,...step.call}]} : {})};
+    }};
+    return {ai,requests};
+  }
+  function serviceAt(now:Date,ai:AICompletionClient,handlers:Record<string,ToolHandler>={},writer=new MockWriter()) {
+    const registry=new ToolHandlerRegistry();for(const [name,handler] of Object.entries(handlers)) registry.register(name,handler);
+    return new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,writer as unknown as ActionLogWriter,
+      new ConfirmationTokenSigner(SECRET),{modelConfig:benchmarkConfig('baseline'),now:()=>now});
+  }
+  it('the model knows today’s date in Paris, tomorrow and the week start, and is told to say « tu »',async()=>{
+    const {ai,requests}=scripted([{content:'ok'}]);
+    // 23:30 UTC on Saturday is already Sunday 00:30 in Paris.
+    await serviceAt(new Date('2026-11-07T23:30:00Z'),ai).handleRequest({...input,text:'Bonjour'},makeCtx());
+    const system=String(requests[0].messages[0].content);
+    expect(system).toContain('Aujourd’hui : dimanche 8 novembre 2026 (2026-11-08)');
+    // Tomorrow is already next week: a plain date, the server derives the week.
+    expect(system).toContain('Demain : lundi 9 novembre 2026 (2026-11-09)');
+    expect(system).toContain('Cette semaine : lundi 2026-11-02');
+    expect(system).toContain('dimanche 2026-11-08.');
+    expect(system).toContain('Semaine prochaine : lundi 2026-11-09');
+    expect(system).toMatch(/Tutoie/);
+  });
+  it('« J’ai cuisiné les pâtes carbonara »: the recipe found, the cook is prepared in the same turn',async()=>{
+    const {ai,requests}=scripted([{call:{name:'search_recipes',arguments:'{"query":"carbonara"}'}},
+      {call:{name:'cook_recipe',arguments:JSON.stringify({recipe_id:RECIPE})}},{content:'fin'}]);
+    const cook={execute:jest.fn()};
+    const response=await serviceAt(new Date(),ai,{search_recipes:{execute:async()=>({result:{recipes:[{id:RECIPE,name:'Pâtes carbonara'}]}})},cook_recipe:cook})
+      .handleRequest({...input,text:'J’ai cuisiné les pâtes carbonara'},makeCtx());
+    expect((requests[1].tools ?? []).map(t=>t.function.name)).toContain('cook_recipe');
+    expect(JSON.stringify(requests[1].messages)).toContain(RECIPE);
+    expect(response.actions_pending.map(a=>a.tool)).toEqual(['cook_recipe']);
+    expect(cook.execute).not.toHaveBeenCalled();
+  });
+  it('the model sees the whole stock, not the first 1 500 characters',async()=>{
+    const items=Array.from({length:40},(_,i)=>({id:`00000000-0000-4000-8000-${String(i).padStart(12,'0')}`,product_id:'p'+i,product_name:'Produit numéro '+i,
+      category:'épicerie',unit_type:'g',quantity:100+i,expiry_date:null,days_to_expiry:null,location:'placard',image_url:'https://example.test/'+'x'.repeat(80)}));
+    const {ai,requests}=scripted([{call:{name:'read_inventory',arguments:'{}'}},{content:'Tu as 40 produits.'}]);
+    await serviceAt(new Date(),ai,{read_inventory:{execute:async()=>({result:{items}})}}).handleRequest({...input,text:'Qu’est-ce que j’ai en stock ?'},makeCtx());
+    const seen=JSON.stringify(requests[1].messages);
+    expect(seen).toContain('Produit numéro 39');
+    expect(seen).not.toContain('example.test');
+  });
+  it('a second Confirmer, even at the same time, does not run the action again and reports the first run',async()=>{
+    const writer=new MockWriter();
+    const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',tool_args:{items:[]},risk_tier:'medium',status:'planned',reversible:false});
+    writer.rows.push(row);
+    const consume={execute:jest.fn(async()=>({result:{consumed:1}}))};
+    const service=serviceAt(new Date(),makeAi([]),{consume_inventory_items:consume},writer);
+    const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+    const [first,second]=await Promise.all([service.handleConfirm({userId:USER,confirmationToken:token},makeCtx()),
+      service.handleConfirm({userId:USER,confirmationToken:token},makeCtx())]);
+    const again=await service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(consume.execute).toHaveBeenCalledTimes(1);
+    for (const res of [first,second,again]) expect(res.actions_executed.map(a=>a.action_id)).toEqual([row.id]);
+  });
+  it('an expired confirmation says so in French',async()=>{
+    const signer=new ConfirmationTokenSigner(SECRET);
+    const token=signer.sign({userId:USER,sessionId:randomUUID(),actionLogIds:[randomUUID()],expiresAt:Date.now()-1000});
+    await expect(serviceAt(new Date(),makeAi([])).handleConfirm({userId:USER,confirmationToken:token},makeCtx()))
+      .rejects.toMatchObject({code:'CONFIRMATION_EXPIRED',message:expect.stringMatching(/plus de 5 minutes.*redis-moi/i)});
+  });
+  it('an action the server cannot run says it is not available, not « précise le produit »',async()=>{
+    const {ai}=scripted([{call:{name:'add_recipe_to_meal_plan',arguments:JSON.stringify({recipe_id:RECIPE,date:'2026-11-02',meal_type:'dinner'})}}]);
+    const response=await serviceAt(new Date(),ai).handleRequest({...input,text:'Mets les carbonara lundi soir'},makeCtx());
+    expect(response.message).toMatch(/pas encore disponible/);
+    expect(response.message).not.toMatch(/Précise le produit/);
+  });
+  it('an argument repair stays on the dialogue model and keeps the session turns',async()=>{
+    const p=memoryPolicy({userId:USER,saveHistory:false,memoryEnabled:false});
+    const {ai,requests}=scripted([{call:{name:'add_shopping_items',arguments:'{"items":[{"name":"lait","quantity":-1}]}'}},
+      {call:{name:'add_shopping_items',arguments:'{"items":[{"name":"lait","quantity":1,"unit":"L"}]}'}},{content:'Ajouté.'}]);
+    const registry=new ToolHandlerRegistry();registry.register('add_shopping_items',{execute:async()=>({result:{added:[]},reversibleAction:null})});
+    await new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
+      {modelConfig:benchmarkConfig('baseline'),memoryService:{readPolicySafe:async()=>p} as unknown as MemoryService,memoryExtractor:new MemoryExtractor(),
+        contextBuilder:{build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder})
+      .handleRequest({...input,text:'Et du lait',sessionMessages:[{role:'user',content:'Ajoute des œufs à ma liste'},{role:'assistant',content:'Ajouté.'}],sessionRevision:p.revision},makeCtx());
+    expect(requests[1].model).toBe(benchmarkConfig('baseline').roles.dialogue.model);
+    expect(JSON.stringify(requests[1].messages)).toContain('Ajoute des œufs à ma liste');
   });
 });

@@ -204,6 +204,35 @@ export class ActionLogWriter {
     return (data ?? []) as ActionLogRow[];
   }
 
+  /**
+   * Takes planned rows for execution in one UPDATE … WHERE status='planned':
+   * a second confirmation sent at the same time (double tap, retry after a
+   * lost reply) gets none of them, so an action never runs twice.
+   */
+  async claimPlanned(userId: string, ids: readonly string[]): Promise<ActionLogRow[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await this.adminClient
+      .from('assistant_action_log')
+      .update({ status: 'executed', executed_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('status', 'planned')
+      .in('id', ids)
+      .select('*');
+    if (error) throw error;
+    return (data ?? []) as ActionLogRow[];
+  }
+
+  async fetchByIds(userId: string, ids: readonly string[]): Promise<ActionLogRow[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await this.adminClient
+      .from('assistant_action_log')
+      .select('*')
+      .eq('user_id', userId)
+      .in('id', ids);
+    if (error) throw error;
+    return (data ?? []) as ActionLogRow[];
+  }
+
   async fetchById(userId: string, id: string): Promise<ActionLogRow | null> {
     const { data, error } = await this.adminClient
       .from('assistant_action_log')

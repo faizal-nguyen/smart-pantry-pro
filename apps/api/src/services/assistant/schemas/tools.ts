@@ -98,9 +98,15 @@ const readRecentRecipesArgs = z.object({
 });
 export type ReadRecentRecipesArgs = z.infer<typeof readRecentRecipesArgs>;
 
+// The model copies one date from the prompt's TODAY lines; the server derives the
+// week and the day number (live repro 2026-11-07: gpt-4o-mini mixed them up).
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'ISO date YYYY-MM-DD');
 const readMealPlanArgs = z.object({
-  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'week_start ISO YYYY-MM-DD'),
-});
+  /** Any day of the wanted week. */
+  date: isoDate.optional(),
+  /** Older calls: the Monday of the week. */
+  week_start: isoDate.optional(),
+}).refine(args => !!args.date || !!args.week_start, { message: 'date (YYYY-MM-DD) is required', path: ['date'] });
 export type ReadMealPlanArgs = z.infer<typeof readMealPlanArgs>;
 
 const findCookableArgs = z.object({
@@ -201,16 +207,7 @@ export type SuggestRecipesForContextArgs = z.infer<typeof suggestRecipesForConte
 
 // ---- READ: Product Intelligence (PRP-225 PR5) -----------------------
 
-const searchProductCandidatesArgs = z.object({
-  query: z.string().min(1).max(200),
-  limit: z.number().int().min(1).max(10).optional(),
-});
-export type SearchProductCandidatesArgs = z.infer<typeof searchProductCandidatesArgs>;
 
-const resolveProductByBarcodeArgs = z.object({
-  barcode: z.string().min(1).max(64),
-});
-export type ResolveProductByBarcodeArgs = z.infer<typeof resolveProductByBarcodeArgs>;
 
 // ---- LOW write tools -------------------------------------------------
 
@@ -236,26 +233,18 @@ export type UnmarkShoppingItemsBoughtArgs = z.infer<typeof unmarkShoppingItemsBo
 
 const addRecipeToMealPlanArgs = z.object({
   recipe_id: z.string().uuid(),
-  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  day_of_week: dayOfWeekSchema,
+  date: isoDate.optional(),
+  /** Older calls: week Monday + day number (0 = Monday). */
+  week_start: isoDate.optional(),
+  day_of_week: dayOfWeekSchema.optional(),
   meal_type: mealTypeSchema,
-});
+}).refine(args => !!args.date || (args.week_start !== undefined && args.day_of_week !== undefined),
+  { message: 'date (YYYY-MM-DD) is required', path: ['date'] });
 export type AddRecipeToMealPlanArgs = z.infer<typeof addRecipeToMealPlanArgs>;
 
 // ---- LOW: Product Intelligence (PRP-225 PR5) ------------------------
 
-const enrichProductArgs = z.object({
-  product_id: z.string().uuid(),
-});
-export type EnrichProductArgs = z.infer<typeof enrichProductArgs>;
 
-const confirmProductCandidateArgs = z.object({
-  raw_input: z.string().min(1).max(500),
-  product_id: z.string().uuid(),
-  /** Optional alias to memorise for future resolutions. */
-  alias: z.string().min(1).max(200).optional(),
-});
-export type ConfirmProductCandidateArgs = z.infer<typeof confirmProductCandidateArgs>;
 
 // ---- MEDIUM write tools ----------------------------------------------
 
@@ -327,13 +316,7 @@ const askClarificationArgs = z.object({
 });
 export type AskClarificationArgs = z.infer<typeof askClarificationArgs>;
 
-const summarizeSessionArgs = z.object({});
-export type SummarizeSessionArgs = z.infer<typeof summarizeSessionArgs>;
 
-const undoActionArgs = z.object({
-  action_id: z.string().uuid(),
-});
-export type UndoActionArgs = z.infer<typeof undoActionArgs>;
 
 // ---- PRP-223 PR4 memory READ tools ----------------------------------
 
@@ -452,13 +435,13 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'read_meal_plan',
-    description: 'Read the meal plan for a given ISO week (Monday-anchored).',
+    description: 'Read the meal plan of the week that contains `date`.',
     schema: readMealPlanArgs,
     jsonSchema: {
       type: 'object',
-      required: ['week_start'],
+      required: ['date'],
       properties: {
-        week_start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Any day of the wanted week, copied from the TODAY lines' },
       },
       additionalProperties: false,
     },
@@ -585,39 +568,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     reversible: false,
   },
   // PRP-225 PR5 — Product Intelligence read tools.
-  {
-    name: 'search_product_candidates',
-    description:
-      'Search local + cached OpenFoodFacts products by free-text. Use when the user mentions a product the assistant might not recognise and you want candidates before any write action. Read-only ; no inventory side effects.',
-    schema: searchProductCandidatesArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['query'],
-      properties: {
-        query: { type: 'string', minLength: 1, maxLength: 200 },
-        limit: { type: 'integer', minimum: 1, maximum: 10, description: 'default 5' },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'read',
-    reversible: false,
-  },
-  {
-    name: 'resolve_product_by_barcode',
-    description:
-      'Resolve a scanned barcode to a single product (local first, then OpenFoodFacts). Returns matched / created / ambiguous / not_found. Read-only ; never writes inventory.',
-    schema: resolveProductByBarcodeArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['barcode'],
-      properties: {
-        barcode: { type: 'string', minLength: 1, maxLength: 64 },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'read',
-    reversible: false,
-  },
 
   // ===== LOW write =====
   {
@@ -703,20 +653,14 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'add_recipe_to_meal_plan',
-    description: 'Add a recipe to the user meal plan for a given week / day / meal slot.',
+    description: 'Add a recipe to the user meal plan on a date and meal slot.',
     schema: addRecipeToMealPlanArgs,
     jsonSchema: {
       type: 'object',
-      required: ['recipe_id', 'week_start', 'day_of_week', 'meal_type'],
+      required: ['recipe_id', 'date', 'meal_type'],
       properties: {
         recipe_id: { type: 'string', format: 'uuid' },
-        week_start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        day_of_week: {
-          type: 'integer',
-          minimum: 0,
-          maximum: 6,
-          description: '0=Monday, 6=Sunday',
-        },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'The day, copied from the TODAY lines (« demain » is the Demain date)' },
         meal_type: {
           type: 'string',
           enum: ['breakfast', 'lunch', 'dinner', 'snack'],
@@ -728,40 +672,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     reversible: true,
   },
   // PRP-225 PR5 — Product Intelligence write tools.
-  {
-    name: 'enrich_product',
-    description:
-      'Fetch fresh OpenFoodFacts data for a product (brand, image, nutrition, allergens). Stores the result on the product row and is reversible only in the sense that the prior state is recoverable from the cache — no destructive change.',
-    schema: enrichProductArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['product_id'],
-      properties: {
-        product_id: { type: 'string', format: 'uuid' },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'confirm_product_candidate',
-    description:
-      'Confirm that a free-text input the user said earlier maps to a known product id, and optionally record an alias so future resolutions skip the clarification step.',
-    schema: confirmProductCandidateArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['raw_input', 'product_id'],
-      properties: {
-        raw_input: { type: 'string', minLength: 1, maxLength: 500 },
-        product_id: { type: 'string', format: 'uuid' },
-        alias: { type: 'string', minLength: 1, maxLength: 200 },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
 
   // ===== MEDIUM write =====
   {
@@ -928,30 +838,6 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
           maxItems: 5,
           items: { type: 'string', maxLength: 200 },
         },
-      },
-      additionalProperties: false,
-    },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'summarize_session',
-    description: 'Return a short summary of all actions taken in the current session.',
-    schema: summarizeSessionArgs,
-    jsonSchema: { type: 'object', properties: {}, additionalProperties: false },
-    defaultRiskTier: 'low',
-    reversible: false,
-  },
-  {
-    name: 'undo_action',
-    description:
-      'Undo a previous action by its assistant_action_log id. Only works within the 15-minute window and on actions marked reversible.',
-    schema: undoActionArgs,
-    jsonSchema: {
-      type: 'object',
-      required: ['action_id'],
-      properties: {
-        action_id: { type: 'string', format: 'uuid' },
       },
       additionalProperties: false,
     },

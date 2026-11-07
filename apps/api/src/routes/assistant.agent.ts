@@ -273,7 +273,7 @@ export function createAssistantAgentRouter(
       saveImportedDraftAsRecipe,
     });
   registerHighHandlers(handlerRegistry, { buildSocialImportService });
-  registerMetaHandlers(handlerRegistry, { writer });
+  registerMetaHandlers(handlerRegistry);
 
   // PRP-223 PR5 — rules-based memory extractor, async best-effort per turn.
   const memoryExtractor = new MemoryExtractor();

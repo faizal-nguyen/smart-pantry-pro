@@ -399,6 +399,7 @@ export interface AddRecipeToMealPlanResult {
   weekly_meal_plan_id: string;
   recipe_id: string;
   recipe_name: string;
+  date: string;
   day_of_week: number;
   meal_type: string;
 }
@@ -412,20 +413,19 @@ export class AddRecipeToMealPlanHandler
   ): Promise<ToolExecutionResult<AddRecipeToMealPlanResult>> {
     if (!ctx.commandId) throw new Error('Identité de commande manquante.');
     const service = new StockCommandService(ctx.userClient);
+    const date = args.date ?? new Date(Date.parse(`${args.week_start}T12:00:00Z`) + args.day_of_week! * 86400000).toISOString().slice(0, 10);
     let result = await service.getResult(ctx.userId,ctx.commandId);
     if (!result) {
       const preview = await service.preview(ctx.userId,{ id: args.recipe_id, source: 'auto' });
-      const day = new Date(`${args.week_start}T12:00:00Z`);
-      day.setUTCDate(day.getUTCDate() + args.day_of_week);
       result = await service.execute(ctx.userId,{
         command_id: ctx.commandId, command_type: 'plan_recipe', payload_version: 1,
         payload: { recipe: { id: args.recipe_id, source: preview.recipe.source }, servings: preview.servings,
-          date: day.toISOString().slice(0,10), meal_type: args.meal_type },
+          date, meal_type: args.meal_type },
       });
     }
     return { result: {
       entry_id: result.meal_plan_entry_id!, weekly_meal_plan_id: result.meal_plan_id!,
-      recipe_id: args.recipe_id, recipe_name: '', day_of_week: args.day_of_week, meal_type: args.meal_type,
+      recipe_id: args.recipe_id, recipe_name: '', date, day_of_week: (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7, meal_type: args.meal_type,
     }, reversibleAction: null }; // Replacement of a meal slot has no safe legacy DELETE inverse.
   }
 }

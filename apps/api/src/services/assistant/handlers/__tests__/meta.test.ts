@@ -1,11 +1,7 @@
-import {
-  AskClarificationHandler,
-  SummarizeSessionHandler,
-  UndoActionHandler,
-} from '../meta.js';
+import { AskClarificationHandler } from '../meta.js';
 import { ToolHandlerRegistry, type ToolHandler, type ToolExecutionContext } from '../types.js';
 import type { ActionLogRow } from '../../ActionLogWriter.js';
-import { UndoFailedError } from '../../undo.js';
+import { performUndo, UndoFailedError } from '../../undo.js';
 
 const USER = '11111111-1111-1111-1111-111111111111';
 const SESSION = '33333333-3333-3333-3333-333333333333';
@@ -83,70 +79,6 @@ function makeUserClient(rows: any[], opts: { capture?: MockSelectChain } = {}) {
   };
 }
 
-describe('SummarizeSessionHandler', () => {
-  it('returns empty summary when ctx has no sessionId', async () => {
-    const handler = new SummarizeSessionHandler();
-    const result = await handler.execute(
-      makeCtx({ sessionId: undefined }),
-      {}
-    );
-    expect(result.result).toMatchObject({
-      session_id: null,
-      actions: [],
-      total_actions: 0,
-    });
-  });
-
-  it('summarizes the session and computes counts + total cost', async () => {
-    const cap: MockSelectChain = { data: [], filters: {} };
-    const rows = [
-      {
-        id: 'a',
-        step_seq: 0,
-        tool: 'add_inventory_items',
-        status: 'executed',
-        risk_tier: 'low',
-        reversible: true,
-        cost_usd: 0.001,
-        created_at: '2026-05-08T00:00:00Z',
-        executed_at: '2026-05-08T00:00:01Z',
-      },
-      {
-        id: 'b',
-        step_seq: 1,
-        tool: 'delete_recipe',
-        status: 'planned',
-        risk_tier: 'high',
-        reversible: false,
-        cost_usd: null,
-        created_at: '2026-05-08T00:00:02Z',
-        executed_at: null,
-      },
-      {
-        id: 'c',
-        step_seq: 2,
-        tool: 'add_shopping_items',
-        status: 'failed',
-        risk_tier: 'low',
-        reversible: true,
-        cost_usd: 0.002,
-        created_at: '2026-05-08T00:00:03Z',
-        executed_at: null,
-      },
-    ];
-    const ctx = makeCtx({ userClient: makeUserClient(rows, { capture: cap }) as any });
-
-    const result = await new SummarizeSessionHandler().execute(ctx, {});
-    expect(result.result.session_id).toBe(SESSION);
-    expect(result.result.actions.length).toBe(3);
-    expect(result.result.total_actions).toBe(3);
-    expect(result.result.executed).toBe(1);
-    expect(result.result.pending).toBe(1);
-    expect(result.result.failed).toBe(1);
-    expect(result.result.total_cost_usd).toBeCloseTo(0.003, 6);
-    expect(cap.filters).toMatchObject({ user_id: USER, session_id: SESSION });
-  });
-});
 
 // ---- UndoActionHandler ----------------------------------------------
 
@@ -192,7 +124,9 @@ function makeRow(overrides: Partial<ActionLogRow> = {}): ActionLogRow {
   };
 }
 
-describe('UndoActionHandler', () => {
+// The assistant's undo_action tool is gone (no usable action id); the UI's
+// Annuler button undoes through the same performUndo helper.
+describe('performUndo', () => {
   it('looks up the inverse handler in the registry and executes it', async () => {
     const writer = new MockWriter();
     const row = makeRow();
@@ -206,28 +140,19 @@ describe('UndoActionHandler', () => {
     const registry = new ToolHandlerRegistry();
     registry.register('_remove_inventory_items', inverseHandler);
 
-    const handler = new UndoActionHandler(writer as any, registry);
-    registry.register('undo_action', handler); // self-register late, like the router does
-
-    const result = await handler.execute(makeCtx(), { action_id: row.id });
+    const outcome = await performUndo(makeCtx(), row.id, writer as any, registry);
     expect(inverseSpy).toHaveBeenCalled();
-    expect(result.result).toMatchObject({
-      undone: true,
-      action_id: row.id,
-      inverse_tool: '_remove_inventory_items',
-    });
+    expect(outcome.undone).toBe(true);
+    expect(outcome.action.reversible_action?.tool).toBe('_remove_inventory_items');
     expect(writer.undoneIds).toEqual([row.id]);
   });
 
   it('throws UndoFailedError NOT_FOUND on a bogus id', async () => {
     const writer = new MockWriter();
     const registry = new ToolHandlerRegistry();
-    const handler = new UndoActionHandler(writer as any, registry);
 
     await expect(
-      handler.execute(makeCtx(), {
-        action_id: '99999999-9999-9999-9999-999999999999',
-      })
+      performUndo(makeCtx(), '99999999-9999-9999-9999-999999999999', writer as any, registry)
     ).rejects.toBeInstanceOf(UndoFailedError);
   });
 
@@ -240,11 +165,10 @@ describe('UndoActionHandler', () => {
     );
     const registry = new ToolHandlerRegistry();
     registry.register('_remove_inventory_items', { execute: jest.fn() } as any);
-    const handler = new UndoActionHandler(writer as any, registry);
 
     let caught: unknown;
     try {
-      await handler.execute(makeCtx(), { action_id: writer.rows[0].id });
+      await performUndo(makeCtx(), writer.rows[0].id, writer as any, registry);
     } catch (e) {
       caught = e;
     }
@@ -256,11 +180,10 @@ describe('UndoActionHandler', () => {
     const writer = new MockWriter();
     writer.rows.push(makeRow());
     const registry = new ToolHandlerRegistry();
-    const handler = new UndoActionHandler(writer as any, registry);
 
     let caught: unknown;
     try {
-      await handler.execute(makeCtx(), { action_id: writer.rows[0].id });
+      await performUndo(makeCtx(), writer.rows[0].id, writer as any, registry);
     } catch (e) {
       caught = e;
     }
@@ -271,11 +194,10 @@ describe('UndoActionHandler', () => {
     const writer = new MockWriter();
     writer.rows.push(makeRow({ status: 'planned' }));
     const registry = new ToolHandlerRegistry();
-    const handler = new UndoActionHandler(writer as any, registry);
 
     let caught: unknown;
     try {
-      await handler.execute(makeCtx(), { action_id: writer.rows[0].id });
+      await performUndo(makeCtx(), writer.rows[0].id, writer as any, registry);
     } catch (e) {
       caught = e;
     }
