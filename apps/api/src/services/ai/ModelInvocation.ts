@@ -5,6 +5,8 @@ import { observeModel } from './ModelConfig.js';
 import { maximumCallCost, measureCost, PRICING_VERSION } from './ModelPricing.js';
 import { ProviderOutputError } from './OpenAITransport.js';
 
+const IMAGE_RESERVE_TOKENS=3000;
+
 export class ModelInvocation {
   readonly calls:ModelCallReceipt[]=[];
   private readonly toolCosts:AssociatedToolCost[]=[];
@@ -31,7 +33,10 @@ export class ModelInvocation {
   async complete(role:AssistantRole,request:Omit<AICompletionRequest,'model'>,purpose:string,stream=false):Promise<AICompletionResponse> {
     this.checkWork();const target=this.config.roles[role];
     if(this.calls.length>=this.config.limits.maxCalls) {this.limitReason='calls';throw new Error('INVOCATION_CALL_LIMIT');}
-    const reserve=maximumCallCost(target.model,Buffer.byteLength(JSON.stringify([request.messages,request.tools,request.continuation])),target.maxOutputTokens);
+    // An image costs its patches, not its base64: at most 2,500 patches x 1.2 at high detail.
+    const images=request.messages.reduce((n,m)=>n+(m.images?.length ?? 0),0);
+    const text=request.messages.map(({images:_images,...m})=>m);
+    const reserve=maximumCallCost(target.model,Buffer.byteLength(JSON.stringify([text,request.tools,request.continuation]))+images*IMAGE_RESERVE_TOKENS,target.maxOutputTokens);
     if(this.reserved+reserve>this.config.limits.maxUsd) {this.limitReason='budget';throw new Error('INVOCATION_COST_LIMIT');}
     this.reserved+=reserve;
     const started=Date.now();const timeout=Math.min(target.timeoutMs,this.deadline-started);const controller=new AbortController();

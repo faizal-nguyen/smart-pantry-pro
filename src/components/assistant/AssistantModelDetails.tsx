@@ -1,5 +1,5 @@
 import { AssistantModelReceiptSchema } from '@smart/shared';
-const labels = {dialogue:'Dialogue',culinary:'Synthèse culinaire',summary:'Résumé'};
+const labels = {dialogue:'Dialogue',culinary:'Synthèse culinaire',summary:'Résumé',vision:'Lecture de photos'};
 /** A secondary detail: no raw prompt, tool arguments or internal reasoning. */
 export default function AssistantModelDetails({ receipt }: { receipt: unknown }) {
   const parsed=AssistantModelReceiptSchema.safeParse(receipt);

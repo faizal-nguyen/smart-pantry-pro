@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { getAssistantModels } from '@/services/assistantApi';
 import { Button } from '@/components/ui/button';
-const labels={dialogue:'Dialogue et choix des outils',culinary:'Synthèse complexe et correction',summary:'Résumé des conversations'};
+const labels={dialogue:'Dialogue et choix des outils',culinary:'Synthèse complexe et correction',summary:'Résumé des conversations',vision:'Lecture des photos de courses'};
 export default function AssistantModelsSection() {
   const owner=useAuthSessionOptional().user?.id;
   const query=useQuery({queryKey:['assistant-models',owner],queryFn:()=>getAssistantModels(owner!),enabled:!!owner,retry:false});

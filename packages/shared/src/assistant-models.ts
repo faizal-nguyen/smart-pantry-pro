@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const AssistantRoleSchema = z.enum(['dialogue', 'culinary', 'summary']);
+export const AssistantRoleSchema = z.enum(['dialogue', 'culinary', 'summary', 'vision']);
 export type AssistantRole = z.infer<typeof AssistantRoleSchema>;
 export const ModelCallReceiptSchema = z.object({
   role: AssistantRoleSchema,

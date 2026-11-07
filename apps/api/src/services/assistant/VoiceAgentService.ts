@@ -306,6 +306,7 @@ export class VoiceAgentService {
     this.modelConfig = freezeConfig({ ...base, limits:{...base.limits}, roles:{
       dialogue:{...base.roles.dialogue, ...(options.model ? {model:options.model} : {})},
       culinary:{...base.roles.culinary, ...(options.fallbackModel ? {model:options.fallbackModel} : {})}, summary:{...base.roles.summary},
+      vision:{...base.roles.vision},
     } });
     this.maxToolCalls = Math.min(options.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS,this.modelConfig.limits.maxTools);
     this.confirmationTtlMs = options.confirmationTtlMs ?? DEFAULT_CONFIRMATION_TTL_MS;

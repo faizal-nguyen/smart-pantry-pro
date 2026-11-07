@@ -55,6 +55,7 @@ import {
   saveImportedDraftAsRecipe,
 } from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
+import { GroceryPhotoRecognizer, MAX_PHOTOS, PhotoRecognitionError } from '../services/assistant/GroceryPhotoRecognizer.js';
 import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { NutritionProfileService } from '../services/recommendations/NutritionProfileService.js';
@@ -123,6 +124,29 @@ function singleAudio(limitBytes: number) {
 }
 const multerSingleAudio = singleAudio(audioLimitBytes);
 const multerDictationAudio = singleAudio(DICTATION_LIMIT_BYTES);
+
+// Photos are resized on the phone (~300 KB): 1 MB each keeps 4 of them under
+// Vercel's 4.5 MB request limit.
+const PHOTO_LIMIT_BYTES = 1024 * 1024;
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: PHOTO_LIMIT_BYTES, files: MAX_PHOTOS },
+  fileFilter: (_req, file, cb) => {
+    // A first filter only: the content is checked by its bytes before the provider.
+    if (['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) { cb(null, true); return; }
+    cb(new Error('Photo en JPEG, PNG ou WebP seulement.'));
+  },
+});
+function groceryPhotos(req: Request, res: Response, next: NextFunction) {
+  photoUpload.array('photos', MAX_PHOTOS)(req, res, (error) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      return fail(res, 'Photo trop volumineuse (1 Mo au plus).', 413, 'PHOTO_TOO_LARGE');
+    }
+    if (error instanceof multer.MulterError) return fail(res, `${MAX_PHOTOS} photos au plus.`, 400, 'TOO_MANY_PHOTOS');
+    return fail(res, error, 415, 'UNSUPPORTED_IMAGE');
+  });
+}
 
 // ---- Body schemas ---------------------------------------------------
 
@@ -230,6 +254,7 @@ export function createAssistantAgentRouter(
     // The router still mounts to keep app boot stable, but every call
     // returns 503 with a clear message until the operator fixes env.
     router.all('/transcribe', notConfigured);
+    router.all('/photos/recognize', notConfigured);
     router.all('/voice', notConfigured);
     router.all('/text', notConfigured);
     router.all('/actions/execute', notConfigured);
@@ -335,6 +360,28 @@ export function createAssistantAgentRouter(
     freeMax: 60,
     premiumMax: 600,
     windowMs: HOUR,
+  });
+  const photosLimiter = userRateLimit({
+    key: 'assistant.photos',
+    freeMax: 20,
+    premiumMax: 200,
+    windowMs: HOUR,
+  });
+
+  // ---- /photos/recognize -------------------------------------------
+  // Grocery photos -> the products seen, for the owner to review. No
+  // conversation, no tool and no stock command; the photos are not kept.
+  const photoRecognizer = new GroceryPhotoRecognizer(ai, modelConfig);
+  router.post('/photos/recognize', photosLimiter, groceryPhotos, async (req: Request, res: Response) => {
+    if (!req.user?.id) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    try {
+      const result = await photoRecognizer.recognize((req.files as Express.Multer.File[] | undefined) ?? []);
+      return ok(res, result, 'OK', 'PHOTOS_RECOGNIZED');
+    } catch (error) {
+      if (!(error instanceof PhotoRecognitionError)) throw error;
+      const status = error.code === 'UNSUPPORTED_IMAGE' ? 415 : error.code === 'RECOGNITION_FAILED' ? 502 : 400;
+      return fail(res, error.message, status, error.code);
+    }
   });
 
   // ---- /transcribe (V10-03E) ---------------------------------------

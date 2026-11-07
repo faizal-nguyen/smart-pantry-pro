@@ -85,7 +85,7 @@ test('deadline, call and reserve caps prevent dispatch, including after a failed
 test('unapproved candidates fail at startup and catalog never implies account access',()=>{
   expect(()=>loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'luna'})).toThrow('BENCHMARK_NOT_APPROVED');
   expect(()=>loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'invented'})).toThrow('PRESET_INVALID');
-  expect(modelCatalog(benchmarkConfig('baseline'),'prices').roles).toHaveLength(3);
+  expect(modelCatalog(benchmarkConfig('baseline'),'prices').roles).toHaveLength(4);
   const config=benchmarkConfig('baseline');expect(Reflect.set(config.roles.dialogue,'model','gpt-4o')).toBe(false);
 });
 test('only a complete reviewed live report can enable a candidate, including when adoption was manually claimed',()=>{
@@ -129,4 +129,24 @@ test('a failed call is summarised without its free-text message, which can quote
   expect(providerErrorSummary(new ProviderOutputError('PROVIDER_TOOL_INVALID'))).toEqual({name:'Error',code:'PROVIDER_TOOL_INVALID'});
   expect(providerErrorSummary(new Error('ajoute 1 pot de tahini'))).toEqual({name:'Error'});
   expect(providerErrorSummary('boom')).toEqual({name:'unknown'});
+});
+test('images ride with their user message in both transports, high detail by default',()=>{
+  const messages=[{role:'system' as const,content:'Liste'},{role:'user' as const,content:'Mes courses',images:[{url:'data:image/jpeg;base64,AAAA'}]}];
+  const chat=completionParams({model:'gpt-4o-mini',transport:'chat_completions',messages});
+  expect(chat.messages).toEqual([{role:'system',content:'Liste'},{role:'user',content:[{type:'text',text:'Mes courses'},{type:'image_url',image_url:{url:'data:image/jpeg;base64,AAAA',detail:'high'}}]}]);
+  const responses=completionParams({model:'gpt-6-luna',transport:'responses',reasoningEffort:'none',messages});
+  expect(responses.input).toEqual([{role:'system',content:'Liste'},{role:'user',content:[{type:'input_text',text:'Mes courses'},{type:'input_image',image_url:'data:image/jpeg;base64,AAAA',detail:'high'}]}]);
+});
+test('a photo reserves its image tokens, not the size of its base64',async()=>{
+  const base=benchmarkConfig('baseline');
+  const config=freezeConfig({...base,roles:{...base.roles,vision:{model:'gpt-6.1-sol',transport:'responses',effort:'low',maxOutputTokens:1500,timeoutMs:30000}},limits:{...base.limits}});
+  const ai={complete:jest.fn(async()=>parseCompletion({...raw,model:'gpt-6.1-sol'},'responses'))};
+  const photo='data:image/jpeg;base64,'+'A'.repeat(1_400_000);
+  await new ModelInvocation('id',config,ai).complete('vision',{messages:[{role:'user',content:'x',images:[1,2,3,4].map(()=>({url:photo}))}]},'grocery_photo');
+  expect(ai.complete).toHaveBeenCalledTimes(1);
+});
+test('photos have their own role: gpt-6-luna by default, gpt-6.1-sol on request, nothing older',()=>{
+  for(const preset of ['baseline','luna','luna-sol'] as const) expect(benchmarkConfig(preset).roles.vision).toMatchObject({model:'gpt-6-luna',transport:'responses',effort:'none'});
+  expect(loadAssistantModelConfig({ASSISTANT_VISION_MODEL:'gpt-6.1-sol'}).roles.vision).toMatchObject({model:'gpt-6.1-sol',transport:'responses',effort:'low'});
+  expect(()=>loadAssistantModelConfig({ASSISTANT_VISION_MODEL:'gpt-4o-mini'})).toThrow('ASSISTANT_VISION_MODEL_UNSUPPORTED');
 });
