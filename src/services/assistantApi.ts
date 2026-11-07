@@ -144,6 +144,39 @@ export async function postAssistantTranscription(input: {
   return transcription;
 }
 
+export interface RecognizedGrocery {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  brand: string | null;
+  expiry_date: string | null;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+/** Grocery photos (already resized) → the products seen. Nothing is written. */
+export async function postGroceryPhotos(input: { photos: Blob[]; expectedUserId?: string; signal?: AbortSignal }): Promise<{ items: RecognizedGrocery[] }> {
+  const form = new FormData();
+  input.photos.forEach((photo, index) => form.append('photos', photo, `photo-${index + 1}.jpg`));
+  const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/photos/recognize`, {
+    method: 'POST',
+    headers: { ...(await authHeader(input.expectedUserId)) },
+    body: form,
+    signal: input.signal,
+  });
+  return unwrapAssistant<{ items: RecognizedGrocery[] }>(res);
+}
+
+/** The products kept after review: one stock add, undoable like any assistant action. */
+export function postKeptGroceries(input: {
+  clientRequestId: string;
+  items: Array<{ name: string; quantity: number; unit: string; expiry_date?: string }>;
+  expectedUserId?: string;
+}): Promise<{ action: ExecutedAction }> {
+  return apiPost<{ action: ExecutedAction }>(`${ASSISTANT_BASE}/photos/add`, {
+    client_request_id: input.clientRequestId, items: input.items,
+  }, { expectedUserId: input.expectedUserId });
+}
+
 export function postAssistantText(input: {
   text: string;
   clientRequestId: string;
