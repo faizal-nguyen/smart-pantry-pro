@@ -61,6 +61,7 @@ function toolLabel(tool: string): string {
 const NOT_A_CHANGE = new Set(['ask_clarification']);
 const isChange = (action: ExecutedAction) => action.risk_tier !== 'read' && !NOT_A_CHANGE.has(action.tool);
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
+const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'en-cas' };
 
 type Item = { name?: string; inventory_id?: string; quantity?: number; unit?: string };
 function previewArgs(args: Record<string, unknown>, labels: Record<string, string> = {}): string {
@@ -76,7 +77,12 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
     return ids.every(id => labels[id]) ? ids.map(id => `• ${labels[id]}`).join('\n') : `${ids.length} article(s)`;
   }
   if (typeof args.inventory_id === 'string' && labels[args.inventory_id]) return labels[args.inventory_id];
-  if ('recipe_id' in args && 'meal_type' in args) return `${String(args.meal_type)} • ${String(args.date ?? args.week_start ?? '')}`;
+  if (typeof args.recipe_id === 'string') {
+    const recipe = labels[args.recipe_id] ?? 'Recette';
+    if (!('meal_type' in args)) return recipe;
+    const day = typeof args.date === 'string' ? ', ' + new Date(`${args.date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
+    return `${recipe} — ${MEAL_LABELS[String(args.meal_type)] ?? String(args.meal_type)}${day}`;
+  }
   if ('url' in args) return String(args.url);
   if ('category' in args) return String(args.category);
   return JSON.stringify(args).slice(0, 100);

@@ -505,7 +505,11 @@ export class VoiceAgentService {
       return continuation;
     };
 
-    const toolCalls = (ai1.tool_calls ?? []).slice(0, this.maxToolCalls);
+    // The same recipe action on several recipes means the model could not choose.
+    let ambiguousRecipes: AmbiguousRecipes | null = null;
+    const firstCalls = keepUnambiguousRecipeWrites(ai1.tool_calls ?? []);
+    ambiguousRecipes = firstCalls.ambiguous ?? ambiguousRecipes;
+    const toolCalls = firstCalls.kept.slice(0, this.maxToolCalls);
 
     // 3. Execute / plan each tool_call
     const executed: ExecutedActionDescriptor[] = [];
@@ -735,7 +739,9 @@ export class VoiceAgentService {
           if(this.memoryService&&!sameMemoryPolicy(lastProviderPolicy,await this.memoryService.readPolicySafe(input.userId))) {toolIssue=true;break;}
           replayPrefix=continuation;
           activeResponse=next;
-          toolCalls.push(...(next.tool_calls ?? []).slice(0,this.maxToolCalls-toolCalls.length));
+          const nextCalls=keepUnambiguousRecipeWrites(next.tool_calls ?? []);
+          ambiguousRecipes=nextCalls.ambiguous ?? ambiguousRecipes;
+          toolCalls.push(...nextCalls.kept.slice(0,this.maxToolCalls-toolCalls.length));
         } catch {toolIssue=true;}
       }
     }
@@ -894,6 +900,8 @@ export class VoiceAgentService {
     const memoryOnly = memoryResults.length > 0 && executed.every(a => ['remember_preference','forget_memory','update_response_style'].includes(a.tool)) && pending.length === 0;
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
     if (pending.length) message = synthesizeMessage(executed,pending);
+    // iPhone 2026-11-07: « j'ai cuisiné byriani » prepared cook_recipe on all 5 biryani.
+    if (ambiguousRecipes && !pending.length) message = ambiguityQuestion(ambiguousRecipes, recipeNames(executed));
     if (toolIssue) {
       const statuses = [...outcomes.values()].map(outcome => (outcome as { status?: string; reason?: string } | null));
       const outOfScope = statuses.some(outcome => outcome?.status === 'forbidden_scope');
@@ -1311,7 +1319,7 @@ function compactForModel(value: unknown): unknown {
 
 /** « 200 g » alone cannot be confirmed: name the rows a write targets, from the reads of the same turn. */
 function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[]): T[] {
-  const names = new Map<string, string>();
+  const names = recipeNames(executed);
   for (const action of executed) {
     if (action.tool !== 'read_inventory' && action.tool !== 'read_shopping_list') continue;
     const items = (action.result as { items?: Array<{ id?: unknown; product_name?: unknown }> } | null)?.items;
@@ -1325,9 +1333,46 @@ function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], e
       ...(Array.isArray(args.items) ? (args.items as Array<{ inventory_id?: unknown }>).map(item => item?.inventory_id) : []),
       ...(Array.isArray(args.shopping_item_ids) ? args.shopping_item_ids : []),
       args.inventory_id,
+      args.recipe_id,
     ].filter((id): id is string => typeof id === 'string' && names.has(id));
     return ids.length ? { ...action, labels: Object.fromEntries(ids.map(id => [id, names.get(id)!])) } : action;
   });
+}
+
+/** Recipe names read this turn (searches and suggestion buckets), by id. */
+function recipeNames(executed: ExecutedActionDescriptor[]): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const action of executed) {
+    if (!isRecipeTool(action.tool) || !action.result || typeof action.result !== 'object') continue;
+    const result = action.result as Record<string, unknown>;
+    for (const key of ['recipes', 'cookable_now', 'almost_cookable', 'verify_suggestions', 'recent_suggestions'])
+      for (const row of Array.isArray(result[key]) ? result[key] as Array<{ id?: unknown; name?: unknown }> : [])
+        if (typeof row.id === 'string' && typeof row.name === 'string' && row.name) names.set(row.id, row.name);
+  }
+  return names;
+}
+
+const RECIPE_WRITES: Record<string, string> = {
+  cook_recipe: 'Laquelle as-tu cuisinée ?',
+  add_recipe_to_meal_plan: 'Laquelle veux-tu mettre au menu ?',
+  delete_recipe: 'Laquelle veux-tu supprimer ?',
+};
+interface AmbiguousRecipes { tool: string; recipeIds: string[] }
+/** Drops a recipe write prepared on several different recipes in one batch. */
+function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string }>(calls: T[]): { kept: T[]; ambiguous: AmbiguousRecipes | null } {
+  let ambiguous: AmbiguousRecipes | null = null;
+  const recipeId = (call: T) => { try { const id = (JSON.parse(call.arguments) as { recipe_id?: unknown }).recipe_id; return typeof id === 'string' ? id : null; } catch { return null; } };
+  const dropped = new Set<string>();
+  for (const tool of Object.keys(RECIPE_WRITES)) {
+    const ids = [...new Set(calls.filter(call => call.name === tool).map(recipeId).filter((id): id is string => !!id))];
+    if (ids.length > 1) { dropped.add(tool); ambiguous ??= { tool, recipeIds: ids }; }
+  }
+  return { kept: calls.filter(call => !dropped.has(call.name)), ambiguous };
+}
+function ambiguityQuestion(ambiguous: AmbiguousRecipes, names: Map<string, string>): string {
+  const listed = ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6);
+  return (listed.length ? `Plusieurs recettes correspondent : ${listed.join(', ')}. ` : 'Plusieurs recettes correspondent. ')
+    + `${RECIPE_WRITES[ambiguous.tool]} Redis-le-moi avec son nom.`;
 }
 
 function synthesizeMessage(
