@@ -339,6 +339,7 @@ export type Database = Omit<BaseDatabase, 'public'> & {
       user_collections: LooseTable<{ id: string; user_id: string; name: string; description: string | null; color: string | null; icon: string | null; created_at: string; updated_at: string },'user_id' | 'name'>;
       recipe_collections: LooseTable<{ id: string; user_id: string; name: string; description: string | null; is_public: boolean; created_at: string; updated_at: string },'user_id' | 'name'>;
       routine_recipe_favorites: LooseTable<{ user_id:string; recipe_id:string; recipe_source:'auto'|'recipes'|'user_recipes'|'recipes_catalog'; created_at:string },'user_id'|'recipe_id'|'recipe_source'>;
+      user_product_photos: LooseTable<{ user_id: string; product_id: string; photo_path: string; updated_at: string },'user_id' | 'product_id' | 'photo_path'>;
       mobile_routine_preferences: LooseTable<{ user_id: string; introduction: 'new'|'stock'|'recipe'|'done'|'skipped'; stock_view:'list'|'grid'; updated_at:string },'user_id'>;
       user_meal_preferences: {
         Row: UserMealPreferencesRow;

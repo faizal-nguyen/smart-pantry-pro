@@ -12,6 +12,7 @@ import type { AssistantModelConfig } from '../ai/ModelConfig.js';
 import { ModelInvocation } from '../ai/ModelInvocation.js';
 import { providerErrorSummary } from '../ai/OpenAITransport.js';
 import { sniffImageMime } from '../media/ThumbnailSnapshotService.js';
+import { isValidGtin } from '../products/gtin.js';
 import type { AICompletionClient } from '../imports/RecipeExtractionService.js';
 
 export const MAX_PHOTOS = 4;
@@ -20,7 +21,7 @@ const PROVIDER_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const PROMPT = `Tu lis des photos de courses alimentaires posees chez quelqu'un, pour remplir son stock.
 
-Reponds UNIQUEMENT en JSON : { "items": [{ "name": string, "quantity"?: number, "unit"?: string, "brand"?: string, "expiry_date"?: "AAAA-MM-JJ", "confidence": "high" | "medium" | "low" }] }
+Reponds UNIQUEMENT en JSON : { "items": [{ "name": string, "quantity"?: number, "unit"?: string, "brand"?: string, "expiry_date"?: "AAAA-MM-JJ", "photo": number, "barcode"?: string, "confidence": "high" | "medium" | "low" }] }
 
 REGLES :
 - Un element par produit distinct ; regroupe les exemplaires identiques et compte-les dans "quantity".
@@ -29,6 +30,8 @@ REGLES :
 - "brand" : la marque imprimee, a part (ex. "Asian Home Gourmet", "Kewpie", "Cailler").
 - Lis l'emballage : un poids ou un volume net imprime donne quantity + unit (g, kg, ml, cl, l). Sinon compte les exemplaires avec unit "piece", ou un contenant visible (paquet, boite, sachet, bouteille, pot, brique).
 - "brand" et "expiry_date" seulement s'ils sont lisibles sur la photo.
+- "photo" : le numero de la photo (1 = la premiere) ou le produit se voit le mieux.
+- "barcode" : les chiffres imprimes sous le code-barres (8, 12 ou 13 chiffres), seulement s'ils sont TOUS lisibles. Sinon omets-le.
 - "confidence" : high si le produit et sa quantite sont nets, medium si l'un des deux est deduit, low si tu devines.
 - Ignore ce qui n'est pas alimentaire (sacs, ticket, ustensiles). N'invente aucun produit cache ou hors champ.
 - Si aucune course n'est visible, retourne { "items": [] }.`;
@@ -44,6 +47,10 @@ export interface RecognizedGrocery {
   unit: string | null;
   brand: string | null;
   expiry_date: string | null;
+  /** 1-based number of the photo the product is best seen on. */
+  photo: number | null;
+  /** EAN/UPC read under the barcode, check digit verified. */
+  barcode: string | null;
   confidence: 'high' | 'medium' | 'low';
 }
 export interface GroceryPhotoRecognition {
@@ -59,9 +66,20 @@ const ItemSchema = z.object({
   unit: text(40),
   brand: text(80),
   expiry_date: z.unknown().transform(value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null),
+  photo: z.unknown().transform(value => typeof value === 'number' && Number.isInteger(value) ? value : null),
+  barcode: z.unknown().transform(value => {
+    const digits = typeof value === 'string' || typeof value === 'number' ? String(value).replace(/\s/g, '') : '';
+    return isValidGtin(digits) ? digits : null;
+  }),
   confidence: z.unknown().transform(value => value === 'high' || value === 'medium' ? value : 'low' as const),
 });
 const AnswerSchema = z.object({ items: z.array(z.unknown()) });
+
+/** The photo number when it names one of the photos sent; the only photo otherwise. */
+function photoNumber(value: number | null, count: number): number | null {
+  if (value !== null && value >= 1 && value <= count) return value;
+  return count === 1 ? 1 : null;
+}
 
 export class GroceryPhotoRecognizer {
   constructor(private readonly ai: AICompletionClient, private readonly modelConfig: AssistantModelConfig) {}
@@ -100,7 +118,9 @@ export class GroceryPhotoRecognizer {
       .map(item => ItemSchema.safeParse(item && typeof item === 'object' ? item : {}))
       .flatMap((parsed): RecognizedGrocery[] => parsed.success && parsed.data.name ? [{
         name: parsed.data.name, quantity: parsed.data.quantity ?? null, unit: parsed.data.unit ?? null,
-        brand: parsed.data.brand ?? null, expiry_date: parsed.data.expiry_date ?? null, confidence: parsed.data.confidence ?? 'low',
+        brand: parsed.data.brand ?? null, expiry_date: parsed.data.expiry_date ?? null,
+        photo: photoNumber(parsed.data.photo ?? null, photos.length), barcode: parsed.data.barcode ?? null,
+        confidence: parsed.data.confidence ?? 'low',
       }] : [])
       .slice(0, MAX_ITEMS);
     return { items, model_receipt: invocation.receipt(), duration_ms: Date.now() - started };

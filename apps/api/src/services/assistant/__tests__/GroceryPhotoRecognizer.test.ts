@@ -20,9 +20,9 @@ test('sends the photos to the vision role and returns a clean French list', asyn
   ] }));
   const result = await service.recognize([{ buffer: JPEG }]);
   expect(result.items).toEqual([
-    { name: 'Lait demi-écrémé', quantity: 6, unit: 'bouteille', brand: 'Lactel', expiry_date: '2026-11-20', confidence: 'high' },
-    { name: 'Pommes', quantity: null, unit: 'kg', brand: null, expiry_date: null, confidence: 'medium' },
-    { name: 'Riz', quantity: 1, unit: 'kg', brand: null, expiry_date: null, confidence: 'low' },
+    { name: 'Lait demi-écrémé', quantity: 6, unit: 'bouteille', brand: 'Lactel', expiry_date: '2026-11-20', photo: 1, barcode: null, confidence: 'high' },
+    { name: 'Pommes', quantity: null, unit: 'kg', brand: null, expiry_date: null, photo: 1, barcode: null, confidence: 'medium' },
+    { name: 'Riz', quantity: 1, unit: 'kg', brand: null, expiry_date: null, photo: 1, barcode: null, confidence: 'low' },
   ]);
   const request = ai.complete.mock.calls[0][0];
   expect(request.model).toBe('gpt-6-luna');
@@ -30,6 +30,20 @@ test('sends the photos to the vision role and returns a clean French list', asyn
   expect(request.messages[0].content).toContain('Ne le traduis JAMAIS');
   expect(request.messages[1].images).toEqual([{ url: `data:image/jpeg;base64,${JPEG.toString('base64')}`, detail: 'high' }]);
   expect(result.model_receipt.calls[0]).toMatchObject({ role: 'vision', purpose: 'grocery_photo', status: 'completed' });
+});
+
+test('each product names the photo it is seen on and keeps a barcode only with a right check digit', async () => {
+  const { service } = recognizer(JSON.stringify({ items: [
+    { name: 'Mayonnaise', brand: 'Kewpie', quantity: 310, unit: 'ml', photo: 2, barcode: '3017620422003', confidence: 'high' },
+    { name: 'Riz', quantity: 1, unit: 'kg', photo: 7, barcode: '3017620422004', confidence: 'high' },
+    { name: 'Thé', quantity: 1, unit: 'boîte', barcode: ' 96385074 ', confidence: 'high' },
+  ] }));
+  const { items } = await service.recognize([{ buffer: JPEG }, { buffer: JPEG }]);
+  expect(items.map(({ name, photo, barcode }) => ({ name, photo, barcode }))).toEqual([
+    { name: 'Mayonnaise', photo: 2, barcode: '3017620422003' },
+    { name: 'Riz', photo: null, barcode: null },
+    { name: 'Thé', photo: null, barcode: '96385074' },
+  ]);
 });
 
 test('refuses no photo, more than 4 photos, or a file that is not an image, before any model call', async () => {

@@ -93,6 +93,7 @@
     "test:v10:pantry:db": "python3 scripts/test-v10-pantry-db.py",
     "test:deletion:db": "python3 scripts/test-deletion-requests-db.py",
     "test:recipe-images:db": "python3 scripts/test-recipe-images-bucket-db.py",
+    "test:grocery-photos:db": "python3 scripts/test-grocery-photos-db.py",
     "test:security:db": "python3 scripts/test-security-baseline-db.py",
     "test:stock:units:db": "python3 scripts/test-stock-units-db.py",
     "test:assistant:memory:db": "python3 scripts/test-assistant-memory-thread-db.py",
