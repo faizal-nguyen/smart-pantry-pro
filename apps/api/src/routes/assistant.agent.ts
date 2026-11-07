@@ -55,6 +55,8 @@ import {
   saveImportedDraftAsRecipe,
 } from '../services/imports/index.js';
 import { ProductResolver } from '../services/assistant/ProductResolver.js';
+import { ProductIntelligenceService } from '../services/products/ProductIntelligenceService.js';
+import { waitUntil } from '@vercel/functions';
 import { GroceryPhotoRecognizer, MAX_PHOTOS, PhotoRecognitionError } from '../services/assistant/GroceryPhotoRecognizer.js';
 import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
@@ -270,6 +272,7 @@ export function createAssistantAgentRouter(
   const ai = options.ai ?? createOpenAICompletionClient();
   const transcriber = options.transcriber ?? createSpeechTranscriber();
   const writer = new ActionLogWriter(adminClient);
+  const productIntelligence = new ProductIntelligenceService(adminClient);
   const signer = new ConfirmationTokenSigner(hmacSecret);
 
   // PRP-223 PR3 — wire MemoryService so /text and /voice persist
@@ -406,6 +409,9 @@ export function createAssistantAgentRouter(
     try {
       const result = await service.addReviewedGroceries(
         { userId: req.user.id, clientRequestId: parsed.data.client_request_id, items: parsed.data.items }, ctx);
+      const added = (result.action.result as { added?: Array<{ product_id?: string }> } | null)?.added ?? [];
+      // Nutri-Score & co. come from Open Food Facts once the answer is sent.
+      waitUntil(productIntelligence.enrichBrandedProducts(added.flatMap(item => item.product_id ? [item.product_id] : [])));
       return ok(res, result, 'OK', 'PHOTOS_ADDED');
     } catch (err) {
       if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);

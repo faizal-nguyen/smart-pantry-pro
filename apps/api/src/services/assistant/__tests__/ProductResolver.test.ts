@@ -710,3 +710,39 @@ describe('ProductResolver.resolveBatch — semantic step', () => {
     expect(rpcCalls).toBe(1); // single semantic RPC, no fuzzy
   });
 });
+
+describe('ProductResolver — brand read on the pack', () => {
+  const plain = makeProduct({ id: 'plain', name: 'Mayonnaise', normalized_name: 'mayonnaise' });
+  const amora = makeProduct({ id: 'amora', name: 'Mayonnaise Amora', normalized_name: 'mayonnaise amora' });
+  const kewpie = makeProduct({ id: 'kewpie', name: 'Mayonnaise Kewpie', normalized_name: 'mayonnaise kewpie' });
+
+  it('a branded product never joins a close product without its brand: it is created, with its brand', async () => {
+    const { client, inserts } = makeSemanticClient({
+      exactSingle: null,
+      semanticHits: [{ product: plain, score: 0.95 }],
+      fuzzy: [{ product: amora, score: 0.8 }],
+    });
+    const resolver = new ProductResolver(client, { embeddingService: makeStubEmbeddingService({ vector: FAKE_VEC }) });
+
+    const result = await resolver.resolve(USER_ID, { name: 'Mayonnaise Kewpie', brand: 'Kewpie' });
+
+    expect(result.kind).toBe('created');
+    expect(inserts[0]).toMatchObject({ name: 'Mayonnaise Kewpie', brand: 'Kewpie' });
+  });
+
+  it('a close product carrying the same brand is still the same product', async () => {
+    const { client, calls } = makeClient({ exactSingle: null, fuzzy: [{ product: kewpie, score: 0.86 }] });
+    const result = await new ProductResolver(client).resolve(USER_ID, { name: 'Mayonnaise Kewpie 310 ml', brand: 'Kewpie' });
+    expect(result).toMatchObject({ kind: 'matched', via: 'fuzzy', product: { id: 'kewpie' } });
+    expect(calls.inserts).toHaveLength(0);
+  });
+
+  it('without a brand nothing changes: the close plain product matches and no brand is written', async () => {
+    const { client, calls } = makeClient({ exactSingle: null, fuzzy: [{ product: plain, score: 0.9 }] });
+    expect(await new ProductResolver(client).resolve(USER_ID, { name: 'Mayonnaises' })).toMatchObject({ kind: 'matched', product: { id: 'plain' } });
+    const created = makeClient({ exactSingle: null });
+    await new ProductResolver(created.client).resolve(USER_ID, { name: 'Tahini' });
+    expect(created.calls.inserts[0]).not.toHaveProperty('brand');
+    expect(calls.inserts).toHaveLength(0);
+  });
+});

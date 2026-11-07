@@ -36,6 +36,8 @@ const ItemArgSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'expiry_date must be ISO YYYY-MM-DD')
     .optional(),
   notes: z.string().max(500).optional(),
+  // Read on the pack by the photo flow; added to the product name, last.
+  brand: z.string().trim().max(80).optional(),
 });
 export type ItemArg = z.infer<typeof ItemArgSchema>;
 

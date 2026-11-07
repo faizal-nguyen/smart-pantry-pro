@@ -1400,7 +1400,7 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
 });
 
 describe('groceries kept from a photo are added without a model call',()=>{
-  const items=[{name:'Lait demi-écrémé',quantity:6,unit:'bouteille'},{name:'Riz',quantity:1,unit:'kg',expiry_date:'2027-03-01'}];
+  const items=[{name:'Lait demi-écrémé',quantity:6,unit:'bouteille',brand:'Lactel'},{name:'Riz',quantity:1,unit:'kg',expiry_date:'2027-03-01'}];
   class ReplayWriter extends MockWriter {
     async insertPlanned(input: Parameters<MockWriter['insertPlanned']>[0]) {
       const existing=this.rows.find(r=>r.client_request_id===input.clientRequestId && r.step_seq===input.stepSeq);

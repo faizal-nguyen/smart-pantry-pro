@@ -1,5 +1,5 @@
 import { StockCommandService } from '../../stock/StockCommandService.js';
-import { findTopUpLot, type StockCommandResult } from '@smart/shared';
+import { findTopUpLot, productNameWithBrand, type StockCommandResult } from '@smart/shared';
 /**
  * PRP-221 J5b — Write handlers (LOW + MEDIUM tiers).
  *
@@ -91,7 +91,7 @@ async function resolveItems(
 
   const results = await ctx.productResolver.resolveBatch(
     ctx.userId,
-    items.map((it) => ({ name: it.name, category: it.category, unitType: it.unit }))
+    items.map((it) => ({ name: productNameWithBrand(it.name, it.brand), category: it.category, unitType: it.unit, brand: it.brand }))
   );
 
   for (let i = 0; i < items.length; i++) {

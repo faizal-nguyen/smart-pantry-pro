@@ -169,7 +169,7 @@ export async function postGroceryPhotos(input: { photos: Blob[]; expectedUserId?
 /** The products kept after review: one stock add, undoable like any assistant action. */
 export function postKeptGroceries(input: {
   clientRequestId: string;
-  items: Array<{ name: string; quantity: number; unit: string; expiry_date?: string }>;
+  items: Array<{ name: string; quantity: number; unit: string; brand?: string; expiry_date?: string }>;
   expectedUserId?: string;
 }): Promise<{ action: ExecutedAction }> {
   return apiPost<{ action: ExecutedAction }>(`${ASSISTANT_BASE}/photos/add`, {

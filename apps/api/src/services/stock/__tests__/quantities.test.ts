@@ -1,4 +1,4 @@
-import { allocateRecipeStock, convertQuantity, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, normalizeRecipeIngredients, StockCommandSchema, type StockLot } from '@smart/shared';
+import { allocateRecipeStock, convertQuantity, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, productNameWithBrand, normalizeRecipeIngredients, StockCommandSchema, type StockLot } from '@smart/shared';
 
 const lot = (quantity = 1, unit = 'kg'): StockLot => ({ id: 'lot', product_id: 'p', product_name: 'Farine', quantity, unit, stock_version: 2 });
 const ingredient = (quantity = 200, unit = 'g') => ({ ingredient_name: 'Farine', quantity, unit, inventory_product_id: 'p', is_essential: true });
@@ -152,4 +152,24 @@ describe('a unit without conversion still counts in itself (audit 2026-11-04)', 
   });
   test('2 sachets join the lot of sachet(s)', () =>
     expect(findTopUpLot([{ id: 'lot', quantity: 3, unit: 'sachet(s)' }], { quantity: 2, unit: 'sachets' })?.total).toBe(5));
+});
+
+describe('productNameWithBrand', () => {
+  test('keeps the printed name and adds the brand last, so recipes still find the product', () => {
+    expect(productNameWithBrand('Mayonnaise', 'Kewpie')).toBe('Mayonnaise Kewpie');
+    expect(productNameWithBrand('  Cacao en poudre 100 %  cacao ', ' Cailler ')).toBe('Cacao en poudre 100 % cacao Cailler');
+    expect(ingredientMatchRank('mayonnaise', productNameWithBrand('Mayonnaise', 'Kewpie'))).toBe(2);
+  });
+
+  test('moves a brand printed first to the end and never repeats it', () => {
+    expect(productNameWithBrand('KEWPIE MAYONNAISE', 'Kewpie')).toBe('MAYONNAISE Kewpie');
+    expect(productNameWithBrand('Otafuku - Yakisoba Sauce', 'Otafuku')).toBe('Yakisoba Sauce Otafuku');
+    expect(productNameWithBrand('Spice Paste for Szechuan Stir Fry by Asian Home Gourmet', 'asian home gourmet')).toBe('Spice Paste for Szechuan Stir Fry by Asian Home Gourmet');
+  });
+
+  test('a missing brand or a name that is only the brand changes nothing', () => {
+    expect(productNameWithBrand('Pommes', null)).toBe('Pommes');
+    expect(productNameWithBrand('Pommes', '  ')).toBe('Pommes');
+    expect(productNameWithBrand('Nutella', 'Nutella')).toBe('Nutella');
+  });
 });

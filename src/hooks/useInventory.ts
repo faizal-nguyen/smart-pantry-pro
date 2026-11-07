@@ -34,6 +34,11 @@ export interface ProductNutritionEnvelope {
     fiberG?: number;
     saltG?: number;
   };
+  /** Open Food Facts scores of a packaged product. */
+  scores?: {
+    nutriScore?: 'a' | 'b' | 'c' | 'd' | 'e' | 'unknown';
+    novaGroup?: 1 | 2 | 3 | 4;
+  };
 }
 
 export interface Product {
@@ -42,6 +47,7 @@ export interface Product {
   category: string;
   unit_type: string;
   barcode?: string;
+  brand?: string | null;
   image_url?: string;
   nutrition_json?: ProductNutritionEnvelope | null;
 }

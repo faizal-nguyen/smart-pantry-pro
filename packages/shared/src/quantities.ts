@@ -38,6 +38,27 @@ export function ingredientNameTokens(value: string): string[] {
 }
 
 /**
+ * A packaged product keeps the name printed on its pack, brand last
+ * ("Mayonnaise Kewpie"): recipes find it by its leading words ("mayonnaise"),
+ * and two brands of the same product stay two products. A brand written
+ * first ("Kewpie Mayonnaise") moves to the end.
+ */
+export function productNameWithBrand(name: string, brand?: string | null): string {
+  const cleanName = name.trim().replace(/\s+/g, ' ');
+  const cleanBrand = (brand ?? '').trim().replace(/\s+/g, ' ');
+  const brandWords = ingredientNameTokens(cleanBrand);
+  if (!brandWords.length) return cleanName;
+  const nameWords = ingredientNameTokens(cleanName);
+  if (nameWords.length > brandWords.length && brandWords.every((word, i) => nameWords[i] === word)) {
+    const escapedBrand = cleanBrand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rest = cleanName.replace(new RegExp(`^${escapedBrand}[\\s,:\u2013\u2014-]*`, 'i'), '');
+    return rest && rest !== cleanName ? `${rest} ${cleanBrand}` : cleanName;
+  }
+  if (` ${nameWords.join(' ')} `.includes(` ${brandWords.join(' ')} `)) return cleanName;
+  return cleanName ? `${cleanName} ${cleanBrand}` : cleanBrand;
+}
+
+/**
  * 0 when the names designate different products, 1 for the same product name,
  * 2 when the product only adds descriptive words to the ingredient ("Lait de coco bio"
  * for "lait de coco"). A more specific ingredient ("citron vert") is never covered by
