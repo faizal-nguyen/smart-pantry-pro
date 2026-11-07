@@ -158,9 +158,9 @@ REGLES :
 - Si une information n'est pas explicitement dans le texte, OMET le champ.
 - N'INVENTE rien. Ne fais pas de suppositions.
 - Si le contenu n'est manifestement pas une recette, retourne { "title": "", "ingredients": [], "instructions": [], "tags": [] }.
-- Reponds dans la langue dominante du contenu (FR si FR, EN si EN, etc.).
+- Redige TOUJOURS la recette en francais, quelle que soit la langue du contenu : traduis le titre, la description, les noms d'ingredients, les etapes et les tags. Garde tels quels les noms propres et les plats sans equivalent francais (ex. kimchi, ramen).
 - Quantites en nombres decimaux (0.5 plutot que "1/2").
-- Unites en abregees standard (g, kg, ml, l, c.s., c.c., tasse).
+- Unites en abregees standard (g, kg, ml, l, c.s., c.c., tasse) : tbsp -> c.s., tsp -> c.c., cup -> tasse.
 - "step" est 1-indexed et incrementiel.`;
 
 // ---- Confidence (mirror of client/helpers/confidence.ts) ------------

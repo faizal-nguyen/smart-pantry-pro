@@ -88,6 +88,15 @@ describe('OpenAIRecipeExtractionService (PRP-220.13)', () => {
     expect(result.draft.confidence).toBeLessThanOrEqual(0.6);
   });
 
+  it('asks for the recipe in French whatever the language of the post (prod case 2026-11-07)', async () => {
+    const ai = makeAi(goodAiResponse());
+    await new OpenAIRecipeExtractionService([new FallbackWebAdapter()], ai).extract(baseImport());
+    const system = ai.calls[0].messages[0].content;
+    expect(system).toMatch(/TOUJOURS la recette en francais/);
+    expect(system).toMatch(/tbsp -> c\.s\./);
+    expect(system).not.toMatch(/langue dominante/);
+  });
+
   it('forwards the user hint to the AI prompt', async () => {
     const ai = makeAi(goodAiResponse());
     const svc = new OpenAIRecipeExtractionService([new FallbackWebAdapter()], ai);
