@@ -746,3 +746,31 @@ describe('ProductResolver — brand read on the pack', () => {
     expect(calls.inserts).toHaveLength(0);
   });
 });
+
+describe('ProductResolver — barcode read on the pack', () => {
+  const NUTELLA = '3017620422003';
+  const coded = makeProduct({ id: 'p-coded', name: 'Pâte à tartiner', normalized_name: 'pate a tartiner', barcode: NUTELLA });
+
+  it('a barcode names its product whatever the name read', async () => {
+    const { client, calls } = makeClient({ exactSingle: coded });
+    const result = await new ProductResolver(client).resolve(USER_ID, { name: 'Nutella', barcode: NUTELLA });
+    expect(result).toMatchObject({ kind: 'matched', via: 'exact', product: { id: 'p-coded' } });
+    expect(calls.exactLookups).toEqual([NUTELLA]);
+    expect(calls.fuzzyCalls).toHaveLength(0);
+  });
+
+  it('in a batch, the barcode match wins before any name search', async () => {
+    const { client, calls } = makeClient({ batchRows: [coded] });
+    const [result] = await new ProductResolver(client).resolveBatch(USER_ID, [{ name: 'Nutella', barcode: NUTELLA }]);
+    expect(result).toMatchObject({ kind: 'matched', product: { id: 'p-coded' } });
+    expect(calls.batchLookups).toEqual([['nutella'], [NUTELLA]]);
+    expect(calls.fuzzyCalls).toHaveLength(0);
+    expect(calls.inserts).toHaveLength(0);
+  });
+
+  it('a new product is created with its barcode', async () => {
+    const { client, calls } = makeClient({ exactSingle: null });
+    await new ProductResolver(client).resolve(USER_ID, { name: 'Nutella', barcode: NUTELLA });
+    expect(calls.inserts[0]).toMatchObject({ name: 'Nutella', barcode: NUTELLA });
+  });
+});

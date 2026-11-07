@@ -666,3 +666,38 @@ describe('AddInventoryItemsHandler — brand read on the pack', () => {
     expect(result.result.added[0]).toMatchObject({ product_name: 'Mayonnaise Kewpie' });
   });
 });
+
+describe('AddInventoryItemsHandler — photo flow', () => {
+  it('passes the barcode on and keeps the photo of each product added, once per product', async () => {
+    const { client } = makeClient({
+      routes: { inventory: { insertReturning: [{ id: 'inv-1', product_id: 'p-Nutella', quantity: 1 }, { id: 'inv-2', product_id: 'p-Riz', quantity: 1 }] } },
+    });
+    const upsert = jest.fn(async () => ({ error: null }));
+    const userClient = { from: (table: string) => (table === 'user_product_photos' ? { upsert } : client.from(table)) };
+    const ctx = makeCtx(userClient);
+    const resolveBatch = jest.spyOn(ctx.productResolver, 'resolveBatch');
+    const path = `users/${USER}/groceries/66666666-6666-4666-8666-666666666666-1.jpg`;
+    await new AddInventoryItemsHandler().execute(ctx, { items: [
+      { name: 'Nutella', quantity: 1, unit: 'pot', barcode: '3017620422003', photo_path: path },
+      { name: 'Riz', quantity: 1, unit: 'kg' },
+    ] });
+    expect(resolveBatch.mock.calls[0][1]).toEqual([
+      expect.objectContaining({ name: 'Nutella', barcode: '3017620422003' }),
+      expect.objectContaining({ name: 'Riz', barcode: undefined }),
+    ]);
+    expect(upsert).toHaveBeenCalledWith([expect.objectContaining({ user_id: USER, product_id: 'p-Nutella', photo_path: path })], { onConflict: 'user_id,product_id' });
+  });
+
+  it('a photo that cannot be linked never fails the add', async () => {
+    const { client } = makeClient({ routes: { inventory: { insertReturning: [{ id: 'inv-1', product_id: 'p-Nutella', quantity: 1 }] } } });
+    const upsert = jest.fn(async () => ({ error: { message: 'permission denied' } }));
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const userClient = { from: (table: string) => (table === 'user_product_photos' ? { upsert } : client.from(table)) };
+    const result = await new AddInventoryItemsHandler().execute(makeCtx(userClient), {
+      items: [{ name: 'Nutella', quantity: 1, unit: 'pot', photo_path: `users/${USER}/groceries/r-1.jpg` }],
+    });
+    expect(result.result.added).toHaveLength(1);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

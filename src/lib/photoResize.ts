@@ -6,6 +6,8 @@
  * photo leaves as a JPEG — iPhone HEIC photos included.
  */
 export const PHOTO_MAX_SIDE = 1600;
+/** A photo kept on a product only needs to be recognised: about 150 KB. */
+export const KEPT_PHOTO_SIDE = 1024;
 
 const UNREADABLE = 'Cette photo ne peut pas être lue sur cet appareil.';
 const CONVERTER_UNAVAILABLE = 'La conversion de la photo HEIC n’a pas pu démarrer. Vérifie ta connexion et réessaie.';

@@ -76,6 +76,8 @@ export interface ResolveInput {
   unitType?: string;
   /** Brand read on the pack; the name already carries it (productNameWithBrand). */
   brand?: string;
+  /** EAN/UPC read on the pack (check digit verified): the product's identity. */
+  barcode?: string;
 }
 
 export type ResolveResult =
@@ -183,6 +185,9 @@ export class ProductResolver {
       );
     }
 
+    const byBarcode = input.barcode ? await this.findByBarcode(input.barcode) : null;
+    if (byBarcode) return { kind: 'matched', product: byBarcode, confidence: 1, via: 'exact' };
+
     const exact = await this.findExact(normalized);
     if (exact) {
       return { kind: 'matched', product: exact, confidence: 1, via: 'exact' };
@@ -204,6 +209,10 @@ export class ProductResolver {
 
     const normalizedKeys = inputs.map((i) => normalizeProductName(i.name));
     const exactMap = await this.findExactBatch(normalizedKeys);
+    // A barcode read on the pack names the product whatever its name.
+    const barcodes = [...new Set(inputs.flatMap((i) => (i.barcode ? [i.barcode] : [])))];
+    const barcodeMap = barcodes.length ? await this.findByBarcodes(barcodes) : new Map<string, ProductRow>();
+    const barcodeMatch = (input: ResolveInput) => (input.barcode ? barcodeMap.get(input.barcode) : undefined);
 
     // Pre-compute embeddings for the items that missed the exact path.
     // generateBatch dedups and caches internally, so calling it here
@@ -213,7 +222,7 @@ export class ProductResolver {
     inputs.forEach((_, idx) => {
       const key = normalizedKeys[idx];
       if (!key) return;
-      if (!exactMap.has(key)) {
+      if (!exactMap.has(key) && !barcodeMatch(inputs[idx])) {
         missIdx.push(idx);
         missKeys.push(key);
       }
@@ -236,7 +245,7 @@ export class ProductResolver {
             `Empty product name at index ${idx}.`
           );
         }
-        const exact = exactMap.get(key);
+        const exact = barcodeMatch(input) ?? exactMap.get(key);
         if (exact) {
           return { kind: 'matched', product: exact, confidence: 1, via: 'exact' as const };
         }
@@ -291,6 +300,18 @@ export class ProductResolver {
       .maybeSingle();
     if (error) throw error;
     return (data as ProductRow | null) ?? null;
+  }
+
+  private async findByBarcode(barcode: string): Promise<ProductRow | null> {
+    const { data, error } = await this.client.from('products').select('*').eq('barcode', barcode).maybeSingle();
+    if (error) throw error;
+    return (data as ProductRow | null) ?? null;
+  }
+
+  private async findByBarcodes(barcodes: readonly string[]): Promise<Map<string, ProductRow>> {
+    const { data, error } = await this.client.from('products').select('*').in('barcode', [...barcodes]);
+    if (error) throw error;
+    return new Map(((data ?? []) as ProductRow[]).flatMap((row) => (row.barcode ? [[row.barcode, row] as const] : [])));
   }
 
   private async findExactBatch(normalized: readonly string[]): Promise<Map<string, ProductRow>> {
@@ -405,6 +426,7 @@ export class ProductResolver {
       source: 'assistant_auto',
       created_by: userId,
       ...(input.brand?.trim() ? { brand: input.brand.trim() } : {}),
+      ...(input.barcode ? { barcode: input.barcode } : {}),
     };
 
     const { data, error } = await this.client
@@ -417,7 +439,8 @@ export class ProductResolver {
       // Race lost: another resolve() created the same normalized_name
       // between our findExact and now. Re-fetch and treat as match.
       if ((error as { code?: string }).code === '23505') {
-        const fallback = await this.findExact(normalizeProductName(cleanName));
+        const fallback = await this.findExact(normalizeProductName(cleanName))
+          ?? (input.barcode ? await this.findByBarcode(input.barcode) : null);
         if (fallback) {
           return { kind: 'matched', product: fallback, confidence: 1, via: 'exact' };
         }

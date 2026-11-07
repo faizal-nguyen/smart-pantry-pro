@@ -20,6 +20,8 @@
  */
 import { z } from 'zod';
 
+import { isValidGtin } from '../../products/gtin.js';
+
 // ---- Shared atoms ----------------------------------------------------
 
 /**
@@ -38,6 +40,10 @@ const ItemArgSchema = z.object({
   notes: z.string().max(500).optional(),
   // Read on the pack by the photo flow; added to the product name, last.
   brand: z.string().trim().max(80).optional(),
+  // Photo flow only, built by the server: the barcode identifies the product,
+  // the photo is kept on it for its owner.
+  barcode: z.string().refine(isValidGtin, 'barcode must be a valid EAN/UPC').optional(),
+  photo_path: z.string().regex(/^users\/[0-9a-f-]{36}\/groceries\/[\w-]+\.jpg$/).optional(),
 });
 export type ItemArg = z.infer<typeof ItemArgSchema>;
 
