@@ -24,6 +24,7 @@ import type { AICompletionClient,AICompletionRequest } from '../../imports/Recip
 import type { SpeechTranscriber } from '../../media/SpeechTranscriber.js';
 import type { ActionLogRow, ActionLogWriter } from '../ActionLogWriter.js';
 import { benchmarkConfig, type AssistantModelConfig } from '../../ai/ModelConfig.js';
+import { StockCommandError } from '../../stock/StockCommandService.js';
 
 const SECRET = 'a'.repeat(64);
 const USER = '11111111-1111-1111-1111-111111111111';
@@ -1475,5 +1476,82 @@ describe('groceries kept from a photo are added without a model call',()=>{
     const {service}=makeService({ai:{complete:jest.fn()} as unknown as AICompletionClient,handlers:{add_inventory_items:{execute:jest.fn(async()=>{throw new Error('lot conflict');})}},writer});
     await expect(service.addReviewedGroceries({userId:USER,clientRequestId:'88888888-8888-4888-8888-888888888888',items},makeCtx())).rejects.toMatchObject({code:'EXECUTION_FAILED'});
     expect(writer.rows[0].status).toBe('failed');
+  });
+});
+
+describe('a recipe action without a search this turn (iPhone 2026-11-07 22:48: invented recipe id)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const};
+  const LAMB='55555555-5555-4555-8555-555555555551',BUHARI='55555555-5555-4555-8555-555555555552',DINDIGUL='55555555-5555-4555-8555-555555555553';
+  const library=[{id:LAMB,name:'Lamb (Mutton) Biryani'},{id:BUHARI,name:'Buhari Chicken Biryani'},{id:DINDIGUL,name:'Dindigul Chicken Biryani'},{id:'55555555-5555-4555-8555-555555555554',name:'Pâtes carbonara'}];
+  const recipesClient={from:()=>{const chain:Record<string,unknown>={};for(const m of ['select','eq','limit','order']) chain[m]=()=>chain;
+    chain.then=(resolve:(v:unknown)=>unknown)=>Promise.resolve({data:library,error:null}).then(resolve);return chain;}};
+  const ctx=()=>({...makeCtx(),userClient:recipesClient as any});
+  function cook(text:string,recipeId='b2b4e0d0-4c5e-4e3b-8c9e-5b5e5b5e5b5e') {
+    let n=0;
+    const ai:AICompletionClient={complete:async request=>{n++;
+      return {content:n>1 ? 'ok' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(n===1 ? {tool_calls:[{id:'c1',name:'cook_recipe',arguments:JSON.stringify({recipe_id:recipeId,servings:1})}]} : {})};
+    }};
+    const {service}=makeService({ai,handlers:{cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline')});
+    return service.handleRequest({...input,text},ctx());
+  }
+  it('« le Lamb (Mutton) Biryani »: the invented id is replaced by the recipe the words name',async()=>{
+    const response=await cook('le Lamb (Mutton) Biryani');
+    expect(response.actions_pending).toHaveLength(1);
+    expect(response.actions_pending[0].args.recipe_id).toBe(LAMB);
+    expect(response.actions_pending[0].labels).toEqual({[LAMB]:'Lamb (Mutton) Biryani'});
+  });
+  it('« byriani »: several recipes match, so it asks which and offers them as choices',async()=>{
+    const response=await cook('j’ai cuisiné byriani');
+    expect(response.actions_pending).toEqual([]);
+    expect(response.message).toMatch(/Laquelle as-tu cuisinée/);
+    expect(response.choices?.map(c=>c.label).sort()).toEqual(['Buhari Chicken Biryani','Dindigul Chicken Biryani','Lamb (Mutton) Biryani']);
+    expect(response.choices?.find(c=>c.label==='Lamb (Mutton) Biryani')?.reply).toBe('J’ai cuisiné Lamb (Mutton) Biryani');
+  });
+  it('no recipe named by the words: nothing prepared, and it says so',async()=>{
+    const response=await cook('j’ai cuisiné un couscous');
+    expect(response.actions_pending).toEqual([]);
+    expect(response.message).toMatch(/pas retrouvé cette recette/);
+  });
+  it('a real biryani id is not kept when « byriani » names the others as well',async()=>{
+    const response=await cook('j’ai cuisiné byriani',BUHARI);
+    expect(response.actions_pending).toEqual([]);
+    expect(response.choices).toHaveLength(3);
+  });
+  it('a real id whose recipe the words name is kept',async()=>{
+    const response=await cook('j’ai cuisiné les pâtes carbonara','55555555-5555-4555-8555-555555555554');
+    expect(response.actions_pending[0].args.recipe_id).toBe('55555555-5555-4555-8555-555555555554');
+  });
+  it('a failed confirmation says why',async()=>{
+    const writer=new MockWriter();
+    const row=makeRow({id:randomUUID(),tool:'cook_recipe',tool_args:{recipe_id:LAMB},risk_tier:'medium',status:'planned',reversible:false});
+    writer.rows.push(row);
+    const {service}=makeService({ai:makeAi([]),writer,handlers:{cook_recipe:{execute:async()=>{throw new StockCommandError('RECIPE_NOT_FOUND',404);}}}});
+    const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+    const res=await service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(res.actions_failed).toEqual([expect.objectContaining({action_id:row.id,reason:new StockCommandError('RECIPE_NOT_FOUND',404).message})]);
+  });
+});
+
+describe('answering « laquelle ? » by typing the name (live repro 2026-11-08)',()=>{
+  const LAMB='55555555-5555-4555-8555-555555555551';
+  const p=memoryPolicy({userId:USER,saveHistory:false,memoryEnabled:false});
+  const asked=[{role:'user' as const,content:'j’ai cuisiné byriani'},
+    {role:'assistant' as const,content:'Plusieurs recettes correspondent : Lamb (Mutton) Biryani, Buhari Chicken Biryani. Laquelle as-tu cuisinée ? Redis-le-moi avec son nom.'}];
+  it('« le Lamb (Mutton) Biryani » continues the cook: the follow-up hop runs after the search',async()=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{requests.push(request);const n=requests.length;
+      return {content:n>2 ? 'ok' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(n===1 ? {tool_calls:[{id:'s1',name:'search_recipes',arguments:'{"query":"Lamb (Mutton) Biryani"}'}]}
+          : n===2 ? {tool_calls:[{id:'c1',name:'cook_recipe',arguments:JSON.stringify({recipe_id:LAMB})}]} : {})};}};
+    const registry=new ToolHandlerRegistry();
+    registry.register('search_recipes',{execute:async()=>({result:{recipes:[{id:LAMB,name:'Lamb (Mutton) Biryani'}]}})});
+    registry.register('cook_recipe',{execute:jest.fn()});
+    const response=await new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
+      {modelConfig:benchmarkConfig('baseline'),memoryService:{readPolicySafe:async()=>p} as unknown as MemoryService,memoryExtractor:new MemoryExtractor(),
+        contextBuilder:{build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder})
+      .handleRequest({userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text',text:'le Lamb (Mutton) Biryani',sessionMessages:asked,sessionRevision:p.revision},makeCtx());
+    expect((requests[1].tools ?? []).map(t=>t.function.name)).toContain('cook_recipe');
+    expect(response.actions_pending.map(a=>[a.tool,a.labels])).toEqual([['cook_recipe',{[LAMB]:'Lamb (Mutton) Biryani'}]]);
   });
 });

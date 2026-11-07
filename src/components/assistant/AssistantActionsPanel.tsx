@@ -105,9 +105,12 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       const done = await postAssistantConfirm(result.confirmation_token);
       onResultPatched({ actions_executed: [...result.actions_executed, ...done.actions_executed], actions_pending: [], confirmation_token: null });
       dispatchAgentDbChanged(done.actions_executed.flatMap(action => tablesForTool(action.tool)));
+      // iPhone 2026-11-07: « 0 exécutée(s), 1 échec(s) » said nothing about why.
+      const reasons = [...new Set(done.actions_failed.map(failure => failure.reason).filter((reason): reason is string => !!reason))];
       toast({
-        title: done.actions_failed.length ? 'Confirmation partielle' : 'Actions confirmées',
-        description: `${done.actions_executed.length} exécutée(s), ${done.actions_failed.length} échec(s).`,
+        title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle' : 'Action non réalisée',
+        description: !done.actions_failed.length ? `${done.actions_executed.length} exécutée(s).`
+          : reasons.length ? reasons.join(' ') : 'Rien n’a changé. Redis ta demande pour réessayer.',
         ...(done.actions_failed.length ? { variant: 'destructive' as const } : {}),
       });
     } catch (err) {
