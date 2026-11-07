@@ -1,15 +1,13 @@
 /**
- * GroceryPhotoCapture — « mes courses en photo ».
+ * GroceryReviewDialog — the products read on grocery photos, reviewed before
+ * anything enters the stock.
  *
- * Up to 4 photos, resized on the phone, are read by the server (nothing is
- * written then). The owner reviews the list — keeps, fixes or drops each
- * product — then one stock add runs through the assistant's
- * add_inventory_items action, which tops up matching lots and can be undone.
- * Unless the owner unticks it, each photo is kept, smaller and private, on
- * the products it shows.
+ * The owner keeps, fixes or drops each product, then one stock add runs
+ * through the assistant's add_inventory_items action, which tops up matching
+ * lots and can be undone. Unless the owner unticks it, each photo is kept,
+ * smaller and private, on the products it shows.
  */
-import { useId, useRef, useState } from 'react';
-import { Camera, Loader2 } from 'lucide-react';
+import { useId, useState } from 'react';
 import { productNameWithBrand } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,13 +17,11 @@ import { KEPT_PHOTO_SIDE, resizePhoto } from '@/lib/photoResize';
 import {
   newClientRequestId,
   postAssistantUndo,
-  postGroceryPhotos,
   postKeptGroceries,
   type KeptGrocery,
   type RecognizedGrocery,
 } from '@/services/assistantApi';
 
-const MAX_PHOTOS = 4;
 const UNITS = ['piece', 'g', 'kg', 'ml', 'cl', 'l', 'paquet', 'boîte', 'sachet', 'bouteille', 'pot', 'brique'];
 
 interface Row {
@@ -40,8 +36,6 @@ interface Row {
   confidence: RecognizedGrocery['confidence'];
 }
 type Stage =
-  | { kind: 'reading' }
-  | { kind: 'error'; message: string }
   | { kind: 'review' }
   | { kind: 'adding' }
   | { kind: 'added'; count: number; ambiguous: string[]; actionId: string | null; photosLost: boolean }
@@ -58,48 +52,24 @@ const parseQuantity = (value: string) => {
 };
 const products = (count: number) => `${count} produit${count > 1 ? 's' : ''}`;
 
-export default function GroceryPhotoCapture({ owner, disabled }: { owner?: string; disabled?: boolean }) {
-  const input = useRef<HTMLInputElement>(null);
-  const photos = useRef<Blob[]>([]);
-  const request = useRef<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [stage, setStage] = useState<Stage>({ kind: 'reading' });
-  const [rows, setRows] = useState<Row[]>([]);
-  const [trimmed, setTrimmed] = useState(false);
+interface GroceryReviewDialogProps {
+  owner?: string;
+  /** The photos read, resized, in the order the items number them. */
+  photos: readonly Blob[];
+  items: readonly RecognizedGrocery[];
+  onClose: () => void;
+  /** Called once the products are in the stock. */
+  onAdded?: () => void;
+}
+
+export default function GroceryReviewDialog({ owner, photos, items, onClose, onAdded }: GroceryReviewDialogProps) {
+  // One identity per reviewed list: a retried add returns its first result.
+  const [request] = useState(newClientRequestId);
+  const [stage, setStage] = useState<Stage>({ kind: 'review' });
+  const [rows, setRows] = useState<Row[]>(() => items.map(toRow));
   const [problem, setProblem] = useState<string | null>(null);
   const [keepPhotos, setKeepPhotos] = useState(true);
   const unitsId = useId();
-
-  const read = async () => {
-    setStage({ kind: 'reading' });
-    try {
-      const { items } = await postGroceryPhotos({ photos: photos.current, expectedUserId: owner });
-      setRows(items.map(toRow));
-      // One identity per reviewed list: a retried add returns its first result.
-      request.current = newClientRequestId();
-      setStage({ kind: 'review' });
-    } catch (error) {
-      setStage({ kind: 'error', message: error instanceof Error ? error.message : 'La lecture des photos a échoué. Réessaie.' });
-    }
-  };
-
-  const choose = async (files: FileList | null) => {
-    const chosen = Array.from(files ?? []);
-    if (input.current) input.current.value = '';
-    if (chosen.length === 0) return;
-    setTrimmed(chosen.length > MAX_PHOTOS);
-    setRows([]); setProblem(null); setOpen(true); setStage({ kind: 'reading' });
-    try {
-      // One photo at a time: a decoded 24 MP iPhone photo holds about 100 MB.
-      const resized: Blob[] = [];
-      for (const file of chosen.slice(0, MAX_PHOTOS)) resized.push(await resizePhoto(file));
-      photos.current = resized;
-    } catch (error) {
-      setStage({ kind: 'error', message: error instanceof Error ? error.message : 'Cette photo ne peut pas être lue sur cet appareil.' });
-      return;
-    }
-    await read();
-  };
 
   const kept = rows.filter(row => row.keep);
   const incomplete = kept.some(row => !row.name.trim() || parseQuantity(row.quantity) === null || !row.unit.trim());
@@ -110,14 +80,14 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
     if (!keepPhotos) return { numbers: [], files: [] };
     const numbers = [...new Set(kept.flatMap(row => (row.photo ? [row.photo] : [])))].sort((a, b) => a - b);
     try {
-      return { numbers, files: await Promise.all(numbers.map(n => resizePhoto(photos.current[n - 1], KEPT_PHOTO_SIDE, 0.8))) };
+      return { numbers, files: await Promise.all(numbers.map(n => resizePhoto(photos[n - 1], KEPT_PHOTO_SIDE, 0.8))) };
     } catch {
       return { numbers: [], files: [] }; // a photo that cannot be reduced is just not kept
     }
   };
 
   const add = async () => {
-    if (!request.current || incomplete || kept.length === 0) return;
+    if (incomplete || kept.length === 0) return;
     setProblem(null); setStage({ kind: 'adding' });
     try {
       const toKeep = await photosToKeep();
@@ -129,10 +99,11 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
         ...(row.photo && toKeep.numbers.includes(row.photo) ? { photo: toKeep.numbers.indexOf(row.photo) + 1 } : {}),
       }));
       const { action, photos_kept: photosKept } = await postKeptGroceries({
-        clientRequestId: request.current, expectedUserId: owner, items, photos: toKeep.files,
+        clientRequestId: request, expectedUserId: owner, items, photos: toKeep.files,
       });
       const result = action.result as { added?: unknown[]; ambiguous?: Array<{ name: string }> } | null;
       dispatchAgentDbChanged(['inventory']);
+      onAdded?.();
       setStage({ kind: 'added', count: result?.added?.length ?? kept.length,
         ambiguous: (result?.ambiguous ?? []).map(entry => entry.name), actionId: action.reversible ? action.action_id : null,
         photosLost: (keepPhotos && toKeep.numbers.length === 0 && kept.some(row => row.photo)) || (photosKept ?? 0) < toKeep.files.length });
@@ -154,30 +125,12 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
   };
 
   return (
-    <>
-      <input
-        ref={input} type="file" accept="image/*,.heic,.heif" multiple className="sr-only" tabIndex={-1}
-        aria-label="Photos de mes courses" onChange={event => void choose(event.target.files)}
-      />
-      <Button
-        type="button" size="icon" variant="ghost" disabled={disabled}
-        aria-label="Ajouter mes courses en photo" className="min-w-[44px] min-h-[44px]"
-        onClick={() => input.current?.click()}
-      >
-        <Camera className="h-4 w-4" aria-hidden="true" />
-      </Button>
-      <Dialog open={open} onOpenChange={next => { if (!next && stage.kind !== 'adding') setOpen(false); }}>
+      <Dialog open onOpenChange={next => { if (!next && stage.kind !== 'adding') onClose(); }}>
         <DialogContent className="max-w-2xl min-w-0 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Mes courses en photo</DialogTitle>
             <DialogDescription>Les photos servent à lire tes courses ; seule la liste que tu valides entre dans le stock. Si tu les gardes, elles restent privées, sur tes produits.</DialogDescription>
           </DialogHeader>
-          {trimmed && <p className="text-sm text-muted-foreground">{MAX_PHOTOS} photos au plus : les {MAX_PHOTOS} premières sont lues.</p>}
-          {stage.kind === 'reading' && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Lecture des photos…</p>}
-          {stage.kind === 'error' && <div className="space-y-2">
-            <p role="alert" className="text-sm text-destructive">{stage.message}</p>
-            {photos.current.length > 0 && <Button className="min-h-11" variant="outline" onClick={() => void read()}>Réessayer</Button>}
-          </div>}
           {(stage.kind === 'review' || stage.kind === 'adding') && (rows.length === 0
             ? <p className="text-sm">Aucune course reconnue sur ces photos. Étale les produits, étiquettes visibles, et réessaie.</p>
             : <>
@@ -227,6 +180,5 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
           {stage.kind === 'undone' && <p role="status">Ajout annulé.</p>}
         </DialogContent>
       </Dialog>
-    </>
   );
 }
