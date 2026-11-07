@@ -32,6 +32,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
 import { calendarDate, calendarWeekStart, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
 import { recipeWordsMatched } from './handlers/read.js';
+import { StockCommandError } from '../stock/StockCommandService.js';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
 import { memoryModelToolResult } from './MemoryModelOutput.js';
 import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
@@ -185,6 +186,8 @@ export interface AssistantPlanResponse {
   transcript: string;
   detected_language?: string;
   message: string;
+  /** Answers the user can tap when the reply asks which recipe (or a clarification). */
+  choices?: Array<{ label: string; reply: string }>;
   actions_executed: ExecutedActionDescriptor[];
   actions_pending: PendingActionDescriptor[];
   confirmation_token: string | null;
@@ -519,12 +522,25 @@ export class VoiceAgentService {
     // 3. Execute / plan each tool_call
     const executed: ExecutedActionDescriptor[] = [];
     const pending: PendingActionDescriptor[] = [];
+    // Recipe ids not read this turn are checked against the user's library (iPhone
+    // 2026-11-07 22:48: an invented id reached Confirmer and failed).
+    const resolvedRecipeNames = new Map<string, string>();
+    let recipeNotFound = false;
+    let library: Promise<RecipeName[] | null> | null = null;
+    const loadLibrary = () => (library ??= loadRecipeLibrary(ctx));
 
     for (let i = 0; i < toolCalls.length; i++) {
       try { invocation.checkWork(); } catch { toolIssue=true; break; }
-      const tc = toolCalls[i];
+      let tc = toolCalls[i];
       if (input.allowedTools && !input.allowedTools.includes(tc.name as ToolName)) { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
       try { this.toolRegistry.get(tc.name); } catch { outcomes.set(tc.id,{status:'unknown_tool'}); toolIssue=true; continue; }
+      if (tc.name in RECIPE_WRITES) {
+        const resolution = await resolveRecipeWrite(tc.name, tc.arguments, transcript, recipeNames(executed), loadLibrary);
+        for (const [id, name] of resolution.names) resolvedRecipeNames.set(id, name);
+        if (resolution.ambiguous) { ambiguousRecipes ??= resolution.ambiguous; outcomes.set(tc.id,{status:'not_executed',reason:'ambiguous_recipe'}); continue; }
+        if (resolution.notFound) { recipeNotFound = true; outcomes.set(tc.id,{status:'not_executed',reason:'recipe_not_found'}); continue; }
+        if (resolution.arguments !== tc.arguments) { tc = { ...tc, arguments: resolution.arguments }; toolCalls[i] = tc; }
+      }
       const stepSeq = i;
 
       let parsedArgs: unknown;
@@ -906,7 +922,11 @@ export class VoiceAgentService {
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
     if (pending.length) message = synthesizeMessage(executed,pending);
     // iPhone 2026-11-07: « j'ai cuisiné byriani » prepared cook_recipe on all 5 biryani.
-    if (ambiguousRecipes && !pending.length) message = ambiguityQuestion(ambiguousRecipes, recipeNames(executed));
+    const knownRecipes = new Map([...recipeNames(executed), ...resolvedRecipeNames]);
+    if (ambiguousRecipes && !pending.length) message = ambiguityQuestion(ambiguousRecipes, knownRecipes);
+    else if (recipeNotFound && !pending.length && !executed.some(action => action.risk_tier !== 'read'))
+      message = 'Je n’ai pas retrouvé cette recette dans ta bibliothèque : je n’ai rien changé. Redis son nom tel qu’il apparaît dans Recettes.';
+    const choices = ambiguousRecipes && !pending.length ? recipeChoices(ambiguousRecipes, knownRecipes, transcript) : clarificationChoices(executed);
     if (toolIssue) {
       const statuses = [...outcomes.values()].map(outcome => (outcome as { status?: string; reason?: string } | null));
       const outOfScope = statuses.some(outcome => outcome?.status === 'forbidden_scope');
@@ -988,8 +1008,9 @@ export class VoiceAgentService {
       transcript,
       detected_language: detectedLanguage,
       message,
-      actions_executed: withLabels(executed, executed),
-      actions_pending: withLabels(pending, executed),
+      ...(choices.length ? { choices } : {}),
+      actions_executed: withLabels(executed, executed, resolvedRecipeNames),
+      actions_pending: withLabels(pending, executed, resolvedRecipeNames),
       confirmation_token: confirmationToken,
       cost: {
         whisper_usd: transcriptionUsd ?? 0,
@@ -1073,7 +1094,7 @@ export class VoiceAgentService {
     ctx: ToolExecutionContext
   ): Promise<{
     actions_executed: ExecutedActionDescriptor[];
-    actions_failed: Array<{ action_id: string; tool: string; error_code: string }>;
+    actions_failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }>;
   }> {
     let payload;
     try {
@@ -1089,7 +1110,7 @@ export class VoiceAgentService {
 
     const rows = await this.writer.claimPlanned(input.userId, payload.actionLogIds);
     const executed: ExecutedActionDescriptor[] = [];
-    const failed: Array<{ action_id: string; tool: string; error_code: string }> = [];
+    const failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }> = [];
     // Rows another confirmation already took: report what that run did instead of « 0 exécutée ».
     const claimed = new Set(rows.map(row => row.id));
     const earlier = await this.writer.fetchByIds(input.userId, payload.actionLogIds.filter(id => !claimed.has(id)));
@@ -1133,7 +1154,8 @@ export class VoiceAgentService {
           code,
           err instanceof Error ? err.message : 'unknown'
         );
-        failed.push({ action_id: row.id, tool: row.tool, error_code: code });
+        // StockCommandError messages are written for the user; anything else stays generic.
+        failed.push({ action_id: row.id, tool: row.tool, error_code: code, ...(err instanceof StockCommandError ? { reason: err.message } : {}) });
       }
     }
 
@@ -1374,8 +1396,8 @@ function compactForModel(value: unknown): unknown {
 }
 
 /** « 200 g » alone cannot be confirmed: name the rows a write targets, from the reads of the same turn. */
-function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[]): T[] {
-  const names = recipeNames(executed);
+function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[], extra: Map<string, string> = new Map()): T[] {
+  const names = new Map([...recipeNames(executed), ...extra]);
   for (const action of executed) {
     if (action.tool !== 'read_inventory' && action.tool !== 'read_shopping_list') continue;
     const items = (action.result as { items?: Array<{ id?: unknown; product_name?: unknown }> } | null)?.items;
@@ -1434,6 +1456,53 @@ function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string
     if (rivals.length) { dropped.add(tool); ambiguous ??= { tool, recipeIds: [ids[0], ...rivals] }; }
   }
   return { kept: calls.filter(call => !dropped.has(call.name)), ambiguous };
+}
+interface RecipeName { id: string; name: string }
+/** null when the library cannot be read: the id is then left as is, not refused. */
+async function loadRecipeLibrary(ctx: ToolExecutionContext): Promise<RecipeName[] | null> {
+  try {
+    const { data, error } = await ctx.userClient.from('recipes').select('id, name').eq('user_id', ctx.userId).limit(1000);
+    return error ? null : ((data ?? []) as RecipeName[]);
+  } catch { return null; }
+}
+/**
+ * A recipe write whose id was not read this turn: keep a real id the words name at
+ * least as well as any other recipe, else use the one recipe the words name best,
+ * ask when several tie, and refuse when none is named.
+ */
+async function resolveRecipeWrite(tool: string, rawArguments: string, transcript: string, known: Map<string, string>,
+  loadLibrary: () => Promise<RecipeName[] | null>): Promise<{ arguments: string; names: Map<string, string>; ambiguous?: AmbiguousRecipes; notFound?: boolean }> {
+  let args: Record<string, unknown>;
+  try { args = JSON.parse(rawArguments) as Record<string, unknown>; } catch { return { arguments: rawArguments, names: new Map() }; }
+  const id = typeof args.recipe_id === 'string' ? args.recipe_id : null;
+  if (id && known.has(id)) return { arguments: rawArguments, names: new Map() };
+  const recipes = await loadLibrary();
+  if (!recipes) return { arguments: rawArguments, names: new Map() };
+  const scored = recipes.map(recipe => ({ ...recipe, score: recipeWordsMatched(recipe.name, transcript) }));
+  const best = Math.max(0, ...scored.map(recipe => recipe.score));
+  const own = scored.find(recipe => recipe.id === id);
+  // A real id kept when the words name no recipe (« la première ») or name it alone.
+  const rivals = own ? scored.filter(recipe => recipe.id !== own.id && recipe.score >= own.score).length : 0;
+  if (own && (best === 0 || (own.score === best && rivals === 0))) return { arguments: rawArguments, names: new Map([[own.id, own.name]]) };
+  const top = best > 0 ? scored.filter(recipe => recipe.score === best) : [];
+  const names = new Map(top.map(recipe => [recipe.id, recipe.name] as const));
+  if (top.length === 1) return { arguments: JSON.stringify({ ...args, recipe_id: top[0].id }), names };
+  if (top.length > 1) return { arguments: rawArguments, names, ambiguous: { tool, recipeIds: top.map(recipe => recipe.id) } };
+  return { arguments: rawArguments, names, notFound: true };
+}
+/** One tappable answer per candidate, phrased so the next turn names it unambiguously. */
+function recipeChoices(ambiguous: AmbiguousRecipes, names: Map<string, string>, transcript: string): Array<{ label: string; reply: string }> {
+  return ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6).map(name => ({
+    label: name,
+    reply: ambiguous.tool === 'cook_recipe' ? `J’ai cuisiné ${name}`
+      : ambiguous.tool === 'delete_recipe' ? `Supprime la recette ${name}` : `${transcript.trim().replace(/[.!?]+$/, '')} : ${name}`,
+  }));
+}
+function clarificationChoices(executed: ExecutedActionDescriptor[]): Array<{ label: string; reply: string }> {
+  const asked = executed.find(action => action.tool === 'ask_clarification');
+  const options = (asked?.result as { options?: unknown } | undefined)?.options;
+  return Array.isArray(options) ? options.filter((option): option is string => typeof option === 'string' && !!option.trim()).slice(0, 6)
+    .map(option => ({ label: option, reply: option })) : [];
 }
 function ambiguityQuestion(ambiguous: AmbiguousRecipes, names: Map<string, string>): string {
   const listed = ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6);

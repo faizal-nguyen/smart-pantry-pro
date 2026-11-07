@@ -103,11 +103,13 @@ export default function AssistantComposer({
     await submit(text);
   };
 
-  const initialTaken = useRef(false);
+  // Each new request (a button, a tapped choice) is sent once; the parent clears it.
+  const lastRequest = useRef<string | null>(null);
   useEffect(() => {
+    if (!initialRequest) { lastRequest.current = null; return; }
     // Wait for the account: the composer is keyed by it and remounts once it is known.
-    if (!initialRequest || initialTaken.current || !expectedUserId || disabled) return;
-    initialTaken.current = true;
+    if (initialRequest === lastRequest.current || !expectedUserId || disabled) return;
+    lastRequest.current = initialRequest;
     onInitialRequestTaken?.();
     setText(initialRequest);
     void submit(initialRequest);

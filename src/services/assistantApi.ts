@@ -60,6 +60,8 @@ export interface AssistantPlanResponse {
   transcript: string;
   detected_language?: string;
   message: string;
+  /** Answers to tap when the reply asks « laquelle ? » or a clarification. */
+  choices?: Array<{ label: string; reply: string }>;
   actions_executed: ExecutedAction[];
   actions_pending: PendingAction[];
   confirmation_token: string | null;
@@ -77,7 +79,8 @@ export interface AssistantPlanResponse {
 
 export interface ExecuteConfirmationResponse {
   actions_executed: ExecutedAction[];
-  actions_failed: Array<{ action_id: string; tool: string; error_code: string }>;
+  /** reason: a message written for the user, when the server has one. */
+  actions_failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }>;
 }
 
 export interface UndoResponse {

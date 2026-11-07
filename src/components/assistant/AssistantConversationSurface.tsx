@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { readAssistantAsk } from '@/hooks/useAskAssistant';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
@@ -63,8 +64,20 @@ export default function AssistantConversationSurface({
   const queryClient = useQueryClient();
   // In a saved conversation the thread scrolls to its end when the new messages
   // arrive: the block goes inside it, after the reply, or it ends up off screen.
+  // A tapped choice (« Lamb (Mutton) Biryani ») is sent like a typed answer.
+  const [quickReply, setQuickReply] = useState<string | null>(null);
   const actions = latestHere && (
-    <div ref={actionsRef} className="mt-4">
+    <div ref={actionsRef} className="mt-4 space-y-3">
+      {!!latestHere.choices?.length && (
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Réponses possibles">
+          {latestHere.choices.map(choice => (
+            <Button key={choice.label} type="button" variant="outline" size="sm" className="min-h-11 whitespace-normal text-left"
+              disabled={!!quickReply} onClick={() => setQuickReply(choice.reply)}>
+              {choice.label}
+            </Button>
+          ))}
+        </div>
+      )}
       <AssistantActionsPanel result={latestHere}
         onResultPatched={patch => setLatest(previous => previous && previous.result === latestHere ? { ...previous, result: { ...previous.result, ...patch } } : previous)} />
     </div>
@@ -128,8 +141,8 @@ export default function AssistantConversationSurface({
         mode={mode}
         onModeChange={onModeChange}
         onResponse={handleResponse}
-        initialRequest={askedByButton ?? undefined}
-        onInitialRequestTaken={() => navigate(location.pathname + location.search, { replace: true, state: null })}
+        initialRequest={askedByButton ?? quickReply ?? undefined}
+        onInitialRequestTaken={() => { if (askedByButton) navigate(location.pathname + location.search, { replace: true, state: null }); else setQuickReply(null); }}
       />
     </Card>
   );
