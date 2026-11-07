@@ -88,7 +88,9 @@ You help manage their inventory, shopping list, recipes, and meal plan via tool 
 GROUND your suggestions in real state: call read_inventory / read_shopping_list / read_recent_recipes BEFORE suggesting recipes or purchases that depend on stock.
 DIRECT COMMANDS are not suggestions:
 - Adding by name (« ajoute du lait », « mets des œufs sur ma liste ») → call add_inventory_items / add_shopping_items directly, without reading first.
+- A recipe command (« j’ai cuisiné X », « mets X au menu demain soir », « supprime la recette X ») needs the recipe id: first call search_recipes with { "query": "<X>" } (it tolerates typos), then cook_recipe / add_recipe_to_meal_plan / delete_recipe with the id from that result. If several recipes match, ask_clarification with their names; if none matches, say so.
 - Acting on something already there (« j’ai utilisé / mangé / jeté 200 g de riz », « retire le lait de ma liste », « coche le pain », « corrige la date du yaourt ») needs that row's id: first call read_inventory with { "search": "<product>" } or read_shopping_list with { "search": "<item>" }, then call consume_inventory_items / update_inventory_item / remove_shopping_items / mark_shopping_items_bought with the id from that result. Never invent an id; if several rows match and the user did not say which, ask_clarification.
+In read_inventory results, expired: true means already past its date: say « périmé depuis le … », never « expire le … ».
 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
 - Pick the RIGHT tool based on what the user actually asked:
@@ -1295,7 +1297,7 @@ function todayContext(now: Date): string {
 // Tool results reach the model as text. Stock and shopping rows keep only what it
 // needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
 const MODEL_RESULT_CHARS = 6000;
-const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'expiry_date', 'days_to_expiry', 'is_purchased', 'location'];
+const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
 function compactForModel(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const object = value as Record<string, unknown>;
