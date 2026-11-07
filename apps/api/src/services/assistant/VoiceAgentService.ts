@@ -271,6 +271,10 @@ export class VoiceAgentError extends Error {
       | 'UNDO_NOT_REVERSIBLE'
       | 'UNDO_EXPIRED'
       | 'UNDO_HANDLER_MISSING'
+      | 'INVALID_ITEMS'
+      | 'REQUEST_CONFLICT'
+      | 'ACTION_UNVERIFIED'
+      | 'EXECUTION_FAILED'
       | 'INTERNAL',
     message: string
   ) {
@@ -1125,6 +1129,57 @@ export class VoiceAgentService {
     }
 
     return { actions_executed: executed, actions_failed: failed };
+  }
+
+  // ---- /photos/add ------------------------------------------------
+
+  /**
+   * Adds the products the owner kept from a grocery photo: the same
+   * add_inventory_items action as a typed request (product matching, lot
+   * top-up, action log, undo), without a model call. A retried request
+   * returns its first result instead of adding twice.
+   */
+  async addReviewedGroceries(
+    input: { userId: string; clientRequestId: string; items: unknown },
+    ctx: ToolExecutionContext
+  ): Promise<{ action: ExecutedActionDescriptor }> {
+    const tool = 'add_inventory_items';
+    let args: Record<string, unknown>;
+    try { args = this.toolRegistry.parseArgs(tool, { items: input.items }); }
+    catch { throw new VoiceAgentError('INVALID_ITEMS', 'Chaque produit gardé doit avoir un nom et une quantité positive.'); }
+    if ((args.items as Array<{ quantity: number }>).some(item => item.quantity <= 0)) {
+      throw new VoiceAgentError('INVALID_ITEMS', 'Chaque produit gardé doit avoir un nom et une quantité positive.');
+    }
+    const spec = this.toolRegistry.get(tool);
+    const planned = await this.writer.insertPlanned({
+      userId: input.userId, clientRequestId: input.clientRequestId, sessionId: input.clientRequestId,
+      stepSeq: 0, tool, toolArgs: args, riskTier: 'low', reversible: spec.reversible,
+    });
+    const action = (result: unknown, undoExpiresAt: string | null): ExecutedActionDescriptor => ({
+      action_id: planned.id, step_seq: 0, tool, args, result,
+      reversible: undoExpiresAt !== null, undo_expires_at: undoExpiresAt, risk_tier: planned.risk_tier,
+    });
+    if (planned.replayed) {
+      if (planned.tool !== tool || hashArgs(planned.tool_args) !== hashArgs(args)) {
+        throw new VoiceAgentError('REQUEST_CONFLICT', 'Cette demande a déjà servi à un autre ajout. Recommence la lecture des photos.');
+      }
+      if (planned.status === 'executed') return { action: action(planned.result, planned.reversible_action ? planned.undo_expires_at : null) };
+      throw new VoiceAgentError('ACTION_UNVERIFIED', 'Cet ajout reste à vérifier dans le stock avant de recommencer.');
+    }
+    try {
+      const exec = (await this.handlerRegistry.get(tool).execute(
+        { ...ctx, commandId: planned.id, sessionId: input.clientRequestId }, args)) as ToolExecutionResult;
+      const undoExpiresAt = spec.reversible && exec.reversibleAction ? new Date(Date.now() + this.undoWindowMs) : null;
+      await this.writer.markExecuted(planned.id, {
+        result: exec.result as Record<string, unknown>,
+        reversibleAction: spec.reversible ? exec.reversibleAction ?? null : undefined,
+        undoExpiresAt,
+      });
+      return { action: action(exec.result, undoExpiresAt?.toISOString() ?? null) };
+    } catch (err) {
+      await this.writer.markFailed(planned.id, 'EXECUTION_FAILED', err instanceof Error ? err.message : 'unknown');
+      throw new VoiceAgentError('EXECUTION_FAILED', 'L’ajout au stock n’a pas abouti. Vérifie le stock avant de réessayer.');
+    }
   }
 
   // ---- /undo ------------------------------------------------------
