@@ -1532,3 +1532,26 @@ describe('a recipe action without a search this turn (iPhone 2026-11-07 22:48: i
     expect(res.actions_failed).toEqual([expect.objectContaining({action_id:row.id,reason:new StockCommandError('RECIPE_NOT_FOUND',404).message})]);
   });
 });
+
+describe('answering « laquelle ? » by typing the name (live repro 2026-11-08)',()=>{
+  const LAMB='55555555-5555-4555-8555-555555555551';
+  const p=memoryPolicy({userId:USER,saveHistory:false,memoryEnabled:false});
+  const asked=[{role:'user' as const,content:'j’ai cuisiné byriani'},
+    {role:'assistant' as const,content:'Plusieurs recettes correspondent : Lamb (Mutton) Biryani, Buhari Chicken Biryani. Laquelle as-tu cuisinée ? Redis-le-moi avec son nom.'}];
+  it('« le Lamb (Mutton) Biryani » continues the cook: the follow-up hop runs after the search',async()=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{requests.push(request);const n=requests.length;
+      return {content:n>2 ? 'ok' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(n===1 ? {tool_calls:[{id:'s1',name:'search_recipes',arguments:'{"query":"Lamb (Mutton) Biryani"}'}]}
+          : n===2 ? {tool_calls:[{id:'c1',name:'cook_recipe',arguments:JSON.stringify({recipe_id:LAMB})}]} : {})};}};
+    const registry=new ToolHandlerRegistry();
+    registry.register('search_recipes',{execute:async()=>({result:{recipes:[{id:LAMB,name:'Lamb (Mutton) Biryani'}]}})});
+    registry.register('cook_recipe',{execute:jest.fn()});
+    const response=await new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,new MockWriter() as unknown as ActionLogWriter,new ConfirmationTokenSigner(SECRET),
+      {modelConfig:benchmarkConfig('baseline'),memoryService:{readPolicySafe:async()=>p} as unknown as MemoryService,memoryExtractor:new MemoryExtractor(),
+        contextBuilder:{build:async()=>({policy:p,combinedText:''})} as unknown as ContextBuilder})
+      .handleRequest({userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text',text:'le Lamb (Mutton) Biryani',sessionMessages:asked,sessionRevision:p.revision},makeCtx());
+    expect((requests[1].tools ?? []).map(t=>t.function.name)).toContain('cook_recipe');
+    expect(response.actions_pending.map(a=>[a.tool,a.labels])).toEqual([['cook_recipe',{[LAMB]:'Lamb (Mutton) Biryani'}]]);
+  });
+});

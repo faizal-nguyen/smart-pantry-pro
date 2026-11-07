@@ -429,6 +429,7 @@ export class VoiceAgentService {
     // context). Best-effort: any ContextBuilder failure leaves the
     // prompt at its baseline.
     let systemContent = basePrompt;
+    let recentMessagesText = '';
     let allowedProfileVersion:number|undefined;
     let profileSnapshotVersion:number|undefined;
     let contextPolicy: MemoryPolicy | null = null;
@@ -437,6 +438,7 @@ export class VoiceAgentService {
       try {
         const block = await this.contextBuilder.build(input.userId, conversationId);
         contextPolicy = block.policy ?? null;
+        recentMessagesText = block.recentMessagesText ?? '';
         profileSnapshotVersion=block.profileVersion;
         if (block.shareProfileWithModel) allowedProfileVersion=block.profileVersion;
         if (block.combinedText) {
@@ -732,8 +734,10 @@ export class VoiceAgentService {
       // after a recipe tool, whose synthesis already runs.
       // Once a write was attempted, only the later text synthesis can run.
       const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
-      // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe.
-      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)) &&
+      // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe; so does
+      // « le Lamb Biryani » answering our « Laquelle as-tu cuisinée ? » (live repro 2026-11-08).
+      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)
+          || answersRecipeQuestion(sessionTurns, recentMessagesText)) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
         followupUsed=true;
@@ -1503,6 +1507,13 @@ function clarificationChoices(executed: ExecutedActionDescriptor[]): Array<{ lab
   const options = (asked?.result as { options?: unknown } | undefined)?.options;
   return Array.isArray(options) ? options.filter((option): option is string => typeof option === 'string' && !!option.trim()).slice(0, 6)
     .map(option => ({ label: option, reply: option })) : [];
+}
+/** The last assistant reply (session turns, else saved history) asked which recipe. */
+function answersRecipeQuestion(sessionTurns: AICompletionRequest['messages'], recentMessagesText: string): boolean {
+  const lastSession = [...sessionTurns].reverse().find(turn => turn.role === 'assistant')?.content;
+  const lastSaved = recentMessagesText.split('\n').reverse().find(line => line.startsWith('assistant: '));
+  const last = typeof lastSession === 'string' ? lastSession : lastSaved ?? '';
+  return Object.values(RECIPE_WRITES).some(question => last.includes(question));
 }
 function ambiguityQuestion(ambiguous: AmbiguousRecipes, names: Map<string, string>): string {
   const listed = ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6);
