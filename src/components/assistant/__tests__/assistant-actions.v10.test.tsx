@@ -95,6 +95,16 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText('Décompter du stock')).toBeInTheDocument();
     expect(screen.getByText('• 0,2 kg Riz Ponni')).toBeInTheDocument();
   });
+  test('a recipe action shows the recipe name, not its id', () => {
+    const RECIPE = '55555555-5555-4555-8555-555555555551';
+    render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [
+      { ...pending, tool: 'cook_recipe', args: { recipe_id: RECIPE, outside_inventory: [] }, labels: { [RECIPE]: 'Lamb (Mutton) Biryani' } },
+      { ...pending, action_id: 'p2', tool: 'add_recipe_to_meal_plan', args: { recipe_id: RECIPE, date: '2026-11-08', meal_type: 'dinner' }, labels: { [RECIPE]: 'Lamb (Mutton) Biryani' } },
+    ] })} />);
+    expect(screen.getByText('Lamb (Mutton) Biryani')).toBeInTheDocument();
+    expect(screen.getByText('Lamb (Mutton) Biryani — dîner, dimanche 8 novembre')).toBeInTheDocument();
+    expect(screen.queryByText(/recipe_id/)).not.toBeInTheDocument();
+  });
   test('a reply whose only action was a read renders nothing', () => {
     const read = { ...executed, tool: 'read_inventory', reversible: false, risk_tier: 'read' as const };
     const { container } = render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [], confirmation_token: null, actions_executed: [read] })} />);

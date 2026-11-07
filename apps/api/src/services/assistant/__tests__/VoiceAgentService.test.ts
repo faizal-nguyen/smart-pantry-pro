@@ -1399,6 +1399,43 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
   });
 });
 
+describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_recipe)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const,text:'j’ai cuisiné byriani'};
+  const ids=['55555555-5555-4555-8555-555555555551','55555555-5555-4555-8555-555555555552','55555555-5555-4555-8555-555555555553'];
+  const names=['Lamb (Mutton) Biryani','Buhari Chicken Biryani','Dindigul Chicken Biryani'];
+  const search={execute:async()=>({result:{recipes:ids.map((id,i)=>({id,name:names[i]}))}})};
+  function run(cookIds:string[],text=input.text) {
+    let n=0;
+    const ai:AICompletionClient={complete:async request=>{
+      n++;
+      const calls=n===1 ? [{id:'s1',name:'search_recipes',arguments:'{"query":"byriani"}'}]
+        : n===2 ? cookIds.map((id,i)=>({id:'c'+i,name:'cook_recipe',arguments:JSON.stringify({recipe_id:id})})) : [];
+      return {content:n>2 ? 'Super !' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},...(calls.length ? {tool_calls:calls} : {})};
+    }};
+    const {service}=makeService({ai,handlers:{search_recipes:search,cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline')});
+    return service.handleRequest({...input,text},makeCtx());
+  }
+  it('prepares nothing and asks which one, naming them',async()=>{
+    const response=await run(ids);
+    expect(response.actions_pending).toEqual([]);
+    expect(response.confirmation_token).toBeNull();
+    expect(response.message).toMatch(/Plusieurs recettes correspondent/);
+    for (const name of names) expect(response.message).toContain(name);
+    expect(response.message).toMatch(/Laquelle as-tu cuisinée/);
+  });
+  it('one of the matches picked at random is not kept either (live repro: Buhari then Lamb)',async()=>{
+    const response=await run([ids[1]]);
+    expect(response.actions_pending).toEqual([]);
+    expect(response.message).toMatch(/Laquelle as-tu cuisinée/);
+    for (const name of names) expect(response.message).toContain(name);
+  });
+  it('words that single one out keep it: « j’ai cuisiné le lamb biryani »',async()=>{
+    const response=await run([ids[0]],'j’ai cuisiné le lamb biryani');
+    expect(response.actions_pending).toHaveLength(1);
+    expect(response.actions_pending[0].labels).toEqual({[ids[0]]:names[0]});
+  });
+});
+
 describe('groceries kept from a photo are added without a model call',()=>{
   const items=[{name:'Lait demi-écrémé',quantity:6,unit:'bouteille'},{name:'Riz',quantity:1,unit:'kg',expiry_date:'2027-03-01'}];
   class ReplayWriter extends MockWriter {
