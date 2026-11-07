@@ -150,6 +150,10 @@ export interface RecognizedGrocery {
   unit: string | null;
   brand: string | null;
   expiry_date: string | null;
+  /** 1-based number of the photo the product is best seen on. */
+  photo: number | null;
+  /** EAN/UPC read on the pack, check digit verified by the server. */
+  barcode: string | null;
   confidence: 'high' | 'medium' | 'low';
 }
 
@@ -166,15 +170,36 @@ export async function postGroceryPhotos(input: { photos: Blob[]; expectedUserId?
   return unwrapAssistant<{ items: RecognizedGrocery[] }>(res);
 }
 
-/** The products kept after review: one stock add, undoable like any assistant action. */
-export function postKeptGroceries(input: {
+export interface KeptGrocery {
+  name: string;
+  quantity: number;
+  unit: string;
+  brand?: string;
+  barcode?: string;
+  expiry_date?: string;
+  /** Number of the photo in `photos` (1 = first) to keep on this product. */
+  photo?: number;
+}
+
+/**
+ * The products kept after review: one stock add, undoable like any assistant
+ * action. The photos sent are kept, privately, on the products they show.
+ */
+export async function postKeptGroceries(input: {
   clientRequestId: string;
-  items: Array<{ name: string; quantity: number; unit: string; brand?: string; expiry_date?: string }>;
+  items: KeptGrocery[];
+  photos?: Blob[];
   expectedUserId?: string;
-}): Promise<{ action: ExecutedAction }> {
-  return apiPost<{ action: ExecutedAction }>(`${ASSISTANT_BASE}/photos/add`, {
-    client_request_id: input.clientRequestId, items: input.items,
-  }, { expectedUserId: input.expectedUserId });
+}): Promise<{ action: ExecutedAction; photos_kept?: number }> {
+  const form = new FormData();
+  form.append('payload', JSON.stringify({ client_request_id: input.clientRequestId, items: input.items }));
+  (input.photos ?? []).forEach((photo, index) => form.append('photos', photo, `photo-${index + 1}.jpg`));
+  const res = await fetch(`${resolveApiBase()}${ASSISTANT_BASE}/photos/add`, {
+    method: 'POST',
+    headers: { ...(await authHeader(input.expectedUserId)) },
+    body: form,
+  });
+  return unwrapAssistant<{ action: ExecutedAction; photos_kept?: number }>(res);
 }
 
 export function postAssistantText(input: {

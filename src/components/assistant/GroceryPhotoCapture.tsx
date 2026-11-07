@@ -2,10 +2,11 @@
  * GroceryPhotoCapture — « mes courses en photo ».
  *
  * Up to 4 photos, resized on the phone, are read by the server (nothing is
- * written, the photos are not kept). The owner reviews the list — keeps,
- * fixes or drops each product — then one stock add runs through the
- * assistant's add_inventory_items action, which tops up matching lots and
- * can be undone.
+ * written then). The owner reviews the list — keeps, fixes or drops each
+ * product — then one stock add runs through the assistant's
+ * add_inventory_items action, which tops up matching lots and can be undone.
+ * Unless the owner unticks it, each photo is kept, smaller and private, on
+ * the products it shows.
  */
 import { useId, useRef, useState } from 'react';
 import { Camera, Loader2 } from 'lucide-react';
@@ -14,12 +15,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
-import { resizePhoto } from '@/lib/photoResize';
+import { KEPT_PHOTO_SIDE, resizePhoto } from '@/lib/photoResize';
 import {
   newClientRequestId,
   postAssistantUndo,
   postGroceryPhotos,
   postKeptGroceries,
+  type KeptGrocery,
   type RecognizedGrocery,
 } from '@/services/assistantApi';
 
@@ -33,6 +35,8 @@ interface Row {
   unit: string;
   expiry: string;
   brand: string;
+  photo: number | null;
+  barcode: string | null;
   confidence: RecognizedGrocery['confidence'];
 }
 type Stage =
@@ -40,12 +44,13 @@ type Stage =
   | { kind: 'error'; message: string }
   | { kind: 'review' }
   | { kind: 'adding' }
-  | { kind: 'added'; count: number; ambiguous: string[]; actionId: string | null }
+  | { kind: 'added'; count: number; ambiguous: string[]; actionId: string | null; photosLost: boolean }
   | { kind: 'undone' };
 
 const toRow = (item: RecognizedGrocery): Row => ({
   keep: true, name: item.name, quantity: item.quantity == null ? '' : String(item.quantity),
-  unit: item.unit ?? '', expiry: item.expiry_date ?? '', brand: item.brand ?? '', confidence: item.confidence,
+  unit: item.unit ?? '', expiry: item.expiry_date ?? '', brand: item.brand ?? '',
+  photo: item.photo ?? null, barcode: item.barcode ?? null, confidence: item.confidence,
 });
 const parseQuantity = (value: string) => {
   const quantity = Number(value.replace(',', '.'));
@@ -62,6 +67,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
   const [rows, setRows] = useState<Row[]>([]);
   const [trimmed, setTrimmed] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [keepPhotos, setKeepPhotos] = useState(true);
   const unitsId = useId();
 
   const read = async () => {
@@ -99,22 +105,37 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
   const incomplete = kept.some(row => !row.name.trim() || parseQuantity(row.quantity) === null || !row.unit.trim());
   const update = (index: number, patch: Partial<Row>) => setRows(previous => previous.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
+  /** The photos showing a kept product, smaller, numbered in the order sent. */
+  const photosToKeep = async (): Promise<{ numbers: number[]; files: Blob[] }> => {
+    if (!keepPhotos) return { numbers: [], files: [] };
+    const numbers = [...new Set(kept.flatMap(row => (row.photo ? [row.photo] : [])))].sort((a, b) => a - b);
+    try {
+      return { numbers, files: await Promise.all(numbers.map(n => resizePhoto(photos.current[n - 1], KEPT_PHOTO_SIDE, 0.8))) };
+    } catch {
+      return { numbers: [], files: [] }; // a photo that cannot be reduced is just not kept
+    }
+  };
+
   const add = async () => {
     if (!request.current || incomplete || kept.length === 0) return;
     setProblem(null); setStage({ kind: 'adding' });
     try {
-      const { action } = await postKeptGroceries({
-        clientRequestId: request.current, expectedUserId: owner,
-        items: kept.map(row => ({
-          name: row.name.trim(), quantity: parseQuantity(row.quantity) as number, unit: row.unit.trim(),
-          ...(row.brand.trim() ? { brand: row.brand.trim() } : {}),
-          ...(row.expiry ? { expiry_date: row.expiry } : {}),
-        })),
+      const toKeep = await photosToKeep();
+      const items = kept.map((row): KeptGrocery => ({
+        name: row.name.trim(), quantity: parseQuantity(row.quantity) as number, unit: row.unit.trim(),
+        ...(row.brand.trim() ? { brand: row.brand.trim() } : {}),
+        ...(row.barcode ? { barcode: row.barcode } : {}),
+        ...(row.expiry ? { expiry_date: row.expiry } : {}),
+        ...(row.photo && toKeep.numbers.includes(row.photo) ? { photo: toKeep.numbers.indexOf(row.photo) + 1 } : {}),
+      }));
+      const { action, photos_kept: photosKept } = await postKeptGroceries({
+        clientRequestId: request.current, expectedUserId: owner, items, photos: toKeep.files,
       });
       const result = action.result as { added?: unknown[]; ambiguous?: Array<{ name: string }> } | null;
       dispatchAgentDbChanged(['inventory']);
       setStage({ kind: 'added', count: result?.added?.length ?? kept.length,
-        ambiguous: (result?.ambiguous ?? []).map(entry => entry.name), actionId: action.reversible ? action.action_id : null });
+        ambiguous: (result?.ambiguous ?? []).map(entry => entry.name), actionId: action.reversible ? action.action_id : null,
+        photosLost: (keepPhotos && toKeep.numbers.length === 0 && kept.some(row => row.photo)) || (photosKept ?? 0) < toKeep.files.length });
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Ajout non confirmé. Vérifie le stock avant de réessayer.');
       setStage({ kind: 'review' });
@@ -149,7 +170,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
         <DialogContent className="max-w-2xl min-w-0 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Mes courses en photo</DialogTitle>
-            <DialogDescription>Les photos ne sont pas conservées : seule la liste que tu valides entre dans le stock.</DialogDescription>
+            <DialogDescription>Les photos servent à lire tes courses ; seule la liste que tu valides entre dans le stock. Si tu les gardes, elles restent privées, sur tes produits.</DialogDescription>
           </DialogHeader>
           {trimmed && <p className="text-sm text-muted-foreground">{MAX_PHOTOS} photos au plus : les {MAX_PHOTOS} premières sont lues.</p>}
           {stage.kind === 'reading' && <p role="status" className="flex items-center gap-2 text-sm"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Lecture des photos…</p>}
@@ -182,10 +203,16 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
                       onChange={event => update(index, { expiry: event.target.value })} />
                   </div>
                   {row.brand.trim() && row.name.trim() && <p className="text-xs text-muted-foreground">Dans le stock : {productNameWithBrand(row.name, row.brand)}</p>}
+                  {row.barcode && <p className="text-xs text-muted-foreground">Code-barres lu : {row.barcode}</p>}
                 </li>;
               })}</ul>
               {incomplete && <p className="text-sm text-muted-foreground">Indique la quantité et l’unité de chaque produit gardé.</p>}
               {problem && <p role="alert" className="text-sm text-destructive">{problem}</p>}
+              <label className="flex min-h-11 items-center gap-3 text-sm">
+                <input type="checkbox" className="h-5 w-5 shrink-0" checked={keepPhotos} disabled={stage.kind === 'adding'}
+                  onChange={event => setKeepPhotos(event.target.checked)} />
+                Garder les photos sur mes produits (privé)
+              </label>
               <Button className="min-h-11 w-full" disabled={stage.kind === 'adding' || incomplete || kept.length === 0} onClick={() => void add()}>
                 {stage.kind === 'adding' ? 'Ajout…' : `Ajouter ${products(kept.length)} au stock`}
               </Button>
@@ -193,6 +220,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
           {stage.kind === 'added' && <div className="space-y-2">
             <p role="status">{products(stage.count)} {stage.count > 1 ? 'ajoutés' : 'ajouté'} au stock.</p>
             {stage.ambiguous.length > 0 && <p className="text-sm">À préciser dans le stock (plusieurs produits possibles) : {stage.ambiguous.join(', ')}.</p>}
+            {stage.photosLost && <p className="text-sm">Les photos n’ont pas pu être gardées ; les produits, eux, sont bien dans le stock.</p>}
             {problem && <p role="alert" className="text-sm text-destructive">{problem}</p>}
             {stage.actionId && <Button className="min-h-11" variant="outline" onClick={() => void cancelAdd(stage.actionId as string)}>Annuler cet ajout</Button>}
           </div>}

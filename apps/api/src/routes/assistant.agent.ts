@@ -58,6 +58,7 @@ import { ProductResolver } from '../services/assistant/ProductResolver.js';
 import { ProductIntelligenceService } from '../services/products/ProductIntelligenceService.js';
 import { waitUntil } from '@vercel/functions';
 import { GroceryPhotoRecognizer, MAX_PHOTOS, PhotoRecognitionError } from '../services/assistant/GroceryPhotoRecognizer.js';
+import { sniffImageMime } from '../services/media/ThumbnailSnapshotService.js';
 import { EmbeddingService } from '../services/products/EmbeddingService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { NutritionProfileService } from '../services/recommendations/NutritionProfileService.js';
@@ -148,6 +149,25 @@ function groceryPhotos(req: Request, res: Response, next: NextFunction) {
     if (error instanceof multer.MulterError) return fail(res, `${MAX_PHOTOS} photos au plus.`, 400, 'TOO_MANY_PHOTOS');
     return fail(res, error, 415, 'UNSUPPORTED_IMAGE');
   });
+}
+
+/**
+ * Uploads the kept grocery photos into the owner's private folder, with the
+ * owner's session (Storage policies, account deletion). Paths depend only on
+ * the request, so a replayed add carries the same items; a photo that failed
+ * to upload simply shows no picture.
+ */
+async function keepGroceryPhotos(
+  client: ToolExecutionContext['userClient'], userId: string, requestId: string, files: ReadonlyArray<Express.Multer.File>
+): Promise<{ paths: Array<string | undefined>; saved: number }> {
+  const uploads = await Promise.all(files.map(async (file, index) => {
+    if (sniffImageMime(file.buffer) !== 'image/jpeg') return { path: undefined, saved: false };
+    const path = `users/${userId}/groceries/${requestId}-${index + 1}.jpg`;
+    const { error } = await client.storage.from('grocery-photos').upload(path, file.buffer, { contentType: 'image/jpeg', upsert: true });
+    if (error) console.warn('[assistant.photos.add] photo not kept:', error.message);
+    return { path, saved: !error };
+  }));
+  return { paths: uploads.map(upload => upload.path), saved: uploads.filter(upload => upload.saved).length };
 }
 
 // ---- Body schemas ---------------------------------------------------
@@ -395,12 +415,25 @@ export function createAssistantAgentRouter(
   // ---- /photos/add -------------------------------------------------
   // The products the owner kept after reviewing the photos: one
   // add_inventory_items action (top-up, action log, undo), no model call.
-  const PhotoAddSchema = z.object({ client_request_id: z.string().uuid(), items: z.array(z.unknown()).min(1).max(50) });
-  router.post('/photos/add', photosLimiter, async (req: Request, res: Response) => {
-    const parsed = PhotoAddSchema.safeParse(req.body);
+  const PhotoAddSchema = z.object({ client_request_id: z.string().uuid(), items: z.array(z.record(z.unknown())).min(1).max(50) });
+  // Multipart: the kept photos (JPEG, in their order) and a JSON « payload »
+  // field. Plain JSON (no photo kept) is still accepted.
+  router.post('/photos/add', photosLimiter, groceryPhotos, async (req: Request, res: Response) => {
+    let body: unknown = req.body;
+    if (typeof req.body?.payload === 'string') {
+      try { body = JSON.parse(req.body.payload); } catch { return fail(res, 'Invalid body', 400, 'INVALID_BODY'); }
+    }
+    const parsed = PhotoAddSchema.safeParse(body);
     if (!parsed.success) return fail(res, 'Invalid body', 400, 'INVALID_BODY');
     if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
     const userClient = req.supabaseClient as ToolExecutionContext['userClient'];
+    const kept = await keepGroceryPhotos(userClient, req.user.id, parsed.data.client_request_id,
+      (req.files as Express.Multer.File[] | undefined) ?? []);
+    // Items name their photo by number; only the server writes photo paths.
+    const items = parsed.data.items.map(({ photo_path: _clientPath, photo, ...item }) => {
+      const path = typeof photo === 'number' ? kept.paths[photo - 1] : undefined;
+      return path ? { ...item, photo_path: path } : item;
+    });
     const ctx = {
       userId: req.user.id, userClient, adminClient,
       productResolver: new ProductResolver(userClient, { embeddingService }),
@@ -408,11 +441,11 @@ export function createAssistantAgentRouter(
     };
     try {
       const result = await service.addReviewedGroceries(
-        { userId: req.user.id, clientRequestId: parsed.data.client_request_id, items: parsed.data.items }, ctx);
+        { userId: req.user.id, clientRequestId: parsed.data.client_request_id, items }, ctx);
       const added = (result.action.result as { added?: Array<{ product_id?: string }> } | null)?.added ?? [];
       // Nutri-Score & co. come from Open Food Facts once the answer is sent.
-      waitUntil(productIntelligence.enrichBrandedProducts(added.flatMap(item => item.product_id ? [item.product_id] : [])));
-      return ok(res, result, 'OK', 'PHOTOS_ADDED');
+      waitUntil(productIntelligence.enrichAddedProducts(added.flatMap(item => item.product_id ? [item.product_id] : [])));
+      return ok(res, { ...result, photos_kept: kept.saved }, 'OK', 'PHOTOS_ADDED');
     } catch (err) {
       if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);
       console.error('[assistant.photos.add] error:', err instanceof Error ? err.name : 'AssistantError');

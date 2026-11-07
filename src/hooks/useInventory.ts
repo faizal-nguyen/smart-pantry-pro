@@ -50,6 +50,11 @@ export interface Product {
   brand?: string | null;
   image_url?: string;
   nutrition_json?: ProductNutritionEnvelope | null;
+  /** Open Food Facts details, when the product was found there. */
+  ingredients_text?: string | null;
+  allergens_json?: { allergensTags?: string[]; tracesTags?: string[] } | null;
+  off_product_code?: string | null;
+  enrichment_status?: 'none' | 'pending' | 'enriched' | 'ambiguous' | 'failed' | 'stale';
 }
 
 export interface InventoryItem {

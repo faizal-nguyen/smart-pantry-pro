@@ -58,8 +58,8 @@ import type {
 } from './productTypes.js';
 
 const DEFAULT_AMBIGUITY_MARGIN = 0.05;
-// Open Food Facts allows 10 searches a minute: one photo add enriches at most 5.
-const MAX_BRANDED_ENRICHMENTS = 5;
+// Open Food Facts allows 10 searches a minute: one photo add enriches at most 5 products.
+const MAX_ENRICHMENTS_PER_ADD = 5;
 // Share of the product's own words (brand aside) an OFF name must contain.
 const MIN_NAME_OVERLAP = 0.5;
 
@@ -316,31 +316,32 @@ export class ProductIntelligenceService {
   }
 
   /**
-   * Fills branded products never enriched (Nutri-Score, NOVA, ingredients,
-   * allergens) from their Open Food Facts match: the same brand and most of
-   * the product's words. Best-effort and never throws: no match, or OFF
-   * down or rate-limited, leaves the product as it was (searches are
-   * cached). The OFF photo is not copied: its licence asks for a credit
-   * the stock does not show.
+   * Fills products just added from a photo, never enriched yet (Nutri-Score,
+   * NOVA, ingredients, allergens), from Open Food Facts: by their barcode when
+   * one was read, else by their match of the same brand and most of the
+   * product's words. Best-effort and never throws: no match, or OFF down or
+   * rate-limited, leaves the product as it was (lookups are cached). The OFF
+   * photo is not copied: its licence asks for a credit the stock does not show.
    */
-  async enrichBrandedProducts(productIds: readonly string[]): Promise<void> {
+  async enrichAddedProducts(productIds: readonly string[]): Promise<void> {
     const ids = [...new Set(productIds)];
     if (ids.length === 0) return;
     try {
       const { data, error } = await this.admin
         .from('products')
-        .select('id, name, brand')
+        .select('id, name, brand, barcode')
         .in('id', ids)
-        .not('brand', 'is', null)
+        .or('brand.not.is.null,barcode.not.is.null')
         .in('enrichment_status', ['none', 'stale'])
-        .limit(MAX_BRANDED_ENRICHMENTS);
+        .limit(MAX_ENRICHMENTS_PER_ADD);
       if (error) throw error;
-      for (const product of (data ?? []) as Array<{ id: string; name: string; brand: string | null }>) {
-        const match = brandedMatch(product.name, product.brand ?? '', await this.searchOff(product.name));
+      for (const product of (data ?? []) as Array<{ id: string; name: string; brand: string | null; barcode: string | null }>) {
+        const match = (product.barcode ? await this.lookupOffBarcode(product.barcode) : null)
+          ?? (product.brand ? brandedMatch(product.name, product.brand, await this.searchOff(product.name)) : null);
         if (match) await this.tryApplyEnrichment(product.id, { ...match, imageUrl: null });
       }
     } catch (err) {
-      console.warn('[ProductIntelligence] branded enrichment failed:', errorMessage(err));
+      console.warn('[ProductIntelligence] enrichment after add failed:', errorMessage(err));
     }
   }
 

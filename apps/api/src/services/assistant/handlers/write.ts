@@ -83,6 +83,7 @@ async function resolveItems(
     unit: string | null;
     expiry_date: string | null;
     notes: string | null;
+    photo_path: string | null;
   }> = [];
   const ambiguous: Array<{
     name: string;
@@ -91,7 +92,7 @@ async function resolveItems(
 
   const results = await ctx.productResolver.resolveBatch(
     ctx.userId,
-    items.map((it) => ({ name: productNameWithBrand(it.name, it.brand), category: it.category, unitType: it.unit, brand: it.brand }))
+    items.map((it) => ({ name: productNameWithBrand(it.name, it.brand), category: it.category, unitType: it.unit, brand: it.brand, barcode: it.barcode }))
   );
 
   for (let i = 0; i < items.length; i++) {
@@ -115,10 +116,28 @@ async function resolveItems(
       unit: item.unit ?? r.product.unit_type ?? null,
       expiry_date: item.expiry_date ?? null,
       notes: item.notes ?? null,
+      photo_path: item.photo_path ?? null,
     });
   }
 
   return { resolved, ambiguous };
+}
+
+/**
+ * The photo kept by its owner becomes the photo of each product added (the
+ * latest wins). Best-effort: a photo never blocks or undoes an add.
+ */
+async function keepProductPhotos(
+  ctx: ToolExecutionContext,
+  resolved: ReadonlyArray<{ product_id: string; photo_path: string | null }>
+): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  const rows = [...new Map(resolved.flatMap((r) => (r.photo_path
+    ? [[r.product_id, { user_id: ctx.userId, product_id: r.product_id, photo_path: r.photo_path, updated_at: updatedAt }] as const]
+    : []))).values()];
+  if (rows.length === 0) return;
+  const { error } = await ctx.userClient.from('user_product_photos').upsert(rows, { onConflict: 'user_id,product_id' });
+  if (error) console.warn('[stock.photos] keeping the photos failed:', error.message);
 }
 
 /**
@@ -257,6 +276,7 @@ export class AddInventoryItemsHandler
       : insertedIds.length ? { tool: '_remove_inventory_items', args: { inventory_ids: insertedIds } } : null;
 
     if (added.length > 0) await invalidateRecoCache(ctx);
+    await keepProductPhotos(ctx, resolved);
 
     return { result: { added, ambiguous }, reversibleAction };
   }
