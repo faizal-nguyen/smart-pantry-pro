@@ -14,8 +14,7 @@ import { ChevronDown, Inbox, Instagram, Link2, Plus, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { toast } from '@/hooks/use-toast';
-import { InstagramVideoExtractor } from '@/components/recipes/InstagramVideoExtractor';
+import { LinkImport } from '@/components/recipes/LinkImport';
 import { SocialImportCard } from '@/components/social/SocialImportCard';
 import { RecipeInbox } from '@/components/recipes/RecipeInbox';
 import type { CurrentDraftResponse } from '@/services/recipe-import/types';
@@ -27,7 +26,7 @@ interface RecipeImportTabProps {
   onRecipeExtracted: (recipe: unknown, sourceUrl?: string) => void;
   onOpenAddDialog: () => void;
   pendingCount?: number;
-  onVerifyDraft?: (payload: CurrentDraftResponse) => void;
+  onVerifyDraft: (payload: CurrentDraftResponse) => void;
 }
 
 interface SourceCardProps {
@@ -72,7 +71,7 @@ export default function RecipeImportTab({
 
   return (
     <div className="space-y-8">
-      {pendingCount > 0 && onVerifyDraft && (
+      {pendingCount > 0 && (
         <section
           aria-labelledby="import-inbox-heading"
           className="rounded-lg border border-border bg-surface-muted/50"
@@ -137,17 +136,11 @@ export default function RecipeImportTab({
           <SourceCard
             icon={Instagram}
             title="Instagram"
-            description="Extraction depuis les vidéos et posts Instagram."
+            description="Colle le lien d’un post ou d’une vidéo : la recette est lue puis proposée à la vérification."
           >
-            <InstagramVideoExtractor
-              onRecipeExtracted={recipe => onRecipeExtracted(recipe)}
-              onError={error => {
-                toast({
-                  title: "Erreur d'extraction",
-                  description: error.message,
-                  variant: 'destructive',
-                });
-              }}
+            <LinkImport
+              onVerifyDraft={onVerifyDraft}
+              placeholder="Lien d’un post ou d’une vidéo Instagram…"
             />
           </SourceCard>
 

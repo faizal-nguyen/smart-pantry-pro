@@ -4,7 +4,7 @@ import { pendingIntent } from "@/services/stockCommands";
 import { useAuthSessionOptional } from "@/hooks/useAuthenticatedUser";
 import type { ImportedRecipeDraft } from "@smart/shared";
 import { useRecipeParser } from "@/hooks/useRecipeParser";
-import { useSocialRecipeParser } from "@/hooks/useSocialRecipeParser";
+import { LinkImport } from "@/components/recipes/LinkImport";
 import RecipeBookScanner, { OCRRecipeResult } from "./RecipeBookScanner";
 import RecipeVoiceInput, { ValidatedRecipe } from "./RecipeVoiceInput";
 import { Button } from "@/components/ui/button";
@@ -35,20 +35,14 @@ import {
   ChefHat, 
   Camera, 
   Link, 
-  Instagram, 
   Loader2,
   Plus,
   X,
   Star,
   BookOpen,
-  Mic,
-  Facebook,
-  Youtube,
-  Share2
+  Mic
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import TikTokIcon from "@/components/icons/TikTokIcon";
-import PinterestIcon from "@/components/icons/PinterestIcon";
 
 // Pattern cuisine categories (adaptation ProductCard Cipher)
 const CUISINE_CATEGORIES = [
@@ -120,8 +114,6 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
   // URL parsing hook simplifié
   const { extractRecipeFromURL, loading: parsing } = useRecipeParser();
   
-  // Social media parsing hook (pattern Cipher)
-  const { parseRecipeFromSocial, loading: socialParsing } = useSocialRecipeParser();
   
   // Form state (pattern AddProductDialog Cipher)
   const [recipeName, setRecipeName] = useState("");
@@ -146,9 +138,6 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
   const [recipeUrl, setRecipeUrl] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   
-  // Social media parsing state
-  const [socialUrl, setSocialUrl] = useState("");
-  const [socialError, setSocialError] = useState<string | null>(null);
   
   // OCR scanner state (pattern Cipher)
   const [showOCRScanner, setShowOCRScanner] = useState(false);
@@ -156,26 +145,23 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
   // Voice input state (pattern Cipher)
   const [showVoiceInput, setShowVoiceInput] = useState(false);
 
-  // PRP-220.08: pre-fill the form when an ImportedRecipeDraft is handed
-  // in. We only react to fresh drafts (the dialog opening or the draft
-  // identity changing) so the user's in-progress edits aren't wiped on
-  // every re-render.
-  useEffect(() => {
-    if (!initialDraft) return;
-    setRecipeName(initialDraft.title);
-    setDescription(initialDraft.description ?? "");
-    setCuisineCategory(initialDraft.cuisineCategory ?? "");
-    setMealType(initialDraft.mealType ?? "");
-    setPrepTime(String(initialDraft.prepTimeMinutes ?? 15));
-    setCookTime(String(initialDraft.cookTimeMinutes ?? 30));
-    setServings(String(initialDraft.servings ?? 4));
-    setDifficulty(initialDraft.difficulty ?? 2);
-    setImageUrl(initialDraft.imageUrl ?? initialDraft.source.thumbnailUrl ?? "");
-    setTags(Array.isArray(initialDraft.tags) ? [...initialDraft.tags] : []);
+  // PRP-220.08: pre-fill the form from a canonical ImportedRecipeDraft,
+  // handed in or read from a link in the Social tab.
+  const applyDraft = (draft: ImportedRecipeDraft) => {
+    setRecipeName(draft.title);
+    setDescription(draft.description ?? "");
+    setCuisineCategory(draft.cuisineCategory ?? "");
+    setMealType(draft.mealType ?? "");
+    setPrepTime(String(draft.prepTimeMinutes ?? 15));
+    setCookTime(String(draft.cookTimeMinutes ?? 30));
+    setServings(String(draft.servings ?? 4));
+    setDifficulty(draft.difficulty ?? 2);
+    setImageUrl(draft.imageUrl ?? draft.source.thumbnailUrl ?? "");
+    setTags(Array.isArray(draft.tags) ? [...draft.tags] : []);
 
     setIngredients(
-      initialDraft.ingredients.length > 0
-        ? initialDraft.ingredients.map((i) => ({
+      draft.ingredients.length > 0
+        ? draft.ingredients.map((i) => ({
             name: i.name,
             quantity: typeof i.quantity === "number" ? i.quantity : 0,
             unit: i.unit ?? "",
@@ -186,11 +172,17 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
     );
 
     setInstructions(
-      initialDraft.instructions
+      draft.instructions
         .map((step, idx) => `${idx + 1}. ${step.description}`)
         .join("\n")
     );
+  };
 
+  // Only fresh drafts (the dialog opening or the draft identity changing),
+  // so the user's in-progress edits aren't wiped on every re-render.
+  useEffect(() => {
+    if (!initialDraft) return;
+    applyDraft(initialDraft);
     if (open) setCurrentTab("manual");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDraft]);
@@ -259,9 +251,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
       { name: "", quantity: 0, unit: "g", is_essential: true, notes: "" }
     ]);
     setRecipeUrl("");
-    setSocialUrl("");
     setUrlError(null);
-    setSocialError(null);
     setCurrentTab("manual");
   };
 
@@ -366,53 +356,6 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
       } else {
         setUrlError(`Erreur: ${errorMessage}. Essayez de copier-coller le texte manuellement.`);
       }
-    }
-  };
-
-  // Social media parsing handler (pattern Cipher)
-  const parseSocialRecipe = async () => {
-    setSocialError(null);
-    
-    if (!socialUrl.trim()) {
-      setSocialError("Veuillez entrer une URL de réseau social");
-      return;
-    }
-
-    try {
-      const result = await parseRecipeFromSocial(socialUrl);
-      
-      if (result.success && result.data) {
-        const recipe = result.data;
-        
-        // Remplir le formulaire avec les données parsées
-        setRecipeName(recipe.title);
-        setDescription(recipe.description || '');
-        setPrepTime(recipe.prepTime ?? '0'); setCookTime(recipe.cookTime ?? '0');
-        setServings(String(recipe.servings ?? 4));
-        setDifficulty(recipe.difficulty === 'hard' ? 4 : recipe.difficulty === 'easy' ? 1 : 2);
-        setInstructions(recipe.instructions.join('\n')); setImageUrl(recipe.imageUrl ?? '');
-        // Unstructured social amounts remain for manual verification, never assumed to be one unit.
-        setIngredients(recipe.ingredients.map(name => ({ name, quantity: 0, unit: '', is_essential: true, notes: 'Vérifier la quantité et l’unité extraites.' })));
-
-        // Tags
-        setTags(recipe.tags || []);
-        
-        toast({
-          title: "Recette extraite !",
-          description: `${recipe.title} - ${result.platform} (${result.author || 'Auteur inconnu'})`,
-        });
-        
-        // Passer au mode manuel pour finaliser
-        setCurrentTab("manual");
-        
-      } else {
-        throw new Error(result.error || 'Social parsing failed');
-      }
-      
-    } catch (error) {
-      console.error('Social parsing error:', error);
-      const errorMessage = error instanceof Error ? error.message : "Impossible d'extraire la recette de ce réseau social";
-      setSocialError(errorMessage);
     }
   };
 
@@ -924,105 +867,18 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft }: Ad
           
           {/* Mode Social Media */}
           <TabsContent value="social" className="space-y-4">
-            <div>
-              <Label htmlFor="social-url">URL du réseau social</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="social-url"
-                  value={socialUrl}
-                  onChange={(e) => setSocialUrl(e.target.value)}
-                  placeholder="https://www.instagram.com/p/... ou TikTok, Facebook, Pinterest, YouTube"
-                />
-                <Button 
-                  onClick={parseSocialRecipe}
-                  disabled={socialParsing}
-                >
-                  {socialParsing ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Share2 className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <p className="text-sm text-muted-foreground">Supporté:</p>
-                <div className="flex gap-1">
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <Instagram className="h-3 w-3" />
-                    Instagram
-                  </Badge>
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <Facebook className="h-3 w-3" />
-                    Facebook
-                  </Badge>
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <TikTokIcon className="h-3 w-3" />
-                    TikTok
-                  </Badge>
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <PinterestIcon className="h-3 w-3" />
-                    Pinterest
-                  </Badge>
-                  <Badge variant="outline" className="text-xs gap-1">
-                    <Youtube className="h-3 w-3" />
-                    YouTube
-                  </Badge>
-                </div>
-              </div>
-              {socialError && (
-                <div className="text-sm text-red-500 mt-2 p-2 bg-red-50 rounded">
-                  {socialError}
-                </div>
-              )}
-            </div>
-            
-            {/* Exemples de liens */}
-            <div className="space-y-2">
-              <Label className="text-sm">Exemples rapides</Label>
-              <div className="grid grid-cols-1 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-xs"
-                  onClick={() => setSocialUrl("https://www.instagram.com/p/example/")}
-                >
-                  <Instagram className="h-3 w-3 mr-2" />
-                  Post Instagram avec recette
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-xs"
-                  onClick={() => setSocialUrl("https://www.tiktok.com/@user/video/123")}
-                >
-                  <TikTokIcon className="h-3 w-3 mr-2" />
-                  Vidéo TikTok de cuisine
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start text-xs"
-                  onClick={() => setSocialUrl("https://www.youtube.com/watch?v=example")}
-                >
-                  <Youtube className="h-3 w-3 mr-2" />
-                  Tutoriel YouTube
-                </Button>
-              </div>
-            </div>
-            
-            {/* Si parsing réussi, afficher preview */}
-            {recipeName && currentTab === "social" && (
-              <div className="p-4 border rounded-lg bg-muted/50">
-                <h4 className="font-semibold mb-2">Recette extraite :</h4>
-                <p><strong>{recipeName}</strong></p>
-                <p className="text-sm text-muted-foreground">{description}</p>
-                <div className="flex items-center gap-4 text-sm mt-2">
-                  <span>⏱️ {parseInt(prepTime) + parseInt(cookTime)}min</span>
-                  <span>👥 {servings} pers.</span>
-                  <span>📊 {difficulty}/5</span>
-                </div>
-              </div>
-            )}
+            <LinkImport
+              onVerifyDraft={({ draft }) => {
+                if (!draft) return;
+                applyDraft(draft.draft_json);
+                setCurrentTab("manual");
+                toast({ title: "Recette lue", description: "Vérifie les quantités et les étapes avant d’enregistrer." });
+              }}
+              placeholder="Lien Instagram, TikTok, YouTube…"
+            />
+            <p className="text-sm text-muted-foreground">
+              Instagram, TikTok, YouTube ou une page de recette : la recette est lue puis reportée dans l’onglet Manuel pour vérification.
+            </p>
           </TabsContent>
           
           <TabsContent value="scan" className="space-y-4">
