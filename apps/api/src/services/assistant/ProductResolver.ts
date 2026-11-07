@@ -177,6 +177,10 @@ export class ProductResolver {
   }
 
   async resolve(userId: string, input: ResolveInput): Promise<ResolveResult> {
+    return this.completeIdentity(await this.resolveOnce(userId, input), input);
+  }
+
+  private async resolveOnce(userId: string, input: ResolveInput): Promise<ResolveResult> {
     const normalized = normalizeProductName(input.name);
     if (!normalized) {
       throw new ProductResolverError(
@@ -236,7 +240,7 @@ export class ProductResolver {
     const embeddingFor = new Map<number, number[] | null>();
     missIdx.forEach((idx, i) => embeddingFor.set(idx, embeddings[i] ?? null));
 
-    return Promise.all(
+    const results: ResolveResult[] = await Promise.all(
       inputs.map(async (input, idx) => {
         const key = normalizedKeys[idx];
         if (!key) {
@@ -261,6 +265,28 @@ export class ProductResolver {
         return this.classifyFuzzyOrCreate(userId, input, candidates);
       })
     );
+    return Promise.all(results.map((result, idx) => this.completeIdentity(result, inputs[idx])));
+  }
+
+  /**
+   * A product found without a brand or a barcode takes the ones read on the
+   * pack: « mayonnaise kewpie », once created by voice, gets « Kewpie » and
+   * can then be looked up on Open Food Facts. Best-effort: never blocks.
+   */
+  private async completeIdentity(result: ResolveResult, input: ResolveInput): Promise<ResolveResult> {
+    if (result.kind !== 'matched') return result;
+    const patch: { brand?: string; barcode?: string } = {};
+    if (input.brand?.trim() && !result.product.brand) patch.brand = input.brand.trim();
+    if (input.barcode && !result.product.barcode) patch.barcode = input.barcode;
+    if (!patch.brand && !patch.barcode) return result;
+    try {
+      const { error } = await this.client.from('products').update(patch).eq('id', result.product.id);
+      if (error) throw error;
+      return { ...result, product: { ...result.product, ...patch } };
+    } catch (err) {
+      console.warn('[ProductResolver] brand or barcode not saved:', err instanceof Error ? err.message : err);
+      return result;
+    }
   }
 
   // ---- internals -------------------------------------------------------

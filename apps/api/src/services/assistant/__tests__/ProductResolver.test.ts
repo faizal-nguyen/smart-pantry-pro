@@ -36,6 +36,7 @@ interface ClientCalls {
   batchLookups: string[][];
   fuzzyCalls: Array<{ p_query: string; p_limit: number }>;
   inserts: Array<Record<string, unknown>>;
+  updates?: Array<{ id: string; patch: Record<string, unknown> }>;
 }
 
 interface ClientPlan {
@@ -76,6 +77,14 @@ function makeClient(plan: ClientPlan) {
       };
       return {
         select,
+        update(patch: Record<string, unknown>) {
+          return {
+            async eq(_col: string, id: string) {
+              (calls.updates ??= []).push({ id, patch });
+              return { error: null };
+            },
+          };
+        },
         insert(payload: Record<string, unknown>) {
           calls.inserts.push(payload);
           return {
@@ -772,5 +781,25 @@ describe('ProductResolver — barcode read on the pack', () => {
     const { client, calls } = makeClient({ exactSingle: null });
     await new ProductResolver(client).resolve(USER_ID, { name: 'Nutella', barcode: NUTELLA });
     expect(calls.inserts[0]).toMatchObject({ name: 'Nutella', barcode: NUTELLA });
+  });
+});
+
+describe('ProductResolver — a found product takes the brand and barcode read on the pack', () => {
+  it('fills what the product lacks, never what it has', async () => {
+    const voiceMade = makeProduct({ id: 'p-voice', name: 'mayonnaise kewpie', normalized_name: 'mayonnaise kewpie', brand: null });
+    const { client, calls } = makeClient({ exactSingle: voiceMade });
+    const result = await new ProductResolver(client).resolve(USER_ID, { name: 'Mayonnaise Kewpie', brand: 'Kewpie', barcode: '3017620422003' });
+    expect(result).toMatchObject({ kind: 'matched', product: { id: 'p-voice', brand: 'Kewpie', barcode: '3017620422003' } });
+    expect(calls.updates).toEqual([{ id: 'p-voice', patch: { brand: 'Kewpie', barcode: '3017620422003' } }]);
+
+    const branded = makeClient({ batchRows: [makeProduct({ id: 'p-b', name: 'Mayonnaise Kewpie', normalized_name: 'mayonnaise kewpie', brand: 'Kewpie' })] });
+    await new ProductResolver(branded.client).resolveBatch(USER_ID, [{ name: 'Mayonnaise Kewpie', brand: 'KEWPIE' }]);
+    expect(branded.calls.updates).toBeUndefined();
+  });
+
+  it('a product created or matched without anything read is left alone', async () => {
+    const { client, calls } = makeClient({ exactSingle: makeProduct() });
+    await new ProductResolver(client).resolve(USER_ID, { name: 'Tomate' });
+    expect(calls.updates).toBeUndefined();
   });
 });
