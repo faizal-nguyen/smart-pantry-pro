@@ -280,3 +280,39 @@ export class ThumbnailSnapshotService implements ThumbnailSnapshotter {
     return true;
   }
 }
+
+export interface ImageKeeper {
+  keep(input: { userId: string; importId: string; remoteUrl: string; sourceUrl?: string }): Promise<string | null>;
+}
+
+const KEPT_IMAGE_BUCKET = 'recipe-images';
+const KEPT_IMAGE_BASIS = 'Copie conservée à la demande de l’utilisateur, pour son usage personnel, à l’ajout de la recette.';
+
+/**
+ * Keeps a copy of an imported recipe's image when its owner allows it at
+ * save time: an embed alone never authorizes a copy (PRP-V10-03F §11), the
+ * owner's permission does, recorded as user_provided in media_assets. The
+ * copy goes to the public recipe-images bucket under users/<id>/, so the
+ * recipe shows it durably and the account erasure removes it. Returns its
+ * public URL, or null when nothing was kept (remote fetch, upload or right
+ * record failed; the snapshot rolls back an unrecorded file).
+ */
+export class PersonalImageKeeper implements ImageKeeper {
+  private readonly snapshotter: ThumbnailSnapshotter;
+
+  constructor(
+    userClient: SupabaseClient,
+    private readonly adminClient: SupabaseClient,
+    options: ThumbnailSnapshotServiceOptions = {}
+  ) {
+    this.snapshotter = new ThumbnailSnapshotService(userClient, adminClient, { ...options, bucket: KEPT_IMAGE_BUCKET });
+  }
+
+  async keep(input: { userId: string; importId: string; remoteUrl: string; sourceUrl?: string }): Promise<string | null> {
+    const kept = await this.snapshotter.snapshot({
+      ...input,
+      rights: { status: 'user_provided', basis: KEPT_IMAGE_BASIS, copyAllowed: true },
+    });
+    return kept ? this.adminClient.storage.from(KEPT_IMAGE_BUCKET).getPublicUrl(kept.storageKey).data.publicUrl : null;
+  }
+}

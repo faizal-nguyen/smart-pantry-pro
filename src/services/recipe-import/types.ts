@@ -98,6 +98,8 @@ export interface SaveRequest {
   acknowledge_unknowns?: boolean;
   source_reviewed?: boolean;
   acknowledge_adaptations?: boolean;
+  /** The owner allows keeping a copy of the post image. */
+  keep_image_copy?: boolean;
   collections?: string[];
   personal_notes?: string;
 }

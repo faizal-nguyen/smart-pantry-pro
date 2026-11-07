@@ -31,7 +31,7 @@ export default function DiscoveryDraftEditor({ owner, item, prepared, onClose, o
     const base: DiscoveryReview = {
       owner, itemId: reviewId, importId: prepared.import.id, revision: prepared.draft.version,
       original: prepared.draft.draft_json, form: formFromDraft(prepared.draft.draft_json),
-      acknowledgeUnknowns: false, sourceReviewed: false, acknowledgeAdaptations: false,
+      acknowledgeUnknowns: false, sourceReviewed: false, acknowledgeAdaptations: false, keepImageCopy: false,
       reviewedDraft: null, adaptations: [], pendingSave: null,
     };
     try {
@@ -46,7 +46,7 @@ export default function DiscoveryDraftEditor({ owner, item, prepared, onClose, o
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [conflict, setConflict] = useState(false);
   const [serverRevision, setServerRevision] = useState(prepared.draft.version);
   const [added, setAdded] = useState<RecipeReference | null>(null);
-  const unknownsId = useId(), sourceId = useId(), adaptationsId = useId();
+  const unknownsId = useId(), sourceId = useId(), adaptationsId = useId(), imageId = useId();
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; control.current?.abort(); };
@@ -66,6 +66,7 @@ export default function DiscoveryDraftEditor({ owner, item, prepared, onClose, o
   catch (failure) { invalid = failure instanceof Error ? failure.message : 'Complète les champs commencés.'; }
   const quality = draft ? assessImportedRecipeQuality(review.reviewedDraft ?? draft, { sourceReviewed: review.sourceReviewed }) : null;
   const source = safeDiscoverySourceUrl(review.original.source.sourceUrl ?? item?.sourceUrl ?? '');
+  const hasPostImage = !!(review.original.imageUrl ?? review.original.source.thumbnailUrl);
   const finish = async (recipeId: string) => {
     if (!mounted.current) return;
     const reference: RecipeReference = { id: recipeId, source: 'recipes' };
@@ -129,6 +130,7 @@ export default function DiscoveryDraftEditor({ owner, item, prepared, onClose, o
     const body: NonNullable<DiscoveryReview['pendingSave']> = {
       draft: checked, expected_revision: next.revision, acknowledge_unknowns: next.acknowledgeUnknowns,
       source_reviewed: next.sourceReviewed, acknowledge_adaptations: next.acknowledgeAdaptations,
+      keep_image_copy: hasPostImage && next.keepImageCopy,
     };
     persist({ ...next, pendingSave: body });
     const result = await importsApi.save(next.importId, body, owner, signal);
@@ -157,6 +159,7 @@ export default function DiscoveryDraftEditor({ owner, item, prepared, onClose, o
         <DiscoveryDraftFields form={review.form} disabled={busy || !!review.pendingSave || !!initial.error} onChange={form => update({ form }, true)} />
         {quality && quality.unknowns.length > 0 && <div className="rounded-lg border p-3 space-y-2"><h3 className="font-semibold">Informations à vérifier</h3><ul className="list-disc pl-5 text-sm space-y-1">{quality.unknowns.map((unknown, index) => <li key={`${unknown.path}:${index}`}>{unknown.label}</li>)}</ul></div>}
         <label htmlFor={sourceId} className="flex items-start gap-3 min-h-11 text-sm"><input id={sourceId} type="checkbox" className="h-5 w-5 shrink-0 mt-1" disabled={busy || !!review.pendingSave} checked={review.sourceReviewed} onChange={event => update({ sourceReviewed: event.target.checked }, true)} /><span>J’ai vérifié les ingrédients et les étapes dans la source.</span></label>
+        {hasPostImage && <label htmlFor={imageId} className="flex items-start gap-3 min-h-11 text-sm"><input id={imageId} type="checkbox" className="h-5 w-5 shrink-0 mt-1" disabled={busy || !!review.pendingSave} checked={review.keepImageCopy} onChange={event => update({ keepImageCopy: event.target.checked })} /><span>Garder une copie de l’image du post dans ma recette, pour mon usage personnel.</span></label>}
         {quality?.requires_acknowledgement && <label htmlFor={unknownsId} className="flex items-start gap-3 min-h-11 text-sm"><input id={unknownsId} type="checkbox" className="h-5 w-5 shrink-0 mt-1" disabled={busy || !!review.pendingSave} checked={review.acknowledgeUnknowns} onChange={event => update({ acknowledgeUnknowns: event.target.checked })} /><span>Je garde les informations manquantes à vérifier avant de cuisiner.</span></label>}
         {review.adaptations.length > 0 && <section className="rounded-lg border p-3 space-y-2" aria-label="Adaptations de la recette"><h3 className="font-semibold">Adaptations proposées</h3><ul className="list-disc pl-5 text-sm space-y-1">{review.adaptations.map((change, index) => <li key={`${change.path}:${index}`} className="break-words">{change.from} → {change.to}</li>)}</ul><label htmlFor={adaptationsId} className="flex items-start gap-3 min-h-11 text-sm"><input id={adaptationsId} type="checkbox" className="h-5 w-5 shrink-0 mt-1" disabled={busy || !!review.pendingSave} checked={review.acknowledgeAdaptations} onChange={event => update({ acknowledgeAdaptations: event.target.checked })} /><span>J’accepte ces adaptations. La source originale reste conservée.</span></label></section>}
         {!quality?.can_save && !invalid && <p className="text-sm text-muted-foreground">Cette inspiration est gardée. Complète ses ingrédients et étapes pour en faire une recette.</p>}

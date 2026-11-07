@@ -72,6 +72,7 @@ export const SaveRequestSchema = z.object({
   acknowledge_unknowns: z.boolean().optional(),
   source_reviewed: z.boolean().optional(),
   acknowledge_adaptations: z.boolean().optional(),
+  keep_image_copy: z.boolean().optional(),
   collections: z.array(z.string().uuid()).max(20).optional(),
   personal_notes: z.string().max(2000).optional(),
 });
