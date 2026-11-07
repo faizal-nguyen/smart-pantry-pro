@@ -1276,23 +1276,20 @@ const RECIPE_ACTION = new RegExp(['(?:j[\'’]ai|on a|nous avons)\\s+(?:cuisiné
   '(?:mets|ajoute|place|planifie|programme|prévois)[^.?!]{0,60}(?:menu|planning|programme|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain)',
   'supprim\\p{L}*[^.?!]{0,40}recette'].map(part => `(?<![\\p{L}\\p{N}])${part}(?![\\p{L}\\p{N}])`).join('|'), 'iu');
 
-// The model gets every day already numbered: given only a date, gpt-4o-mini put
-// « demain (dimanche) » on day_of_week 0 (live repro 2026-11-07).
+// The model copies one date per meal-plan call; the server derives week and day.
+// Given week_start + day_of_week to fill in, gpt-4o-mini mixed them up (live repro 2026-11-07).
 const FRENCH_DAY = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const FRENCH_WEEKDAY = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long' });
+const noon = (iso: string) => new Date(`${iso}T12:00:00Z`);
 function shiftDate(iso: string, days: number): string {
-  return new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
-}
-function mealPlanSlot(iso: string): string {
-  const weekStart = calendarWeekStart(`${iso}T12:00:00Z`)!;
-  const dayOfWeek = Math.round((Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${weekStart}T12:00:00Z`)) / 86400000);
-  return `${FRENCH_DAY.format(new Date(`${iso}T12:00:00Z`))} (${iso}, week_start ${weekStart}, day_of_week ${dayOfWeek})`;
+  return new Date(noon(iso).getTime() + days * 86400000).toISOString().slice(0, 10);
 }
 function todayContext(now: Date): string {
   const today = calendarDate(now)!, weekStart = calendarWeekStart(now)!;
-  const days = Array.from({ length: 7 }, (_, i) => `${i} = ${FRENCH_DAY.format(new Date(`${shiftDate(weekStart, i)}T12:00:00Z`)).split(' ')[0]} ${shiftDate(weekStart, i)}`);
-  return `TODAY (Europe/Paris): Aujourd’hui : ${mealPlanSlot(today)}. Demain : ${mealPlanSlot(shiftDate(today, 1))}.\n`
-    + `Semaine en cours, week_start ${weekStart} : ${days.join(', ')}. Semaine suivante : week_start ${shiftDate(weekStart, 7)}.\n`
-    + 'For read_meal_plan and add_recipe_to_meal_plan copy week_start and day_of_week from these lines; never compute or guess them.';
+  const week = (start: string) => Array.from({ length: 7 }, (_, i) => `${FRENCH_WEEKDAY.format(noon(shiftDate(start, i)))} ${shiftDate(start, i)}`).join(', ');
+  return `TODAY (Europe/Paris): Aujourd’hui : ${FRENCH_DAY.format(noon(today))} (${today}). Demain : ${FRENCH_DAY.format(noon(shiftDate(today, 1)))} (${shiftDate(today, 1)}).\n`
+    + `Cette semaine : ${week(weekStart)}.\nSemaine prochaine : ${week(shiftDate(weekStart, 7))}.\n`
+    + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD) copied from these lines; never compute a date.';
 }
 
 // Tool results reach the model as text. Stock and shopping rows keep only what it

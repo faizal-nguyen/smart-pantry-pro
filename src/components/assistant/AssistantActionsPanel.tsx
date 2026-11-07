@@ -76,7 +76,7 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
     return ids.every(id => labels[id]) ? ids.map(id => `• ${labels[id]}`).join('\n') : `${ids.length} article(s)`;
   }
   if (typeof args.inventory_id === 'string' && labels[args.inventory_id]) return labels[args.inventory_id];
-  if ('recipe_id' in args && 'meal_type' in args) return `${String(args.meal_type)} • ${String(args.week_start ?? '')}`;
+  if ('recipe_id' in args && 'meal_type' in args) return `${String(args.meal_type)} • ${String(args.date ?? args.week_start ?? '')}`;
   if ('url' in args) return String(args.url);
   if ('category' in args) return String(args.category);
   return JSON.stringify(args).slice(0, 100);

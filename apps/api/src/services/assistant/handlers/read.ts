@@ -12,7 +12,7 @@
  * nested.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ingredientNameTokens } from '@smart/shared';
+import { calendarWeekStart, ingredientNameTokens } from '@smart/shared';
 
 import type {
   ToolHandler,
@@ -497,7 +497,7 @@ export class ReadMealPlanHandler
       .from('weekly_meal_plans')
       .select('id, user_id, week_start_date, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings)')
       .eq('user_id', ctx.userId)
-      .eq('week_start_date', args.week_start)
+      .eq('week_start_date', args.week_start ?? calendarWeekStart(`${args.date}T12:00:00Z`))
       .maybeSingle();
     if (error) {
       // weekly_meal_plans may not exist in some envs (cf. types.augmented).

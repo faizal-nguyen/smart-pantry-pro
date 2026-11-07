@@ -453,6 +453,15 @@ describe('AddRecipeToMealPlanHandler', () => {
     expect(result.reversibleAction).toBeNull();
     expect(calls).toEqual([]);
   });
+  it('plans the date the model copied from the prompt, and derives the day number', async () => {
+    const recipeId = '22222222-2222-4222-8222-222222222222';
+    const { client } = makeClient({ routes: {} });
+    const result = await new AddRecipeToMealPlanHandler().execute(makeCtx(client),{ recipe_id: recipeId, date: '2026-11-08', meal_type: 'dinner' });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER,expect.objectContaining({
+      command_type: 'plan_recipe', payload: expect.objectContaining({ date: '2026-11-08', meal_type: 'dinner' }),
+    }));
+    expect(result.result).toMatchObject({ date: '2026-11-08', day_of_week: 6 });
+  });
   it('returns a committed receipt before resolving a recipe changed since the original request', async () => {
     jest.mocked(StockCommandService.prototype.getResult).mockResolvedValueOnce(receipt);
     await new AddRecipeToMealPlanHandler().execute(makeCtx({}),{ recipe_id: 'recipe', week_start: '2026-05-04', day_of_week: 0, meal_type: 'lunch' });

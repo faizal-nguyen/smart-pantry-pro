@@ -98,9 +98,15 @@ const readRecentRecipesArgs = z.object({
 });
 export type ReadRecentRecipesArgs = z.infer<typeof readRecentRecipesArgs>;
 
+// The model copies one date from the prompt's TODAY lines; the server derives the
+// week and the day number (live repro 2026-11-07: gpt-4o-mini mixed them up).
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'ISO date YYYY-MM-DD');
 const readMealPlanArgs = z.object({
-  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'week_start ISO YYYY-MM-DD'),
-});
+  /** Any day of the wanted week. */
+  date: isoDate.optional(),
+  /** Older calls: the Monday of the week. */
+  week_start: isoDate.optional(),
+}).refine(args => !!args.date || !!args.week_start, { message: 'date (YYYY-MM-DD) is required', path: ['date'] });
 export type ReadMealPlanArgs = z.infer<typeof readMealPlanArgs>;
 
 const findCookableArgs = z.object({
@@ -227,10 +233,13 @@ export type UnmarkShoppingItemsBoughtArgs = z.infer<typeof unmarkShoppingItemsBo
 
 const addRecipeToMealPlanArgs = z.object({
   recipe_id: z.string().uuid(),
-  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  day_of_week: dayOfWeekSchema,
+  date: isoDate.optional(),
+  /** Older calls: week Monday + day number (0 = Monday). */
+  week_start: isoDate.optional(),
+  day_of_week: dayOfWeekSchema.optional(),
   meal_type: mealTypeSchema,
-});
+}).refine(args => !!args.date || (args.week_start !== undefined && args.day_of_week !== undefined),
+  { message: 'date (YYYY-MM-DD) is required', path: ['date'] });
 export type AddRecipeToMealPlanArgs = z.infer<typeof addRecipeToMealPlanArgs>;
 
 // ---- LOW: Product Intelligence (PRP-225 PR5) ------------------------
@@ -426,13 +435,13 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'read_meal_plan',
-    description: 'Read the meal plan for a given ISO week (Monday-anchored).',
+    description: 'Read the meal plan of the week that contains `date`.',
     schema: readMealPlanArgs,
     jsonSchema: {
       type: 'object',
-      required: ['week_start'],
+      required: ['date'],
       properties: {
-        week_start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Any day of the wanted week, copied from the TODAY lines' },
       },
       additionalProperties: false,
     },
@@ -644,20 +653,14 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'add_recipe_to_meal_plan',
-    description: 'Add a recipe to the user meal plan for a given week / day / meal slot.',
+    description: 'Add a recipe to the user meal plan on a date and meal slot.',
     schema: addRecipeToMealPlanArgs,
     jsonSchema: {
       type: 'object',
-      required: ['recipe_id', 'week_start', 'day_of_week', 'meal_type'],
+      required: ['recipe_id', 'date', 'meal_type'],
       properties: {
         recipe_id: { type: 'string', format: 'uuid' },
-        week_start: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
-        day_of_week: {
-          type: 'integer',
-          minimum: 0,
-          maximum: 6,
-          description: '0=Monday, 6=Sunday',
-        },
+        date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'The day, copied from the TODAY lines (« demain » is the Demain date)' },
         meal_type: {
           type: 'string',
           enum: ['breakfast', 'lunch', 'dinner', 'snack'],
