@@ -16,3 +16,15 @@ export async function saveRecipeWithIngredients(payload: SavePayload, intent = '
   await finishIntent(intent);
   return recipe;
 }
+
+/**
+ * Why a recipe save failed, for the person saving it: the refused field of an
+ * invalid recipe (1-based positions), or the French reason the save path gives.
+ */
+export function describeSaveError(error: unknown): string {
+  if (error && typeof error === 'object' && 'issues' in error && Array.isArray(error.issues) && error.issues[0]) {
+    const path = (error.issues[0] as { path?: Array<string | number> }).path ?? [];
+    return `Champ refusé : ${path.map(part => typeof part === 'number' ? part + 1 : part).join('.')}.`;
+  }
+  return error instanceof Error && error.message ? error.message : 'Impossible de sauvegarder la recette.';
+}

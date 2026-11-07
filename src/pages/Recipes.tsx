@@ -38,6 +38,7 @@ const ExtractedRecipeModal = lazy(() =>
 const RecipeOnboarding = lazy(() => import('@/components/onboarding/RecipeOnboarding'));
 
 import { draftToLegacyPayload } from '@/services/recipe-import/draftAdapter';
+import { describeSaveError } from '@/services/recipePersistence';
 
 // PRP-232 PR1 — URL state contract.
 // PRP-237 PR4 §10 (2026-05-17) — reduced to 2 active tabs after audit
@@ -111,8 +112,9 @@ export default function Recipes() {
         description: `« ${editedRecipe.name} » est dans tes recettes.`,
       });
       try { await fetchRecipes?.(); } catch { /* fetchRecipes optionnel */ }
-    } catch {
-      toast({ title: 'Erreur', description: 'Impossible de sauvegarder la recette.', variant: 'destructive' });
+    } catch (error) {
+      console.error('[recipes] imported recipe not saved:', error);
+      toast({ title: 'Recette non enregistrée', description: describeSaveError(error), variant: 'destructive' });
     }
   };
 
@@ -216,6 +218,7 @@ export default function Recipes() {
               recipe={extractedRecipe}
               sourceUrl={extractedRecipe?.sourceUrl}
               onConfirm={handleExtractedConfirm}
+              onCancel={() => setShowExtractedModal(false)}
             />
           </Suspense>
         )}
