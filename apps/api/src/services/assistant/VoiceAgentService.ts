@@ -1276,10 +1276,23 @@ const RECIPE_ACTION = new RegExp(['(?:j[\'’]ai|on a|nous avons)\\s+(?:cuisiné
   '(?:mets|ajoute|place|planifie|programme|prévois)[^.?!]{0,60}(?:menu|planning|programme|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|demain)',
   'supprim\\p{L}*[^.?!]{0,40}recette'].map(part => `(?<![\\p{L}\\p{N}])${part}(?![\\p{L}\\p{N}])`).join('|'), 'iu');
 
+// The model gets every day already numbered: given only a date, gpt-4o-mini put
+// « demain (dimanche) » on day_of_week 0 (live repro 2026-11-07).
+const FRENCH_DAY = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+function shiftDate(iso: string, days: number): string {
+  return new Date(Date.parse(`${iso}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+}
+function mealPlanSlot(iso: string): string {
+  const weekStart = calendarWeekStart(`${iso}T12:00:00Z`)!;
+  const dayOfWeek = Math.round((Date.parse(`${iso}T12:00:00Z`) - Date.parse(`${weekStart}T12:00:00Z`)) / 86400000);
+  return `${FRENCH_DAY.format(new Date(`${iso}T12:00:00Z`))} (${iso}, week_start ${weekStart}, day_of_week ${dayOfWeek})`;
+}
 function todayContext(now: Date): string {
-  const label = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now);
-  return `TODAY: Aujourd’hui : ${label} (${calendarDate(now)}, Europe/Paris). Demain : ${calendarDate(new Date(now.getTime() + 86400000))}. `
-    + `Semaine en cours : week_start ${calendarWeekStart(now)} (day_of_week 0 = lundi … 6 = dimanche). Use these dates for the meal plan; never guess a week.`;
+  const today = calendarDate(now)!, weekStart = calendarWeekStart(now)!;
+  const days = Array.from({ length: 7 }, (_, i) => `${i} = ${FRENCH_DAY.format(new Date(`${shiftDate(weekStart, i)}T12:00:00Z`)).split(' ')[0]} ${shiftDate(weekStart, i)}`);
+  return `TODAY (Europe/Paris): Aujourd’hui : ${mealPlanSlot(today)}. Demain : ${mealPlanSlot(shiftDate(today, 1))}.\n`
+    + `Semaine en cours, week_start ${weekStart} : ${days.join(', ')}. Semaine suivante : week_start ${shiftDate(weekStart, 7)}.\n`
+    + 'For read_meal_plan and add_recipe_to_meal_plan copy week_start and day_of_week from these lines; never compute or guess them.';
 }
 
 // Tool results reach the model as text. Stock and shopping rows keep only what it

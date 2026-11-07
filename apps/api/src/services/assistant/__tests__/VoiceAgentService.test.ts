@@ -1324,9 +1324,11 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
     // 23:30 UTC on Saturday is already Sunday 00:30 in Paris.
     await serviceAt(new Date('2026-11-07T23:30:00Z'),ai).handleRequest({...input,text:'Bonjour'},makeCtx());
     const system=String(requests[0].messages[0].content);
-    expect(system).toContain('dimanche 8 novembre 2026 (2026-11-08');
-    expect(system).toContain('Demain : 2026-11-09');
-    expect(system).toContain('week_start 2026-11-02');
+    expect(system).toContain('Aujourd’hui : dimanche 8 novembre 2026 (2026-11-08, week_start 2026-11-02, day_of_week 6)');
+    // Tomorrow is already next week: its slot is given, not left to compute.
+    expect(system).toContain('Demain : lundi 9 novembre 2026 (2026-11-09, week_start 2026-11-09, day_of_week 0)');
+    expect(system).toContain('6 = dimanche 2026-11-08');
+    expect(system).toContain('Semaine suivante : week_start 2026-11-09');
     expect(system).toMatch(/Tutoie/);
   });
   it('« J’ai cuisiné les pâtes carbonara »: the recipe found, the cook is prepared in the same turn',async()=>{
