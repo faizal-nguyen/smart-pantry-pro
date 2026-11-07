@@ -53,3 +53,11 @@ test('a failed recognition answers 502 without the provider details',async()=>{
     expect(JSON.stringify(response.body)).not.toContain('sk-proj');
   } finally { log.mockRestore(); }
 });
+
+test('adding the kept products validates its body and requires an account',async()=>{
+  const {app}=setup();
+  await request(app).post('/assistant/photos/add').send({items:[{name:'Riz',quantity:1,unit:'kg'}]}).expect(400);
+  await request(app).post('/assistant/photos/add').send({client_request_id:'66666666-6666-4666-8666-666666666666',items:[]}).expect(400);
+  await request(setup({authenticated:false}).app).post('/assistant/photos/add').send({client_request_id:'66666666-6666-4666-8666-666666666666',items:[{name:'Riz',quantity:1,unit:'kg'}]}).expect(401);
+  await request(setup({hmacSecret:''}).app).post('/assistant/photos/add').send({}).expect(503);
+});

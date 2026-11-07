@@ -1398,3 +1398,45 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
     expect(JSON.stringify(requests[1].messages)).toContain('Ajoute des œufs à ma liste');
   });
 });
+
+describe('groceries kept from a photo are added without a model call',()=>{
+  const items=[{name:'Lait demi-écrémé',quantity:6,unit:'bouteille'},{name:'Riz',quantity:1,unit:'kg',expiry_date:'2027-03-01'}];
+  class ReplayWriter extends MockWriter {
+    async insertPlanned(input: Parameters<MockWriter['insertPlanned']>[0]) {
+      const existing=this.rows.find(r=>r.client_request_id===input.clientRequestId && r.step_seq===input.stepSeq);
+      if (existing) return { ...existing, replayed: true };
+      const row=await super.insertPlanned(input);row.client_request_id=input.clientRequestId;return row;
+    }
+    async markExecuted(id: string, params: Parameters<MockWriter['markExecuted']>[1]) {
+      await super.markExecuted(id,params);const row=this.rows.find(r=>r.id===id);
+      if (row) { row.result=params.result;row.reversible_action=params.reversibleAction ?? null;row.undo_expires_at=params.undoExpiresAt?.toISOString() ?? null; }
+    }
+  }
+  const added={added:[{inventory_id:'inv-1',product_id:'p-1',product_name:'Lait demi-écrémé',quantity:6}],ambiguous:[]};
+  it('runs add_inventory_items once, logs it as executed and keeps it undoable',async()=>{
+    const execute=jest.fn(async()=>({result:added,reversibleAction:{tool:'_undo_inventory_add',args:{inventory_ids:['inv-1']}}}));
+    const ai={complete:jest.fn()};const writer=new ReplayWriter();
+    const {service}=makeService({ai:ai as unknown as AICompletionClient,handlers:{add_inventory_items:{execute}},writer});
+    const first=await service.addReviewedGroceries({userId:USER,clientRequestId:'66666666-6666-4666-8666-666666666666',items},makeCtx());
+    expect(ai.complete).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({userId:USER,commandId:first.action.action_id}),{items});
+    expect(first.action).toMatchObject({tool:'add_inventory_items',result:added,reversible:true,risk_tier:'low'});
+    expect(first.action.undo_expires_at).not.toBeNull();
+    expect(writer.rows).toHaveLength(1);expect(writer.rows[0].status).toBe('executed');
+    const again=await service.addReviewedGroceries({userId:USER,clientRequestId:'66666666-6666-4666-8666-666666666666',items},makeCtx());
+    expect(execute).toHaveBeenCalledTimes(1);expect(again.action.action_id).toBe(first.action.action_id);expect(again.action.result).toEqual(added);
+  });
+  it('refuses a product without name or with a negative quantity before any write',async()=>{
+    const execute=jest.fn();const writer=new ReplayWriter();
+    const {service}=makeService({ai:{complete:jest.fn()} as unknown as AICompletionClient,handlers:{add_inventory_items:{execute}},writer});
+    for (const bad of [[{name:'',quantity:1,unit:'kg'}],[{name:'Riz',quantity:-1,unit:'kg'}],[]])
+      await expect(service.addReviewedGroceries({userId:USER,clientRequestId:'77777777-7777-4777-8777-777777777777',items:bad},makeCtx())).rejects.toMatchObject({code:'INVALID_ITEMS'});
+    expect(execute).not.toHaveBeenCalled();expect(writer.rows).toHaveLength(0);
+  });
+  it('a failed add is logged as failed and reported, never as added',async()=>{
+    const writer=new ReplayWriter();
+    const {service}=makeService({ai:{complete:jest.fn()} as unknown as AICompletionClient,handlers:{add_inventory_items:{execute:jest.fn(async()=>{throw new Error('lot conflict');})}},writer});
+    await expect(service.addReviewedGroceries({userId:USER,clientRequestId:'88888888-8888-4888-8888-888888888888',items},makeCtx())).rejects.toMatchObject({code:'EXECUTION_FAILED'});
+    expect(writer.rows[0].status).toBe('failed');
+  });
+});
