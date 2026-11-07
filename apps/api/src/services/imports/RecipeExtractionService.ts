@@ -43,6 +43,8 @@ import {
 export interface AICompletionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** Images sent with this message (data or https URLs); vision models only. */
+  images?: ReadonlyArray<{ url: string; detail?: 'low' | 'high' }>;
 }
 
 /**

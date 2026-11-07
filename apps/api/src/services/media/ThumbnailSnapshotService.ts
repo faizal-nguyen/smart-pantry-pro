@@ -77,7 +77,7 @@ export interface ThumbnailSnapshotServiceOptions {
   fetchImpl?: typeof safeFetch;
 }
 
-function sniffImageMime(buf: Buffer): string | null {
+export function sniffImageMime(buf: Buffer): string | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
     return 'image/jpeg';
   }

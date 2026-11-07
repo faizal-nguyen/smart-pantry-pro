@@ -19,10 +19,19 @@ export function providerErrorSummary(error: unknown): Record<string, string | nu
   return { name: error instanceof Error ? error.name : 'unknown',
     ...(typeof e.status === 'number' ? { status: e.status } : {}), ...(code ? { code } : {}), ...(str(e.type) ? { type: str(e.type) } : {}) };
 }
+/** A message with images becomes text plus image parts, in the shape each transport expects. */
+function wireMessages(messages: AICompletionRequest['messages'], responses: boolean): unknown[] {
+  return messages.map(({ images, ...message }) => !images?.length ? message : { ...message, content: [
+    { type: responses ? 'input_text' : 'text', text: message.content },
+    ...images.map(image => responses
+      ? { type: 'input_image', image_url: image.url, detail: image.detail ?? 'high' }
+      : { type: 'image_url', image_url: { url: image.url, detail: image.detail ?? 'high' } }),
+  ] });
+}
 export function completionParams(req: AICompletionRequest, stream = false): ObjectValue {
   if (req.transport !== 'responses') {
     if (req.continuation?.length) throw new Error('CHAT_CONTINUATION_NOT_SUPPORTED');
-    return { model:req.model, messages:req.messages, store:false, stream, service_tier:'default',
+    return { model:req.model, messages:wireMessages(req.messages,false), store:false, stream, service_tier:'default',
       ...(req.temperature !== undefined ? { temperature:req.temperature } : {}),
       ...(req.max_tokens !== undefined ? { max_tokens:req.max_tokens } : {}),
       ...(req.response_format ? { response_format:req.response_format } : {}),
@@ -32,7 +41,7 @@ export function completionParams(req: AICompletionRequest, stream = false): Obje
   }
   if (JSON.stringify(req.continuation ?? []).length > 48000) throw new Error('CONTINUATION_LIMIT');
   return { model:req.model, store:false, stream, service_tier:'default',
-    input: [...req.messages,...(req.continuation ?? [])], max_output_tokens:req.max_tokens,
+    input: [...wireMessages(req.messages,true),...(req.continuation ?? [])], max_output_tokens:req.max_tokens,
     ...(req.reasoningEffort ? { reasoning:{effort:req.reasoningEffort},include:['reasoning.encrypted_content'] } : {}),
     ...(req.reasoningEffort === 'none' && req.temperature !== undefined ? {temperature:req.temperature} : {}),
     // Explicit non-strict mode preserves the optional legacy tool fields. Zod remains authoritative.

@@ -20,12 +20,21 @@ export function benchmarkConfig(preset: AssistantModelConfig['preset']): Assista
   const config: AssistantModelConfig = {
     version: 'v10-03d-2026-10-11-r2:' + preset, preset,
     roles: { dialogue: { ...current }, culinary: { ...(preset === 'baseline' ? quality : preset === 'luna-sol' ? sol : luna) },
-      summary: { ...current, maxOutputTokens: 320, timeoutMs: 5000 } },
+      summary: { ...current, maxOutputTokens: 320, timeoutMs: 5000 },
+      // Photos: a recent model in every preset (cheaper and sharper on images than gpt-4o).
+      vision: visionRole('gpt-6-luna') },
     limits: { maxCalls: 4, maxTools: 6, deadlineMs: 45000, maxUsd: 0.15 }, activation: 'baseline',
   };
   return freezeConfig(config);
 }
+const VISION_MODELS = ['gpt-6-luna', 'gpt-6.1-sol'];
+/** The image reservation (ModelInvocation) follows the patch-based image cost of these models. */
+function visionRole(model: string): RoleConfig {
+  if (!VISION_MODELS.includes(model)) throw new Error('ASSISTANT_VISION_MODEL_UNSUPPORTED');
+  return { model, transport: 'responses', effort: model === 'gpt-6.1-sol' ? 'low' : 'none', maxOutputTokens: 1500, timeoutMs: 30000 };
+}
 export function freezeConfig(config: AssistantModelConfig): AssistantModelConfig {
+  if (!VISION_MODELS.includes(config.roles.vision?.model)) throw new Error('ASSISTANT_VISION_MODEL_UNSUPPORTED');
   for (const role of Object.values(config.roles)) {
     if (!['gpt-4o-mini','gpt-4o','gpt-6-luna','gpt-6.1-sol'].includes(role.model)) throw new Error('ASSISTANT_MODEL_UNSUPPORTED');
     if (role.model.startsWith('gpt-6') && (role.transport !== 'responses' || !role.effort)) throw new Error('ASSISTANT_MODEL_TRANSPORT_INCOMPATIBLE');
@@ -40,6 +49,11 @@ export function freezeConfig(config: AssistantModelConfig): AssistantModelConfig
 }
 /** Candidate selection requires a reviewed live report; a fake/offline report cannot activate it. */
 export function loadAssistantModelConfig(env: NodeJS.ProcessEnv = process.env): AssistantModelConfig {
+  const config = loadPresetConfig(env);
+  if (!env.ASSISTANT_VISION_MODEL) return config;
+  return freezeConfig({ ...config, roles: { ...config.roles, vision: visionRole(env.ASSISTANT_VISION_MODEL) }, limits: { ...config.limits } });
+}
+function loadPresetConfig(env: NodeJS.ProcessEnv): AssistantModelConfig {
   const preset = env.ASSISTANT_MODEL_PRESET ?? 'baseline';
   if (!['baseline','luna','luna-sol'].includes(preset)) throw new Error('ASSISTANT_MODEL_PRESET_INVALID');
   const config = benchmarkConfig(preset as AssistantModelConfig['preset']);
