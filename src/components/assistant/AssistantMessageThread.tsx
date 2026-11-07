@@ -24,7 +24,8 @@ import AssistantModelDetails from './AssistantModelDetails';
  * prompt instructs the LLM to use.
  */
 function splitChefSections(text: string): { db: string; offDb: string | null } {
-  const headerRegex = /(?:^|\n)\s*[*#-]*\s*Id[eé]es?\s+chef\s+hors\s+biblioth[eè]que[*:.]*\s*\n?/i;
+  // The title may come bold, with a French space before its colon (« … bibliothèque :** »).
+  const headerRegex = /(?:^|\n)\s*[*#-]*\s*Id[eé]es?\s+chef\s+hors\s+biblioth[eè]que(?:[ \t]*[*:.])*[ \t]*\n?/i;
   const match = headerRegex.exec(text);
   if (!match) return { db: text, offDb: null };
   const db = text.slice(0, match.index).trimEnd();

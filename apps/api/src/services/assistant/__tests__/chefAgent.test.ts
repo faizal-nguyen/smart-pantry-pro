@@ -62,10 +62,17 @@ describe('chefAgent — chefSystemPrompt', () => {
     expect(prompt).toMatch(/`name` exact/);
   });
 
-  it('caps off-DB ideas at 2 and labels them', () => {
-    expect(prompt).toMatch(/(jusqu'à|max) 2/i);
-    expect(prompt).toMatch(/[Ii]dées chef hors bibliothèque/);
-    expect(prompt).toMatch(/V1.*pas.*actionnables/i);
+  it('caps off-DB ideas at 2 for a general ask and labels them with a plain title', () => {
+    expect(prompt).toMatch(/Demande générale : jusqu'à 2 idées/);
+    expect(prompt).toMatch(/sans gras ni deux-points : Idées chef hors bibliothèque/);
+    expect(prompt).toMatch(/Ajouter à mes recettes/);
+    expect(prompt).not.toMatch(/pas.*actionnables/i);
+  });
+
+  it('always gives 2 to 3 ideas for a precise product, photographed ones included, never judged on the stock', () => {
+    expect(prompt).toMatch(/produit précis .*📷 Sur mes photos.*TOUJOURS 2 à 3 idées/);
+    expect(prompt).toMatch(/ne conclus jamais que rien n'est réalisable avec le stock/);
+    expect(prompt).toMatch(/remplace mirin et saké/);
   });
 
   it('emits the structured response shape (résumé → BDD → manquants → hors BDD)', () => {
