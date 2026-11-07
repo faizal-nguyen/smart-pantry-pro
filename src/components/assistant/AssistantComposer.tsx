@@ -8,8 +8,11 @@
  * picker. Quand le mode change et qu'une conversation existe déjà,
  * `PATCH /conversations/:id` propage la nouvelle valeur côté backend.
  *
+ * Photo : « mes courses en photo » (GroceryPhotoCapture), lues puis
+ * vérifiées avant un ajout au stock.
+ *
  * Accessibilité : aria-label, aria-pressed (mic), tap target ≥ 44 px,
- * order tab textarea → mode → mic → send.
+ * order tab textarea → mode → photo → mic → send.
  */
 import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -30,6 +33,7 @@ import type {
 } from '@/services/assistantApi';
 import AssistantModePicker from './AssistantModePicker';
 import { DictationMicButton, DictationStatusLine } from './DictationControls';
+import GroceryPhotoCapture from './GroceryPhotoCapture';
 
 interface AssistantComposerProps {
   conversationId?: string | null;
@@ -193,6 +197,7 @@ export default function AssistantComposer({
           className="min-w-0 flex-1 resize-none min-h-[44px] py-2 text-base"
           aria-label="Message à envoyer à l'assistant"
         />
+        <GroceryPhotoCapture owner={expectedUserId} disabled={disabled || sending || isRecording || isTranscribing} />
         <DictationMicButton dictation={dictation} disabled={disabled || sending} />
         <Button
           type="submit"

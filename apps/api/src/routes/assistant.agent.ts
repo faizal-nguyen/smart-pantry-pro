@@ -42,7 +42,7 @@ import { MemoryExtractor } from '../services/assistant/MemoryExtractor.js';
 import { registerMemoryHandlers } from '../services/assistant/handlers/memory.js';
 import { CookingJournalService } from '../services/cooking/CookingJournalService.js';
 import type { Database } from '../types/supabase.js';
-import { ToolHandlerRegistry, ToolHandlerNotFoundError } from '../services/assistant/handlers/types.js';
+import { ToolHandlerRegistry, ToolHandlerNotFoundError, type ToolExecutionContext } from '../services/assistant/handlers/types.js';
 import { registerReadHandlers } from '../services/assistant/handlers/read.js';
 import { registerWriteHandlers } from '../services/assistant/handlers/write.js';
 import { registerInternalHandlers } from '../services/assistant/handlers/internal.js';
@@ -223,6 +223,10 @@ function mapVoiceAgentError(res: Response, err: VoiceAgentError): Response {
       UNDO_NOT_REVERSIBLE: 409,
       UNDO_EXPIRED: 410,
       UNDO_HANDLER_MISSING: 501,
+      INVALID_ITEMS: 400,
+      REQUEST_CONFLICT: 409,
+      ACTION_UNVERIFIED: 409,
+      EXECUTION_FAILED: 500,
       INTERNAL: 500,
     } as Record<VoiceAgentError['code'], number>
   )[err.code] ?? 500;
@@ -255,6 +259,7 @@ export function createAssistantAgentRouter(
     // returns 503 with a clear message until the operator fixes env.
     router.all('/transcribe', notConfigured);
     router.all('/photos/recognize', notConfigured);
+    router.all('/photos/add', notConfigured);
     router.all('/voice', notConfigured);
     router.all('/text', notConfigured);
     router.all('/actions/execute', notConfigured);
@@ -381,6 +386,31 @@ export function createAssistantAgentRouter(
       if (!(error instanceof PhotoRecognitionError)) throw error;
       const status = error.code === 'UNSUPPORTED_IMAGE' ? 415 : error.code === 'RECOGNITION_FAILED' ? 502 : 400;
       return fail(res, error.message, status, error.code);
+    }
+  });
+
+  // ---- /photos/add -------------------------------------------------
+  // The products the owner kept after reviewing the photos: one
+  // add_inventory_items action (top-up, action log, undo), no model call.
+  const PhotoAddSchema = z.object({ client_request_id: z.string().uuid(), items: z.array(z.unknown()).min(1).max(50) });
+  router.post('/photos/add', photosLimiter, async (req: Request, res: Response) => {
+    const parsed = PhotoAddSchema.safeParse(req.body);
+    if (!parsed.success) return fail(res, 'Invalid body', 400, 'INVALID_BODY');
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    const userClient = req.supabaseClient as ToolExecutionContext['userClient'];
+    const ctx = {
+      userId: req.user.id, userClient, adminClient,
+      productResolver: new ProductResolver(userClient, { embeddingService }),
+      ...buildRecommendationCtx(userClient),
+    };
+    try {
+      const result = await service.addReviewedGroceries(
+        { userId: req.user.id, clientRequestId: parsed.data.client_request_id, items: parsed.data.items }, ctx);
+      return ok(res, result, 'OK', 'PHOTOS_ADDED');
+    } catch (err) {
+      if (err instanceof VoiceAgentError) return mapVoiceAgentError(res, err);
+      console.error('[assistant.photos.add] error:', err instanceof Error ? err.name : 'AssistantError');
+      return fail(res, 'Ajout non confirmé. Vérifie le stock avant de réessayer.', 500, 'PHOTOS_ADD_FAILED');
     }
   });
 
