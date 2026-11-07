@@ -83,7 +83,10 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
     setTrimmed(chosen.length > MAX_PHOTOS);
     setRows([]); setProblem(null); setOpen(true); setStage({ kind: 'reading' });
     try {
-      photos.current = await Promise.all(chosen.slice(0, MAX_PHOTOS).map(file => resizePhoto(file)));
+      // One photo at a time: a decoded 24 MP iPhone photo holds about 100 MB.
+      const resized: Blob[] = [];
+      for (const file of chosen.slice(0, MAX_PHOTOS)) resized.push(await resizePhoto(file));
+      photos.current = resized;
     } catch (error) {
       setStage({ kind: 'error', message: error instanceof Error ? error.message : 'Cette photo ne peut pas être lue sur cet appareil.' });
       return;
@@ -130,7 +133,7 @@ export default function GroceryPhotoCapture({ owner, disabled }: { owner?: strin
   return (
     <>
       <input
-        ref={input} type="file" accept="image/*" multiple className="sr-only" tabIndex={-1}
+        ref={input} type="file" accept="image/*,.heic,.heif" multiple className="sr-only" tabIndex={-1}
         aria-label="Photos de mes courses" onChange={event => void choose(event.target.files)}
       />
       <Button
