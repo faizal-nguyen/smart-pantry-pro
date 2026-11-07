@@ -261,6 +261,14 @@ describe('ReadShoppingListHandler', () => {
 });
 
 describe('ReadInventoryHandler (audit 2026-11-07)', () => {
+  it('flags rows already past their date, so « expire le 1er février » is not said in November', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+    const row = (id: string, name: string, expiry: string) => ({ id, product_id: 'p-' + id, quantity: 1, unit: 'kg', expiry_date: expiry,
+      location: null, products: { id: 'p-' + id, name, category: 'frais', unit_type: 'kg', image_url: null } });
+    const { client } = makeClient({ routes: { inventory: { data: [row('a', 'Bouchée à garnir', day(-280)), row('b', 'Lait', day(2))] } } });
+    const items = (await new ReadInventoryHandler().execute(makeCtx(client), { near_expiry_days: 7 })).result.items;
+    expect(items.map(i => [i.product_name, i.expired])).toEqual(expect.arrayContaining([['Bouchée à garnir', true], ['Lait', false]]));
+  });
   const lot = (id: string, name: string, expiry: string | null) => ({ id, product_id: 'p-' + id, quantity: 1, unit: 'kg', expiry_date: expiry,
     location: null, products: { id: 'p-' + id, name, category: 'frais', unit_type: 'kg', image_url: null } });
   it('« qu’est-ce qui périme bientôt ? » also names what is already past its date', async () => {
@@ -318,14 +326,25 @@ describe('ReadRecentRecipesHandler', () => {
 });
 
 describe('SearchRecipesHandler', () => {
-  it('escapes ILIKE wildcards in the user query', async () => {
-    const { client, calls } = makeClient({ routes: { recipes: { data: [] } } });
-    await new SearchRecipesHandler().execute(makeCtx(client), { query: '50%_off' });
-    expect(calls[0].filters).toContainEqual({
-      kind: 'ilike',
-      col: 'name',
-      val: '%50\\%\\_off%',
-    });
+  const recipe = (id: string, name: string) => ({ id, name, description: null, prep_time: 10, cook_time: 20, servings: 2, image_url: null,
+    cuisine_category: null, meal_type: 'dinner', tags: [] });
+  const book = [recipe('a', 'Lamb (Mutton) Biryani'), recipe('b', 'Kimchi Fried Rice'), recipe('c', 'Hibachi Fried Rice'),
+    recipe('d', 'Pâtes carbonara'), recipe('e', 'Bœuf bourguignon'), recipe('f', 'Risotto aux champignons'), recipe('g', '50% Off Salad')];
+  const search = async (query: string) => {
+    const { client } = makeClient({ routes: { recipes: { data: book } } });
+    return (await new SearchRecipesHandler().execute(makeCtx(client), { query })).result.recipes.map(r => r.name);
+  };
+  it('tolerates typos (iPhone 2026-11-07: « byriani », « fired rice »)', async () => {
+    expect(await search('byriani')).toEqual(['Lamb (Mutton) Biryani']);
+    expect((await search('fired rice')).sort()).toEqual(['Hibachi Fried Rice', 'Kimchi Fried Rice']);
+  });
+  it('ignores accents, case and œ, and keeps short words exact', async () => {
+    expect(await search('boeuf')).toEqual(['Bœuf bourguignon']);
+    expect(await search('CARBONARA')).toEqual(['Pâtes carbonara']);
+    expect(await search('riz')).toEqual([]);
+  });
+  it('treats % and _ as plain text', async () => {
+    expect(await search('50% off')).toEqual(['50% Off Salad']);
   });
 });
 

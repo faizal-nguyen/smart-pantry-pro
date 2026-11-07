@@ -45,6 +45,8 @@ export interface InventoryItemView {
   location: string | null;
   /** Days until expiry (negative if past). null when expiry_date is null. */
   days_to_expiry: number | null;
+  /** Already past its date: the model says « périmé depuis », not « expire le ». */
+  expired: boolean;
 }
 
 export interface ShoppingItemView {
@@ -179,6 +181,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           expiry_date: row.expiry_date,
           location: row.location,
           days_to_expiry: daysToExpiry(row.expiry_date),
+          expired: (daysToExpiry(row.expiry_date) ?? 0) < 0,
         } satisfies InventoryItemView;
       })
       .filter((x): x is InventoryItemView => x !== null)
@@ -200,6 +203,39 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
 
 function nameKey(name: string): string {
   return ingredientNameTokens(name).join(' ');
+}
+
+const RECIPE_SEARCH_POOL = 1000;
+/** Optimal string alignment distance (adjacent swaps count once: « fired » → « fried »). */
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+function wordMatches(word: string, wanted: string): boolean {
+  if (word === wanted) return true;
+  // Short words stay exact (« riz » is not « ris »); longer ones allow 1 or 2 typos.
+  const typos = wanted.length >= 7 ? 2 : wanted.length >= 4 ? 1 : 0;
+  return typos > 0 && Math.abs(word.length - wanted.length) <= typos && editDistance(word, wanted) <= typos;
+}
+/** Names that contain every query word (typos allowed), the exact phrase first. */
+function rankByName<T extends { name: string }>(rows: T[], query: string): T[] {
+  const wanted = nameKey(query).split(' ').filter(Boolean);
+  if (!wanted.length) return [];
+  const phrase = ` ${wanted.join(' ')} `;
+  return rows
+    .map(row => {
+      const words = nameKey(row.name).split(' ');
+      const all = wanted.every(w => words.some(word => wordMatches(word, w)));
+      return { row, score: all ? 1 + (` ${words.join(' ')} `.includes(phrase) ? 1 : 0) : 0, length: row.name.length };
+    })
+    .filter(entry => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.length - b.length)
+    .map(entry => entry.row);
 }
 
 interface RawShoppingRow {
@@ -279,21 +315,19 @@ export class ReadRecentRecipesHandler
     args: ReadRecentRecipesArgs
   ): Promise<ToolExecutionResult<{ recipes: RecipeSummaryView[] }>> {
     const limit = args.limit ?? 10;
-    let q = ctx.userClient
+    // A search ranks the whole library by name (typos allowed); otherwise the newest.
+    const { data, error } = await ctx.userClient
       .from('recipes')
       .select(
         'id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags, created_at'
       )
       .eq('user_id', ctx.userId)
       .order('created_at', { ascending: false })
-      .limit(limit);
-
-    if (args.search) q = q.ilike('name', `%${args.search}%`);
-
-    const { data, error } = await q;
+      .limit(args.search ? RECIPE_SEARCH_POOL : limit);
     if (error) throw error;
 
-    const recipes = ((data ?? []) as RawRecipeRow[]).map((r) => ({
+    const rows = (data ?? []) as RawRecipeRow[];
+    const recipes = (args.search ? rankByName(rows, args.search).slice(0, limit) : rows).map((r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
@@ -318,17 +352,17 @@ export class SearchRecipesHandler
     args: SearchRecipesArgs
   ): Promise<ToolExecutionResult<{ recipes: RecipeSummaryView[] }>> {
     const limit = args.limit ?? 10;
-    const safe = args.query.replace(/[%_]/g, '\\$&'); // escape ILIKE wildcards
+    // An exact ILIKE missed « byriani » and « fired rice » (iPhone 2026-11-07):
+    // rank the user's library by name in memory, typos allowed.
     const { data, error } = await ctx.userClient
       .from('recipes')
       .select(
         'id, name, description, prep_time, cook_time, servings, image_url, cuisine_category, meal_type, tags'
       )
       .eq('user_id', ctx.userId)
-      .ilike('name', `%${safe}%`)
-      .limit(limit);
+      .limit(RECIPE_SEARCH_POOL);
     if (error) throw error;
-    return { result: { recipes: (data ?? []) as RecipeSummaryView[] } };
+    return { result: { recipes: rankByName((data ?? []) as RecipeSummaryView[], args.query).slice(0, limit) } };
   }
 }
 

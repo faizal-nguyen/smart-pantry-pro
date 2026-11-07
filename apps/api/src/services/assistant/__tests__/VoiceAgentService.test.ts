@@ -1319,6 +1319,14 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
     return new VoiceAgentService(ai,mockTranscriber,new ToolRegistry(),registry,writer as unknown as ActionLogWriter,
       new ConfirmationTokenSigner(SECRET),{modelConfig:benchmarkConfig('baseline'),now:()=>now});
   }
+  it('recipe commands search the recipe first, and past dates are said as past (iPhone 2026-11-07)',async()=>{
+    const {ai,requests}=scripted([{content:'ok'}]);
+    await serviceAt(new Date(),ai).handleRequest({...input,text:'Bonjour'},makeCtx());
+    const system=String(requests[0].messages[0].content);
+    expect(system).toMatch(/« j’ai cuisiné X »[^\n]*search_recipes/);
+    expect(system).toMatch(/mets X au menu[^\n]*search_recipes/);
+    expect(system).toMatch(/expired: true[^\n]*périmé depuis/);
+  });
   it('the model knows today’s date in Paris, tomorrow and the week start, and is told to say « tu »',async()=>{
     const {ai,requests}=scripted([{content:'ok'}]);
     // 23:30 UTC on Saturday is already Sunday 00:30 in Paris.
