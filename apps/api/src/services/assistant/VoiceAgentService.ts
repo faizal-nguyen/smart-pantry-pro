@@ -31,6 +31,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
 import { calendarDate, calendarWeekStart, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
+import { recipeWordsMatched } from './handlers/read.js';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
 import { memoryModelToolResult } from './MemoryModelOutput.js';
 import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
@@ -507,7 +508,7 @@ export class VoiceAgentService {
 
     // The same recipe action on several recipes means the model could not choose.
     let ambiguousRecipes: AmbiguousRecipes | null = null;
-    const firstCalls = keepUnambiguousRecipeWrites(ai1.tool_calls ?? []);
+    const firstCalls = keepUnambiguousRecipeWrites(ai1.tool_calls ?? [], new Map(), transcript);
     ambiguousRecipes = firstCalls.ambiguous ?? ambiguousRecipes;
     const toolCalls = firstCalls.kept.slice(0, this.maxToolCalls);
 
@@ -739,7 +740,7 @@ export class VoiceAgentService {
           if(this.memoryService&&!sameMemoryPolicy(lastProviderPolicy,await this.memoryService.readPolicySafe(input.userId))) {toolIssue=true;break;}
           replayPrefix=continuation;
           activeResponse=next;
-          const nextCalls=keepUnambiguousRecipeWrites(next.tool_calls ?? []);
+          const nextCalls=keepUnambiguousRecipeWrites(next.tool_calls ?? [],recipeNames(executed),transcript);
           ambiguousRecipes=nextCalls.ambiguous ?? ambiguousRecipes;
           toolCalls.push(...nextCalls.kept.slice(0,this.maxToolCalls-toolCalls.length));
         } catch {toolIssue=true;}
@@ -1358,14 +1359,24 @@ const RECIPE_WRITES: Record<string, string> = {
   delete_recipe: 'Laquelle veux-tu supprimer ?',
 };
 interface AmbiguousRecipes { tool: string; recipeIds: string[] }
-/** Drops a recipe write prepared on several different recipes in one batch. */
-function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string }>(calls: T[]): { kept: T[]; ambiguous: AmbiguousRecipes | null } {
+/**
+ * Drops a recipe write the user's words do not pin down: one prepared on several
+ * recipes, or one recipe picked among search results that match the words as well
+ * (live repro 2026-11-07: « byriani » → Buhari, then Lamb, among three biryani).
+ */
+function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string }>(calls: T[], candidates: Map<string, string>, transcript: string): { kept: T[]; ambiguous: AmbiguousRecipes | null } {
   let ambiguous: AmbiguousRecipes | null = null;
   const recipeId = (call: T) => { try { const id = (JSON.parse(call.arguments) as { recipe_id?: unknown }).recipe_id; return typeof id === 'string' ? id : null; } catch { return null; } };
   const dropped = new Set<string>();
   for (const tool of Object.keys(RECIPE_WRITES)) {
     const ids = [...new Set(calls.filter(call => call.name === tool).map(recipeId).filter((id): id is string => !!id))];
-    if (ids.length > 1) { dropped.add(tool); ambiguous ??= { tool, recipeIds: ids }; }
+    if (ids.length > 1) { dropped.add(tool); ambiguous ??= { tool, recipeIds: ids }; continue; }
+    const chosen = ids[0] && candidates.get(ids[0]);
+    if (!chosen) continue;
+    const score = recipeWordsMatched(chosen, transcript);
+    // Words naming no candidate (« la première ») leave the choice to the model.
+    const rivals = score > 0 ? [...candidates].filter(([id, name]) => id !== ids[0] && recipeWordsMatched(name, transcript) >= score).map(([id]) => id) : [];
+    if (rivals.length) { dropped.add(tool); ambiguous ??= { tool, recipeIds: [ids[0], ...rivals] }; }
   }
   return { kept: calls.filter(call => !dropped.has(call.name)), ambiguous };
 }

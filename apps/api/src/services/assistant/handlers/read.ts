@@ -222,6 +222,16 @@ function wordMatches(word: string, wanted: string): boolean {
   const typos = wanted.length >= 7 ? 2 : wanted.length >= 4 ? 1 : 0;
   return typos > 0 && Math.abs(word.length - wanted.length) <= typos && editDistance(word, wanted) <= typos;
 }
+// Command words say what to do, not which recipe.
+const COMMAND_WORDS = new Set(['menu', 'demain', 'soir', 'midi', 'matin', 'cuisine', 'recette', 'ajoute', 'met', 'mets', 'planifie', 'supprime',
+  'semaine', 'prochain', 'prochaine', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche', 'dejeuner', 'diner', 'aujourd']);
+/** How many of the user's words name this recipe (typos allowed). */
+export function recipeWordsMatched(name: string, text: string): number {
+  const words = nameKey(name).split(' ');
+  return [...new Set(nameKey(text).split(' ').filter(word => word.length >= 3 && !COMMAND_WORDS.has(word)))]
+    .filter(wanted => words.some(word => wordMatches(word, wanted))).length;
+}
+
 /** Names that contain every query word (typos allowed), the exact phrase first. */
 function rankByName<T extends { name: string }>(rows: T[], query: string): T[] {
   const wanted = nameKey(query).split(' ').filter(Boolean);

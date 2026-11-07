@@ -1404,7 +1404,7 @@ describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_reci
   const ids=['55555555-5555-4555-8555-555555555551','55555555-5555-4555-8555-555555555552','55555555-5555-4555-8555-555555555553'];
   const names=['Lamb (Mutton) Biryani','Buhari Chicken Biryani','Dindigul Chicken Biryani'];
   const search={execute:async()=>({result:{recipes:ids.map((id,i)=>({id,name:names[i]}))}})};
-  function run(cookIds:string[]) {
+  function run(cookIds:string[],text=input.text) {
     let n=0;
     const ai:AICompletionClient={complete:async request=>{
       n++;
@@ -1413,7 +1413,7 @@ describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_reci
       return {content:n>2 ? 'Super !' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},...(calls.length ? {tool_calls:calls} : {})};
     }};
     const {service}=makeService({ai,handlers:{search_recipes:search,cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline')});
-    return service.handleRequest(input,makeCtx());
+    return service.handleRequest({...input,text},makeCtx());
   }
   it('prepares nothing and asks which one, naming them',async()=>{
     const response=await run(ids);
@@ -1423,8 +1423,14 @@ describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_reci
     for (const name of names) expect(response.message).toContain(name);
     expect(response.message).toMatch(/Laquelle as-tu cuisinée/);
   });
-  it('one recipe: the action to confirm carries its name',async()=>{
-    const response=await run([ids[0]]);
+  it('one of the matches picked at random is not kept either (live repro: Buhari then Lamb)',async()=>{
+    const response=await run([ids[1]]);
+    expect(response.actions_pending).toEqual([]);
+    expect(response.message).toMatch(/Laquelle as-tu cuisinée/);
+    for (const name of names) expect(response.message).toContain(name);
+  });
+  it('words that single one out keep it: « j’ai cuisiné le lamb biryani »',async()=>{
+    const response=await run([ids[0]],'j’ai cuisiné le lamb biryani');
     expect(response.actions_pending).toHaveLength(1);
     expect(response.actions_pending[0].labels).toEqual({[ids[0]]:names[0]});
   });
