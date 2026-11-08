@@ -3,7 +3,7 @@ import {dirname} from 'node:path';
 import OpenAI from 'openai';
 import {CORPUS,CORPUS_VERSION} from './assistant-models/corpus.js';
 import {runScenario} from './assistant-models/harness.js';
-import {benchmarkConfig} from '../apps/api/src/services/ai/ModelConfig.js';
+import {APPROVAL_CRITERIA,benchmarkConfig} from '../apps/api/src/services/ai/ModelConfig.js';
 import {createOpenAICompletionClient,parseCompletion} from '../apps/api/src/services/ai/OpenAITransport.js';
 import {maximumCallCost,measureCost,PRICING_VERSION} from '../apps/api/src/services/ai/ModelPricing.js';
 const args=process.argv.slice(2);const live=args.includes('--live');
@@ -21,7 +21,7 @@ const report:{[key:string]:unknown}={mode:live?'live':'offline',environment:live
   prior_observed_cost_complete:prior?.observed_cost_complete ?? true,
   configurations:['baseline','luna','luna-sol'].map(preset=>benchmarkConfig(preset as 'baseline'|'luna'|'luna-sol')),
   configuration_versions:Object.fromEntries(['baseline','luna','luna-sol'].map(preset=>[preset,benchmarkConfig(preset as 'baseline'|'luna'|'luna-sol').version])),
-  criteria:{correct_rate:0.95,critical_failures:0,p95_ratio:1.15,cost_per_success_ratio:1,human_culinary_review_required:true},
+  criteria:{...APPROVAL_CRITERIA,human_culinary_review_required:true},
   trials:[],availability:{},decisions:{},provider_failures:[],budget_reserved_usd:0,observed_cost_usd:0,observed_cost_complete:true};
 let held=prior?.budget_reserved_usd ?? 0,observed=0,complete=true,stopReason:string|null=null;
 const persist=()=>writeFileSync(output,JSON.stringify({...report,budget_reserved_usd:held,observed_cost_usd:observed,observed_cost_complete:complete,stop_reason:stopReason},null,2)+'\n');
@@ -73,8 +73,8 @@ const metrics=Object.fromEntries(['baseline','luna','luna-sol'].map(preset=>{con
     cost_per_success_usd:priced.length===t.length && success.length ? t.reduce((n,t)=>n+(t.receipt?.llm_usd ?? 0),0)/success.length : null}];}));
 report.metrics=metrics;
 report.decisions=Object.fromEntries(Object.entries(metrics).map(([preset,m])=>[preset,{...m,
-  decision:!live ? 'not_evaluated_offline' : m.completed_trials!==120 ? 'not_evaluated_incomplete' : m.critical_failures||Number(m.correct_rate)<0.95 ? 'reject' : 'pending_human_review',
-  latency_pass:!!m.p95_ms&&!!metrics.baseline.p95_ms&&m.p95_ms<=metrics.baseline.p95_ms*1.15,
+  decision:!live ? 'not_evaluated_offline' : m.completed_trials!==120 ? 'not_evaluated_incomplete' : m.critical_failures>APPROVAL_CRITERIA.critical_failures||Number(m.correct_rate)<APPROVAL_CRITERIA.correct_rate ? 'reject' : 'pending_human_review',
+  latency_pass:!!m.p95_ms&&!!metrics.baseline.p95_ms&&m.p95_ms<=metrics.baseline.p95_ms*APPROVAL_CRITERIA.p95_ratio,
   cost_pass:m.cost_per_success_usd!==null&&metrics.baseline.cost_per_success_usd!==null&&m.cost_per_success_usd<=metrics.baseline.cost_per_success_usd,
   human_review:{status:'pending',reviewer:null},
 }]));
