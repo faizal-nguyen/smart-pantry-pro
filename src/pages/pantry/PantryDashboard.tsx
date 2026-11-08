@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { undoStockCommand } from '@/services/stockCommands';
+import { findOrCreateProduct } from '@/services/products';
 
 const PantryDashboard: React.FC = () => {
   // PRP-238 PR2 — user vient du context AuthSessionProvider via le hook.
@@ -60,22 +61,7 @@ const PantryDashboard: React.FC = () => {
     e.preventDefault();
     if (!quick.name.trim() || quick.qty <= 0) return;
     try {
-      const product = await supabase
-        .from('products')
-        .select('*')
-        .ilike('name', quick.name.trim())
-        .maybeSingle();
-
-      let productId = product.data?.id;
-      if (!productId) {
-        const { data: created, error } = await supabase
-          .from('products')
-          .insert({ name: quick.name.trim(), category: 'Général', unit_type: quick.unit })
-          .select()
-          .single();
-        if (error) throw error;
-        productId = created.id;
-      }
+      const productId = (await findOrCreateProduct({ name: quick.name, category: 'Général', unit: quick.unit })).id;
 
       // The lot keeps the unit picked here, never the unit of the shared product.
       const createdInv = await addToInventory({

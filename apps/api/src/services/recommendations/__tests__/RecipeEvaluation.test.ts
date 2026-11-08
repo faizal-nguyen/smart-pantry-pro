@@ -66,10 +66,10 @@ test.each(['recipes', 'user_recipes', 'recipes_catalog'] as const)('evaluates th
   expect(reads).not.toContain('cooking_journal_entries');
 });
 
-test('a specific recipe outside the first 200 candidates and top three is still evaluable', async () => {
+test('a specific recipe outside the first 1000 candidates and top three is still evaluable', async () => {
   const { tables, engine, ctx } = setup({ user_recipes: [], recipes_catalog: [] });
   const target = tables.recipes[0];
-  tables.recipes = [...Array.from({ length: 200 }, (_, index) => ({ ...target, id: 'other-' + index })), target];
+  tables.recipes = [...Array.from({ length: 1000 }, (_, index) => ({ ...target, id: 'other-' + index })), target];
   const suggestions = await engine.suggestForUser(ctx, { servings: 2 });
   expect([...suggestions.cookable_now, ...suggestions.almost_cookable, ...suggestions.verify_suggestions]).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: ID })]));
   expect((await engine.evaluateForUser(ctx, { recipe: { id: ID, source: 'recipes' }, servings: 2 })).reference.id).toBe(ID);

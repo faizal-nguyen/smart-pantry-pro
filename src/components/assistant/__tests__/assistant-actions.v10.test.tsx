@@ -105,6 +105,25 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText('Lamb (Mutton) Biryani — dîner, dimanche 8 novembre')).toBeInTheDocument();
     expect(screen.queryByText(/recipe_id/)).not.toBeInTheDocument();
   });
+  test('a cook to confirm says what the stock gives, then the toast says what it took (iPhone 2026-11-08)', async () => {
+    const RECIPE = '55555555-5555-4555-8555-555555555551';
+    const cook = { ...pending, tool: 'cook_recipe', args: { recipe_id: RECIPE, outside_inventory: [] }, labels: { [RECIPE]: 'Lamb (Mutton) Biryani' },
+      details: ['Je retire de ton stock : Oignon 2 pièce.', 'Pas dans ton stock, rien à retirer : Agneau.'] };
+    mockConfirm.mockResolvedValue({ actions_executed: [{ ...executed, action_id: 'p1', tool: 'cook_recipe', reversible: true,
+      result: { command_id: 'c', summary: ['Retiré de ton stock : Oignon 2 pièce.', 'Pas dans ton stock, rien à retirer : Agneau.'] } }], actions_failed: [] });
+    render(<AssistantActionsPanel result={reply({ actions_pending: [cook] })} onResultPatched={jest.fn()} />);
+    expect(screen.getByText('Je retire de ton stock : Oignon 2 pièce.')).toBeInTheDocument();
+    expect(screen.getByText('Pas dans ton stock, rien à retirer : Agneau.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Actions confirmées',
+      description: 'Retiré de ton stock : Oignon 2 pièce. Pas dans ton stock, rien à retirer : Agneau.' })));
+  });
+  test('a failed confirmation says why, in a clear title', async () => {
+    mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [{ action_id: 'p1', tool: 'cook_recipe', error_code: 'EXECUTION_FAILED', reason: 'Cette recette n’est plus accessible.' }] });
+    render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Action non réalisée', description: 'Cette recette n’est plus accessible.' })));
+  });
   test('a reply whose only action was a read renders nothing', () => {
     const read = { ...executed, tool: 'read_inventory', reversible: false, risk_tier: 'read' as const };
     const { container } = render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [], confirmation_token: null, actions_executed: [read] })} />);
@@ -146,6 +165,14 @@ describe('the /assistant page (mobile has no floating button)', () => {
       <AssistantConversationSurface conversationId={null} mode="general" onModeChange={jest.fn()} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Question apportée : Que cuisiner ce soir ?' }));
     expect(screen.queryByText(/Question apportée/)).not.toBeInTheDocument();
+  });
+  test('« laquelle ? » offers each recipe as a button that sends the answer (iPhone 2026-11-07)', () => {
+    mockReply = reply({ actions_pending: [], confirmation_token: null, message: 'Plusieurs recettes correspondent : … Laquelle as-tu cuisinée ?',
+      choices: [{ label: 'Lamb (Mutton) Biryani', reply: 'J’ai cuisiné Lamb (Mutton) Biryani' }, { label: 'Buhari Chicken Biryani', reply: 'J’ai cuisiné Buhari Chicken Biryani' }] });
+    render(page());
+    fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Lamb (Mutton) Biryani' }));
+    expect(screen.getByRole('button', { name: 'Question apportée : J’ai cuisiné Lamb (Mutton) Biryani' })).toBeInTheDocument();
   });
   test('the actions of another conversation are not offered', () => {
     mockReply = reply({ conversation_id: 'conversation-a' });

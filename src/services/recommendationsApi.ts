@@ -16,7 +16,7 @@ export interface RecommendedRecipeView extends RecipeSummaryView,RecommendationE
 }
 export interface RecommendationResultView {
   cookable_now:RecommendedRecipeView[];almost_cookable:RecommendedRecipeView[];
-  recent_suggestions:RecipeSummaryView[];verify_suggestions:RecommendedRecipeView[];excluded_suggestions:RecommendedRecipeView[];
+  recent_suggestions:RecommendedRecipeView[];verify_suggestions:RecommendedRecipeView[];excluded_suggestions:RecommendedRecipeView[];
   total_user_recipes:number;event_id?:string;pipeline_version:3;profile_version:number;calculated_at:string;has_constraints:boolean;
 }
 export async function postRecommendationSuggest(input:SuggestRecommendationsInput={},owner?:string):Promise<RecommendationResultView> {

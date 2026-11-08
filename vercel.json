@@ -13,7 +13,9 @@
   "outputDirectory": "dist",
   "installCommand": "npm install --legacy-peer-deps --force",
   "framework": "vite",
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "build": {
     "env": {
       "NODE_ENV": "production",

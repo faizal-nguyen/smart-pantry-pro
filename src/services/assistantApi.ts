@@ -44,6 +44,8 @@ export interface PendingAction {
   args: Record<string, unknown>;
   /** Names of the targeted rows (inventory or shopping ids), display only. */
   labels?: Record<string, string>;
+  /** What the action will do on the data as it is now (a cook: what the stock gives). */
+  details?: string[];
   risk_tier: RiskTier;
   reason: string;
 }
@@ -60,6 +62,8 @@ export interface AssistantPlanResponse {
   transcript: string;
   detected_language?: string;
   message: string;
+  /** Answers to tap when the reply asks « laquelle ? » or a clarification. */
+  choices?: Array<{ label: string; reply: string }>;
   actions_executed: ExecutedAction[];
   actions_pending: PendingAction[];
   confirmation_token: string | null;
@@ -77,7 +81,8 @@ export interface AssistantPlanResponse {
 
 export interface ExecuteConfirmationResponse {
   actions_executed: ExecutedAction[];
-  actions_failed: Array<{ action_id: string; tool: string; error_code: string }>;
+  /** reason: a message written for the user, when the server has one. */
+  actions_failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }>;
 }
 
 export interface UndoResponse {

@@ -88,3 +88,15 @@ test('actual quantities and selected substitutions reserve each lot only once',(
   const without=allocateCookingStock(ingredients,preview.lots,4,4,[{ ingredient_index:0,quantity:0,unit:'g' }],[1]);
   expect(without).toEqual({ allocations:[],missing:[] });
 });
+// Audit 2026-11-07: « Cuisiner » for 2 reopened an unfinished session for 4, ignoring the portions asked.
+test('reopening an unfinished session keeps its progress and takes the portions asked now',async()=>{
+  patchCookingSession(A,session.id,{ state:'in_progress',step:1,outside_inventory:[0] });
+  const resumed=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'],2);
+  expect(resumed).toMatchObject({ id:session.id,step:1,servings:2,outside_inventory:[] });
+  expect(readCookingSessions(A)).toHaveLength(1);
+  expect(await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'])).toMatchObject({ id:session.id,servings:2 });
+});
+test('a session whose confirmation was sent is reopened as it is',async()=>{
+  patchCookingSession(A,session.id,{ state:'pending' });
+  expect(await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'],2)).toMatchObject({ id:session.id,servings:4,state:'pending' });
+});

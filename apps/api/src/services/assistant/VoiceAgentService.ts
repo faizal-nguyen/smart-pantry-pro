@@ -32,6 +32,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
 import { calendarDate, calendarWeekStart, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
 import { recipeWordsMatched } from './handlers/read.js';
+import { StockCommandError } from '../stock/StockCommandService.js';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
 import { memoryModelToolResult } from './MemoryModelOutput.js';
 import { ConversationSummaryService, type SummaryResult } from './ConversationSummaryService.js';
@@ -177,6 +178,8 @@ export interface PendingActionDescriptor {
   args: Record<string, unknown>;
   /** Names of the rows the action targets, from this turn's reads (display only). */
   labels?: Record<string, string>;
+  /** What the action will do on the data as it is now, from its handler's preview (display only). */
+  details?: string[];
   risk_tier: RiskTier;
   reason: string;
 }
@@ -186,6 +189,8 @@ export interface AssistantPlanResponse {
   transcript: string;
   detected_language?: string;
   message: string;
+  /** Answers the user can tap when the reply asks which recipe (or a clarification). */
+  choices?: Array<{ label: string; reply: string }>;
   actions_executed: ExecutedActionDescriptor[];
   actions_pending: PendingActionDescriptor[];
   confirmation_token: string | null;
@@ -335,6 +340,20 @@ export class VoiceAgentService {
    * this into an SSE writer; the non-streaming `/text` and `/voice`
    * routes pass `undefined` and stay unchanged.
    */
+  /** A preview that cannot be computed leaves the action to confirm without details. */
+  private async previewPending(tool: string, args: unknown, ctx: ToolExecutionContext): Promise<string[] | undefined> {
+    if (!this.handlerRegistry.has(tool)) return undefined;
+    const handler = this.handlerRegistry.get(tool);
+    if (!handler.preview) return undefined;
+    try {
+      const lines = await handler.preview(ctx, args);
+      return lines.length ? lines : undefined;
+    } catch (err) {
+      console.warn(`[assistant.preview] ${tool} failed:`, err instanceof Error ? err.name : 'PreviewError');
+      return undefined;
+    }
+  }
+
   async handleRequest(
     input: VoiceAgentRequestInput,
     ctx: ToolExecutionContext,
@@ -427,6 +446,7 @@ export class VoiceAgentService {
     // context). Best-effort: any ContextBuilder failure leaves the
     // prompt at its baseline.
     let systemContent = basePrompt;
+    let recentMessagesText = '';
     let allowedProfileVersion:number|undefined;
     let profileSnapshotVersion:number|undefined;
     let contextPolicy: MemoryPolicy | null = null;
@@ -435,6 +455,7 @@ export class VoiceAgentService {
       try {
         const block = await this.contextBuilder.build(input.userId, conversationId);
         contextPolicy = block.policy ?? null;
+        recentMessagesText = block.recentMessagesText ?? '';
         profileSnapshotVersion=block.profileVersion;
         if (block.shareProfileWithModel) allowedProfileVersion=block.profileVersion;
         if (block.combinedText) {
@@ -520,12 +541,25 @@ export class VoiceAgentService {
     // 3. Execute / plan each tool_call
     const executed: ExecutedActionDescriptor[] = [];
     const pending: PendingActionDescriptor[] = [];
+    // Recipe ids not read this turn are checked against the user's library (iPhone
+    // 2026-11-07 22:48: an invented id reached Confirmer and failed).
+    const resolvedRecipeNames = new Map<string, string>();
+    let recipeNotFound = false;
+    let library: Promise<RecipeName[] | null> | null = null;
+    const loadLibrary = () => (library ??= loadRecipeLibrary(ctx));
 
     for (let i = 0; i < toolCalls.length; i++) {
       try { invocation.checkWork(); } catch { toolIssue=true; break; }
-      const tc = toolCalls[i];
+      let tc = toolCalls[i];
       if (input.allowedTools && !input.allowedTools.includes(tc.name as ToolName)) { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
       try { this.toolRegistry.get(tc.name); } catch { outcomes.set(tc.id,{status:'unknown_tool'}); toolIssue=true; continue; }
+      if (tc.name in RECIPE_WRITES) {
+        const resolution = await resolveRecipeWrite(tc.name, tc.arguments, transcript, recipeNames(executed), loadLibrary);
+        for (const [id, name] of resolution.names) resolvedRecipeNames.set(id, name);
+        if (resolution.ambiguous) { ambiguousRecipes ??= resolution.ambiguous; outcomes.set(tc.id,{status:'not_executed',reason:'ambiguous_recipe'}); continue; }
+        if (resolution.notFound) { recipeNotFound = true; outcomes.set(tc.id,{status:'not_executed',reason:'recipe_not_found'}); continue; }
+        if (resolution.arguments !== tc.arguments) { tc = { ...tc, arguments: resolution.arguments }; toolCalls[i] = tc; }
+      }
       const stepSeq = i;
 
       let parsedArgs: unknown;
@@ -628,8 +662,9 @@ export class VoiceAgentService {
             result:planned.result,reversible:Boolean(planned.reversible_action),undo_expires_at:planned.undo_expires_at,risk_tier:planned.risk_tier});
         } else if (planned.status === 'planned' && ['medium','high'].includes(planned.risk_tier)) {
           outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
+          const details = await this.previewPending(planned.tool,parsedArgs,ctx);
           pending.push({action_id:planned.id,step_seq:stepSeq,tool:planned.tool,args:parsedArgs as Record<string,unknown>,
-            risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier,planned.tool)});
+            ...(details ? {details} : {}),risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier,planned.tool)});
         } else if (planned.risk_tier !== 'read') {
           outcomes.set(tc.id,{status:'verification_required',action_id:planned.id});
           unverified.push({action_id:planned.id,tool:planned.tool});
@@ -702,11 +737,13 @@ export class VoiceAgentService {
       } else {
         // medium / high : keep planned, return for confirmation
         outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
+        const details = await this.previewPending(tc.name,parsedArgs,ctx);
         pending.push({
           action_id: planned.id,
           step_seq: stepSeq,
           tool: tc.name,
           args: parsedArgs as Record<string, unknown>,
+          ...(details ? { details } : {}),
           risk_tier: risk.tier,
           reason: risk.reason ?? defaultReasonForTier(risk.tier, tc.name),
         });
@@ -717,8 +754,10 @@ export class VoiceAgentService {
       // after a recipe tool, whose synthesis already runs.
       // Once a write was attempted, only the later text synthesis can run.
       const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
-      // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe.
-      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)) &&
+      // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe; so does
+      // « le Lamb Biryani » answering our « Laquelle as-tu cuisinée ? » (live repro 2026-11-08).
+      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)
+          || answersRecipeQuestion(sessionTurns, recentMessagesText)) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
         followupUsed=true;
@@ -907,7 +946,11 @@ export class VoiceAgentService {
     if (memoryOnly) message = memoryResults.map(memoryResultNotice).filter(Boolean).filter((v,i,a) => a.indexOf(v) === i).join(' ');
     if (pending.length) message = synthesizeMessage(executed,pending);
     // iPhone 2026-11-07: « j'ai cuisiné byriani » prepared cook_recipe on all 5 biryani.
-    if (ambiguousRecipes && !pending.length) message = ambiguityQuestion(ambiguousRecipes, recipeNames(executed));
+    const knownRecipes = new Map([...recipeNames(executed), ...resolvedRecipeNames]);
+    if (ambiguousRecipes && !pending.length) message = ambiguityQuestion(ambiguousRecipes, knownRecipes);
+    else if (recipeNotFound && !pending.length && !executed.some(action => action.risk_tier !== 'read'))
+      message = 'Je n’ai pas retrouvé cette recette dans ta bibliothèque : je n’ai rien changé. Redis son nom tel qu’il apparaît dans Recettes.';
+    const choices = ambiguousRecipes && !pending.length ? recipeChoices(ambiguousRecipes, knownRecipes, transcript) : clarificationChoices(executed);
     if (toolIssue) {
       const statuses = [...outcomes.values()].map(outcome => (outcome as { status?: string; reason?: string } | null));
       const outOfScope = statuses.some(outcome => outcome?.status === 'forbidden_scope');
@@ -925,6 +968,12 @@ export class VoiceAgentService {
     if (!executed.some(a => a.risk_tier !== 'read') && !pending.length && !unverified.length && CHANGE_CLAIM.test(message)) {
       console.warn('[assistant.claim_without_write] replaced');
       message = readOnly ? READ_ONLY_MESSAGE : NO_CHANGE_MESSAGE;
+    }
+    // A menu add that took a slot's meal names it, and how to get it back (audit 2026-11-07).
+    for (const action of executed) {
+      const replaced = action.tool === 'add_recipe_to_meal_plan' ? (action.result as { replaced_recipe_name?: unknown } | null)?.replaced_recipe_name : undefined;
+      if (typeof replaced === 'string' && replaced && !message.includes(replaced))
+        message = `${message} Ça remplace « ${replaced} » dans ton menu : touche « Annuler » pour le remettre.`.trim();
     }
     let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
     let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
@@ -959,7 +1008,11 @@ export class VoiceAgentService {
           ...executed.map(e => e.action_id),
           ...pending.map(p => p.action_id),
         ];
-        const recipeProposals = extractRecipeProposalsFromExecuted(executed);
+        // A search made to cook, plan or delete one recipe is not a list of ideas: its cards
+        // open the recipe, so under « Laquelle ? » or a pending cook they hid the choices and
+        // Confirmer (iPhone 2026-11-08).
+        const recipeWrite = !!ambiguousRecipes || recipeNotFound || [...executed, ...pending].some(action => action.tool in RECIPE_WRITES);
+        const recipeProposals = recipeWrite ? null : extractRecipeProposalsFromExecuted(executed);
         const messageMetadata: Record<string, unknown> = {
           model: activeResponse.model || null,
           model_receipt: invocation.receipt(),
@@ -989,8 +1042,9 @@ export class VoiceAgentService {
       transcript,
       detected_language: detectedLanguage,
       message,
-      actions_executed: withLabels(executed, executed),
-      actions_pending: withLabels(pending, executed),
+      ...(choices.length ? { choices } : {}),
+      actions_executed: withLabels(executed, executed, resolvedRecipeNames),
+      actions_pending: withLabels(pending, executed, resolvedRecipeNames),
       confirmation_token: confirmationToken,
       cost: {
         whisper_usd: transcriptionUsd ?? 0,
@@ -1074,7 +1128,7 @@ export class VoiceAgentService {
     ctx: ToolExecutionContext
   ): Promise<{
     actions_executed: ExecutedActionDescriptor[];
-    actions_failed: Array<{ action_id: string; tool: string; error_code: string }>;
+    actions_failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }>;
   }> {
     let payload;
     try {
@@ -1090,7 +1144,7 @@ export class VoiceAgentService {
 
     const rows = await this.writer.claimPlanned(input.userId, payload.actionLogIds);
     const executed: ExecutedActionDescriptor[] = [];
-    const failed: Array<{ action_id: string; tool: string; error_code: string }> = [];
+    const failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }> = [];
     // Rows another confirmation already took: report what that run did instead of « 0 exécutée ».
     const claimed = new Set(rows.map(row => row.id));
     const earlier = await this.writer.fetchByIds(input.userId, payload.actionLogIds.filter(id => !claimed.has(id)));
@@ -1134,7 +1188,8 @@ export class VoiceAgentService {
           code,
           err instanceof Error ? err.message : 'unknown'
         );
-        failed.push({ action_id: row.id, tool: row.tool, error_code: code });
+        // StockCommandError messages are written for the user; anything else stays generic.
+        failed.push({ action_id: row.id, tool: row.tool, error_code: code, ...(err instanceof StockCommandError ? { reason: err.message } : {}) });
       }
     }
 
@@ -1357,7 +1412,7 @@ function todayContext(now: Date): string {
   const week = (start: string) => Array.from({ length: 7 }, (_, i) => `${FRENCH_WEEKDAY.format(noon(shiftDate(start, i)))} ${shiftDate(start, i)}`).join(', ');
   return `TODAY (Europe/Paris): Aujourd’hui : ${FRENCH_DAY.format(noon(today))} (${today}). Demain : ${FRENCH_DAY.format(noon(shiftDate(today, 1)))} (${shiftDate(today, 1)}).\n`
     + `Cette semaine : ${week(weekStart)}.\nSemaine prochaine : ${week(shiftDate(weekStart, 7))}.\n`
-    + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD) copied from these lines; never compute a date.';
+    + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD). A date or week the user states explicitly (« la semaine du lundi 5 octobre 2026 », « le 12 décembre ») always wins over today: use that date. Only a relative date (aujourd’hui, ce soir, demain, cette semaine, la semaine prochaine) is copied from these lines; never compute one.';
 }
 
 // Tool results reach the model as text. Stock and shopping rows keep only what it
@@ -1375,8 +1430,8 @@ function compactForModel(value: unknown): unknown {
 }
 
 /** « 200 g » alone cannot be confirmed: name the rows a write targets, from the reads of the same turn. */
-function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[]): T[] {
-  const names = recipeNames(executed);
+function withLabels<T extends { args: Record<string, unknown> }>(actions: T[], executed: ExecutedActionDescriptor[], extra: Map<string, string> = new Map()): T[] {
+  const names = new Map([...recipeNames(executed), ...extra]);
   for (const action of executed) {
     if (action.tool !== 'read_inventory' && action.tool !== 'read_shopping_list') continue;
     const items = (action.result as { items?: Array<{ id?: unknown; product_name?: unknown }> } | null)?.items;
@@ -1436,10 +1491,64 @@ function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string
   }
   return { kept: calls.filter(call => !dropped.has(call.name)), ambiguous };
 }
+interface RecipeName { id: string; name: string }
+/** null when the library cannot be read: the id is then left as is, not refused. */
+async function loadRecipeLibrary(ctx: ToolExecutionContext): Promise<RecipeName[] | null> {
+  try {
+    const { data, error } = await ctx.userClient.from('recipes').select('id, name').eq('user_id', ctx.userId).limit(1000);
+    return error ? null : ((data ?? []) as RecipeName[]);
+  } catch { return null; }
+}
+/**
+ * A recipe write whose id was not read this turn: keep a real id the words name at
+ * least as well as any other recipe, else use the one recipe the words name best,
+ * ask when several tie, and refuse when none is named.
+ */
+async function resolveRecipeWrite(tool: string, rawArguments: string, transcript: string, known: Map<string, string>,
+  loadLibrary: () => Promise<RecipeName[] | null>): Promise<{ arguments: string; names: Map<string, string>; ambiguous?: AmbiguousRecipes; notFound?: boolean }> {
+  let args: Record<string, unknown>;
+  try { args = JSON.parse(rawArguments) as Record<string, unknown>; } catch { return { arguments: rawArguments, names: new Map() }; }
+  const id = typeof args.recipe_id === 'string' ? args.recipe_id : null;
+  if (id && known.has(id)) return { arguments: rawArguments, names: new Map() };
+  const recipes = await loadLibrary();
+  if (!recipes) return { arguments: rawArguments, names: new Map() };
+  const scored = recipes.map(recipe => ({ ...recipe, score: recipeWordsMatched(recipe.name, transcript) }));
+  const best = Math.max(0, ...scored.map(recipe => recipe.score));
+  const own = scored.find(recipe => recipe.id === id);
+  // A real id kept when the words name no recipe (« la première ») or name it alone.
+  const rivals = own ? scored.filter(recipe => recipe.id !== own.id && recipe.score >= own.score).length : 0;
+  if (own && (best === 0 || (own.score === best && rivals === 0))) return { arguments: rawArguments, names: new Map([[own.id, own.name]]) };
+  const top = best > 0 ? scored.filter(recipe => recipe.score === best) : [];
+  const names = new Map(top.map(recipe => [recipe.id, recipe.name] as const));
+  if (top.length === 1) return { arguments: JSON.stringify({ ...args, recipe_id: top[0].id }), names };
+  if (top.length > 1) return { arguments: rawArguments, names, ambiguous: { tool, recipeIds: top.map(recipe => recipe.id) } };
+  return { arguments: rawArguments, names, notFound: true };
+}
+/** One tappable answer per candidate, phrased so the next turn names it unambiguously. */
+function recipeChoices(ambiguous: AmbiguousRecipes, names: Map<string, string>, transcript: string): Array<{ label: string; reply: string }> {
+  return ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6).map(name => ({
+    label: name,
+    reply: ambiguous.tool === 'cook_recipe' ? `J’ai cuisiné ${name}`
+      : ambiguous.tool === 'delete_recipe' ? `Supprime la recette ${name}` : `${transcript.trim().replace(/[.!?]+$/, '')} : ${name}`,
+  }));
+}
+function clarificationChoices(executed: ExecutedActionDescriptor[]): Array<{ label: string; reply: string }> {
+  const asked = executed.find(action => action.tool === 'ask_clarification');
+  const options = (asked?.result as { options?: unknown } | undefined)?.options;
+  return Array.isArray(options) ? options.filter((option): option is string => typeof option === 'string' && !!option.trim()).slice(0, 6)
+    .map(option => ({ label: option, reply: option })) : [];
+}
+/** The last assistant reply (session turns, else saved history) asked which recipe. */
+function answersRecipeQuestion(sessionTurns: AICompletionRequest['messages'], recentMessagesText: string): boolean {
+  const lastSession = [...sessionTurns].reverse().find(turn => turn.role === 'assistant')?.content;
+  const lastSaved = recentMessagesText.split('\n').reverse().find(line => line.startsWith('assistant: '));
+  const last = typeof lastSession === 'string' ? lastSession : lastSaved ?? '';
+  return Object.values(RECIPE_WRITES).some(question => last.includes(question));
+}
 function ambiguityQuestion(ambiguous: AmbiguousRecipes, names: Map<string, string>): string {
   const listed = ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6);
-  return (listed.length ? `Plusieurs recettes correspondent : ${listed.join(', ')}. ` : 'Plusieurs recettes correspondent. ')
-    + `${RECIPE_WRITES[ambiguous.tool]} Redis-le-moi avec son nom.`;
+  return listed.length ? `Plusieurs recettes correspondent : ${listed.join(', ')}. ${RECIPE_WRITES[ambiguous.tool]} Touche son nom ci-dessous, ou redis-le-moi.`
+    : `Plusieurs recettes correspondent. ${RECIPE_WRITES[ambiguous.tool]} Redis-le-moi avec son nom.`;
 }
 
 function synthesizeMessage(

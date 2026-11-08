@@ -414,13 +414,18 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
       await requireOwner();
       const pending = await pendingIntent(intent);
       if (pending && pending.command_type !== 'consume_inventory') throw new Error('L’action précédente reste à vérifier.');
+      // A lost response is replayed as is. A new amount must not run in its place (audit 2026-11-07):
+      // the previous one, which may already have landed, is settled first, then the user checks.
+      const unit = item.unit ?? item.product?.unit_type ?? '';
+      const previous = pending?.command_type === 'consume_inventory' ? pending.payload.items[0] : null;
+      const sameRequest = !!previous && previous.quantity === amount && previous.unit === unit;
       const command = pending ?? await commandForIntent('consume_inventory', intent, { items: [{
-        id, quantity: amount, unit: item.unit ?? item.product?.unit_type ?? '',
-        expected_version: item.stock_version ?? 0,
+        id, quantity: amount, unit, expected_version: item.stock_version ?? 0,
       }] });
       const result = await executeStockCommand(command);
       await finishIntent(intent);
       await fetchInventory();
+      if (pending && !sameRequest) throw new Error('Ta consommation précédente vient d’être confirmée. Vérifie ton stock avant de recommencer.');
       return result;
     } finally { writing.current = false; setIsSyncing(false); }
   };

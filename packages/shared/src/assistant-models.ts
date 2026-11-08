@@ -73,6 +73,6 @@ export const AssistantModelCatalogSchema = z.object({
   }).strict()),
   limits: z.object({ max_calls: z.number(), max_tools: z.number(), deadline_ms: z.number(), max_usd: z.number() }).strict(),
   pricing_version: z.string(),
-  activation: z.enum(['baseline', 'benchmark_approved']),
+  activation: z.enum(['baseline', 'benchmark_approved', 'owner_adopted']),
 }).strict();
 export type AssistantModelCatalog = z.infer<typeof AssistantModelCatalogSchema>;

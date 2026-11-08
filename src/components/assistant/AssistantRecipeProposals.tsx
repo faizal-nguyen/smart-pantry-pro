@@ -26,7 +26,8 @@ import { RecommendationEvidenceDetails } from '@/components/recipes/Personalized
 import type { RecommendedRecipeView } from '@/services/recommendationsApi';
 import { useNutritionProfile } from '@/hooks/useNutritionProfile';
 import { Link,useNavigate } from 'react-router-dom';
-import { ChefHat, Clock, Users, Plus, CalendarPlus, Check } from 'lucide-react';
+import { ChefHat, Clock, Users, Plus, CalendarPlus, Check, Undo2 } from 'lucide-react';
+import { useCookRecipe } from '@/hooks/useCookRecipe';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -156,6 +157,8 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
   const navigate = useNavigate();
   const { toast } = useToast();
   const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
+  const cooking = useCookRecipe(r);
+  const cooked = cooking.status === 'cooked' || cooking.status === 'undoing';
   const totalTime=r.duration_minutes ?? (r.prep_time ?? 0)+(r.cook_time ?? 0);
   const profile=useNutritionProfile();
   const stale=r.profile_version!==undefined && (profile.error || profile.isLoading || profile.data?.profile.version!==r.profile_version);
@@ -249,7 +252,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
               if (total===0 && !stale && r.availability?.status==='available' && r.constraints?.status==='compatible') {
                 return (
                   <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
-                    Stock renseigné au calcul
+                    Tout en stock
                   </Badge>
                 );
               }
@@ -305,20 +308,34 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
             <CalendarPlus className="h-3 w-3" aria-hidden="true" />
             Planifier
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-h-11 px-2 text-[11px] gap-1"
-            disabled={pendingAction !== null}
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleAction('cooked');
-            }}
-          >
-            <Check className="h-3 w-3" aria-hidden="true" />
-            Cuisinée
-          </Button>
+          {cooked ? (
+            <>
+              <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-[11px] gap-1" disabled aria-label={`${r.name} est cuisinée`}>
+                <Check className="h-3 w-3" aria-hidden="true" />
+                Cuisinée ✓
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-[11px] gap-1" disabled={cooking.status === 'undoing'}
+                aria-label={`Annuler : ${r.name} n’est pas cuisinée`} onClick={(e) => { e.stopPropagation(); void cooking.undo(); }}>
+                <Undo2 className="h-3 w-3" aria-hidden="true" />
+                Annuler
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="min-h-11 px-2 text-[11px] gap-1"
+              disabled={pendingAction !== null || cooking.status === 'cooking'}
+              onClick={(e) => {
+                e.stopPropagation();
+                void cooking.cook();
+              }}
+            >
+              <Check className="h-3 w-3" aria-hidden="true" />
+              Cuisinée
+            </Button>
+          )}
         </div>
       )}
     </Card>
@@ -400,7 +417,7 @@ export default function AssistantRecipeProposals({
   return (
     <div className="space-y-4 my-3" role="region" aria-label="Recettes suggérées">
       <BucketSection
-        title="Quantités et lots renseignés"
+        title="Tout est dans ton stock"
         recipes={buckets.cookable_now}
         limit={limit}
         showCookabilityBadge

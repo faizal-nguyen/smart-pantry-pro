@@ -96,6 +96,7 @@
     "test:grocery-photos:db": "python3 scripts/test-grocery-photos-db.py",
     "test:security:db": "python3 scripts/test-security-baseline-db.py",
     "test:stock:units:db": "python3 scripts/test-stock-units-db.py",
+    "test:menu:shopping:db": "python3 scripts/test-menu-shopping-db.py",
     "test:assistant:memory:db": "python3 scripts/test-assistant-memory-thread-db.py",
     "audit:v10:memory": "node --import tsx scripts/audit-v10-memory.ts",
     "test:v10:ui": "vite --config scripts/vite-v10-fixture.config.ts",

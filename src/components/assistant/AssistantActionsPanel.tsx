@@ -64,6 +64,12 @@ const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'en-cas' };
 
 type Item = { name?: string; inventory_id?: string; quantity?: number; unit?: string };
+/** What an executed action reports it did (a cook: what it took from the stock). */
+function summaryOf(result: unknown): string[] {
+  const summary = (result as { summary?: unknown } | null)?.summary;
+  return Array.isArray(summary) ? summary.filter((line): line is string => typeof line === 'string') : [];
+}
+
 function previewArgs(args: Record<string, unknown>, labels: Record<string, string> = {}): string {
   // One bulleted line per item, so a 16-item add reads without horizontal scroll.
   // Rows chosen by id show the name the server read for them (« 200 g Riz basmati »).
@@ -105,9 +111,13 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       const done = await postAssistantConfirm(result.confirmation_token);
       onResultPatched({ actions_executed: [...result.actions_executed, ...done.actions_executed], actions_pending: [], confirmation_token: null });
       dispatchAgentDbChanged(done.actions_executed.flatMap(action => tablesForTool(action.tool)));
+      // iPhone 2026-11-07: « 0 exécutée(s), 1 échec(s) » said nothing about why.
+      const reasons = [...new Set(done.actions_failed.map(failure => failure.reason).filter((reason): reason is string => !!reason))];
+      const summaries = done.actions_executed.flatMap(action => summaryOf(action.result));
       toast({
-        title: done.actions_failed.length ? 'Confirmation partielle' : 'Actions confirmées',
-        description: `${done.actions_executed.length} exécutée(s), ${done.actions_failed.length} échec(s).`,
+        title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle' : 'Action non réalisée',
+        description: !done.actions_failed.length ? summaries.length ? summaries.join(' ') : `${done.actions_executed.length} exécutée(s).`
+          : reasons.length ? reasons.join(' ') : 'Rien n’a changé. Redis ta demande pour réessayer.',
         ...(done.actions_failed.length ? { variant: 'destructive' as const } : {}),
       });
     } catch (err) {
@@ -178,6 +188,11 @@ function ExecutedRow({ action, onUndo, undoing }: { action: ExecutedAction; onUn
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
+        {summaryOf(action.result).length > 0 && (
+          <ul className="mt-1.5 space-y-0.5 text-sm text-foreground/80 break-words">
+            {summaryOf(action.result).map(line => <li key={line}>{line}</li>)}
+          </ul>
+        )}
       </div>
       {action.reversible && !expired && (
         <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={onUndo} disabled={undoing} aria-label="Annuler cette action">
@@ -199,6 +214,11 @@ function PendingRow({ action }: { action: PendingAction }) {
           <Badge className={cn('text-[10px] uppercase', RISK_TONE[action.risk_tier])}>{RISK_LABEL[action.risk_tier]}</Badge>
         </div>
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
+        {!!action.details?.length && (
+          <ul className="mt-1.5 space-y-0.5 text-sm text-foreground/80 break-words">
+            {action.details.map(line => <li key={line}>{line}</li>)}
+          </ul>
+        )}
         {action.reason && <p className="text-xs italic text-amber-800 mt-1.5 break-words">{action.reason}</p>}
       </div>
     </li>

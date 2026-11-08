@@ -82,8 +82,17 @@ test('deadline, call and reserve caps prevent dispatch, including after a failed
   await expect(budgetLimited.complete('dialogue',{messages:[]},'first')).rejects.toThrow('COST_LIMIT');expect(ai.complete).toHaveBeenCalledTimes(1);
   const expired=new ModelInvocation('id',config,ai,Date.now()-60000);await expect(expired.complete('dialogue',{messages:[]},'first')).rejects.toThrow('DEADLINE');
 });
-test('unapproved candidates fail at startup and catalog never implies account access',()=>{
-  expect(()=>loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'luna'})).toThrow('BENCHMARK_NOT_APPROVED');
+test('gpt-6-luna is the adopted default with no approval file; gpt-4o-mini only when chosen; an unapproved candidate serves luna',()=>{
+  for(const env of [{},{ASSISTANT_MODEL_PRESET:'luna'}]) {
+    const config=loadAssistantModelConfig(env);
+    expect(config).toMatchObject({preset:'luna',activation:'owner_adopted'});
+    expect(Object.values(config.roles).map(role=>role.model)).toEqual(['gpt-6-luna','gpt-6-luna','gpt-6-luna','gpt-6-luna']);
+  }
+  expect(loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'baseline'})).toMatchObject({preset:'baseline',activation:'baseline',roles:{dialogue:{model:'gpt-4o-mini'}}});
+  const error=jest.spyOn(console,'error').mockImplementation(()=>undefined);
+  expect(loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'luna-sol'})).toMatchObject({preset:'luna',activation:'owner_adopted'});
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('serving luna'));error.mockRestore();
+  expect(modelCatalog(loadAssistantModelConfig({}),'prices').activation).toBe('owner_adopted');
   expect(()=>loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'invented'})).toThrow('PRESET_INVALID');
   expect(modelCatalog(benchmarkConfig('baseline'),'prices').roles).toHaveLength(4);
   const config=benchmarkConfig('baseline');expect(Reflect.set(config.roles.dialogue,'model','gpt-4o')).toBe(false);
@@ -92,21 +101,27 @@ test('only a complete reviewed live report can enable a candidate, including whe
   const directory=mkdtempSync(join(tmpdir(),'v10-model-approval-'));
   const path=join(directory,'approval.json');
   const reviewed={mode:'live',environment:'local-fictitious',is_fictitious:true,corpus_version:'v10-03d-40-v1',
-    configuration_versions:{luna:benchmarkConfig('luna').version},scenario_count:40,critical_count:12,
+    configuration_versions:{'luna-sol':benchmarkConfig('luna-sol').version},scenario_count:40,critical_count:12,
     observed_cost_complete:true,stop_reason:null,finished_at:new Date().toISOString(),
-    availability:{'gpt-6-luna':{accessible:true}},
-    criteria:{correct_rate:0.95,critical_failures:0,p95_ratio:1.15,cost_per_success_ratio:1},
-    decisions:{luna:{decision:'adopt',completed_trials:120,critical_failures:0,correct_rate:0.975,
+    availability:{'gpt-6-luna':{accessible:true},'gpt-6.1-sol':{accessible:true}},
+    criteria:{correct_rate:0.95,critical_failures:0,p95_ratio:1.6,cost_per_success_ratio:1},
+    decisions:{'luna-sol':{decision:'adopt',completed_trials:120,critical_failures:0,correct_rate:0.975,
       latency_pass:true,cost_pass:true,human_review:{status:'approved',reviewer:'Fictitious test reviewer'}}}};
-  const load=(report:unknown)=>{writeFileSync(path,JSON.stringify(report));return loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'luna',ASSISTANT_MODEL_APPROVAL_FILE:path});};
+  const load=(report:unknown)=>{writeFileSync(path,JSON.stringify(report));return loadAssistantModelConfig({ASSISTANT_MODEL_PRESET:'luna-sol',ASSISTANT_MODEL_APPROVAL_FILE:path});};
+  const candidate=reviewed.decisions['luna-sol'];
+  const error=jest.spyOn(console,'error').mockImplementation(()=>undefined);
   try {
-    expect(load(reviewed).activation).toBe('benchmark_approved');
+    expect(load(reviewed)).toMatchObject({preset:'luna-sol',activation:'benchmark_approved',roles:{culinary:{model:'gpt-6.1-sol'}}});
     for(const report of [{...reviewed,mode:'offline'},{...reviewed,observed_cost_complete:false},
-      {...reviewed,decisions:{luna:{...reviewed.decisions.luna,correct_rate:undefined}}},
-      {...reviewed,decisions:{luna:{...reviewed.decisions.luna,critical_failures:1}}},
-      {...reviewed,decisions:{luna:{...reviewed.decisions.luna,human_review:{status:'pending',reviewer:null}}}}])
-      expect(()=>load(report)).toThrow('BENCHMARK_NOT_APPROVED');
-  } finally {rmSync(directory,{recursive:true,force:true});}
+      {...reviewed,decisions:{'luna-sol':{...candidate,correct_rate:undefined}}},
+      {...reviewed,decisions:{'luna-sol':{...candidate,critical_failures:1}}},
+      {...reviewed,decisions:{'luna-sol':{...candidate,latency_pass:false}}},
+      {...reviewed,criteria:{...reviewed.criteria,p95_ratio:1.15}},
+      {...reviewed,finished_at:new Date(Date.now()-31*86400000).toISOString()},
+      {...reviewed,decisions:{'luna-sol':{...candidate,human_review:{status:'pending',reviewer:null}}}}])
+      expect(load(report)).toMatchObject({preset:'luna',activation:'owner_adopted'});
+    expect(error).toHaveBeenCalledTimes(8);
+  } finally {rmSync(directory,{recursive:true,force:true});error.mockRestore();}
 });
 test('an observation for one configuration is not a verification of another',()=>{
   const baseline=benchmarkConfig('baseline');observeModel(baseline,'dialogue','gpt-4o-mini-2024-07-18');

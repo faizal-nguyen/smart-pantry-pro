@@ -49,6 +49,18 @@ test('the composer sends a question brought by a button once, for the signed-in 
   expect(mockPost).toHaveBeenCalledTimes(1);
 });
 
+test('each new request is sent once, including a second one after the first was taken', async () => {
+  mockPost.mockResolvedValue({ message: 'ok' });
+  const taken = jest.fn();
+  const ui = (request?: string) => <QueryClientProvider client={client()}><AssistantComposer expectedUserId="owner-a" initialRequest={request} onInitialRequestTaken={taken} /></QueryClientProvider>;
+  const view = render(ui('J’ai cuisiné byriani'));
+  await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
+  view.rerender(ui(undefined));
+  view.rerender(ui('J’ai cuisiné Lamb (Mutton) Biryani'));
+  await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(2));
+  expect(mockPost.mock.calls[1][0]).toMatchObject({ text: 'J’ai cuisiné Lamb (Mutton) Biryani' });
+});
+
 test('a question brought by a button waits for the account to be known', () => {
   render(<QueryClientProvider client={client()}><AssistantComposer initialRequest="Que cuisiner ce soir ?" /></QueryClientProvider>);
   expect(mockPost).not.toHaveBeenCalled();
