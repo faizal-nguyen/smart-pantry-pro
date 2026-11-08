@@ -75,6 +75,11 @@ describe('chefAgent — chefSystemPrompt', () => {
     expect(prompt).toMatch(/remplace mirin et saké/);
   });
 
+  it('for photographed products, says nothing about the stock and never repeats a library recipe as an idea', () => {
+    expect(prompt).toMatch(/Exception : pour des produits nommés ou photographiés[^"]*ne parle pas de ce qui est réalisable avec le stock/);
+    expect(prompt).toMatch(/plats DIFFÉRENTS des recettes de la BDD que tu cites/);
+  });
+
   it('emits the structured response shape (résumé → BDD → manquants → hors BDD)', () => {
     expect(prompt).toMatch(/STRUCTURE DE LA RÉPONSE/);
     expect(prompt).toMatch(/phrase résumé/);
