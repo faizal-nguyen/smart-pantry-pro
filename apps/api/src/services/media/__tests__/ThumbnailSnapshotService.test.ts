@@ -1,4 +1,6 @@
 import { ThumbnailSnapshotService } from '../ThumbnailSnapshotService.js';
+// safeFetch resolves names before any request: a fixed public address keeps these tests off the network.
+jest.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] }));
 
 // 1x1 transparent PNG
 const PNG_1x1 = Buffer.from(

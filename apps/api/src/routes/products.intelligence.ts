@@ -17,6 +17,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
+import { createAdminAuthMiddleware } from '../middleware/adminAuth.middleware.js';
+import { UNEXPECTED_ERROR_MESSAGE } from '../utils/errors.js';
 import { ok, fail } from '../utils/responses.js';
 import { ProductIntelligenceService } from '../services/products/ProductIntelligenceService.js';
 import {
@@ -201,7 +203,7 @@ export function createProductsIntelligenceRouter(
       .select('id, name, barcode')
       .eq('id', params.data.id)
       .maybeSingle();
-    if (error) return fail(res, error.message, 500, 'DB_ERROR');
+    if (error) { console.error('[products] read failed:', error.message); return fail(res, UNEXPECTED_ERROR_MESSAGE, 500, 'DB_ERROR'); }
     if (!product) return fail(res, 'product not found', 404, 'PRODUCT_NOT_FOUND');
 
     try {
@@ -233,13 +235,16 @@ export function createProductsIntelligenceRouter(
       )
       .eq('id', params.data.id)
       .maybeSingle();
-    if (error) return fail(res, error.message, 500, 'DB_ERROR');
+    if (error) { console.error('[products] read failed:', error.message); return fail(res, UNEXPECTED_ERROR_MESSAGE, 500, 'DB_ERROR'); }
     if (!data) return fail(res, 'product not found', 404, 'PRODUCT_NOT_FOUND');
     return ok(res, { enrichment: data });
   });
 
   // ---- Add an alias (POST) ----------------------------------------
-  router.post('/:id/aliases', async (req: Request, res: Response) => {
+  // Aliases are written with the service role into the shared catalogue: any account could
+  // point « lait » at another product (audit 2026-11-07, security P2 9). Admin token only;
+  // no screen of the app calls it.
+  router.post('/:id/aliases', createAdminAuthMiddleware(), async (req: Request, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return fail(res, 'unauthorized', 401, 'UNAUTHORIZED');
     const params = UuidParamsSchema.safeParse(req.params);
@@ -260,7 +265,8 @@ export function createProductsIntelligenceRouter(
       });
       return ok(res, { alias: row, normalized_alias: normalized });
     } catch (err) {
-      return fail(res, err instanceof Error ? err.message : 'alias error', 500, 'DB_ERROR');
+      console.error('[products] alias write failed:', err instanceof Error ? err.message : err);
+      return fail(res, UNEXPECTED_ERROR_MESSAGE, 500, 'DB_ERROR');
     }
   });
 
@@ -305,8 +311,8 @@ function mapPipelineError(res: Response, err: unknown) {
     const status = err.code === 'OFF_RATE_LIMITED' ? 429 : err.code === 'OFF_DISABLED' ? 503 : 502;
     return fail(res, err.message, status, err.code);
   }
-  const message = err instanceof Error ? err.message : 'pipeline error';
-  return fail(res, message, 500, 'INTERNAL_ERROR');
+  console.error('[products] pipeline failed:', err instanceof Error ? err.message : err);
+  return fail(res, UNEXPECTED_ERROR_MESSAGE, 500, 'INTERNAL_ERROR');
 }
 
 function externalToDto(c: ExternalProductCandidate): ProductCandidate {

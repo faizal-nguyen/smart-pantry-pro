@@ -7,6 +7,8 @@ import { TikTokAdapter } from '../services/imports/platforms/TikTokAdapter';
 import { YouTubeAdapter, extractVideoId } from '../services/imports/platforms/YouTubeAdapter';
 import { WebAdapter } from '../services/imports/platforms/WebAdapter';
 import { isAllowedFetchUrl, SSRFBlockedError } from '../services/imports/platforms/ssrfGuard';
+// safeFetch resolves names before any request: a fixed public address keeps these tests off the network.
+jest.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] }));
 
 type FetchHandler = (url: string, init?: RequestInit) => Response | Promise<Response>;
 

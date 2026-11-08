@@ -101,6 +101,9 @@ export class RateLimitError extends ApiError {
 /**
  * 500 Internal Server Error
  */
+/** What the browser reads for an unexpected error; the detail stays in the server logs. */
+export const UNEXPECTED_ERROR_MESSAGE = 'Une erreur est survenue. Réessaie dans un instant.';
+
 export class InternalServerError extends ApiError {
   constructor(message: string = 'Internal server error', code?: string) {
     super(500, message, code || 'INTERNAL_ERROR');
@@ -133,22 +136,18 @@ export function toApiError(error: unknown): ApiError {
     return error;
   }
 
+  // The status is inferred from the message, never the message itself: it can name a table, a
+  // column, a constraint or a path (audit 2026-11-07, security P2 8). errorHandler logs it.
   if (error instanceof Error) {
-    // Check for specific error patterns
     if (error.message.includes('not found')) {
-      return new NotFoundError(error.message);
+      return new NotFoundError('Élément introuvable.');
     }
     if (error.message.includes('unauthorized') || error.message.includes('Unauthorized')) {
-      return new UnauthorizedError(error.message);
+      return new UnauthorizedError('Reconnecte-toi pour continuer.');
     }
     if (error.message.includes('duplicate') || error.message.includes('already exists')) {
-      return new ConflictError(error.message);
+      return new ConflictError('Cet élément existe déjà.');
     }
-
-    // Default to 500
-    return new InternalServerError(error.message);
   }
-
-  // Unknown error type
-  return new InternalServerError('An unexpected error occurred');
+  return new InternalServerError(UNEXPECTED_ERROR_MESSAGE);
 }

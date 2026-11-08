@@ -1,11 +1,16 @@
 import { Router, type Request, type Response } from 'express';
+import { safeFetch, SSRFBlockedError } from '../services/imports/platforms/ssrfGuard.js';
 
 export const proxyRouter = Router();
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function isAllowedHost(hostname: string, allowlist: string[]): boolean {
   return allowlist.some(h => hostname === h || hostname.endsWith(`.${h}`));
 }
 
+// Audit 2026-11-07 (security P2 5): only images, under 10 MB, served so they cannot run as a
+// page of our origin; safeFetch checks every redirect. The route is rate limited in app.ts.
 proxyRouter.get('/image', async (req: Request, res: Response) => {
   const url = req.query.url as string | undefined;
   if (!url) return res.status(400).send('URL parameter is required');
@@ -22,26 +27,30 @@ proxyRouter.get('/image', async (req: Request, res: Response) => {
     return res.status(400).send('Invalid URL');
   }
 
-  if (!isAllowedHost(target.hostname, allowedHosts)) {
+  if (target.protocol !== 'https:' || !isAllowedHost(target.hostname, allowedHosts)) {
     return res.status(403).send('Host not allowed');
   }
 
   try {
-    const response = await fetch(target.toString(), {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-      }
+    const response = await safeFetch(target.toString(), {
+      headers: { Accept: 'image/avif,image/webp,image/*;q=0.8' },
     });
     if (!response.ok) {
-      return res.status(response.status).send('Upstream error');
+      return res.status(response.status >= 400 && response.status < 600 ? response.status : 502).send('Upstream error');
     }
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!contentType.startsWith('image/') || contentType === 'image/svg+xml') return res.status(415).send('Not an image');
+    if (Number(response.headers.get('content-length') ?? 0) > MAX_IMAGE_BYTES) return res.status(413).send('Image too large');
     const buf = Buffer.from(await response.arrayBuffer());
+    if (buf.byteLength > MAX_IMAGE_BYTES) return res.status(413).send('Image too large');
     res.setHeader('Content-Type', contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     res.setHeader('Cache-Control', 'public, max-age=86400');
     return res.send(buf);
-  } catch (e: any) {
-    return res.status(500).send('Error fetching image');
+  } catch (e: unknown) {
+    if (e instanceof SSRFBlockedError) return res.status(403).send('Host not allowed');
+    return res.status(502).send('Error fetching image');
   }
 });
 

@@ -46,6 +46,11 @@ import {
 } from './services/imports/index.js';
 
 const assistantRateLimit = () => rateLimit({ windowMs: 60_000, max: 30 });
+// Audit 2026-11-07 (security P2 5): the proxies were open to anyone without a limit. Images load
+// from <img> tags, which send no token, so the image proxy is only rate limited; the Open Food
+// Facts proxies need an account.
+const imageProxyRateLimit = () => rateLimit({ windowMs: 60_000, max: 60 });
+const offProxyRateLimit = () => rateLimit({ windowMs: 60_000, max: 60 });
 
 export interface CreateAppOptions {
   /** If true, do not mount /api/v1 (repository-pattern routes) nor /api/admin. */
@@ -91,6 +96,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/social/instagram', instagramRouter);
   app.use('/api/assistant', assistantRateLimit(), assistantStreamRouter);
+  app.use('/api/proxy/image', imageProxyRateLimit());
+  app.use('/api/proxy/openfoodfacts', requireUser, offProxyRateLimit());
   app.use('/api/proxy', proxyRouter);
   app.use(
     '/api/imports/social',
@@ -124,6 +131,8 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/v1/social/instagram', instagramRouter);
   app.use('/api/v1/assistant', assistantRateLimit(), assistantStreamRouter);
+  app.use('/api/v1/proxy/image', imageProxyRateLimit());
+  app.use('/api/v1/proxy/openfoodfacts', requireUser, offProxyRateLimit());
   app.use('/api/v1/proxy', proxyRouter);
   app.use(
     '/api/v1/imports/social',

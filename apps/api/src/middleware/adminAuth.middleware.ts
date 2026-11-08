@@ -19,6 +19,7 @@
  * Un futur dashboard admin pourra wrapper ces endpoints derrière
  * une session admin (out of scope).
  */
+import { timingSafeEqual } from 'node:crypto';
 import type { RequestHandler } from 'express';
 
 import { fail } from '../utils/responses.js';
@@ -35,7 +36,9 @@ export function createAdminAuthMiddleware(): RequestHandler {
       );
     }
     const provided = req.header('x-admin-token');
-    if (!provided || provided !== expected) {
+    // Constant-time comparison: the time taken says nothing about how much of the token matched.
+    const given = Buffer.from(provided ?? ''), wanted = Buffer.from(expected);
+    if (!provided || given.length !== wanted.length || !timingSafeEqual(given, wanted)) {
       return fail(res, 'Unauthorized', 401, 'ADMIN_UNAUTHORIZED');
     }
     return next();
