@@ -188,6 +188,7 @@ function makeService({
   transcriber = mockTranscriber,
   contextBuilder,
   modelConfig,
+  memoryService,
 }: {
   ai: AICompletionClient;
   handlers: Record<string, ToolHandler>;
@@ -196,6 +197,7 @@ function makeService({
   transcriber?: SpeechTranscriber;
   contextBuilder?:ContextBuilder;
   modelConfig?:AssistantModelConfig;
+  memoryService?: unknown;
 }): { service: VoiceAgentService; writer: MockWriter; signer: ConfirmationTokenSigner } {
   const handlerRegistry = new ToolHandlerRegistry();
   for (const [name, h] of Object.entries(handlers)) {
@@ -208,7 +210,7 @@ function makeService({
     handlerRegistry,
     writer as any,
     signer,
-    { contextBuilder, modelConfig }
+    { contextBuilder, modelConfig, memoryService: memoryService as MemoryService | undefined }
   );
   return { service, writer, signer };
 }
@@ -1405,7 +1407,7 @@ describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_reci
   const ids=['55555555-5555-4555-8555-555555555551','55555555-5555-4555-8555-555555555552','55555555-5555-4555-8555-555555555553'];
   const names=['Lamb (Mutton) Biryani','Buhari Chicken Biryani','Dindigul Chicken Biryani'];
   const search={execute:async()=>({result:{recipes:ids.map((id,i)=>({id,name:names[i]}))}})};
-  function run(cookIds:string[],text=input.text) {
+  function run(cookIds:string[],text=input.text,memoryService?:StubMemoryService) {
     let n=0;
     const ai:AICompletionClient={complete:async request=>{
       n++;
@@ -1413,9 +1415,28 @@ describe('several recipes match (iPhone 2026-11-07 15:21: 5 biryani, 5 cook_reci
         : n===2 ? cookIds.map((id,i)=>({id:'c'+i,name:'cook_recipe',arguments:JSON.stringify({recipe_id:id})})) : [];
       return {content:n>2 ? 'Super !' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},...(calls.length ? {tool_calls:calls} : {})};
     }};
-    const {service}=makeService({ai,handlers:{search_recipes:search,cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline')});
+    const {service}=makeService({ai,handlers:{search_recipes:search,cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline'),memoryService});
     return service.handleRequest({...input,text},makeCtx());
   }
+  const savedReply=(memory:StubMemoryService)=>memory.messages.find(message=>message.role==='assistant')!;
+  it('the saved question shows no recipe cards, only the choices (iPhone 2026-11-08: a tapped card opened the recipe)',async()=>{
+    const memory=new StubMemoryService();
+    const response=await run(ids,input.text,memory);
+    expect(response.choices?.map(choice=>choice.label)).toEqual(names);
+    expect(savedReply(memory).metadata.recipe_proposals).toBeUndefined();
+    expect(response.message).toMatch(/Touche son nom ci-dessous/);
+  });
+  it('a cook prepared from a search shows no cards either: Confirmer is the only thing to tap',async()=>{
+    const memory=new StubMemoryService();
+    const response=await run([ids[0]],'j’ai cuisiné le lamb biryani',memory);
+    expect(response.actions_pending.map(action=>action.tool)).toEqual(['cook_recipe']);
+    expect(savedReply(memory).metadata.recipe_proposals).toBeUndefined();
+  });
+  it('a plain recipe search still saves its cards',async()=>{
+    const memory=new StubMemoryService();
+    await run([],'montre-moi mes biryani',memory);
+    expect((savedReply(memory).metadata.recipe_proposals as {recent_suggestions:unknown[]}).recent_suggestions).toHaveLength(3);
+  });
   it('prepares nothing and asks which one, naming them',async()=>{
     const response=await run(ids);
     expect(response.actions_pending).toEqual([]);
