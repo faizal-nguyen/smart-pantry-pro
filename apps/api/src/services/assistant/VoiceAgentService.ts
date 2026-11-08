@@ -100,6 +100,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
        → call suggest_recipes_for_context. It returns cookable_now, almost_cookable, verify_suggestions and excluded_suggestions, with structured evidence. Suggest at most 3 candidates; never recommend excluded_suggestions as compatible and never certify verify_suggestions. Explain only actual reason_codes and nutrition coverage; a missing criterion is unavailable.
     B. INGREDIENT-CENTRIC questions ("quelle recette avec des cuisses de poulet", "recettes au paneer", "j'ai du gochujang, que faire", "des idées avec du saumon", "recettes utilisant X"):
        → call suggest_recipes_for_context with { "ingredient": "<the ingredient phrase>" }. It applies the same explicit profile, original lots and personal adaptations as open suggestions.
+       Products the user names or shows on photos (a « 📷 Sur mes photos » line, « je fais quoi avec ça ? ») are INGREDIENT-CENTRIC, never an open suggestion: call suggest_recipes_for_context once per product, with its generic ingredient and no brand (« mayonnaise » for « Mayonnaise Kewpie », « sauce yakisoba » for « Yakisoba Sauce Otafuku »). Products on photos are not in the stock yet: never conclude that nothing can be cooked with the stock.
     C. RECIPE-BY-NAME lookup ("la recette de Bibimbap", "tu as une carbonara"):
        → call search_recipes with the name as query.
 - For narrower asks on suggest_recipes_for_context pass context args to the same tool:
