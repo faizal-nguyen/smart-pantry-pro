@@ -5,7 +5,7 @@ import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
 import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
 import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
-import { namesIngredient,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { namesIngredient,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,UNCLEAR_REASONS,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
 import { evaluateRecipe } from './RecipeEvaluation.js';
 import { requestConstraints,resolveExclusions } from './RequestConstraints.js';
 import { scoreMemoryTaste } from './MemoryTasteScoring.js';
@@ -22,6 +22,14 @@ const fingerprint=(value:unknown) => createHash('sha256').update(JSON.stringify(
 const recipeColumns='id,user_id,is_public,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,updated_at,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)';
 const stockFingerprint=(lots:QualifiedLot[]) => fingerprint([...lots].sort((a,b)=>a.id.localeCompare(b.id)));
 const clamp=(value:number) => Math.max(0,Math.min(1,value));
+/** Every recipe of a library: 200 left 123 of 323 never suggested (audit 2026-11-07). */
+const LIBRARY_POOL=1000;
+// Recipe meal types as typed or imported: lunch and dinner dishes are the same main meals.
+const MEAL_GROUPS:Record<string,'main'|'breakfast'|'snack'>={ dinner:'main',lunch:'main',main:'main',diner:'main',dejeuner:'main',plat:'main',
+  breakfast:'breakfast','petit-dejeuner':'breakfast',petit_dejeuner:'breakfast',brunch:'breakfast',
+  snack:'snack',appetizer:'snack',dessert:'snack',drink:'snack',gouter:'snack',apero:'snack' };
+const mealKey=(value:string|null|undefined) => (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+const mealGroup=(value:string|null|undefined) => MEAL_GROUPS[mealKey(value)];
 
 /** The only scoring pipeline: explicit profile first, constraints before ranking,
  * qualified original lots, structured evidence, and no LLM or inferred-health input. */
@@ -104,11 +112,14 @@ export class RecommendationEngine {
       const rememberedTaste = scoreMemoryTaste(recipe, memoryTaste, temporaryTaste);
       const reasons:RecommendationReason[]=[],unavailable:string[]=[];
       const essential=(recipe.recipe_ingredients ?? []).filter(item=>item.is_essential!==false);
-      const gaps=availability.missing.filter(item=>item.is_essential),unknown=gaps.filter(item=>['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason));
-      const stockScore=essential.length ? clamp(1-gaps.length/essential.length) : 0;
-      reasons.push({ code:availability.status==='available' ? 'STOCK_AVAILABLE' : availability.status==='missing' ? 'STOCK_MISSING' : 'STOCK_UNCERTAIN',text:availability.status==='available' ? 'Quantités et lots utilisables renseignés pour les portions demandées.' : availability.status==='missing' ? `${availability.missing.length} ingrédient(s) à acheter ou vérifier.` : 'Stock présent ; dates ou quantités à vérifier.' });
+      // To buy: absent or short. In stock with an amount that does not convert: present, to check.
+      const essentialMissing=availability.missing.filter(item=>item.is_essential);
+      const unknown=essentialMissing.filter(item=>UNCLEAR_REASONS.includes(item.reason)),gaps=essentialMissing.filter(item=>!UNCLEAR_REASONS.includes(item.reason));
+      const stockScore=essential.length ? clamp(1-(gaps.length+unknown.length/2)/essential.length) : 0;
+      reasons.push({ code:availability.status==='available' ? 'STOCK_AVAILABLE' : availability.status==='missing' ? 'STOCK_MISSING' : 'STOCK_UNCERTAIN',text:availability.status==='available' ? 'Ingrédients présents dans ton stock pour les portions demandées.' : availability.status==='missing' ? `${gaps.length} ingrédient(s) à acheter.` : 'Portions ou ingrédients de la recette à vérifier.' });
       const eligible=qualifyLots(lots,now).eligible,used=new Set(availability.allocations.map(item=>item.inventory_id));
-      const dated=eligible.filter(lot=>used.has(lot.id) && lot.date_kind && lot.date_kind!=='unknown' && calendarDaysUntil(lot.expiry_date,now)!==null);
+      // A date counts for anti-waste even when its kind (DLC or DDM) is unknown, the default of most lots.
+      const dated=eligible.filter(lot=>used.has(lot.id) && calendarDaysUntil(lot.expiry_date,now)!==null);
       const near=dated.filter(lot=>{ const days=calendarDaysUntil(lot.expiry_date,now)!;return days>=0 && days<=(input.nearExpiryDays ?? 7); });
       const expiry=near.length ? Math.max(...near.map(lot=>{ const days=calendarDaysUntil(lot.expiry_date,now)!;return days===0 ? 1 : days<=3 ? 0.8 : 0.4; })) : 0;
       if (near.length) reasons.push({ code:'NEAR_DATE',text:`Utilise ${near[0].product_name}, date renseignée dans ${calendarDaysUntil(near[0].expiry_date,now)} jour(s).` });
@@ -138,6 +149,7 @@ export class RecommendationEngine {
       const effort=settings.skill && recipe.difficulty ? clamp(1-Math.max(0,recipe.difficulty-(settings.skill==='beginner' ? 2 : settings.skill==='intermediate' ? 4 : 5))/3) : 0;
       if (!settings.skill || !recipe.difficulty) unavailable.push('skill');
       if (input.mealType && !recipe.meal_type) unavailable.push('meal_type');
+      const mealFit=input.mealType && recipe.meal_type ? mealKey(recipe.meal_type)===mealKey(input.mealType) || (mealKey(recipe.meal_type)==='diner' && input.mealType==='dinner') || (mealKey(recipe.meal_type)==='dejeuner' && input.mealType==='lunch') ? 1 : 0 : 0;
       if (interactions===null) { unavailable.push('feedback');availability.uncertainties.push('Vos retours précédents ne peuvent pas être vérifiés.'); }
       const vegetables=vegetableCriterion(recipe);
       if (settings.goals.includes('vegetables')) reasons.push({ code:'KNOWN_VEGETABLES',text:vegetables.names.length ? `Contient ${vegetables.names.length} légume(s) identifié(s) dans les ingrédients : ${vegetables.names.join(', ')}.` : 'Aucun légume identifié dans la liste connue ; aucun apport végétal inventé.' });
@@ -147,11 +159,11 @@ export class RecommendationEngine {
       const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein';
       const varietyActive=settings.goals.includes('variety') && !!history?.length;
       const expiryWeight=settings.goals.includes('anti_waste') || input.goal==='anti_waste' ? 23 : 18;
-      const maxWeight=40+expiryWeight+14+10+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
-      const raw=parts.cookability*40+expiry*expiryWeight+parts.preferenceMatch*14+parts.timeFit*10+effort*6+(nutritionActive ? (nutritionFit ?? 0)*10 : 0)+(varietyActive ? (novelty ?? 0)*7 : 0)+(craving ? 4 : 0)+(settings.goals.includes('vegetables') ? vegetables.score*6 : 0)-parts.missingPenalty*20;
+      const maxWeight=40+expiryWeight+14+10+(input.mealType ? 6 : 0)+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
+      const raw=parts.cookability*40+mealFit*6+expiry*expiryWeight+parts.preferenceMatch*14+parts.timeFit*10+effort*6+(nutritionActive ? (nutritionFit ?? 0)*10 : 0)+(varietyActive ? (novelty ?? 0)*7 : 0)+(craving ? 4 : 0)+(settings.goals.includes('vegetables') ? vegetables.score*6 : 0)-parts.missingPenalty*20;
       const view:RecommendedRecipeView={ id:recipe.id,name:recipe.name,prep_time:recipe.prep_time,cook_time:recipe.cook_time,image_url:recipe.image_url,image_origin:recipe.image_origin,
         description:recipe.description,servings,cuisine_category:recipe.cuisine_category,meal_type:recipe.meal_type,tags:recipe.tags,
-        total_essential:essential.length,linked_essential:essential.length-unknown.length,missing_count:gaps.length-unknown.length,missing_ingredients:gaps.filter(item=>!unknown.includes(item)).map(item=>item.ingredient_name),
+        total_essential:essential.length,linked_essential:essential.length-unknown.length,missing_count:gaps.length,missing_ingredients:gaps.map(item=>item.ingredient_name),
         unlinked:!!unknown.length,unlinked_count:unknown.length,unknown_ingredients:unknown.map(item=>item.ingredient_name),
         score_total:Math.round(Math.max(0,Math.min(100,raw/maxWeight*100))),score_parts:parts,reasons:reasons.map(item=>item.text),reason_codes:reasons,
         ...evaluation,unavailable_criteria:unavailable,
@@ -214,15 +226,18 @@ export class RecommendationEngine {
     return this.catalogRecipe(data as RecipeCatalogRow & { ingredients_json?:unknown });
   }
   private async loadRecipes(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecipeWithIngredients[]> {
-    let query=ctx.userClient.from('recipes').select(recipeColumns).eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
+    let query=ctx.userClient.from('recipes').select(recipeColumns).eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(LIBRARY_POOL);
     if (input.query?.trim()) query=query.ilike('name','%'+input.query.trim().replace(/[%_]/g,'\\$&')+'%');
-    const [own,library,catalog]=await Promise.all([query,ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId).limit(200),ctx.userClient.from('recipes_catalog').select('*').order('created_at',{ ascending:false }).limit(200)]);
+    const [own,library,catalog]=await Promise.all([query,ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId).limit(LIBRARY_POOL),ctx.userClient.from('recipes_catalog').select('*').order('created_at',{ ascending:false }).limit(200)]);
     for (const row of [own,library,catalog]) if (row.error) throw new Error('RECIPE_DATA_UNAVAILABLE');
     const libraryRows=(library.data ?? []) as LibraryRecipeRow[],catalogOwned=new Set(libraryRows.map(row=>row.recipe_id));
     const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) })),...libraryRows.map(row=>this.libraryRecipe(row)),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>this.catalogRecipe(row as RecipeCatalogRow & { ingredients_json?:unknown }))] as RecipeWithIngredients[];
     return rows.filter(recipe=>{
       if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
-      if (input.mealType && recipe.meal_type && recipe.meal_type!==input.mealType) return false;
+      // Lunch, dinner and « main » dishes stand in for each other (the exact type ranks first);
+      // a dessert or a drink is not a dinner. Types outside the known groups stay candidates.
+      const wanted=mealGroup(input.mealType),offered=mealGroup(recipe.meal_type);
+      if (wanted && offered && wanted!==offered) return false;
       const ingredients=recipe.recipe_ingredients ?? [];
       if (input.ingredient && !ingredients.some(item=>normalizeIngredientName(item.ingredient_name).includes(normalizeIngredientName(input.ingredient!)))) return false;
       if (input.proteinFamily || input.proteinCut) {

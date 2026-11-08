@@ -14,7 +14,7 @@ export default function RecipeEvaluationPanel({ evaluation,loading,refreshing,er
   const { constraints,availability }=evaluation;
   const nutritionLabel={ known:'estimation disponible',estimated:'valeurs estimées',partial:'estimation partielle',unavailable:'information indisponible' }[evaluation.nutrition.status];
   return <section className="mb-4 space-y-2 border-y py-3 text-sm" aria-label="Vérification de la recette">
-      <p className="font-medium">{availability.status==='available' ? `Quantités renseignées en stock pour ${evaluation.servings} portions.` : availability.status==='missing' ? 'Des ingrédients manquent.' : 'Stock à vérifier.'}</p>
+      <p className="font-medium">{availability.status==='available' ? `Ingrédients présents dans ton stock pour ${evaluation.servings} portions.` : availability.status==='missing' ? 'Des ingrédients manquent.' : 'Stock à vérifier.'}</p>
       <ul className="space-y-1">{availability.missing.map((item,index)=><li key={index}>
         {needsPurchase(item) ? 'À acheter' : 'En stock, quantité à vérifier'} : {item.ingredient_name}{item.quantity!=null ? ` · ${item.quantity.toLocaleString('fr-FR')} ${item.unit ?? ''}`.trimEnd() : ' · quantité à préciser'}{item.is_essential===false ? ' (facultatif)' : ''}.
       </li>)}</ul>

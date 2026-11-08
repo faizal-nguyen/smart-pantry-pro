@@ -252,7 +252,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
               if (total===0 && !stale && r.availability?.status==='available' && r.constraints?.status==='compatible') {
                 return (
                   <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
-                    Stock renseigné au calcul
+                    Tout en stock
                   </Badge>
                 );
               }
@@ -417,7 +417,7 @@ export default function AssistantRecipeProposals({
   return (
     <div className="space-y-4 my-3" role="region" aria-label="Recettes suggérées">
       <BucketSection
-        title="Quantités et lots renseignés"
+        title="Tout est dans ton stock"
         recipes={buckets.cookable_now}
         limit={limit}
         showCookabilityBadge

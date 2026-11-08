@@ -39,7 +39,7 @@ test('an older profile or historical card without evidence cannot offer personal
   mockProfileVersion=2;
   render(wrap(<AssistantRecipeProposals metadata={{ recipe_proposals:{ ...mockResult,cookable_now:[candidate('a'),{ id:'legacy',name:'Ancienne recette',missing_count:0 }] } }}/>));
   expect(screen.getByText(/Le profil a changé/)).toBeInTheDocument();
-  expect(screen.queryByText('Stock renseigné au calcul')).not.toBeInTheDocument();
+  expect(screen.queryByText('Tout en stock')).not.toBeInTheDocument();
   expect(screen.queryByRole('group',{ name:/Actions pour/ })).not.toBeInTheDocument();
 });
 test('photos remain available for ideas, verification and exclusions with the source and chosen portions',()=>{
@@ -83,4 +83,22 @@ test('feedback from the compact presentation is confirmed inside its open dialog
   const dialog=screen.getByRole('dialog');
   fireEvent.click(within(dialog).getAllByRole('button',{name:'Pas ce soir'})[0]);
   expect(await within(dialog).findByText(/Ce choix concerne seulement ce repas/)).toBeVisible();
+});
+
+// iPhone 2026-11-08: « Aucune idée vérifiée » left the home page with nothing to cook.
+test('nothing complete in stock: the closest recipes show, with what is missing', () => {
+  const close = (id: string, missing: string[]) => ({ ...candidate(id), missing_count: missing.length, missing_ingredients: missing,
+    availability: { ...candidate(id).availability, status: 'missing' as const } });
+  mockResult = { ...mockResult, cookable_now: [], almost_cookable: [],
+    recent_suggestions: [close('biryani', ['Agneau', 'Yaourt', 'Coriandre', 'Cardamome', 'Safran']), close('curry', ['Lait de coco', 'Pâte de curry', 'Citronnelle', 'Basilic'])] };
+  render(wrap(<PersonalizedRecipeSuggestions featured />));
+  expect(screen.getByText('Rien de complet dans ton stock pour ce repas : voici les recettes les plus proches.')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 3, name: 'Recette biryani' })).toBeInTheDocument();
+  expect(screen.getByText('Il te manque : Agneau, Yaourt, Coriandre et 2 autres.')).toBeInTheDocument();
+  expect(screen.queryByText(/Aucune idée vérifiée/)).not.toBeInTheDocument();
+});
+test('nothing at all: the empty state stays, without a closest list', () => {
+  mockResult = { ...mockResult, cookable_now: [], almost_cookable: [], recent_suggestions: [] };
+  render(wrap(<PersonalizedRecipeSuggestions featured />));
+  expect(screen.getByText(/Aucune idée pour ce repas/)).toBeInTheDocument();
 });
