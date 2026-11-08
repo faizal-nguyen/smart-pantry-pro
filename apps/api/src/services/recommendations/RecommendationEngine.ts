@@ -102,7 +102,11 @@ export class RecommendationEngine {
       } } catch { /* Fresh computation remains authoritative. */ }
     }
     const limit=Math.min(20,input.limitPerBucket ?? 3),threshold=input.almostThreshold ?? 3;
-    const effectiveTime=input.timeLimitMinutes ?? settings.usualTimeMinutes ?? (input.goal==='quick' || settings.goals.includes('quick') ? 20 : undefined);
+    // A time picked for this meal, or a quick goal, filters. The usual time of a profile only ranks:
+    // the old preferences' defaults (30 + 45 min) hid every longer recipe (iPhone 2026-11-08).
+    const quick=input.goal==='quick' || settings.goals.includes('quick');
+    const hardTime=input.timeLimitMinutes ?? (quick ? settings.usualTimeMinutes ?? 20 : undefined);
+    const effectiveTime=hardTime ?? settings.usualTimeMinutes ?? undefined;
     const cookable:RecommendedRecipeView[]=[],almost:RecommendedRecipeView[]=[],verify:RecommendedRecipeView[]=[],excluded:RecommendedRecipeView[]=[],recent:RecommendedRecipeView[]=[];
     for (const recipe of recipes) {
       const servings=input.servings ?? settings.usualServings ?? (recipe.servings && recipe.servings>0 ? recipe.servings : null);
@@ -171,8 +175,8 @@ export class RecommendationEngine {
         suggested_actions:['open_recipe',...(availability.missing.length ? ['add_missing_to_shopping' as const] : []),'plan_recipe'] };
       if (input.goal==='light') view.unavailable_criteria.push('light_goal');
       if (constraints.status==='incompatible') { excluded.push(view);continue; }
-      if (effectiveTime && minutes!==null && minutes>effectiveTime) continue;
-      if (interactions===null || constraints.status==='verify' || (effectiveTime && minutes===null) || missingEquipment.length || (latest?.feedback==='not_today' && daysAgo<1)) {
+      if (hardTime && minutes!==null && minutes>hardTime) continue;
+      if (interactions===null || constraints.status==='verify' || (hardTime && minutes===null) || missingEquipment.length || (latest?.feedback==='not_today' && daysAgo<1)) {
         if (missingEquipment.length) view.availability.uncertainties.push(`Matériel manquant : ${missingEquipment.join(', ')}.`);
         if (latest?.feedback==='not_today' && daysAgo<1) view.reason_codes.push({ code:'FEEDBACK',text:'Vous avez choisi « pas aujourd’hui » ; suggestion suspendue pendant 24 h.' });
         verify.push(view);continue;

@@ -269,3 +269,24 @@ describe('home ideas with everyday lots',()=>{
     expect(result.cookable_now.map(item=>item.id).sort()).toEqual(['dinner','dîner','lunch','main']);
   });
 });
+
+// iPhone 2026-11-08, still empty after #95: an old user_meal_preferences row (no allergy, no diet,
+// the table defaults 30 + 45 min) sent every recipe to « à vérifier » and hid those over 75 min.
+describe('old preferences without restrictions',()=>{
+  const old={ allergies:[],dietary_restrictions:[],max_prep_time:30,max_cook_time:45,family_size:2,equipment_available:['four','plaques','frigo','micro-ondes'],cooking_skill_level:'intermediate' };
+  const long={ ...recipe('long','Biryani','Riz','riz'),prep_time:30,cook_time:60 };
+  test('have nothing to confirm: the recipes are ideas, and the long one is ranked, not hidden',async()=>{
+    const result=await suggest({ nutrition_profiles:null,user_meal_preferences:old,recipes:[recipe('quick','Riz','Riz','riz'),long],inventory:[lot('riz',{ quantity:10 })] });
+    expect(result.cookable_now.map(item=>item.id)).toEqual(['quick','long']);
+    expect(result.verify_suggestions).toEqual([]);
+  });
+  test('a time picked for this meal still filters',async()=>{
+    const result=await suggest({ nutrition_profiles:null,user_meal_preferences:old,recipes:[recipe('quick','Riz','Riz','riz'),long],inventory:[lot('riz',{ quantity:10 })] },{ timeLimitMinutes:30 });
+    expect(result.cookable_now.map(item=>item.id)).toEqual(['quick']);
+  });
+  test('an old allergy still asks to confirm the profile',async()=>{
+    const result=await suggest({ nutrition_profiles:null,user_meal_preferences:{ ...old,allergies:['arachide'] },recipes:[recipe('quick','Riz','Riz','riz')],inventory:[lot('riz')] });
+    expect(result.cookable_now).toEqual([]);
+    expect(result.verify_suggestions![0].constraints.limitations.join(' ')).toContain('Confirmez');
+  });
+});
