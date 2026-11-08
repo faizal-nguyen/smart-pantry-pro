@@ -173,7 +173,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     const result = await engine.suggestForUser(ctx, {});
     expect(result.cookable_now.map((r) => r.id)).toEqual(['r-now']);
     expect(result.cookable_now[0].score_total).toBeGreaterThan(50);
-    expect(result.cookable_now[0].reasons).toContain('Quantités et lots utilisables renseignés pour les portions demandées.');
+    expect(result.cookable_now[0].reasons).toContain('Ingrédients présents dans ton stock pour les portions demandées.');
     expect(result.almost_cookable).toHaveLength(0);
   });
 
@@ -213,7 +213,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     expect(result.almost_cookable.map((r) => r.id)).toEqual(['r-legacy']);
     expect(result.almost_cookable[0].availability.missing[0]).toMatchObject({ reason:'NOT_IN_STOCK',ingredient_name:'Truc' });
     expect(result.almost_cookable[0].unlinked_count).toBe(0);
-    expect(result.almost_cookable[0].reasons.some((r) => r.includes('vérifier'))).toBe(true);
+    expect(result.almost_cookable[0].reasons).toContain('1 ingrédient(s) à acheter.');
   });
 
   it('surfaces recipes without essentials only as requiring verification', async () => {

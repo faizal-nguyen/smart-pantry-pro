@@ -90,23 +90,27 @@ describe('V10-03 original lots, portions and honest nutrition',()=>{
     r.recipe_ingredients!.push({ id:'r:2',ingredient_name:'Gingembre',quantity:2,unit:'cm',inventory_product_id:null,is_essential:true });
     expect(evaluateAvailability(r,[lot('p')],2,NOW)).toMatchObject({ status:'missing',uncertainties:[] });
   });
-  test('unknown dates and estimated quantities cannot promise verified freshness or sufficiency',()=>{
+  test('unknown dates and estimated quantities are named without promising freshness or sufficiency',()=>{
     const r=recipe('r','Riz','Riz','p');
     const result=evaluateAvailability(r,[lot('p',{ expiry_date:null,date_kind:'unknown',quantity_quality:'estimated' })],2,NOW);
-    expect(result.status).toBe('verify');expect(result.uncertainties.join(' ')).toContain('estimée');
+    // iPhone 2026-11-08: this used to send every recipe to « à vérifier », since it is the default of most lots.
+    expect(result.status).toBe('available');expect(result.uncertainties).toEqual(['Date à vérifier : p.','Quantité à vérifier dans ton stock : p.']);
     expect(evaluateAvailability(r,[lot('p',{ unit:'unit' })],2,NOW).missing[0].reason).toBe('UNIT_INCOMPATIBLE');
   });
-  test('unknown base portions, incompatible units and uncertain partial lots never become automatic shopping suggestions',async()=>{
+  test('unknown base portions stay to verify; an unconvertible unit or an estimated partial lot is named',async()=>{
     const scenarios=[
       { recipes:[{ ...recipe('r','Riz','Riz'),servings:null }],inventory:[] },
       { recipes:[recipe('r','Riz','Riz')],inventory:[lot('r',{ unit:'unit' })] },
-      { recipes:[recipe('r','Riz','Riz')],inventory:[lot('r',{ quantity:.05,quantity_quality:'estimated' })] },
+      { recipes:[recipe('r','Riz','Riz')],inventory:[{ ...lot('r',{ quantity:.05,quantity_quality:'estimated' }),products:{ name:'riz',unit_type:'kg' } }] },
     ];
-    for (const tables of scenarios) {
-      const result=await suggest(tables,{ servings:4 });
-      expect(result.cookable_now).toEqual([]);expect(result.almost_cookable).toEqual([]);
-      expect(result.verify_suggestions![0].availability.status).toBe('verify');
-    }
+    const [portions,unit,partial]=await Promise.all(scenarios.map(tables=>suggest(tables,{ servings:4 })));
+    expect(portions.cookable_now).toEqual([]);expect(portions.almost_cookable).toEqual([]);
+    expect(portions.verify_suggestions![0].availability.status).toBe('verify');
+    // In stock in a unit that does not convert: present, its amount to check.
+    expect(unit.cookable_now[0]).toMatchObject({ missing_count:0,unknown_ingredients:['Riz'] });
+    // 50 g estimated for 400 g: 350 g to buy, and the estimate is named.
+    expect(partial.almost_cookable[0].availability.missing[0]).toMatchObject({ reason:'INSUFFICIENT_QUANTITY',quantity:350 });
+    expect(partial.almost_cookable[0].availability.uncertainties).toContain('Quantité à vérifier dans ton stock : riz.');
     const noPortions=await suggest(scenarios[0]);
     expect(noPortions.verify_suggestions![0].servings).toBeNull();
     expect(noPortions.verify_suggestions![0].availability.missing[0].quantity).toBeNull();
@@ -225,5 +229,43 @@ describe('constraints said in the current request',()=>{
     await suggest(tables(),{ requestText:'sans arachides',excludedIngredients:['crème'] },{ eventWriter:writer as unknown as RecommendationEventWriter });
     expect(writer.writeCache).not.toHaveBeenCalled();
     expect(writer.recordEvent).toHaveBeenCalledWith(expect.objectContaining({ requestText:null }));
+  });
+});
+
+// iPhone 2026-11-08: « Aucune idée vérifiée » with 192 lots. Lots added by hand, by the assistant or
+// from a photo keep date_kind and quantity_quality 'unknown', and that alone sent every recipe to « à vérifier ».
+describe('home ideas with everyday lots',()=>{
+  // As the inventory table returns them: the product name comes from the products relation.
+  const everyday=(pid:string,values:Partial<QualifiedLot>={})=>({ ...lot(pid,{ date_kind:'unknown',quantity_quality:'unknown',...values }),products:{ name:pid,unit_type:'kg' } });
+  test('an unknown date kind or unmeasured quantity keeps the recipe cookable and names what to check',async()=>{
+    const result=await suggest({ recipes:[recipe('r','Riz','Riz','riz')],inventory:[everyday('riz')] });
+    expect(result.cookable_now.map(item=>item.id)).toEqual(['r']);
+    expect(result.cookable_now[0].availability.uncertainties).toEqual(['Date à vérifier : riz.','Quantité à vérifier dans ton stock : riz.']);
+  });
+  test('an ingredient in stock in a unit that does not convert counts as present, to check',async()=>{
+    const r=recipe('r','Riz à l’ail','Riz','riz');
+    r.recipe_ingredients!.push({ id:'r:1',ingredient_name:'Ail',quantity:2,unit:'gousse',inventory_product_id:'ail',is_essential:true });
+    const result=await suggest({ recipes:[r],inventory:[lot('riz'),lot('ail',{ unit:'g',quantity:100 })] });
+    expect(result.cookable_now.map(item=>item.id)).toEqual(['r']);
+    expect(result.cookable_now[0]).toMatchObject({ missing_count:0,unknown_ingredients:['Ail'] });
+    expect(result.cookable_now[0].availability.uncertainties).toContain('En stock, quantité à vérifier : Ail.');
+  });
+  test('two ingredients to buy make it almost cookable, whatever the lots say',async()=>{
+    const r=recipe('r','Riz sauté','Riz','riz');
+    for (const [index,name] of ['Poivron','Gingembre'].entries()) r.recipe_ingredients!.push({ id:`r:${index+1}`,ingredient_name:name,quantity:100,unit:'g',inventory_product_id:name,is_essential:true });
+    const result=await suggest({ recipes:[r],inventory:[everyday('riz')] });
+    expect(result.almost_cookable.map(item=>item.id)).toEqual(['r']);
+    expect(result.almost_cookable[0].missing_ingredients).toEqual(['Poivron','Gingembre']);
+  });
+  test('a date soon counts for anti-waste even when its kind is unknown',async()=>{
+    const result=await suggest({ recipes:[recipe('r','Riz','Riz','riz')],inventory:[everyday('riz',{ expiry_date:'2026-10-11' })] });
+    expect(result.cookable_now[0].reasons).toContain('Utilise riz, date renseignée dans 2 jour(s).');
+  });
+  test('at dinner, lunch and « main » recipes are candidates, dinner ones first; desserts are not',async()=>{
+    const typed=(id:string,meal_type:string)=>({ ...recipe(id,id,'Riz','riz'),meal_type });
+    const result=await suggest({ recipes:[typed('lunch','lunch'),typed('dessert','dessert'),typed('main','main'),typed('dinner','dinner'),typed('dîner','dîner')],inventory:[lot('riz',{ quantity:10 })] },
+      { mealType:'dinner',limitPerBucket:5 });
+    expect(result.cookable_now.map(item=>item.id).slice(0,2).sort()).toEqual(['dinner','dîner']);
+    expect(result.cookable_now.map(item=>item.id).sort()).toEqual(['dinner','dîner','lunch','main']);
   });
 });

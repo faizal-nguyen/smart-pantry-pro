@@ -82,18 +82,7 @@ function makeResult(opts: {
   return {
     cookable_now: cookable,
     almost_cookable: almost,
-    recent_suggestions: Array.from({ length: opts.recent ?? 0 }, (_, i) => ({
-      id: `r-${i}`,
-      name: `Recent ${i}`,
-      description: null,
-      prep_time: 10,
-      cook_time: 0,
-      servings: 1,
-      image_url: null,
-      cuisine_category: null,
-      meal_type: null,
-      tags: null,
-    })),
+    recent_suggestions: Array.from({ length: opts.recent ?? 0 }, (_, i) => makeRecipe(`r-${i}`, 20 - i)),
     total_user_recipes: opts.total ?? cookable.length + almost.length,
   };
 }
