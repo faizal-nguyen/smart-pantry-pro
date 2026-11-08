@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   UNIT_UNKNOWN: 'Une unité reste à vérifier.',
   UNIT_INCOMPATIBLE: 'Ces unités ne sont pas convertibles sans information supplémentaire.',
   UNDO_CONFLICT: 'Le stock a changé depuis cette action. L’annulation écraserait une correction.',
+  MENU_CHANGED: 'Ce repas a été modifié dans le menu depuis : je n’ai rien annulé.',
   ALREADY_UNDONE: 'Cette action a déjà été annulée.',
   IDEMPOTENCY_CONFLICT: 'Cette action a déjà un résultat différent. Vérifie son état avant de continuer.',
   INVALID_ALLOCATION: 'Les ingrédients ne correspondent plus au stock sélectionné.',
@@ -34,7 +35,7 @@ export class StockCommandError extends Error {
 
 function databaseError(error: { message: string; code?: string }): never {
   const code = Object.keys(MESSAGES).find(key => error.message === key || error.message.startsWith(`${key}:`));
-  if (code) throw new StockCommandError(code, code === 'UNAUTHORIZED' ? 401 : ['CONFLICT','RECIPE_CHANGED','UNDO_CONFLICT','IDEMPOTENCY_CONFLICT','ALREADY_UNDONE'].includes(code) ? 409 : 400);
+  if (code) throw new StockCommandError(code, code === 'UNAUTHORIZED' ? 401 : ['CONFLICT','RECIPE_CHANGED','UNDO_CONFLICT','MENU_CHANGED','IDEMPOTENCY_CONFLICT','ALREADY_UNDONE'].includes(code) ? 409 : 400);
   if (error.code === 'PGRST202' || error.code === '42P01' || error.code === '42703') throw new StockCommandError('MIGRATION_REQUIRED', 503);
   throw new StockCommandError('STOCK_WRITE_FAILED', 500);
 }

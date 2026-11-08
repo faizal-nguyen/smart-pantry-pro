@@ -4,7 +4,8 @@
  * buildRecipeActionPrompt remains for old read-only prompt previews.
  */
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
-import { canAddToShoppingList, describeCookPlan, needsPurchase, planCookFromStock, type RecipeReference } from '@smart/shared';
+import { calendarDate, calendarWeekStart, canAddToShoppingList, describeCookPlan, needsPurchase, planCookFromStock, type RecipeReference } from '@smart/shared';
+import { supabase } from '@/integrations/supabase/client';
 
 export type RecipeAction = 'add_missing' | 'plan' | 'cooked';
 
@@ -85,6 +86,28 @@ export async function cookRecipeWithStock(recipe: ActionableRecipe): Promise<Coo
   return { title: recipeActionToastTitle('cooked'), details, commandId: command.command_id };
 }
 
+const PLAN_HORIZON_DAYS = 14;
+const DAY_MS = 86_400_000;
+
+/**
+ * The first dinner from tonight with nothing planned, within two weeks, else tonight.
+ * « Planifier » used to put every recipe on tonight's dinner, replacing it (audit 2026-11-07).
+ */
+async function nextFreeDinner(now = new Date()): Promise<{ date: string; label: string }> {
+  const owner = (await supabase.auth.getSession()).data.session?.user.id;
+  const days = Array.from({ length: PLAN_HORIZON_DAYS }, (_, offset) => calendarDate(new Date(now.getTime() + offset * DAY_MS))!);
+  const { data, error } = owner ? await supabase.from('weekly_meal_plans').select('week_start_date, meal_plan_entries(day_of_week, meal_type)')
+    .eq('user_id', owner).gte('week_start_date', calendarWeekStart(days[0])!).lte('week_start_date', days[days.length - 1]) : { data: [], error: null };
+  if (error) throw error;
+  const taken = new Set((data ?? []).flatMap((plan: { week_start_date: string; meal_plan_entries?: Array<{ day_of_week: number; meal_type: string }> | null }) =>
+    (plan.meal_plan_entries ?? []).filter(entry => entry.meal_type === 'dinner')
+      .map(entry => calendarDate(new Date(Date.parse(`${plan.week_start_date}T12:00:00Z`) + entry.day_of_week * DAY_MS)))));
+  const index = Math.max(0, days.findIndex(day => !taken.has(day)));
+  const label = index === 0 ? 'ce soir' : index === 1 ? 'demain soir'
+    : `dîner, ${new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${days[index]}T12:00:00Z`))}`;
+  return { date: days[index], label };
+}
+
 /** Known buttons execute the typed operation against this exact recipe id. */
 export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action: RecipeAction): Promise<string> {
   if (action === 'cooked') return (await cookRecipeWithStock(recipe)).title;
@@ -92,6 +115,7 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
   const intent = `recipe:${recipe.id}:${action}`;
   let command = await pendingIntent(intent);
   let byHand: string[] = [];
+  let planned: { date: string; label: string } | null = null;
   if (!command) {
     const preview = await previewRecipeStock(reference,recipe.servings ?? undefined);
     if (action === 'add_missing') {
@@ -103,13 +127,18 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
       }
       command = await commandForIntent('recipe_add_missing',intent,{ recipe: reference, servings: preview.servings });
     } else {
-      const today = new Date();
-      const date = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-      command = await commandForIntent('plan_recipe',intent,{ recipe: reference, servings: preview.servings, date, meal_type: 'dinner' });
+      planned = await nextFreeDinner();
+      command = await commandForIntent('plan_recipe',intent,{ recipe: reference, servings: preview.servings, date: planned.date, meal_type: 'dinner' });
     }
   }
-  await executeStockCommand(command);
+  const result = await executeStockCommand(command);
   await finishIntent(intent);
+  if (action === 'plan') {
+    const replaced = result?.replaced_entry?.recipe_name;
+    return `Ajoutée au menu${planned ? ` : ${planned.label}` : ''}${replaced ? ` · remplace « ${replaced} »` : ''}`;
+  }
+  // Everything already on the list: the server added nothing (20261108120000_menu_shopping_commands.sql).
+  if (action === 'add_missing' && result && !result.shopping_ids?.length) return 'Déjà sur ta liste de courses';
   const title = recipeActionToastTitle(action);
   return byHand.length ? `${title} · à ajouter à la main : ${byHand.join(', ')}` : title;
 }

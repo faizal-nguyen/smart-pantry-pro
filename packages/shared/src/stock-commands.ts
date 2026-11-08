@@ -83,6 +83,8 @@ export interface StockCommandResult {
   command_id: string; command_type: string; status: 'confirmed';
   affected_tables: string[]; inventory_ids?: string[]; shopping_ids?: string[];
   meal_plan_id?: string; meal_plan_entry_id?: string;
+  /** plan_recipe: the meal the slot held before, which undo_stock gives back. */
+  replaced_entry?: { recipe_name?: string; servings?: number };
   changes?: Array<{ id: string; before_quantity: number; after_quantity: number; unit: string; stock_version: number }>;
   recipe_id?: string; journal_id?: string; user_recipe_id?: string;
 }

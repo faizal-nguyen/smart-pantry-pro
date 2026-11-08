@@ -422,6 +422,10 @@ export interface AddRecipeToMealPlanResult {
   date: string;
   day_of_week: number;
   meal_type: string;
+  /** The meal the slot held before (the reply names it; undo gives it back). */
+  replaced_recipe_name?: string;
+  /** Shown under the executed action. */
+  summary?: string[];
 }
 
 export class AddRecipeToMealPlanHandler
@@ -435,18 +439,23 @@ export class AddRecipeToMealPlanHandler
     const service = new StockCommandService(ctx.userClient);
     const date = args.date ?? new Date(Date.parse(`${args.week_start}T12:00:00Z`) + args.day_of_week! * 86400000).toISOString().slice(0, 10);
     let result = await service.getResult(ctx.userId,ctx.commandId);
+    let recipeName = '';
     if (!result) {
       const preview = await service.preview(ctx.userId,{ id: args.recipe_id, source: 'auto' });
+      recipeName = preview.recipe.name;
       result = await service.execute(ctx.userId,{
         command_id: ctx.commandId, command_type: 'plan_recipe', payload_version: 1,
         payload: { recipe: { id: args.recipe_id, source: preview.recipe.source }, servings: preview.servings,
           date, meal_type: args.meal_type },
       });
     }
+    const replaced = result.replaced_entry?.recipe_name;
     return { result: {
       entry_id: result.meal_plan_entry_id!, weekly_meal_plan_id: result.meal_plan_id!,
-      recipe_id: args.recipe_id, recipe_name: '', date, day_of_week: (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7, meal_type: args.meal_type,
-    }, reversibleAction: null }; // Replacement of a meal slot has no safe legacy DELETE inverse.
+      recipe_id: args.recipe_id, recipe_name: recipeName, date, day_of_week: (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7, meal_type: args.meal_type,
+      ...(replaced ? { replaced_recipe_name: replaced, summary: [`Remplace « ${replaced} » dans ton menu.`] } : {}),
+    // undo_stock gives the slot back the meal it held, or empties it (20261108120000_menu_shopping_commands.sql).
+    }, reversibleAction: { tool: '_undo_stock_command', args: { original_command_id: result.command_id } } };
   }
 }
 
