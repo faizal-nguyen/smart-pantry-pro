@@ -105,6 +105,19 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText('Lamb (Mutton) Biryani — dîner, dimanche 8 novembre')).toBeInTheDocument();
     expect(screen.queryByText(/recipe_id/)).not.toBeInTheDocument();
   });
+  test('a cook to confirm says what the stock gives, then the toast says what it took (iPhone 2026-11-08)', async () => {
+    const RECIPE = '55555555-5555-4555-8555-555555555551';
+    const cook = { ...pending, tool: 'cook_recipe', args: { recipe_id: RECIPE, outside_inventory: [] }, labels: { [RECIPE]: 'Lamb (Mutton) Biryani' },
+      details: ['Je retire de ton stock : Oignon 2 pièce.', 'Pas dans ton stock, rien à retirer : Agneau.'] };
+    mockConfirm.mockResolvedValue({ actions_executed: [{ ...executed, action_id: 'p1', tool: 'cook_recipe', reversible: true,
+      result: { command_id: 'c', summary: ['Retiré de ton stock : Oignon 2 pièce.', 'Pas dans ton stock, rien à retirer : Agneau.'] } }], actions_failed: [] });
+    render(<AssistantActionsPanel result={reply({ actions_pending: [cook] })} onResultPatched={jest.fn()} />);
+    expect(screen.getByText('Je retire de ton stock : Oignon 2 pièce.')).toBeInTheDocument();
+    expect(screen.getByText('Pas dans ton stock, rien à retirer : Agneau.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Actions confirmées',
+      description: 'Retiré de ton stock : Oignon 2 pièce. Pas dans ton stock, rien à retirer : Agneau.' })));
+  });
   test('a failed confirmation says why, in a clear title', async () => {
     mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [{ action_id: 'p1', tool: 'cook_recipe', error_code: 'EXECUTION_FAILED', reason: 'Cette recette n’est plus accessible.' }] });
     render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);

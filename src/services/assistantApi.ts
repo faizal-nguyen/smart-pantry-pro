@@ -44,6 +44,8 @@ export interface PendingAction {
   args: Record<string, unknown>;
   /** Names of the targeted rows (inventory or shopping ids), display only. */
   labels?: Record<string, string>;
+  /** What the action will do on the data as it is now (a cook: what the stock gives). */
+  details?: string[];
   risk_tier: RiskTier;
   reason: string;
 }

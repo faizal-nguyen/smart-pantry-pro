@@ -177,6 +177,8 @@ export interface PendingActionDescriptor {
   args: Record<string, unknown>;
   /** Names of the rows the action targets, from this turn's reads (display only). */
   labels?: Record<string, string>;
+  /** What the action will do on the data as it is now, from its handler's preview (display only). */
+  details?: string[];
   risk_tier: RiskTier;
   reason: string;
 }
@@ -337,6 +339,20 @@ export class VoiceAgentService {
    * this into an SSE writer; the non-streaming `/text` and `/voice`
    * routes pass `undefined` and stay unchanged.
    */
+  /** A preview that cannot be computed leaves the action to confirm without details. */
+  private async previewPending(tool: string, args: unknown, ctx: ToolExecutionContext): Promise<string[] | undefined> {
+    if (!this.handlerRegistry.has(tool)) return undefined;
+    const handler = this.handlerRegistry.get(tool);
+    if (!handler.preview) return undefined;
+    try {
+      const lines = await handler.preview(ctx, args);
+      return lines.length ? lines : undefined;
+    } catch (err) {
+      console.warn(`[assistant.preview] ${tool} failed:`, err instanceof Error ? err.name : 'PreviewError');
+      return undefined;
+    }
+  }
+
   async handleRequest(
     input: VoiceAgentRequestInput,
     ctx: ToolExecutionContext,
@@ -645,8 +661,9 @@ export class VoiceAgentService {
             result:planned.result,reversible:Boolean(planned.reversible_action),undo_expires_at:planned.undo_expires_at,risk_tier:planned.risk_tier});
         } else if (planned.status === 'planned' && ['medium','high'].includes(planned.risk_tier)) {
           outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
+          const details = await this.previewPending(planned.tool,parsedArgs,ctx);
           pending.push({action_id:planned.id,step_seq:stepSeq,tool:planned.tool,args:parsedArgs as Record<string,unknown>,
-            risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier,planned.tool)});
+            ...(details ? {details} : {}),risk_tier:planned.risk_tier,reason:risk.reason ?? defaultReasonForTier(planned.risk_tier,planned.tool)});
         } else if (planned.risk_tier !== 'read') {
           outcomes.set(tc.id,{status:'verification_required',action_id:planned.id});
           unverified.push({action_id:planned.id,tool:planned.tool});
@@ -719,11 +736,13 @@ export class VoiceAgentService {
       } else {
         // medium / high : keep planned, return for confirmation
         outcomes.set(tc.id,{status:'awaiting_confirmation',action_id:planned.id});
+        const details = await this.previewPending(tc.name,parsedArgs,ctx);
         pending.push({
           action_id: planned.id,
           step_seq: stepSeq,
           tool: tc.name,
           args: parsedArgs as Record<string, unknown>,
+          ...(details ? { details } : {}),
           risk_tier: risk.tier,
           reason: risk.reason ?? defaultReasonForTier(risk.tier, tc.name),
         });

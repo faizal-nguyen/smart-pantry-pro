@@ -1576,3 +1576,28 @@ describe('answering « laquelle ? » by typing the name (live repro 2026-11-08)'
     expect(response.actions_pending.map(a=>[a.tool,a.labels])).toEqual([['cook_recipe',{[LAMB]:'Lamb (Mutton) Biryani'}]]);
   });
 });
+
+describe('an action to confirm says what it will do (iPhone 2026-11-08: Confirmer refused a cook)',()=>{
+  const RECIPE='55555555-5555-4555-8555-555555555551';
+  function cookWith(preview:()=>Promise<string[]>) {
+    let n=0;
+    const ai:AICompletionClient={complete:async request=>{n++;
+      return {content:n>1 ? 'ok' : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(n===1 ? {tool_calls:[{id:'c1',name:'cook_recipe',arguments:JSON.stringify({recipe_id:RECIPE})}]} : {})};}};
+    const execute=jest.fn();
+    const {service}=makeService({ai,handlers:{cook_recipe:{execute,preview}},modelConfig:benchmarkConfig('baseline')});
+    return {execute,response:service.handleRequest({userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text',text:'j’ai cuisiné les pâtes carbonara'},makeCtx())};
+  }
+  it('the pending cook carries what the stock gives and what it does not',async()=>{
+    const {execute,response}=cookWith(async()=>['Je retire de ton stock : Pâtes 200 g.','Pas dans ton stock, rien à retirer : Guanciale.']);
+    const {actions_pending}=await response;
+    expect(actions_pending.map(action=>action.details)).toEqual([['Je retire de ton stock : Pâtes 200 g.','Pas dans ton stock, rien à retirer : Guanciale.']]);
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it('a preview that fails leaves the action to confirm as it was',async()=>{
+    const {response}=cookWith(async()=>{throw new Error('stock indisponible');});
+    const {actions_pending}=await response;
+    expect(actions_pending).toHaveLength(1);
+    expect(actions_pending[0].details).toBeUndefined();
+  });
+});

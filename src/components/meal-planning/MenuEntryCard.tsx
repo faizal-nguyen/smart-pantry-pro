@@ -5,14 +5,12 @@
  * Menus : nom de la recette, temps total (prep+cook), nombre de
  * portions, bouton « Ouvrir » (si recipe_id) et bouton « Retirer ».
  */
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Clock, Users, X } from 'lucide-react';
+import { Check, Clock, Undo2, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
 import { recipeDetailPath } from '@/lib/recipeLinks';
-import { fireRecipeAssistantAction } from '@/lib/recipeActions';
+import { useCookRecipe } from '@/hooks/useCookRecipe';
 import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
 
 interface MenuEntryCardProps {
@@ -23,43 +21,15 @@ interface MenuEntryCardProps {
 
 export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCardProps) {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const totalTime = entry.prep_time + entry.cook_time;
   const reference = entry.recipe_reference ?? (entry.recipe_id ? { id:entry.recipe_id,source:'auto' as const } : null);
   const canOpen = !!reference;
-  const [cookedPending, setCookedPending] = useState(false);
+  const cooking = useCookRecipe(reference ? { ...reference, name: entry.recipe_name, servings: entry.servings } : null);
+  const cooked = cooking.status === 'cooked' || cooking.status === 'undoing';
 
   const open = () => {
     if (!reference) return;
     navigate(recipeDetailPath(reference,entry.servings));
-  };
-
-  const handleCooked = async () => {
-    if (cookedPending || !reference) return;
-    setCookedPending(true);
-    try {
-      // PRP-234 PR4 — délégué à l'assistant : il appellera
-      // `record_recipe_feedback` (cooking_journal) + ajustera
-      // l'inventaire via `consume_inventory_items`. Bénéficie de
-      // l'undo 15 min PRP-221.
-      const title = await fireRecipeAssistantAction(
-        {
-          ...reference,
-          name: entry.recipe_name,
-          servings: entry.servings,
-        },
-        'cooked',
-      );
-      toast({ title, description: `Recette : ${entry.recipe_name}` });
-    } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Action impossible',
-        description: err instanceof Error ? err.message : 'Erreur inconnue',
-      });
-    } finally {
-      setCookedPending(false);
-    }
   };
 
   return (
@@ -91,14 +61,28 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
         )}
       </div>
       <div className="flex items-center justify-between gap-1">
-        {canOpen ? (
+        {canOpen && cooked ? (
+          <span className="inline-flex items-center gap-1">
+            <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-xs gap-1" disabled
+              aria-label={`${entry.recipe_name} est cuisinée`}>
+              <Check className="h-3 w-3" aria-hidden="true" />
+              Cuisinée ✓
+            </Button>
+            <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-xs gap-1"
+              disabled={cooking.status === 'undoing'} onClick={() => void cooking.undo()}
+              aria-label={`Annuler : ${entry.recipe_name} n’est pas cuisinée`}>
+              <Undo2 className="h-3 w-3" aria-hidden="true" />
+              Annuler
+            </Button>
+          </span>
+        ) : canOpen ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="min-h-11 px-2 text-xs gap-1"
-            disabled={disabled || cookedPending}
-            onClick={() => void handleCooked()}
+            disabled={disabled || cooking.status === 'cooking'}
+            onClick={() => void cooking.cook()}
             aria-label={`Marquer ${entry.recipe_name} comme cuisinée`}
           >
             <Check className="h-3 w-3" aria-hidden="true" />

@@ -11,7 +11,7 @@ function reject(res: Response, error: unknown) {
   const known = error instanceof StockCommandError;
   return res.status(known ? error.status : 500).json({ success: false, error: {
     code: known ? error.code : 'STOCK_WRITE_FAILED',
-    message: known ? error.message : 'Impossible de confirmer cette action. Vos données sont conservées.',
+    message: known ? error.message : 'Impossible de confirmer cette action. Tes données sont conservées.',
   } });
 }
 
