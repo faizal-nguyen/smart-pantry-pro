@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { dispatchAgentDbChanged, useAgentDbInvalidation } from '@/lib/agentEvents';
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from '@/services/stockCommands';
+import { findOrCreateProduct } from '@/services/products';
 
 export interface ShoppingItem {
   id: string; product_id: string; quantity: number; unit?: string; stock_version?: number;
@@ -59,13 +60,7 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
   const resolveProduct = async (item: NewShoppingItem) => {
     if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error('Indiquez une quantité positive.');
     if (!item.productName.trim() || !item.unit.trim()) throw new Error('Indiquez le produit et son unité.');
-    const { data, error: failure } = await supabase.from('products').select('*').ilike('name', item.productName.trim()).limit(1);
-    if (failure) throw failure;
-    if (data?.[0]) return data[0];
-    const { data: created, error: insertionError } = await supabase.from('products')
-      .insert({ name: item.productName.trim(), category: item.category, unit_type: item.unit }).select().single();
-    if (insertionError) throw insertionError;
-    return created;
+    return findOrCreateProduct({ name: item.productName, category: item.category, unit: item.unit });
   };
 
   const addToShoppingList = (item: NewShoppingItem) => withWrite('add', async owner => {

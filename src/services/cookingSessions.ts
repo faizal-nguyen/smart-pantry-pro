@@ -46,7 +46,11 @@ export function instructionSteps(value: unknown): string[] {
 export async function startCookingSession(owner: string,recipe: z.infer<typeof RecipeReferenceSchema>,steps: string[],servings?: number): Promise<CookingSession> {
   await requireOwner(owner);
   const previous = readCookingSessions(owner).find(item => item.recipe.id === recipe.id && !['done','abandoned'].includes(item.state));
-  if (previous) return previous;
+  // Resume where it was, with the portions asked now (audit 2026-11-07: they were ignored). The
+  // amounts set for other portions no longer apply, as when the portions change in the session.
+  // A sent confirmation keeps its command until its result is known.
+  if (previous) return servings === undefined || servings === previous.servings || previous.state === 'pending' ? previous
+    : patchCookingSession(owner,previous.id,{ servings,adjustments:[],outside_inventory:[] });
   const preview = await previewRecipeStock(recipe,servings);
   await requireOwner(owner);
   // A pre-V10-02 confirmation awaiting its reply keeps the original command.
