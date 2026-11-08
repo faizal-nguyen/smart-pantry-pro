@@ -132,22 +132,17 @@ export function evaluateAvailability(recipe:RecipeWithIngredients,lots:Qualified
   // Only a recipe that cannot be computed is « à vérifier ». A lot of unknown date kind or
   // unmeasured quantity is the default of every lot added by hand, by the assistant or from a
   // photo: it is named, not a reason to hide the recipe (iPhone 2026-11-08: « Aucune idée
-  // vérifiée » with 192 lots). Insufficient ingredients have no committed allocation; their
-  // partial lots still contribute to the missing-quantity estimate and are named too.
+  // vérifiée » with 192 lots). Only the lots the recipe takes are named, once (Rasam listed
+  // « Ail semoule, ail caramélisé » twice for one garlic).
   const blocking:string[]=[];
   if (unknownBase) blocking.push('Portions de base de la recette inconnues ; quantités à confirmer avant de calculer les manquants.');
   if (!(recipe.recipe_ingredients?.length)) blocking.push('Liste d’ingrédients absente.');
-  const partialIngredients=result.missing.map(item=>recipe.recipe_ingredients?.[item.ingredient_index]).filter(Boolean);
-  const undated=new Set<string>(),unmeasured=new Set<string>();
-  for (const lot of qualified.eligible.filter(item=>used.has(item.id) || partialIngredients.some(ingredient=>ingredient && matchesLot(ingredient,item)))) {
-    if (!lot.expiry_date || !lot.date_kind || lot.date_kind==='unknown') undated.add(lot.product_name);
-    if (lot.quantity_quality!=='measured') unmeasured.add(lot.product_name);
-  }
+  const doubtful=new Set(qualified.eligible.filter(lot=>used.has(lot.id) && (!lot.expiry_date || !lot.date_kind || lot.date_kind==='unknown' || lot.quantity_quality!=='measured'))
+    .map(lot=>lot.product_name).filter(Boolean));
   // In stock, but the amount does not convert or is not given: present, to check.
   const unclear=unknownBase ? [] : result.missing.filter(item=>item.is_essential && UNCLEAR_REASONS.includes(item.reason));
   const notes=[...(unclear.length ? [`En stock, quantité à vérifier : ${[...new Set(unclear.map(item=>item.ingredient_name))].join(', ')}.`] : []),
-    ...(undated.size ? [`Date à vérifier : ${[...undated].join(', ')}.`] : []),
-    ...(unmeasured.size ? [`Quantité à vérifier dans ton stock : ${[...unmeasured].join(', ')}.`] : [])];
+    ...(doubtful.size ? [`À vérifier dans ton stock (dates ou quantités) : ${[...doubtful].join(', ')}.`] : [])];
   // Optional garnishes stay listed but never make a recipe unavailable.
   return { status:blocking.length ? 'verify' as const : result.missing.some(item=>item.is_essential && !UNCLEAR_REASONS.includes(item.reason)) ? 'missing' as const : 'available' as const,
     missing:result.missing,allocations:result.allocations,uncertainties:[...blocking,...notes],excluded_lots:qualified.excluded,
