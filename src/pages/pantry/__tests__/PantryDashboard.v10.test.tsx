@@ -16,7 +16,7 @@ jest.mock('@/hooks/useInventory', () => ({
 jest.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: (table: string) => table === 'products'
-      ? { select: () => ({ ilike: () => ({ maybeSingle: async () => ({ data: { id: '10000000-0000-4000-8000-000000000001' } }) }) }) }
+      ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: '10000000-0000-4000-8000-000000000001' }, error: null }) }) }) }
       : { delete: () => ({ eq: mockDeleteEq }) },
   },
 }));

@@ -29,3 +29,20 @@ test('« Cuisinée » takes what the stock holds and says what it left out', asy
   expect(outcome).toEqual({ title: 'Repas enregistré et stock mis à jour', commandId: 'command-1', details: [
     'Retiré de ton stock : Oignon 2 pièce.', 'Tout ce que tu avais : Riz basmati 100 g (la recette en demande 300 g).', 'Pas dans ton stock, rien à retirer : Agneau.'] });
 });
+
+// Audit 2026-11-07: « Ingrédients ajoutés aux courses » even when nothing was missing.
+test('nothing missing: it says so and sends nothing', async () => {
+  jest.mocked(previewRecipeStock).mockResolvedValue({ servings: 4, recipe: { version: 'v' }, missing: [] } as never);
+  jest.mocked(executeStockCommand).mockClear();
+  await expect(fireRecipeAssistantAction({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz', servings: 4 }, 'add_missing'))
+    .resolves.toBe('Rien à ajouter : tout est déjà dans ton stock');
+  expect(executeStockCommand).not.toHaveBeenCalled();
+});
+test('only amounts the list cannot hold: they are named, nothing is sent', async () => {
+  jest.mocked(previewRecipeStock).mockResolvedValue({ servings: 4, recipe: { version: 'v' },
+    missing: [{ ingredient_index: 0, ingredient_name: 'coriandre', quantity: 1, unit: 'botte', reason: 'NOT_IN_STOCK', is_essential: true }] } as never);
+  jest.mocked(executeStockCommand).mockClear();
+  await expect(fireRecipeAssistantAction({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz', servings: 4 }, 'add_missing'))
+    .resolves.toBe('Rien à ajouter automatiquement · à ajouter à la main : coriandre');
+  expect(executeStockCommand).not.toHaveBeenCalled();
+});

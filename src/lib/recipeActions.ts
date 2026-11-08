@@ -97,6 +97,10 @@ export async function fireRecipeAssistantAction(recipe: ActionableRecipe, action
     if (action === 'add_missing') {
       // "1 botte" or "au goût" cannot be stored as a shopping quantity: name them instead of failing.
       byHand = preview.missing.filter(missing => needsPurchase(missing) && !canAddToShoppingList(missing)).map(missing => missing.ingredient_name);
+      // Nothing the list can hold: say so instead of « ajoutés » (audit 2026-11-07).
+      if (!preview.missing.some(missing => needsPurchase(missing) && canAddToShoppingList(missing))) {
+        return byHand.length ? `Rien à ajouter automatiquement · à ajouter à la main : ${byHand.join(', ')}` : 'Rien à ajouter : tout est déjà dans ton stock';
+      }
       command = await commandForIntent('recipe_add_missing',intent,{ recipe: reference, servings: preview.servings });
     } else {
       const today = new Date();
