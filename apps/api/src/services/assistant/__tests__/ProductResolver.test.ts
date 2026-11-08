@@ -797,6 +797,16 @@ describe('ProductResolver — a found product takes the brand and barcode read o
     expect(branded.calls.updates).toBeUndefined();
   });
 
+  // 20261108160000_security_ownership.sql: signed-in users no longer change the shared catalogue.
+  it('the brand and barcode are written with the catalogue client, not the user client', async () => {
+    const voiceMade = makeProduct({ id: 'p-voice', name: 'mayonnaise kewpie', normalized_name: 'mayonnaise kewpie', brand: null });
+    const user = makeClient({ exactSingle: voiceMade }), catalog = makeClient({});
+    const result = await new ProductResolver(user.client, { catalogClient: catalog.client }).resolve(USER_ID, { name: 'Mayonnaise Kewpie', brand: 'Kewpie' });
+    expect(result).toMatchObject({ product: { brand: 'Kewpie' } });
+    expect(catalog.calls.updates).toEqual([{ id: 'p-voice', patch: { brand: 'Kewpie' } }]);
+    expect(user.calls.updates).toBeUndefined();
+  });
+
   it('a product created or matched without anything read is left alone', async () => {
     const { client, calls } = makeClient({ exactSingle: makeProduct() });
     await new ProductResolver(client).resolve(USER_ID, { name: 'Tomate' });

@@ -105,6 +105,12 @@ export interface ProductResolverOptions {
   /** Default unit_type for auto-created products. Default 'unit'. */
   defaultUnitType?: string;
   /**
+   * Writes changes to existing products (brand, barcode, embedding). Signed-in users may add
+   * a product but not change one (20261108160000_security_ownership.sql): the API passes its
+   * service-role client. Defaults to the reading client.
+   */
+  catalogClient?: SupabaseClient;
+  /**
    * Optional embedding service for the semantic-search step. When
    * absent (e.g. legacy callers, tests) the resolver still works using
    * exact + fuzzy only.
@@ -163,6 +169,7 @@ export class ProductResolver {
   private readonly defaultCategory: string;
   private readonly defaultUnitType: string;
   private readonly embeddingService: EmbeddingService | undefined;
+  private readonly catalogClient: SupabaseClient;
 
   constructor(
     private readonly client: SupabaseClient<any, any, any>,
@@ -174,6 +181,7 @@ export class ProductResolver {
     this.defaultCategory = options.defaultCategory ?? 'autres';
     this.defaultUnitType = options.defaultUnitType ?? 'unit';
     this.embeddingService = options.embeddingService;
+    this.catalogClient = options.catalogClient ?? client;
   }
 
   async resolve(userId: string, input: ResolveInput): Promise<ResolveResult> {
@@ -280,7 +288,7 @@ export class ProductResolver {
     if (input.barcode && !result.product.barcode) patch.barcode = input.barcode;
     if (!patch.brand && !patch.barcode) return result;
     try {
-      const { error } = await this.client.from('products').update(patch).eq('id', result.product.id);
+      const { error } = await this.catalogClient.from('products').update(patch).eq('id', result.product.id);
       if (error) throw error;
       return { ...result, product: { ...result.product, ...patch } };
     } catch (err) {
@@ -492,7 +500,7 @@ export class ProductResolver {
     try {
       const vec = await this.embeddingService!.generate(product.name);
       if (!vec) return;
-      const { error } = await this.client
+      const { error } = await this.catalogClient
         .from('products')
         .update({
           embedding: vec as unknown as string,
