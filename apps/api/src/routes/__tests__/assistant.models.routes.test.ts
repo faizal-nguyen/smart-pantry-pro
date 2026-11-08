@@ -16,7 +16,8 @@ function setup(authenticated=true) {
 test('model catalog requires authentication and remains readable when actions are not configured',async()=>{
   await request(setup(false).app).get('/assistant/models').expect(401);
   const {app,admin}=setup();const response=await request(app).get('/assistant/models').expect(200);
-  expect(AssistantModelCatalogSchema.parse(response.body.data.catalog).preset).toBe('baseline');
+  // The default since 2026-11-08: gpt-6-luna for every role, adopted for good.
+  expect(AssistantModelCatalogSchema.parse(response.body.data.catalog)).toMatchObject({preset:'luna',activation:'owner_adopted'});
   expect(JSON.stringify(response.body)).not.toMatch(/api_key|hmac|https:\/\/|secret/i);
   expect(admin.calls).toHaveLength(0);expect(admin.rpc).not.toHaveBeenCalled();
   await request(app).post('/assistant/text').send({}).expect(503);

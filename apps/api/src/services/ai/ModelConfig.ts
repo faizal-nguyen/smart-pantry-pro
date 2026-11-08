@@ -9,7 +9,7 @@ export interface AssistantModelConfig {
   version: string; preset: 'baseline' | 'luna' | 'luna-sol';
   roles: Record<AssistantRole, Readonly<RoleConfig>>;
   limits: { maxCalls: number; maxTools: number; deadlineMs: number; maxUsd: number };
-  activation: 'baseline' | 'benchmark_approved';
+  activation: 'baseline' | 'benchmark_approved' | 'owner_adopted';
 }
 /**
  * What a live benchmark must show for a candidate to replace the baseline.
@@ -56,20 +56,26 @@ export function freezeConfig(config: AssistantModelConfig): AssistantModelConfig
   Object.freeze(config.roles); Object.freeze(config.limits); return Object.freeze(config);
 }
 /**
- * Candidate selection requires a reviewed live report; a fake/offline report
- * cannot activate it. A refused or expired report (30 days) serves the
- * baseline and says so in the logs: the API never stops for it.
+ * The assistant's models since 2026-11-08: gpt-6-luna for every role, adopted
+ * for good by the owner after two live benchmarks (V10-03D). No approval file
+ * and no expiry. `baseline` (gpt-4o-mini, gpt-4o for cooking) is only ever an
+ * explicit choice. `luna-sol` stays a candidate: it needs a reviewed live
+ * report of less than 30 days; refused or expired, the default is served and
+ * the log says so, the API never stops for it.
  */
+export const DEFAULT_PRESET = 'luna' satisfies AssistantModelConfig['preset'];
+
 export function loadAssistantModelConfig(env: NodeJS.ProcessEnv = process.env): AssistantModelConfig {
   const config = loadPresetConfig(env);
   if (!env.ASSISTANT_VISION_MODEL) return config;
   return freezeConfig({ ...config, roles: { ...config.roles, vision: visionRole(env.ASSISTANT_VISION_MODEL) }, limits: { ...config.limits } });
 }
 function loadPresetConfig(env: NodeJS.ProcessEnv): AssistantModelConfig {
-  const preset = env.ASSISTANT_MODEL_PRESET ?? 'baseline';
+  const preset = env.ASSISTANT_MODEL_PRESET ?? DEFAULT_PRESET;
   if (!['baseline','luna','luna-sol'].includes(preset)) throw new Error('ASSISTANT_MODEL_PRESET_INVALID');
   const config = benchmarkConfig(preset as AssistantModelConfig['preset']);
   if (preset === 'baseline') return config;
+  if (preset === DEFAULT_PRESET) return adoptedDefault();
   try {
     const report = JSON.parse(readFileSync(env.ASSISTANT_MODEL_APPROVAL_FILE ?? '', 'utf8'));
     const decision = report.decisions?.[preset];
@@ -86,9 +92,13 @@ function loadPresetConfig(env: NodeJS.ProcessEnv): AssistantModelConfig {
       !Number.isFinite(age) || age < 0 || age > 30 * 86400000) throw new Error('unapproved');
     return freezeConfig({ ...config, roles: { ...config.roles }, limits: { ...config.limits }, activation: 'benchmark_approved' });
   } catch {
-    console.error(`[assistant.models] ASSISTANT_MODEL_PRESET=${preset} needs a reviewed live benchmark of less than 30 days: serving the baseline.`);
-    return benchmarkConfig('baseline');
+    console.error(`[assistant.models] ASSISTANT_MODEL_PRESET=${preset} needs a reviewed live benchmark of less than 30 days: serving ${DEFAULT_PRESET}.`);
+    return adoptedDefault();
   }
+}
+function adoptedDefault(): AssistantModelConfig {
+  const config = benchmarkConfig(DEFAULT_PRESET);
+  return freezeConfig({ ...config, roles: { ...config.roles }, limits: { ...config.limits }, activation: 'owner_adopted' });
 }
 const observations = new Map<string, { model: string; at: string }>();
 export function observeModel(config: AssistantModelConfig, role: AssistantRole, model: string) {
