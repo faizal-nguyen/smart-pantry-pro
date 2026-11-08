@@ -124,6 +124,11 @@ export interface ToolHandler<TArgs = unknown, TResult = unknown> {
     ctx: ToolExecutionContext,
     args: TArgs
   ): Promise<ToolExecutionResult<TResult>>;
+  /**
+   * Lines shown with an action waiting for confirmation: what it will do on the data as
+   * it is now. Read-only; execute recomputes, so a change made before the confirmation counts.
+   */
+  preview?(ctx: ToolExecutionContext, args: TArgs): Promise<string[]>;
 }
 
 export class ToolHandlerNotFoundError extends Error {

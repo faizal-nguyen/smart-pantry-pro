@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { allocateRecipeStock, type StockIngredient, type StockLot } from './quantities.js';
+import { allocateRecipeStock, type StockIngredient, type StockLot, type StockMissing } from './quantities.js';
 export const CookingAdjustmentSchema = z.object({
   ingredient_index: z.number().int().nonnegative(),
   // Actual quantity for the whole meal, not per original serving.
@@ -28,4 +28,77 @@ export function allocateCookingStock(ingredients: StockIngredient[], lots: Stock
   const selectedLots: Record<number,string> = {};
   for (const change of adjustments) if (change.inventory_id) selectedLots[change.ingredient_index] = change.inventory_id;
   return allocateRecipeStock(actual,lots,1,1,{ skip: [...outside,...adjustments.filter(item => item.quantity === 0).map(item => item.ingredient_index)], selectedLots });
+}
+
+export interface CookStockPlan {
+  adjustments: CookingAdjustment[];
+  outside_inventory: number[];
+  /** Taken whole from the stock. */
+  taken: Array<{ ingredient_index: number; ingredient_name: string; quantity: number; unit: string }>;
+  /** The stock held less than the recipe: all of it is taken. */
+  partial: Array<{ ingredient_index: number; ingredient_name: string; quantity: number; needed: number; unit: string }>;
+  /** Left untouched; no reason when it was declared outside the stock. */
+  outside: Array<{ ingredient_index: number; ingredient_name: string; reason?: StockMissing['reason'] }>;
+}
+
+const exact = (value: number) => Math.round(value * 1e9) / 1e9;
+
+/**
+ * « J'ai cuisiné X » (iPhone 2026-11-08): one ingredient short of the recipe refused the
+ * whole cook. What the stock holds is taken, all of it when it holds less than the
+ * recipe, and the rest counts as cooked outside the stock, so allocateCookingStock finds
+ * nothing missing, as consume_recipe requires.
+ */
+export function planCookFromStock(ingredients: StockIngredient[], lots: StockLot[], base: number, servings: number, declaredOutside: number[] = []): CookStockPlan {
+  const outside = new Set(declaredOutside);
+  const reasons = new Map<number, StockMissing['reason']>();
+  const needed = (index: number) => { const quantity = ingredients[index].quantity; return quantity == null ? null : quantity * servings / base; };
+  let adjustments: CookingAdjustment[] = [];
+  // A short ingredient takes what is left, which can leave a later one sharing its lot short:
+  // repeat until nothing is missing. From pass n on, anything missing goes outside, so it ends.
+  for (let pass = 0; ; pass++) {
+    const { missing } = allocateCookingStock(ingredients, lots, base, servings, adjustments, [...outside]);
+    if (!missing.length) break;
+    for (const item of missing) {
+      const index = item.ingredient_index, unit = ingredients[index].unit;
+      const asked = adjustments.find(change => change.ingredient_index === index)?.quantity ?? needed(index);
+      const have = item.reason === 'INSUFFICIENT_QUANTITY' && asked != null && item.quantity != null ? exact(asked - item.quantity) : 0;
+      adjustments = adjustments.filter(change => change.ingredient_index !== index);
+      if (have > 0 && unit && pass < ingredients.length) adjustments.push({ ingredient_index: index, quantity: have, unit });
+      else {
+        outside.add(index);
+        if (!reasons.has(index)) reasons.set(index, item.reason === 'INSUFFICIENT_QUANTITY' ? 'NOT_IN_STOCK' : item.reason);
+      }
+    }
+  }
+  const allocated = new Set(allocateCookingStock(ingredients, lots, base, servings, adjustments, [...outside]).allocations.map(item => item.ingredient_index));
+  const plan: CookStockPlan = { adjustments, outside_inventory: [...outside].sort((a, b) => a - b), taken: [], partial: [], outside: [] };
+  ingredients.forEach((ingredient, index) => {
+    if (!allocated.has(index)) return;
+    const change = adjustments.find(item => item.ingredient_index === index);
+    if (change) plan.partial.push({ ingredient_index: index, ingredient_name: ingredient.ingredient_name, quantity: change.quantity, needed: exact(needed(index) ?? 0), unit: change.unit });
+    else plan.taken.push({ ingredient_index: index, ingredient_name: ingredient.ingredient_name, quantity: exact(needed(index) ?? 0), unit: ingredient.unit ?? '' });
+  });
+  plan.outside = plan.outside_inventory.map(index => ({ ingredient_index: index, ingredient_name: ingredients[index].ingredient_name,
+    ...(reasons.has(index) ? { reason: reasons.get(index) } : {}) }));
+  return plan;
+}
+
+const amount = (quantity: number, unit: string) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(quantity)} ${unit}`.trim();
+
+/** What a cook takes from the stock, before it is confirmed (planned) or once it is done. */
+export function describeCookPlan(plan: CookStockPlan, tense: 'planned' | 'done'): string[] {
+  const names = (items: CookStockPlan['outside']) => items.map(item => item.ingredient_name).join(', ');
+  const lines: string[] = [];
+  if (plan.taken.length) lines.push(`${tense === 'planned' ? 'Je retire de ton stock' : 'Retiré de ton stock'} : ${plan.taken.map(item => `${item.ingredient_name} ${amount(item.quantity, item.unit)}`).join(', ')}.`);
+  if (plan.partial.length) lines.push(`${tense === 'planned' ? 'Je prends tout ce que tu as' : 'Tout ce que tu avais'} : ${plan.partial
+    .map(item => `${item.ingredient_name} ${amount(item.quantity, item.unit)} (la recette en demande ${amount(item.needed, item.unit)})`).join(', ')}.`);
+  if (!plan.taken.length && !plan.partial.length) lines.push('Rien à retirer de ton stock.');
+  const absent = plan.outside.filter(item => item.reason === 'NOT_IN_STOCK');
+  const unclear = plan.outside.filter(item => item.reason && item.reason !== 'NOT_IN_STOCK');
+  const declared = plan.outside.filter(item => !item.reason);
+  if (absent.length) lines.push(`Pas dans ton stock, rien à retirer : ${names(absent)}.`);
+  if (unclear.length) lines.push(`Quantité ou unité à préciser, je n’y touche pas : ${names(unclear)}.`);
+  if (declared.length) lines.push(`Hors stock, je n’y touche pas : ${names(declared)}.`);
+  return lines;
 }

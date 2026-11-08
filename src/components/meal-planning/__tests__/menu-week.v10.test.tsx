@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { calendarWeekStart } from '@smart/shared';
 import MenuWeekGrid from '../MenuWeekGrid';
@@ -6,7 +6,10 @@ import MenuEntryCard from '../MenuEntryCard';
 import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
 
 jest.mock('@/hooks/useCalendarNow', () => ({ useCalendarNow: () => new Date('2026-11-06T12:00:00Z') }));
-jest.mock('@/lib/recipeActions', () => ({ fireRecipeAssistantAction: jest.fn() }));
+const mockCook = jest.fn(), mockUndo = jest.fn();
+jest.mock('@/lib/recipeActions', () => ({ fireRecipeAssistantAction: jest.fn(), cookRecipeWithStock: (...args: unknown[]) => mockCook(...args) }));
+jest.mock('@/services/stockCommands', () => ({ undoStockCommand: (...args: unknown[]) => mockUndo(...args) }));
+jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 
 const entry: MenuEntryView = {
   id: 'friday', day_of_week: 4, meal_type: 'dinner', recipe_id: 'catalog-dish',
@@ -51,4 +54,19 @@ test('opening a planned recipe preserves its catalogue identity and selected por
   render(<MemoryRouter><MenuEntryCard entry={entry} onRemove={jest.fn()} /><Location /></MemoryRouter>);
   fireEvent.click(screen.getByRole('button', { name: 'Ouvrir Repas du vendredi' }));
   expect(screen.getByLabelText('Destination')).toHaveTextContent('/kitchen/recipes/catalog-dish?source=recipes_catalog&servings=3');
+});
+
+test('« Cuisinée » counts the meal once, and « Annuler » gives the stock back', async () => {
+  mockCook.mockResolvedValue({ title: 'Repas enregistré et stock mis à jour', details: ['Retiré de ton stock : Riz 300 g.'], commandId: 'command-1' });
+  mockUndo.mockResolvedValue({});
+  render(<MemoryRouter><MenuEntryCard entry={entry} onRemove={jest.fn()} /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'Marquer Repas du vendredi comme cuisinée' }));
+  const done = await screen.findByRole('button', { name: 'Repas du vendredi est cuisinée' });
+  expect(done).toBeDisabled();
+  fireEvent.click(done);
+  expect(mockCook).toHaveBeenCalledTimes(1);
+  expect(mockCook).toHaveBeenCalledWith(expect.objectContaining({ id: 'catalog-dish', source: 'recipes_catalog', servings: 3 }));
+  fireEvent.click(screen.getByRole('button', { name: 'Annuler : Repas du vendredi n’est pas cuisinée' }));
+  await waitFor(() => expect(mockUndo).toHaveBeenCalledWith('command-1'));
+  expect(await screen.findByRole('button', { name: 'Marquer Repas du vendredi comme cuisinée' })).toBeEnabled();
 });

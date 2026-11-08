@@ -6,28 +6,28 @@ import {
 } from '@smart/shared';
 
 const MESSAGES: Record<string, string> = {
-  UNAUTHORIZED: 'Reconnectez-vous pour reprendre cette action.',
-  ITEM_NOT_FOUND: 'Ce produit ou cet achat n’est plus disponible. Actualisez la liste.',
+  UNAUTHORIZED: 'Reconnecte-toi pour reprendre cette action.',
+  ITEM_NOT_FOUND: 'Ce produit ou cet achat n’est plus disponible. Actualise la liste.',
   RECIPE_NOT_FOUND: 'Cette recette n’est plus accessible.',
-  RECIPE_CHANGED: 'La recette a changé. Vérifiez à nouveau les ingrédients.',
-  CONFLICT: 'Le stock ou l’achat a changé. Actualisez avant de confirmer.',
-  INSUFFICIENT_QUANTITY: 'La quantité disponible ne suffit plus. Vérifiez le stock.',
+  RECIPE_CHANGED: 'La recette a changé. Vérifie à nouveau les ingrédients.',
+  CONFLICT: 'Le stock ou l’achat a changé. Actualise avant de confirmer.',
+  INSUFFICIENT_QUANTITY: 'La quantité disponible ne suffit plus. Vérifie ton stock.',
   QUANTITY_UNKNOWN: 'Une quantité reste à renseigner ou à déclarer hors inventaire.',
   UNIT_UNKNOWN: 'Une unité reste à vérifier.',
   UNIT_INCOMPATIBLE: 'Ces unités ne sont pas convertibles sans information supplémentaire.',
   UNDO_CONFLICT: 'Le stock a changé depuis cette action. L’annulation écraserait une correction.',
   ALREADY_UNDONE: 'Cette action a déjà été annulée.',
-  IDEMPOTENCY_CONFLICT: 'Cette intention a déjà un résultat différent. Vérifiez son état avant de continuer.',
+  IDEMPOTENCY_CONFLICT: 'Cette action a déjà un résultat différent. Vérifie son état avant de continuer.',
   INVALID_ALLOCATION: 'Les ingrédients ne correspondent plus au stock sélectionné.',
-  INVALID_QUANTITY: 'Vérifiez les quantités et les portions.',
+  INVALID_QUANTITY: 'Vérifie les quantités et les portions.',
   COMMAND_NOT_FOUND: 'Cette opération n’est plus accessible.',
-  MIGRATION_REQUIRED: 'Les nouvelles commandes ne sont pas encore disponibles. Vos données et cette intention restent conservées.',
-  INVALID_COMMAND: 'Les données de cette action sont invalides. Vérifiez les champs avant de réessayer.',
+  MIGRATION_REQUIRED: 'Cette action n’est pas encore disponible. Tes données et ta demande sont conservées.',
+  INVALID_COMMAND: 'Les données de cette action sont invalides. Vérifie les champs avant de réessayer.',
 };
 
 export class StockCommandError extends Error {
   constructor(public readonly code: string, public readonly status = 400) {
-    super(MESSAGES[code] ?? 'Impossible de confirmer cette action. Vos données sont conservées.');
+    super(MESSAGES[code] ?? 'Impossible de confirmer cette action. Tes données sont conservées.');
     this.name = 'StockCommandError';
   }
 }
