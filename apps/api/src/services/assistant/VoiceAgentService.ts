@@ -1411,7 +1411,7 @@ function todayContext(now: Date): string {
   const week = (start: string) => Array.from({ length: 7 }, (_, i) => `${FRENCH_WEEKDAY.format(noon(shiftDate(start, i)))} ${shiftDate(start, i)}`).join(', ');
   return `TODAY (Europe/Paris): Aujourd’hui : ${FRENCH_DAY.format(noon(today))} (${today}). Demain : ${FRENCH_DAY.format(noon(shiftDate(today, 1)))} (${shiftDate(today, 1)}).\n`
     + `Cette semaine : ${week(weekStart)}.\nSemaine prochaine : ${week(shiftDate(weekStart, 7))}.\n`
-    + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD) copied from these lines; never compute a date.';
+    + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD). A date or week the user states explicitly (« la semaine du lundi 5 octobre 2026 », « le 12 décembre ») always wins over today: use that date. Only a relative date (aujourd’hui, ce soir, demain, cette semaine, la semaine prochaine) is copied from these lines; never compute one.';
 }
 
 // Tool results reach the model as text. Stock and shopping rows keep only what it

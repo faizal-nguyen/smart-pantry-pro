@@ -16,11 +16,6 @@
   "regions": [
     "fra1"
   ],
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "apps/api/config/assistant-model-approval.json"
-    }
-  },
   "build": {
     "env": {
       "NODE_ENV": "production",

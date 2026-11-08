@@ -215,6 +215,12 @@ function makeService({
   return { service, writer, signer };
 }
 
+// These orchestration tests pin the gpt-4o-mini/gpt-4o preset; the production
+// default (gpt-6-luna, with its extra read round) is covered by ModelTransport.test.
+const presetBefore = process.env.ASSISTANT_MODEL_PRESET;
+beforeAll(() => { process.env.ASSISTANT_MODEL_PRESET = 'baseline'; });
+afterAll(() => { if (presetBefore === undefined) delete process.env.ASSISTANT_MODEL_PRESET; else process.env.ASSISTANT_MODEL_PRESET = presetBefore; });
+
 describe('VoiceAgentService.handleRequest (text)', () => {
   it.each([{ share:false,version:2 },{ share:true,version:2 },{ share:true,version:1 }])('synthesizes after server scoring, sharing profile evidence only with current consent (%j)',async({ share,version })=>{
     const requests:AICompletionRequest[]=[];
@@ -1341,6 +1347,8 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
     expect(system).toContain('Cette semaine : lundi 2026-11-02');
     expect(system).toContain('dimanche 2026-11-08.');
     expect(system).toContain('Semaine prochaine : lundi 2026-11-09');
+    // An explicit week asked for (benchmark plan.01) is not replaced by the current one.
+    expect(system).toMatch(/explicitly[^\n]*always wins over today[^\n]*Only a relative date[^\n]*is copied from these lines/);
     expect(system).toMatch(/Tutoie/);
   });
   it('« J’ai cuisiné les pâtes carbonara »: the recipe found, the cook is prepared in the same turn',async()=>{
