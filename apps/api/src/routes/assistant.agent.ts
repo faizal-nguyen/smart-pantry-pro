@@ -436,7 +436,7 @@ export function createAssistantAgentRouter(
     });
     const ctx = {
       userId: req.user.id, userClient, adminClient,
-      productResolver: new ProductResolver(userClient, { embeddingService }),
+      productResolver: new ProductResolver(userClient, { embeddingService, catalogClient: adminClient }),
       ...buildRecommendationCtx(userClient),
     };
     try {
@@ -533,7 +533,7 @@ export function createAssistantAgentRouter(
         userId: req.user.id,
         userClient: req.supabaseClient as SupabaseClient<any, any, any>,
         adminClient,
-        productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+        productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService, catalogClient: adminClient }),
         ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
       };
 
@@ -558,7 +558,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService, catalogClient: adminClient }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
@@ -603,7 +603,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService, catalogClient: adminClient }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
@@ -784,7 +784,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService, catalogClient: adminClient }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
@@ -814,7 +814,7 @@ export function createAssistantAgentRouter(
       userId: req.user.id,
       userClient: req.supabaseClient as SupabaseClient<any, any, any>,
       adminClient,
-      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService }),
+      productResolver: new ProductResolver(req.supabaseClient as SupabaseClient<any, any, any>, { embeddingService, catalogClient: adminClient }),
       ...buildRecommendationCtx(req.supabaseClient as SupabaseClient<any, any, any>),
     };
 
