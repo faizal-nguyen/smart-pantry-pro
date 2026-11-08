@@ -102,3 +102,15 @@ test('nothing at all: the empty state stays, without a closest list', () => {
   render(wrap(<PersonalizedRecipeSuggestions featured />));
   expect(screen.getByText(/Aucune idée pour ce repas/)).toBeInTheDocument();
 });
+
+test('a featured idea says what is missing, and at most one doubt', () => {
+  const almost = { ...candidate('rasam'), name: 'Rasam', missing_count: 2, missing_ingredients: ['Tamarin', 'Coriandre'],
+    availability: { ...candidate('rasam').availability, status: 'missing' as const,
+      uncertainties: ['À vérifier dans ton stock (dates ou quantités) : Ail, Tomates.', 'Une autre remarque.'] } };
+  mockResult = { ...mockResult, cookable_now: [], almost_cookable: [almost] };
+  render(wrap(<PersonalizedRecipeSuggestions featured />));
+  expect(screen.getByText('Il te manque : Tamarin et Coriandre.')).toBeInTheDocument();
+  expect(screen.getByText('À vérifier dans ton stock (dates ou quantités) : Ail, Tomates.')).toBeInTheDocument();
+  expect(screen.queryByText('Une autre remarque.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Des ingrédients restent à acheter ou à vérifier.')).not.toBeInTheDocument();
+});

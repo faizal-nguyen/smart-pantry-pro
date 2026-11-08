@@ -94,7 +94,7 @@ describe('V10-03 original lots, portions and honest nutrition',()=>{
     const r=recipe('r','Riz','Riz','p');
     const result=evaluateAvailability(r,[lot('p',{ expiry_date:null,date_kind:'unknown',quantity_quality:'estimated' })],2,NOW);
     // iPhone 2026-11-08: this used to send every recipe to « à vérifier », since it is the default of most lots.
-    expect(result.status).toBe('available');expect(result.uncertainties).toEqual(['Date à vérifier : p.','Quantité à vérifier dans ton stock : p.']);
+    expect(result.status).toBe('available');expect(result.uncertainties).toEqual(['À vérifier dans ton stock (dates ou quantités) : p.']);
     expect(evaluateAvailability(r,[lot('p',{ unit:'unit' })],2,NOW).missing[0].reason).toBe('UNIT_INCOMPATIBLE');
   });
   test('unknown base portions stay to verify; an unconvertible unit or an estimated partial lot is named',async()=>{
@@ -110,7 +110,8 @@ describe('V10-03 original lots, portions and honest nutrition',()=>{
     expect(unit.cookable_now[0]).toMatchObject({ missing_count:0,unknown_ingredients:['Riz'] });
     // 50 g estimated for 400 g: 350 g to buy, and the estimate is named.
     expect(partial.almost_cookable[0].availability.missing[0]).toMatchObject({ reason:'INSUFFICIENT_QUANTITY',quantity:350 });
-    expect(partial.almost_cookable[0].availability.uncertainties).toContain('Quantité à vérifier dans ton stock : riz.');
+    // The lot it lacks is not taken: the card says what to buy, not a doubt about that lot.
+    expect(partial.almost_cookable[0].missing_ingredients).toEqual(['Riz']);
     const noPortions=await suggest(scenarios[0]);
     expect(noPortions.verify_suggestions![0].servings).toBeNull();
     expect(noPortions.verify_suggestions![0].availability.missing[0].quantity).toBeNull();
@@ -240,7 +241,7 @@ describe('home ideas with everyday lots',()=>{
   test('an unknown date kind or unmeasured quantity keeps the recipe cookable and names what to check',async()=>{
     const result=await suggest({ recipes:[recipe('r','Riz','Riz','riz')],inventory:[everyday('riz')] });
     expect(result.cookable_now.map(item=>item.id)).toEqual(['r']);
-    expect(result.cookable_now[0].availability.uncertainties).toEqual(['Date à vérifier : riz.','Quantité à vérifier dans ton stock : riz.']);
+    expect(result.cookable_now[0].availability.uncertainties).toEqual(['À vérifier dans ton stock (dates ou quantités) : riz.']);
   });
   test('an ingredient in stock in a unit that does not convert counts as present, to check',async()=>{
     const r=recipe('r','Riz à l’ail','Riz','riz');
@@ -289,4 +290,14 @@ describe('old preferences without restrictions',()=>{
     expect(result.cookable_now).toEqual([]);
     expect(result.verify_suggestions![0].constraints.limitations.join(' ')).toContain('Confirmez');
   });
+});
+
+// iPhone 2026-11-08 (Rasam): « Date à vérifier : Ail, Ail semoule, Tomates, Sel, ail caramélisé… » twice,
+// naming products the recipe does not take.
+test('the doubts name only the lots the recipe takes, once',()=>{
+  const r=recipe('rasam','Rasam','Ail','ail');
+  r.recipe_ingredients!.push({ id:'rasam:1',ingredient_name:'Tamarin',quantity:20,unit:'g',inventory_product_id:'tamarin',is_essential:true });
+  const unknown={ date_kind:'unknown' as const,quantity_quality:'unknown' as const };
+  const result=evaluateAvailability(r,[lot('ail',unknown),lot('ail semoule',{ ...unknown,product_id:'semoule' })],2,NOW);
+  expect(result.uncertainties).toEqual(['À vérifier dans ton stock (dates ou quantités) : ail.']);
 });
