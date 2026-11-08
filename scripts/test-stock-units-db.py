@@ -18,7 +18,7 @@ A, ROOT = stock.A, stock.ROOT
 
 MIGRATIONS = ["20261008151704_v10_reliability_commands.sql", "20261008210917_v10_mobile_routine.sql",
               "20261009095426_v10_personalization.sql", "20261031100000_v10_pantry_matching.sql",
-              "20261105100000_stock_units.sql"]
+              "20261105100000_stock_units.sql", "20261108213909_recipe_stock_product_forms.sql"]
 
 
 def in_unit(quantity, source, target):
@@ -52,6 +52,20 @@ def items(kind, row, quantity, unit):
 
 
 def tests():
+    def prepared_forms_stay_distinct():
+        for name in ["Ail semoule", "ail caramélisé", "Ail moulu", "Ail confit"]:
+            equal(pantry.rank("ail", name), "0")
+            equal(pantry.rank(name, name), "1")
+            row = lot(name, 100, "g")
+            fresh = recipe(2, [("ail", 10, "g")])
+            stock.execute(stock.recipe_command(recipe=fresh, servings=2), [take(row, 10, "g")], error="INVALID_ALLOCATION")
+            equal(stock.qty(row), 100)
+            prepared = recipe(2, [(name, 10, "g")])
+            stock.execute(stock.recipe_command(recipe=prepared, servings=2), [take(row, 10, "g")])
+            equal(stock.qty(row), 90)
+        run("SELECT public.stock_ingredient_match_rank('ail','Ail semoule');", role="anon", error="permission denied")
+    check("prepared garlic is never deducted for fresh garlic, but can be explicitly requested", prepared_forms_stay_distinct)
+
     def same_rule_as_the_api():
         # Same cases as "a unit without conversion still counts in itself" in quantities.test.ts.
         for quantity, source, target, expected in [(3, "unité(s)", "pièce", "3.000000000"), (2, "sachet(s)", "sachets", "2.000000000"),
