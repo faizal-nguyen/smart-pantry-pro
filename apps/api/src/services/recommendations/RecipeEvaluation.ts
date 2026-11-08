@@ -17,7 +17,10 @@ export interface RecipeEvaluationContext {
 /** Common evidence for ranking and a specific detail; no selection or side effects. */
 export function evaluateRecipe(recipe: RecipeWithIngredients, ctx: RecipeEvaluationContext): RecipeEvaluation {
   const constraints = evaluateConstraints(recipe, ctx.settings, ctx.products);
-  if (ctx.legacyServerPresent && constraints.status === 'compatible') {
+  // Old preferences to confirm only matter when they restrict something: a row without allergy,
+  // diet or exclusion (the old table defaults) sent every recipe to « à vérifier » (iPhone 2026-11-08).
+  const restricted = ctx.settings.allergies.length + ctx.settings.excludedIngredients.length + ctx.settings.diets.length > 0;
+  if (ctx.legacyServerPresent && restricted && constraints.status === 'compatible') {
     constraints.status = 'verify';
     constraints.limitations.push('Confirmez les anciennes préférences dans votre profil alimentaire.');
   }
