@@ -11,6 +11,14 @@ export interface AssistantModelConfig {
   limits: { maxCalls: number; maxTools: number; deadlineMs: number; maxUsd: number };
   activation: 'baseline' | 'benchmark_approved';
 }
+/**
+ * What a live benchmark must show for a candidate to replace the baseline.
+ * p95_ratio was 1.15 until 2026-11-08: the owner then accepted a slower
+ * candidate (luna: p95 +49 %, about +1.4 s) for 100 % correct answers
+ * against 92.5 % and an 11 times lower cost (docs/implementations/V10-03D.md).
+ */
+export const APPROVAL_CRITERIA = Object.freeze({ correct_rate: 0.95, critical_failures: 0, p95_ratio: 1.6, cost_per_success_ratio: 1 });
+
 export function benchmarkConfig(preset: AssistantModelConfig['preset']): AssistantModelConfig {
   const mini: RoleConfig = { model: 'gpt-4o-mini', transport: 'chat_completions', maxOutputTokens: 1500, timeoutMs: 20000 };
   const quality: RoleConfig = { ...mini, model: 'gpt-4o' };
@@ -47,7 +55,11 @@ export function freezeConfig(config: AssistantModelConfig): AssistantModelConfig
   if (!Number.isInteger(maxCalls) || maxCalls < 1 || maxCalls > 6 || maxTools !== 6 || !Number.isInteger(deadlineMs) || deadlineMs < 1000 || deadlineMs > 60000 || !(maxUsd > 0 && maxUsd <= 1)) throw new Error('ASSISTANT_MODEL_INVALID_LIMITS');
   Object.freeze(config.roles); Object.freeze(config.limits); return Object.freeze(config);
 }
-/** Candidate selection requires a reviewed live report; a fake/offline report cannot activate it. */
+/**
+ * Candidate selection requires a reviewed live report; a fake/offline report
+ * cannot activate it. A refused or expired report (30 days) serves the
+ * baseline and says so in the logs: the API never stops for it.
+ */
 export function loadAssistantModelConfig(env: NodeJS.ProcessEnv = process.env): AssistantModelConfig {
   const config = loadPresetConfig(env);
   if (!env.ASSISTANT_VISION_MODEL) return config;
@@ -69,10 +81,14 @@ function loadPresetConfig(env: NodeJS.ProcessEnv): AssistantModelConfig {
       decision.human_review?.status !== 'approved' || !decision.human_review.reviewer ||
       report.observed_cost_complete !== true || report.stop_reason !== null ||
       Object.values(config.roles).some(role => report.availability?.[role.model]?.accessible !== true) ||
-      report.criteria?.correct_rate !== 0.95 || report.criteria?.critical_failures !== 0 || report.criteria?.p95_ratio !== 1.15 || report.criteria?.cost_per_success_ratio !== 1 ||
+      report.criteria?.correct_rate !== APPROVAL_CRITERIA.correct_rate || report.criteria?.critical_failures !== APPROVAL_CRITERIA.critical_failures ||
+      report.criteria?.p95_ratio !== APPROVAL_CRITERIA.p95_ratio || report.criteria?.cost_per_success_ratio !== APPROVAL_CRITERIA.cost_per_success_ratio ||
       !Number.isFinite(age) || age < 0 || age > 30 * 86400000) throw new Error('unapproved');
     return freezeConfig({ ...config, roles: { ...config.roles }, limits: { ...config.limits }, activation: 'benchmark_approved' });
-  } catch { throw new Error('ASSISTANT_MODEL_BENCHMARK_NOT_APPROVED'); }
+  } catch {
+    console.error(`[assistant.models] ASSISTANT_MODEL_PRESET=${preset} needs a reviewed live benchmark of less than 30 days: serving the baseline.`);
+    return benchmarkConfig('baseline');
+  }
 }
 const observations = new Map<string, { model: string; at: string }>();
 export function observeModel(config: AssistantModelConfig, role: AssistantRole, model: string) {
