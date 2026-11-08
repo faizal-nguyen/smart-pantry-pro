@@ -982,7 +982,11 @@ export class VoiceAgentService {
           ...executed.map(e => e.action_id),
           ...pending.map(p => p.action_id),
         ];
-        const recipeProposals = extractRecipeProposalsFromExecuted(executed);
+        // A search made to cook, plan or delete one recipe is not a list of ideas: its cards
+        // open the recipe, so under « Laquelle ? » or a pending cook they hid the choices and
+        // Confirmer (iPhone 2026-11-08).
+        const recipeWrite = !!ambiguousRecipes || recipeNotFound || [...executed, ...pending].some(action => action.tool in RECIPE_WRITES);
+        const recipeProposals = recipeWrite ? null : extractRecipeProposalsFromExecuted(executed);
         const messageMetadata: Record<string, unknown> = {
           model: activeResponse.model || null,
           model_receipt: invocation.receipt(),
@@ -1517,8 +1521,8 @@ function answersRecipeQuestion(sessionTurns: AICompletionRequest['messages'], re
 }
 function ambiguityQuestion(ambiguous: AmbiguousRecipes, names: Map<string, string>): string {
   const listed = ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6);
-  return (listed.length ? `Plusieurs recettes correspondent : ${listed.join(', ')}. ` : 'Plusieurs recettes correspondent. ')
-    + `${RECIPE_WRITES[ambiguous.tool]} Redis-le-moi avec son nom.`;
+  return listed.length ? `Plusieurs recettes correspondent : ${listed.join(', ')}. ${RECIPE_WRITES[ambiguous.tool]} Touche son nom ci-dessous, ou redis-le-moi.`
+    : `Plusieurs recettes correspondent. ${RECIPE_WRITES[ambiguous.tool]} Redis-le-moi avec son nom.`;
 }
 
 function synthesizeMessage(
