@@ -968,6 +968,12 @@ export class VoiceAgentService {
       console.warn('[assistant.claim_without_write] replaced');
       message = readOnly ? READ_ONLY_MESSAGE : NO_CHANGE_MESSAGE;
     }
+    // A menu add that took a slot's meal names it, and how to get it back (audit 2026-11-07).
+    for (const action of executed) {
+      const replaced = action.tool === 'add_recipe_to_meal_plan' ? (action.result as { replaced_recipe_name?: unknown } | null)?.replaced_recipe_name : undefined;
+      if (typeof replaced === 'string' && replaced && !message.includes(replaced))
+        message = `${message} Ça remplace « ${replaced} » dans ton menu : touche « Annuler » pour le remettre.`.trim();
+    }
     let currentAfterProvider = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
     let canRecordResponse = !this.memoryService || sameMemoryPolicy(lastProviderPolicy, currentAfterProvider);
     if (!canRecordResponse && !memoryOnly) message = 'Tes réglages ou tes souvenirs ont changé pendant cet échange. Relance ta demande pour utiliser tes choix actuels.';

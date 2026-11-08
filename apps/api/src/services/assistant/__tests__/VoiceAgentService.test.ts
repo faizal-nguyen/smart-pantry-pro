@@ -1601,3 +1601,25 @@ describe('an action to confirm says what it will do (iPhone 2026-11-08: Confirme
     expect(actions_pending[0].details).toBeUndefined();
   });
 });
+
+describe('a menu add that replaces a meal says so (audit 2026-11-07: replaced silently)',()=>{
+  const RECIPE='55555555-5555-4555-8555-555555555551';
+  function planWith(result:Record<string,unknown>,reply='C’est noté pour lundi soir.') {
+    let n=0;
+    const ai:AICompletionClient={complete:async request=>{n++;
+      return {content:n>1 ? reply : '',model:request.model,usage:{prompt_tokens:10,completion_tokens:10},
+        ...(n===1 ? {tool_calls:[{id:'p1',name:'add_recipe_to_meal_plan',arguments:JSON.stringify({recipe_id:RECIPE,date:'2026-11-09',meal_type:'dinner'})}]} : {})};}};
+    const handler={execute:async()=>({result,reversibleAction:{tool:'_undo_stock_command',args:{original_command_id:'c'}}})};
+    const {service}=makeService({ai,handlers:{add_recipe_to_meal_plan:handler},modelConfig:benchmarkConfig('baseline')});
+    return service.handleRequest({userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text',text:'mets le dhal au menu lundi soir'},makeCtx());
+  }
+  it('names the meal it replaced and how to get it back',async()=>{
+    const response=await planWith({entry_id:'e',recipe_name:'Dhal',replaced_recipe_name:'Curry'});
+    expect(response.message).toContain('Ça remplace « Curry » dans ton menu : touche « Annuler » pour le remettre.');
+    expect(response.actions_executed[0].reversible).toBe(true);
+  });
+  it('says nothing more when the reply already names it, or nothing was replaced',async()=>{
+    expect((await planWith({entry_id:'e',replaced_recipe_name:'Curry'},'Dhal remplace Curry lundi soir.')).message).toBe('Dhal remplace Curry lundi soir.');
+    expect((await planWith({entry_id:'e'})).message).toBe('C’est noté pour lundi soir.');
+  });
+});

@@ -450,8 +450,15 @@ describe('AddRecipeToMealPlanHandler', () => {
       command_type: 'plan_recipe', payload: { recipe: { id: recipeId, source: 'user_recipes' }, servings: 4, date: '2026-05-05', meal_type: 'dinner' },
     }));
     expect(result.result.entry_id).toBe('entry-1');
-    expect(result.reversibleAction).toBeNull();
+    expect(result.result.recipe_name).toBe('Pasta');
+    // Audit 2026-11-07: a menu add could not be undone.
+    expect(result.reversibleAction).toEqual({ tool: '_undo_stock_command', args: { original_command_id: receipt.command_id } });
     expect(calls).toEqual([]);
+  });
+  it('says which meal the slot held before, so the reply can name it (audit 2026-11-07: replaced silently)', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce({ ...receipt, replaced_entry: { recipe_name: 'Curry', servings: 4 } });
+    const result = await new AddRecipeToMealPlanHandler().execute(makeCtx({}),{ recipe_id: '22222222-2222-4222-8222-222222222222', date: '2026-11-09', meal_type: 'dinner' });
+    expect(result.result.replaced_recipe_name).toBe('Curry');
   });
   it('plans the date the model copied from the prompt, and derives the day number', async () => {
     const recipeId = '22222222-2222-4222-8222-222222222222';
