@@ -506,8 +506,14 @@ export class VoiceAgentService {
     let ai1: AICompletionResponse;
     // A tapped choice already names its tool and recipe: the loop below prepares it as if
     // the model had called it, with the same checks, log, preview and confirmation.
-    if (chosen) ai1 = { content: '', model: '', usage: { prompt_tokens: 0, completion_tokens: 0 },
-      tool_calls: [{ id: CHOICE_CALL_ID, name: chosen.tool, arguments: JSON.stringify(chosen.args ?? {}) }] };
+    if (chosen) {
+      // No provider turn, but the same guard pins the settings this turn runs under: without
+      // it the turn looked « réglages changés », dropped the action and saved no reply
+      // (iPhone 2026-11-09, history on).
+      await providerGuard?.(aiMessages);
+      ai1 = { content: '', model: '', usage: { prompt_tokens: 0, completion_tokens: 0 },
+        tool_calls: [{ id: CHOICE_CALL_ID, name: chosen.tool, arguments: JSON.stringify(chosen.args ?? {}) }] };
+    }
     else try { ai1 = await this.callLLMSafe(invocation, 'dialogue', aiMessages, tools, providerGuard, 'tool_selection'); }
     catch {
       const receipt=invocation.receipt();
