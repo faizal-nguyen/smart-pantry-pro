@@ -1659,6 +1659,22 @@ describe('a tapped recipe choice (iPhone 2026-11-09: several seconds with nothin
     expect(response.actions_pending.map(action=>[action.tool,action.labels,action.details])).toEqual([['cook_recipe',{[LAMB]:'Lamb (Mutton) Biryani'},['Je retire de ton stock : oignon 2 unités.']]]);
     expect(response.message).toBe('1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».');
   });
+  // iPhone 2026-11-09, after #109: with the history on, nothing came back. No model call meant
+  // no policy read, so the turn looked « réglages changés »: action dropped, reply not saved.
+  it('with the history on, prepares the action and saves the reply in the conversation',async()=>{
+    const memory=new StubMemoryService();
+    const conversation=await memory.createConversation(USER);
+    const complete=jest.fn();
+    const preview=jest.fn(async()=>['Je retire de ton stock : oignon 2 unités.']);
+    const {service}=makeService({ai:{complete},handlers:{cook_recipe:{execute:jest.fn(),preview}},modelConfig:benchmarkConfig('baseline'),memoryService:memory});
+    const response=await service.handleRequest({...input,conversationId:conversation.id,choice:{tool:'cook_recipe',args:{recipe_id:LAMB}}},ctx());
+    expect(complete).not.toHaveBeenCalled();
+    expect(response.actions_pending.map(action=>action.tool)).toEqual(['cook_recipe']);
+    expect(response.confirmation_token).toEqual(expect.any(String));
+    expect(response.message).toBe('1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».');
+    expect(memory.messages.map(message=>[message.role,message.content])).toEqual([
+      ['user','J’ai cuisiné Lamb (Mutton) Biryani'],['assistant','1 action à confirmer : vérifie-la ci-dessous, puis touche « Confirmer ».']]);
+  });
   it('a recipe outside the library is refused, still without the model',async()=>{
     const complete=jest.fn();
     const {service}=makeService({ai:{complete},handlers:{cook_recipe:{execute:jest.fn()}},modelConfig:benchmarkConfig('baseline')});
