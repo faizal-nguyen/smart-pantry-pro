@@ -1,9 +1,22 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+// The build this bundle runs (__APP_BUILD__) and /version.json, which the app reads to
+// notice a newer deploy while it stays open (src/hooks/useNewVersion.ts).
+const APP_BUILD = (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 12) || Date.now().toString(36);
+function appBuildVersion(): Plugin {
+  return {
+    name: 'app-build-version',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: APP_BUILD }) });
+    },
+  };
+}
+
+export default defineConfig(({ mode, command }) => ({
   server: {
     host: "localhost",
     port: 3002,
@@ -21,6 +34,7 @@ export default defineConfig(({ mode }) => ({
     }
   },
   plugins: [
+    appBuildVersion(),
     react({
       // Optimisations pour éviter les conflits React
       jsxImportSource: "react",
@@ -158,6 +172,7 @@ export default defineConfig(({ mode }) => ({
   },
   // Configuration pour les polyfills Node.js et définitions globales
   define: {
+    __APP_BUILD__: JSON.stringify(command === 'build' ? APP_BUILD : ''),
     'process.env.NODE_ENV': JSON.stringify(mode),
     'process.env.GOOGLE_SDK_NODE_LOGGING': 'undefined',
     'process.version': '"v16.0.0"',
