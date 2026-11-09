@@ -6,6 +6,8 @@ import {
 } from '../services/imports/RecipeExtractionService';
 import { FallbackWebAdapter } from '../services/imports/platforms/FallbackWebAdapter';
 import type { SocialImportRow } from '../services/imports/SocialImportRepository';
+// safeFetch resolves names before any request: a fixed public address keeps these tests off the network.
+jest.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] }));
 
 const baseImport = (overrides: Record<string, unknown> = {}): SocialImportRow => ({
   id: 'imp-1',

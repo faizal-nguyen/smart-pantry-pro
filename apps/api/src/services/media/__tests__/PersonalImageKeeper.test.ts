@@ -1,4 +1,6 @@
 import { PersonalImageKeeper } from '../ThumbnailSnapshotService.js';
+// safeFetch resolves names before any request: a fixed public address keeps these tests off the network.
+jest.mock('node:dns/promises', () => ({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] }));
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
 const INPUT = { userId: 'user-1', importId: 'import-1', remoteUrl: 'https://scontent.cdninstagram.com/v/og.jpg', sourceUrl: 'https://www.instagram.com/reel/abc/' };
