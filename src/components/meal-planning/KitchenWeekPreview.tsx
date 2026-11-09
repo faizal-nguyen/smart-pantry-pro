@@ -15,7 +15,7 @@ export default function KitchenWeekPreview({ now, mealType }: { now: Date; mealT
   });
   return <aside className="kitchen-week" aria-labelledby="kitchen-week-title">
     <h2 id="kitchen-week-title" className="kitchen-section-title">Cette semaine</h2>
-    {menu.isLoading ? <p className="kitchen-week-status" role="status">Lecture de tes menus…</p>
+    {menu.isLoading ? <p className="kitchen-week-status" role="status">Chargement de tes menus…</p>
       : menu.isError ? <div className="kitchen-week-status" role="alert"><p>Menus indisponibles pour le moment.</p><Button variant="ghost" onClick={() => void menu.refetch()}>Réessayer</Button></div>
       : <ul className="kitchen-week-days">{days.map(({ date, entry }, index) => <li key={date.toISOString()}>
         <Link to="/kitchen/meal-planning" className="kitchen-week-day" data-today={index === 0}>

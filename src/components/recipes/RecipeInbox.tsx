@@ -157,7 +157,7 @@ export const RecipeInbox: React.FC<RecipeInboxProps> = ({ onVerifyDraft, classNa
     <section className={className} aria-label="Imports de recettes">
       {sharedId && <div className="mb-4 rounded-xl border-2 border-primary p-3" aria-label="Votre lien partagé">
         <h2 className="font-semibold mb-2">Votre lien partagé</h2>
-        {shared.isLoading && <p role="status">Lecture de ce lien…</p>}
+        {shared.isLoading && <p role="status">Chargement de ce lien…</p>}
         {shared.isError && <><p role="alert">Ce lien ne peut pas être lu. Sa source est conservée dans le partage.</p><Button className="min-h-11" variant="outline" onClick={() => void shared.refetch()}>Réessayer</Button></>}
         {shared.data && <ImportCard import_={shared.data} busy={busyId===shared.data.id} onExtract={handleExtract} onVerify={handleVerify} onSave={handleVerify} onArchive={handleArchive} onUnarchive={handleUnarchive}/>}
       </div>}

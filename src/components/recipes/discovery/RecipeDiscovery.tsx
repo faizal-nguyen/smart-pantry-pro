@@ -72,7 +72,7 @@ export function OwnedDiscovery({ owner }: { owner: string }) {
   const starterLinks = discovery.links.filter(link => link.creatorId === chosenCreator && safeDiscoverySourceUrl(link.sourceUrl));
   return <section className="space-y-5 min-w-0" data-culinary-view={design} aria-labelledby="discovery-heading">
     <header className="space-y-1"><h2 id="discovery-heading" className="text-xl font-semibold">À découvrir</h2><p className="text-sm text-muted-foreground">Quelques plats de créateurs choisis, puis les recettes que tu as envie de garder.</p><p className="text-xs text-muted-foreground">Les liens sont ajoutés à la main. Aucune veille automatique n’est activée.</p></header>
-    {discovery.isLoading && <p role="status">Lecture de la sélection…</p>}
+    {discovery.isLoading && <p role="status">Chargement de la sélection…</p>}
     {discovery.error && <div role="alert" className="rounded-lg border p-3 space-y-2 text-sm"><p>{discovery.isStale ? 'La sélection récente n’a pas pu être relue. La dernière sélection conservée reste visible.' : 'La découverte ne peut pas être lue pour le moment.'}</p><Button className="min-h-11" variant="outline" disabled={busy} onClick={() => void perform(async () => { await discovery.refresh(); })}>Réessayer la découverte</Button></div>}
     {(discovery.cacheError || captureError || discovery.pendingError) && <p role="alert" className="text-sm">{discovery.cacheError ?? captureError ?? discovery.pendingError}</p>}
     {discovery.pending && <div role="status" className="rounded-lg border p-3 space-y-2 text-sm"><p>Un choix attend sa confirmation. La même demande est conservée pour le vérifier.</p><Button className="min-h-11" variant="outline" disabled={busy} onClick={() => void perform(async () => {
@@ -86,7 +86,7 @@ export function OwnedDiscovery({ owner }: { owner: string }) {
     <details className="rounded-lg border p-3" open={available.length === 0 && saved.length === 0}>
       <summary className="cursor-pointer min-h-11 text-sm font-medium">Mes créateurs et mes liens</summary>
       <div className="space-y-4 pt-2">
-        {discovery.creatorsLoading ? <p role="status" className="text-sm">Lecture des créateurs…</p> : <ul className="space-y-3" aria-label="Créateurs suivis">{discovery.creators.map(creator => <li key={creator.id} className="min-w-0 space-y-1 rounded-lg bg-muted/40 p-3">
+        {discovery.creatorsLoading ? <p role="status" className="text-sm">Chargement des créateurs…</p> : <ul className="space-y-3" aria-label="Créateurs suivis">{discovery.creators.map(creator => <li key={creator.id} className="min-w-0 space-y-1 rounded-lg bg-muted/40 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium break-words">{creator.name}</span><Button className="min-h-11" variant="outline" disabled={locked} onClick={() => void perform(async () => {
             try { await discovery.pause(creator, !creator.paused); if (mounted.current) setNotice(creator.paused ? `${creator.name} repris.` : `${creator.name} mis en pause.`); }
             catch (failure) { await discovery.refresh(); throw failure; }

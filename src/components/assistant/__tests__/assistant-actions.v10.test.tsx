@@ -20,6 +20,7 @@ jest.mock('../AssistantMessageThread', () => ({ __esModule: true,
   default: ({ footer }: { footer?: React.ReactNode }) => <div data-testid="thread"><p>Fil de la conversation</p>{footer}</div> }));
 jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AssistantMemoryNotice', () => ({ __esModule: true, default: () => null }));
+jest.mock('../AssistantHistoryNotice', () => ({ __esModule: true, default: () => null }));
 // The composer is replaced by a button that delivers the next reply.
 jest.mock('../AssistantComposer', () => ({ __esModule: true,
   default: ({ onResponse, initialRequest, onInitialRequestTaken }: { onResponse: (r: AssistantPlanResponse) => void; initialRequest?: string; onInitialRequestTaken?: () => void }) => <>

@@ -10,6 +10,10 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { ApiError } from './apiError';
+import { apiFailureMessage, networkFailure } from './apiErrors';
+
+export { ApiError };
 
 const DEFAULT_BASE = '/api';
 
@@ -25,20 +29,6 @@ export async function authHeader(expectedUserId?: string): Promise<Record<string
     throw new ApiError('Reconnecte-toi au compte qui a commencé cette action.', { status: 401, code: 'AUTH_CHANGED' });
   }
   return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-  readonly details?: unknown;
-
-  constructor(message: string, opts: { status: number; code?: string; details?: unknown }) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = opts.status;
-    this.code = opts.code;
-    this.details = opts.details;
-  }
 }
 
 interface ApiSuccess<T> {
@@ -63,13 +53,22 @@ async function parseJson(res: Response): Promise<unknown> {
   }
 }
 
+/** fetch, with a dropped connection reported as an ApiError (« Load failed » reached the screen). */
+async function send(input: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw networkFailure(error);
+  }
+}
+
 async function unwrap<T>(res: Response): Promise<T> {
   const body = (await parseJson(res)) as ApiResponse<T> | unknown;
 
   if (!res.ok) {
     const err = body as ApiFailure & { code?: string } | undefined;
     const value = err?.error;
-    throw new ApiError(typeof value === 'string' ? value : value?.message ?? `HTTP ${res.status}`, {
+    throw new ApiError(apiFailureMessage(res.status, typeof value === 'string' ? value : value?.message), {
       status: res.status, code: typeof value === 'string' ? err?.code : value?.code, details: value,
     });
   }
@@ -78,7 +77,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   if (body && typeof body === 'object' && 'success' in (body as object)) {
     const envelope = body as ApiResponse<T>;
     if (envelope.success === false) {
-      throw new ApiError(envelope.error?.message ?? 'API error', {
+      throw new ApiError(apiFailureMessage(res.status >= 400 ? res.status : 0, envelope.error?.message), {
         status: res.status,
         code: envelope.error?.code,
         details: envelope.error,
@@ -90,7 +89,7 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 export async function apiPost<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
-  const res = await fetch(`${resolveBase()}${path}`, {
+  const res = await send(`${resolveBase()}${path}`, {
     method: 'POST',
     signal: options?.signal,
     headers: {
@@ -111,7 +110,7 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
       if (v !== undefined) url.searchParams.set(k, String(v));
     }
   }
-  const res = await fetch(url.pathname + url.search, {
+  const res = await send(url.pathname + url.search, {
     method: 'GET',
     signal: options?.signal,
     headers: { ...(await authHeader(options?.expectedUserId)) },
@@ -122,7 +121,7 @@ export async function apiGet<T = unknown>(path: string, query?: Record<string, s
 }
 
 export async function apiPatch<T = unknown>(path: string, body?: unknown, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
-  const res = await fetch(`${resolveBase()}${path}`, {
+  const res = await send(`${resolveBase()}${path}`, {
     method: 'PATCH',
     signal: options?.signal,
     headers: {
@@ -137,7 +136,7 @@ export async function apiPatch<T = unknown>(path: string, body?: unknown, option
 }
 
 export async function apiDelete<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${resolveBase()}${path}`, {
+  const res = await send(`${resolveBase()}${path}`, {
     method: 'DELETE',
     headers: { ...(await authHeader()) },
   });

@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
+import AssistantHistoryNotice from './AssistantHistoryNotice';
 import AssistantModelDetails from './AssistantModelDetails';
 import { AssistantActionsPanel } from './AssistantActionsPanel';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
@@ -123,6 +124,7 @@ export default function AssistantConversationSurface({
       data-testid="assistant-surface"
     >
       <CardContent className="kitchen-assistant-thread">
+        <AssistantHistoryNotice owner={owner} />
         <AssistantMemoryNotice result={latest && latest.owner === owner ? latest.result : null} />
         {latest && latest.owner===owner && !latest.result.conversation_id && <AssistantModelDetails receipt={latest.result.model_receipt} />}
         {currentSession.messages.length > 0 && <div className="space-y-4"><p className="text-xs text-muted-foreground">Échange de cette session. L’historique durable est désactivé ou indisponible.</p>{currentSession.messages.map((m,i) => <p key={i} className="whitespace-pre-wrap text-sm"><span className="block font-medium">{m.role === 'user' ? 'Vous' : 'Assistant'}</span>{m.content}</p>)}</div>}

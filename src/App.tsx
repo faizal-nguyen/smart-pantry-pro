@@ -12,6 +12,7 @@ import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
 import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
 import NewVersionBanner from "./components/layout/NewVersionBanner";
+import RouteError from "./components/RouteError";
 import { useNewVersion } from "./hooks/useNewVersion";
 
 // Pages critiques (chargées immédiatement)
@@ -36,7 +37,6 @@ const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
 const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 
 // Dashboards hiérarchiques (lazy)
-const PantryDashboard = lazy(() => import("./pages/pantry/PantryDashboard"));
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
 const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
 // PRP-230 Commit 2: ShoppingDashboard no longer routed (/shopping redirects
@@ -90,7 +90,8 @@ const protectedRoutes: RouteObject[] = [
   { path: "/", element: <Index /> },
 
   // Pantry
-  { path: "/pantry", element: withSuspense(PantryDashboard) },
+  // The old « Ma Réserve Magique » page: the Stock tab is /pantry/inventory (audit 2026-11-07, UX P2 8).
+  { path: "/pantry", element: <Navigate to="/pantry/inventory" replace /> },
   { path: "/pantry/inventory", element: withSuspense(InventoryPage) },
 
   // Kitchen
@@ -167,6 +168,8 @@ const router = createBrowserRouter(
   [
     {
       element: <RootLayout />,
+      // A page that throws gets a French screen, not React Router's English one.
+      errorElement: <RouteError />,
       children: [
         // Routes publiques (Auth, Onboarding, ShareTarget)
         ...publicRoutes,

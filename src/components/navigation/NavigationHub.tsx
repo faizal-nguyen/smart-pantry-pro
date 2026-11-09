@@ -71,7 +71,7 @@ export interface NavigationSubItem {
   requiresParentalApproval?: boolean; // allow: legacy field
 }
 
-// Kitchen OS: the same four destinations on desktop and mobile.
+// Kitchen OS: the same five destinations on desktop and mobile; Menus sit inside Recettes.
 export const NAVIGATION_CONFIG: NavigationItem[] = [
   { id:'today',label:'Aujourd’hui',icon:Home,path:'/kitchen',section:'kitchen',description:'La prochaine action pour ton repas',isMainSection:true },
   { id:'kitchen',label:'Recettes',icon:BookOpen,path:'/kitchen/recipes',section:'kitchen',description:'Toutes tes recettes',isMainSection:true,subItems:[
@@ -81,9 +81,10 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
   ] },
   { id:'pantry',label:'Mon stock',icon:Package,path:'/pantry/inventory',section:'pantry',description:'Les ingrédients disponibles',isMainSection:true },
   { id:'shopping',label:'Courses',icon:ShoppingCart,path:'/shopping/list',section:'shopping',description:'Acheter puis ranger',isMainSection:true },
+  // Audit 2026-11-07 (UX P1 1): the assistant was only in the avatar menu.
+  { id:'assistant',label:'Assistant',icon:MessageCircle,path:'/assistant',section:'assistant',description:'Conversations avec l’assistant',isMainSection:true },
 ];
 export const SPECIAL_NAVIGATION_ITEMS: NavigationItem[] = [
-  { id:'assistant',label:'Assistant',icon:MessageCircle,path:'/assistant',section:'assistant',description:'Conversations avec l’assistant',isMainSection:false },
   { id:'insights',label:'Analyses',icon:BarChart3,path:'/insights',section:'insights',description:'Statistiques et anti-gaspillage',isMainSection:false },
   { id:'settings',label:'Profil et paramètres',icon:Settings,path:'/settings',section:'settings',description:'Tes préférences',isMainSection:false },
 ];

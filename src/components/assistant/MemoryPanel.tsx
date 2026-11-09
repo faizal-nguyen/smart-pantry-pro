@@ -55,7 +55,7 @@ export default function MemoryPanel() {
     if (current) setEditor(previous => previous ? { ...previous, memory: current, conflict: false } : null);
   };
   if (error) return <div role="alert" className="space-y-3 rounded-lg border p-4"><p>Impossible de lire les souvenirs pour le moment.</p><Button variant="outline" className="min-h-11" onClick={() => void memory.refetch()}>Réessayer la lecture de la mémoire</Button></div>;
-  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Lecture de votre mémoire…</p>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Chargement de ta mémoire…</p>;
   const filtered = memories.filter(row => row.content.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
   const candidate = (row: AssistantMemoryItem) => row.status === 'candidate' || !row.version || !row.destination;
   const groups = [ { label: 'À confirmer', rows: filtered.filter(candidate) }, { label: 'Souvenirs enregistrés', rows: filtered.filter(row => !candidate(row)) } ];
@@ -90,7 +90,7 @@ export default function MemoryPanel() {
         </article>;
       })}
     </div></CardContent></Card>)}
-    {memory.hasMore && <Button variant="outline" className="min-h-11" disabled={memory.isLoadingMore || isBusy} onClick={() => void memory.loadMore()}>{memory.isLoadingMore ? 'Lecture des souvenirs…' : 'Charger les souvenirs suivants'}</Button>}
+    {memory.hasMore && <Button variant="outline" className="min-h-11" disabled={memory.isLoadingMore || isBusy} onClick={() => void memory.loadMore()}>{memory.isLoadingMore ? 'Chargement des souvenirs…' : 'Charger les souvenirs suivants'}</Button>}
     <Dialog open={!!visibleEditor} onOpenChange={open => { if (!open && !isBusy) setEditor(null); }}><DialogContent className="routine-dialog min-w-0 [&>button:last-child]:min-w-11"><DialogHeader><DialogTitle>Corriger ce souvenir</DialogTitle><DialogDescription>Le texte sera reclassé. Un changement destiné au profil attendra sa confirmation.</DialogDescription></DialogHeader>
       {visibleEditor && <><label className="space-y-2 text-sm">Votre correction<Textarea value={visibleEditor.text} maxLength={2000} onChange={e => setEditor(previous => previous ? { ...previous, text: e.target.value } : null)} /></label>
         {visibleEditor.conflict && <div role="alert" className="min-w-0 space-y-2 rounded-lg border p-3 text-sm"><p>Un autre appareil a changé ce souvenir. Votre texte est conservé.</p><p className="break-words">Version actuelle : {memories.find(row => row.id === visibleEditor.memory.id)?.content ?? 'Souvenir retiré'}</p><Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal px-3 py-3 text-left" onClick={() => void reloadEditor()}>Relire la version actuelle et garder mon texte</Button></div>}
