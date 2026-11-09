@@ -1278,10 +1278,11 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     await service.handleRequest({...input,text:'Une soupe ?',allowedTools:['search_recipes']},makeCtx());
     expect(stock.execute).not.toHaveBeenCalled();
   });
-  it('keeps all usable stock names ahead of detailed rows, so a large pantry is not falsely empty',async()=>{
+  it.each([false,true])('keeps all usable stock names ahead of detailed rows with memory=%s',async(withMemory)=>{
     const {ai,requests}=scripted([{call:{name:'search_recipes',arguments:'{"query":"soupe"}'}},{content:'Une soupe proposée.'}]);
     const items=Array.from({length:109},(_,i)=>({id:`lot-${i}`,product_name:i===108 ? 'Oignons' : `Produit ${i}`,quantity:1,unit_type:'kg',expired:false,notes:'x'.repeat(300)}));
-    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{search_recipes:{execute:async()=>({result:{recipes:[]}})},read_inventory:{execute:async()=>({result:{items,complete:true}})}}});
+    const memory=withMemory ? new StubMemoryService() : undefined;
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),memoryService:memory,handlers:{search_recipes:{execute:async()=>({result:{recipes:[]}})},read_inventory:{execute:async()=>({result:{items,complete:true}})}}});
     await service.handleRequest({...input,text:'Une soupe ?'},makeCtx());
     expect(JSON.stringify(requests[1].messages)).toContain('Oignons');
     expect(JSON.stringify(requests[1].messages)).toContain('stock_names');

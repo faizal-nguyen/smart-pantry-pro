@@ -3,6 +3,23 @@ import { memoryModelToolResult } from '../MemoryModelOutput.js';
 import { emptyNutritionProfile, keepsSessionTurns } from '@smart/shared';
 import { policy, memory, message, summary, session, OTHER, CONV } from '../__fixtures__/memory.js';
 
+test('current inventory keeps every bounded stock row when memory is active, without exposing private fields',()=>{
+  const items=Array.from({length:109},(_,index)=>({product_name:index===108 ? 'Oignons' : `Produit ${index}`,quantity:1,expired:false,notes:'private note',profile:{allergies:['private allergy']}}));
+  const result=memoryModelToolResult('read_inventory',{items,complete:true},policy()) as {items:Array<Record<string,unknown>>;complete:boolean};
+  expect(result.items).toHaveLength(109);
+  expect(result.items[108].product_name).toBe('Oignons');
+  expect(result.complete).toBe(true);
+  expect(JSON.stringify(result)).not.toContain('private');
+});
+
+test('capped or filtered inventory never certifies completeness; unrelated read limits stay unchanged',()=>{
+  const items=Array.from({length:201},(_,index)=>({product_name:`Produit ${index}`}));
+  const capped=memoryModelToolResult('read_inventory',{items,complete:true},policy()) as {items:unknown[];complete:boolean};
+  expect(capped.items).toHaveLength(200);
+  expect(capped.complete).toBe(false);
+  expect((memoryModelToolResult('read_inventory',{items:items.slice(0,1),complete:false},policy()) as {complete:boolean}).complete).toBe(false);
+  expect((memoryModelToolResult('other',{items},policy()) as {items:unknown[]}).items).toHaveLength(30);
+});
 test('personal consultation does not grant provider sharing', () => {
   const row = memory({ sensitivity:'health_sensitive', destination:'profile' });
   expect(allowedMemory(row,policy({ memoryEnabled:false }), 'personal_ui')).toBe(true);
