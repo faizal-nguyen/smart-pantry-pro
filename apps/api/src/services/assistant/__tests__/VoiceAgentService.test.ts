@@ -1251,6 +1251,41 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup']);
     expect(response.message).toBe('Il te reste une pomme de terre.');
   });
+  it.each([
+    ['Je veux faire une soupe aux oignons, qu’est-ce qui nous manque ?','search_recipes','{"query":"soupe aux oignons"}'],
+    ['Une recette tunisienne avec les ingrédients qu’on a ?','suggest_recipes_for_context','{"cuisine":"tunisienne"}'],
+  ])('an empty discovery reads real stock before answering: %s',async(text,tool,args)=>{
+    const {ai,requests}=scripted([{content:'Importe une recette avant de continuer.',call:{name:tool,arguments:args}},
+      {content:'Idées chef hors bibliothèque\n**Soupe aux oignons adaptée**\nOignons présents ; bouillon à prévoir.'}]);
+    const stock={execute:jest.fn(async()=>({result:{complete:true,items:[{product_name:'Oignons',quantity:1,unit_type:'kg',quantity_quality:'estimated',expired:false,notes:'Environ un kilo.'}]}}))};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{[tool]:{execute:async()=>({result:{recipes:[]}})},read_inventory:stock}});
+    const response=await service.handleRequest({...input,text},makeCtx());
+    expect(stock.execute).toHaveBeenCalledTimes(1);
+    expect(response.actions_executed.map(action=>action.tool)).toEqual([tool,'read_inventory']);
+    expect(response.model_receipt?.calls.map(call=>call.purpose)).toEqual(['tool_selection','synthesis']);
+    expect(response.message).not.toContain('Importe une recette');
+    const synthesis=JSON.stringify(requests[1].messages);
+    expect(synthesis).toContain('Oignons');
+    expect(synthesis).toContain('estimated');
+    expect(synthesis).toContain('Environ un kilo.');
+    expect(synthesis).toContain('la bibliothèque est une source, pas une limite');
+    expect(String(requests[0].messages[0].content)).not.toContain('Only propose recipes returned by a tool');
+  });
+  it('does not read stock outside the allowed tools after an empty search',async()=>{
+    const {ai}=scripted([{call:{name:'search_recipes',arguments:'{"query":"soupe"}'}},{content:'Une version proposée, stock non vérifié.'}]);
+    const stock={execute:jest.fn()};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{search_recipes:{execute:async()=>({result:{recipes:[]}})},read_inventory:stock}});
+    await service.handleRequest({...input,text:'Une soupe ?',allowedTools:['search_recipes']},makeCtx());
+    expect(stock.execute).not.toHaveBeenCalled();
+  });
+  it('keeps all usable stock names ahead of detailed rows, so a large pantry is not falsely empty',async()=>{
+    const {ai,requests}=scripted([{call:{name:'search_recipes',arguments:'{"query":"soupe"}'}},{content:'Une soupe proposée.'}]);
+    const items=Array.from({length:109},(_,i)=>({id:`lot-${i}`,product_name:i===108 ? 'Oignons' : `Produit ${i}`,quantity:1,unit_type:'kg',expired:false,notes:'x'.repeat(300)}));
+    const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{search_recipes:{execute:async()=>({result:{recipes:[]}})},read_inventory:{execute:async()=>({result:{items,complete:true}})}}});
+    await service.handleRequest({...input,text:'Une soupe ?'},makeCtx());
+    expect(JSON.stringify(requests[1].messages)).toContain('Oignons');
+    expect(JSON.stringify(requests[1].messages)).toContain('stock_names');
+  });
   it('keeps recipe turns at two calls (no hop after a recipe tool)',async()=>{
     const {ai}=scripted([{call:{name:'suggest_recipes_for_context',arguments:'{}'}},{content:'Aucune recette ne correspond.'}]);
     const {service}=makeService({ai,modelConfig:benchmarkConfig('baseline'),handlers:{suggest_recipes_for_context:{execute:async()=>({result:{recipes:[]}})}}});

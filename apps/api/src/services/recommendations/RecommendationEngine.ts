@@ -31,6 +31,11 @@ const MEAL_GROUPS:Record<string,'main'|'breakfast'|'snack'>={ dinner:'main',lunc
 const mealKey=(value:string|null|undefined) => (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const mealGroup=(value:string|null|undefined) => MEAL_GROUPS[mealKey(value)];
 
+// French cuisine adjectives agree with « cuisine » or « plat ». Whole words
+// prevent an origin request from matching an unrelated dish title.
+const cuisineKey=(value:string)=>normalizeIngredientName(value).replace(/[^a-z0-9]+/g,' ').trim().split(' ')
+  .map(word=>word.replace(/(?:ien(?:ne)?s?|en(?:ne)?s?|aise?s?|oise?s?)$/,'')).join(' ');
+
 /** The only scoring pipeline: explicit profile first, constraints before ranking,
  * qualified original lots, structured evidence, and no LLM or inferred-health input. */
 export class RecommendationEngine {
@@ -238,6 +243,8 @@ export class RecommendationEngine {
     const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) })),...libraryRows.map(row=>this.libraryRecipe(row)),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>this.catalogRecipe(row as RecipeCatalogRow & { ingredients_json?:unknown }))] as RecipeWithIngredients[];
     return rows.filter(recipe=>{
       if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
+      if (input.cuisine && ![recipe.cuisine_category,...(recipe.tags ?? [])].some(value=>value && cuisineKey(input.cuisine) &&
+        ` ${cuisineKey(value)} `.includes(` ${cuisineKey(input.cuisine)} `))) return false;
       // Lunch, dinner and « main » dishes stand in for each other (the exact type ranks first);
       // a dessert or a drink is not a dinner. Types outside the known groups stay candidates.
       const wanted=mealGroup(input.mealType),offered=mealGroup(recipe.meal_type);

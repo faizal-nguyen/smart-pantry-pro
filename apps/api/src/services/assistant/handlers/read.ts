@@ -47,6 +47,9 @@ export interface InventoryItemView {
   days_to_expiry: number | null;
   /** Already past its date: the model says « périmé depuis », not « expire le ». */
   expired: boolean;
+  quantity_quality?: string | null;
+  date_kind?: string | null;
+  notes?: string | null;
 }
 
 export interface ShoppingItemView {
@@ -130,6 +133,9 @@ interface RawInventoryRow {
   id: string;
   product_id: string;
   quantity: number;
+  quantity_quality?: string | null;
+  date_kind?: string | null;
+  notes?: string | null;
   unit?: string | null;
   expiry_date: string | null;
   location: string | null;
@@ -143,15 +149,15 @@ function flattenProduct(p: RawProduct | RawProduct[] | null | undefined): RawPro
 
 // ---- handlers --------------------------------------------------------
 
-export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { items: InventoryItemView[] }> {
+export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { items: InventoryItemView[];complete:boolean }> {
   async execute(
     ctx: ToolExecutionContext,
     args: ReadInventoryArgs
-  ): Promise<ToolExecutionResult<{ items: InventoryItemView[] }>> {
+  ): Promise<ToolExecutionResult<{ items: InventoryItemView[];complete:boolean }>> {
     let q = ctx.userClient
       .from('inventory')
       .select(
-        'id, product_id, quantity, unit, expiry_date, location, products(id, name, category, unit_type, image_url)'
+        'id, product_id, quantity, unit, quantity_quality, date_kind, notes, expiry_date, location, products(id, name, category, unit_type, image_url)'
       )
       .eq('user_id', ctx.userId);
 
@@ -164,7 +170,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
     const search = args.search ? nameKey(args.search) : '';
 
     const rows = ((data ?? []) as RawInventoryRow[])
-      .map((row) => {
+      .map((row):InventoryItemView|null => {
         const p = flattenProduct(row.products);
         // PostgREST returns NULL on the joined product when the filter
         // (category / search) excluded it. We drop those rows here so
@@ -178,6 +184,9 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           unit_type: row.unit ?? p.unit_type ?? '',
           image_url: p.image_url ?? null,
           quantity: row.quantity,
+          quantity_quality:row.quantity_quality ?? 'unknown',
+          date_kind:row.date_kind ?? 'unknown',
+          notes:row.notes ?? null,
           expiry_date: row.expiry_date,
           location: row.location,
           days_to_expiry: daysToExpiry(row.expiry_date),
@@ -197,7 +206,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           )
         : rows;
 
-    return { result: { items: filtered } };
+    return { result: { items: filtered,complete:!args.search && !args.category && args.near_expiry_days===undefined && rows.length===(data?.length ?? 0) && (data?.length ?? 0)<200 } };
   }
 }
 
@@ -619,7 +628,7 @@ export class SuggestRecipesForContextHandler
     args: SuggestRecipesForContextArgs
   ): Promise<ToolExecutionResult<SuggestRecipesResult>> {
     const recommendationContext: RecommendationContext = {
-      query: args.query,ingredient:args.ingredient,craving:args.craving,proteinFamily:args.protein_family,proteinCut:args.protein_cut,dietaryFlag:args.dietary_flag,
+      query: args.query,cuisine:args.cuisine,ingredient:args.ingredient,craving:args.craving,proteinFamily:args.protein_family,proteinCut:args.protein_cut,dietaryFlag:args.dietary_flag,
       mealType: args.meal_type,
       goal: args.goal,
       timeLimitMinutes: args.max_prep_time,

@@ -261,6 +261,13 @@ describe('ReadShoppingListHandler', () => {
 });
 
 describe('ReadInventoryHandler (audit 2026-11-07)', () => {
+  it('preserves uncertainty and conservation notes, and marks filtered inventories incomplete',async()=>{
+    const {client}=makeClient({routes:{inventory:{data:[{id:'lot',product_id:'p',quantity:1,unit:'bouteille',expiry_date:null,location:'frigo',quantity_quality:'unknown',date_kind:'unknown',notes:'Conservation à vérifier : ouvert depuis une semaine.',products:{id:'p',name:'Lait concentré',unit_type:'ml'}}]}}});
+    const all=await new ReadInventoryHandler().execute(makeCtx(client),{});
+    expect(all.result.complete).toBe(true);
+    expect(all.result.items[0]).toMatchObject({quantity_quality:'unknown',date_kind:'unknown',notes:'Conservation à vérifier : ouvert depuis une semaine.',unit_type:'bouteille'});
+    expect((await new ReadInventoryHandler().execute(makeCtx(client),{search:'lait'})).result.complete).toBe(false);
+  });
   it('flags rows already past their date, so « expire le 1er février » is not said in November', async () => {
     const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
     const row = (id: string, name: string, expiry: string) => ({ id, product_id: 'p-' + id, quantity: 1, unit: 'kg', expiry_date: expiry,

@@ -174,6 +174,7 @@ const findRecipesUsingIngredientArgs = z.object({
 export type FindRecipesUsingIngredientArgs = z.infer<typeof findRecipesUsingIngredientArgs>;
 
 const suggestRecipesForContextArgs = z.object({
+  cuisine:z.string().trim().min(1).max(100).optional(),
   ingredient:z.string().min(1).max(200).optional(),
   craving:z.enum(['warm','fresh','comfort','any']).optional(),
   /** Optional free-text narrowing applied via ilike on recipe.name. */
@@ -527,7 +528,8 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
     jsonSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', maxLength: 200, description: 'optional narrowing on recipe name' },
+        query: { type: 'string', maxLength: 200, description: 'optional narrowing on recipe name, not its cuisine' },
+        cuisine: { type: 'string', minLength:1,maxLength:100,description:'Requested culinary origin from cuisine_category or tags, e.g. tunisienne, italienne. Do not put a cuisine in query.' },
         ingredient:{ type:'string',minLength:1,maxLength:200,description:'Ingredient in the effective personal recipe, not the title' },
         craving:{ type:'string',enum:['warm','fresh','comfort','any'],description:'Transient meal style' },
         max_prep_time: { type: 'integer', minimum: 1, maximum: 600, description: 'total minutes including preparation, cooking and recorded rest' },
