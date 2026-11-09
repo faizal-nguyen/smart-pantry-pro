@@ -255,7 +255,7 @@ export class RecommendationEngine {
       // Lunch, dinner and « main » dishes stand in for each other (the exact type ranks first);
       // a dessert or a drink is not a dinner. Types outside the known groups stay candidates.
       const wanted=mealGroup(input.mealType),offered=mealGroup(recipe.meal_type);
-      if (wanted && offered && wanted!==offered) return false;
+      if (!input.course && wanted && offered && wanted!==offered) return false;
       const ingredients=recipe.recipe_ingredients ?? [];
       if (input.ingredient && !ingredients.some(item=>normalizeIngredientName(item.ingredient_name).includes(normalizeIngredientName(input.ingredient!)))) return false;
       if (input.proteinFamily || input.proteinCut) {

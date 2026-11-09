@@ -523,7 +523,7 @@ test('course filters use classification rather than searching for generic course
  {...makeRecipe({id:'dessert',name:'Mousse chocolat',mealType:'snack',ings:[]}),tags:['dessert']},
  {...makeRecipe({id:'main',name:'Poulet',mealType:'dinner',ings:[]}),tags:['plat']}];
  for(const [course,id] of [['starter','soup'],['dessert','dessert'],['main','main']] as const){
- const {engine,ctx}=buildEngine({recipes:rows,inventory:[]});const result=await engine.suggestForUser(ctx,{course});
+ const {engine,ctx}=buildEngine({recipes:rows,inventory:[]});const result=await engine.suggestForUser(ctx,{course,mealType:'dinner'});
  const found=[...result.cookable_now,...result.almost_cookable,...result.verify_suggestions,...result.recent_suggestions];
  expect(found.map(r=>r.id)).toEqual([id]);
  }
