@@ -63,7 +63,7 @@ export interface AssistantPlanResponse {
   detected_language?: string;
   message: string;
   /** Answers to tap when the reply asks « laquelle ? » or a clarification. */
-  choices?: Array<{ label: string; reply: string }>;
+  choices?: AssistantChoice[];
   actions_executed: ExecutedAction[];
   actions_pending: PendingAction[];
   confirmation_token: string | null;
@@ -207,6 +207,14 @@ export async function postKeptGroceries(input: {
   return unwrapAssistant<{ action: ExecutedAction; photos_kept?: number }>(res);
 }
 
+/** A tappable answer; a recipe choice carries its exact action, sent back as `choice`. */
+export interface AssistantChoice {
+  label: string;
+  reply: string;
+  action?: AssistantChoiceAction;
+}
+export interface AssistantChoiceAction { tool: string; args: Record<string, unknown> }
+
 export function postAssistantText(input: {
   text: string;
   clientRequestId: string;
@@ -217,6 +225,7 @@ export function postAssistantText(input: {
   expectedUserId?: string;
   sessionMessages?: AssistantSessionMessage[];
   sessionRevision?: number;
+  choice?: AssistantChoiceAction;
 }): Promise<AssistantPlanResponse> {
   return apiPost<AssistantPlanResponse>(`${ASSISTANT_BASE}/text`, {
     text: input.text,
@@ -225,6 +234,7 @@ export function postAssistantText(input: {
     allowed_tools: input.allowedTools,
     conversation_id: input.conversationId,
     session_messages: input.sessionMessages, session_revision: input.sessionRevision,
+    choice: input.choice,
   }, { expectedUserId: input.expectedUserId });
 }
 

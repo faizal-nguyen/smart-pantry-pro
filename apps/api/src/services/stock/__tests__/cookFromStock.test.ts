@@ -55,15 +55,29 @@ describe('cooking with what the stock holds', () => {
   test('says in French what is taken and what is not', () => {
     const plan = planCookFromStock(biryani, stock, 2, 2);
     expect(describeCookPlan(plan, 'done')).toEqual([
-      'Retiré de ton stock : Oignon 2 pièce.',
+      'Retiré de ton stock : Oignon 2 pièces.',
       'Tout ce que tu avais : Riz basmati 100 g (la recette en demande 300 g).',
       'Pas dans ton stock, rien à retirer : Agneau.',
       'Quantité ou unité à préciser, je n’y touche pas : Sel.',
     ]);
     expect(describeCookPlan(plan, 'planned').slice(0, 2)).toEqual([
-      'Je retire de ton stock : Oignon 2 pièce.',
+      'Je retire de ton stock : Oignon 2 pièces.',
       'Je prends tout ce que tu as : Riz basmati 100 g (la recette en demande 300 g).',
     ]);
     expect(describeCookPlan(planCookFromStock([ingredient('Eau', 1, 'l')], [], 1, 1), 'planned')).toEqual(['Rien à retirer de ton stock.']);
+  });
+
+  // iPhone 2026-11-09: « oignon 2 unité », and « ghee » twice in the same list.
+  test('names each ingredient once, and counted units take the plural from 2', () => {
+    const recipe = [ingredient('oignon', 2, 'unité'), ingredient('Lait', 2, 'litre'), ingredient('Citron', 1.5, 'unité'),
+      ingredient('Ail', 2, 'gousse'), ingredient('Riz', 150, 'g'), ingredient('Riz', 50, 'g'), ingredient('Thym', 2, 'brins'),
+      ingredient('ghee', null, null), ingredient('Sel', null, null), ingredient('Ghee', null, null), ingredient('Safran', 1, 'g'), ingredient('safran', 1, 'g')];
+    const lots = [lot('o', 'Oignon', 5, 'unité'), lot('l', 'Lait', 3, 'l'), lot('c', 'Citron', 3, 'unité'), lot('a', 'Ail', 6, 'gousse'),
+      lot('r', 'Riz', 1, 'kg'), lot('t', 'Thym', 5, 'brins'), lot('g', 'Ghee', 200, 'g'), lot('s', 'Sel', 1, 'kg')];
+    expect(describeCookPlan(planCookFromStock(recipe, lots, 1, 1), 'planned')).toEqual([
+      'Je retire de ton stock : oignon 2 unités, Lait 2 litres, Citron 1,5 unité, Ail 2 gousses, Riz 200 g, Thym 2 brins.',
+      'Pas dans ton stock, rien à retirer : Safran.',
+      'Quantité ou unité à préciser, je n’y touche pas : ghee, Sel.',
+    ]);
   });
 });

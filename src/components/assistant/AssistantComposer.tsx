@@ -31,6 +31,7 @@ import {
   postGroceryPhotos,
 } from '@/services/assistantApi';
 import type {
+  AssistantChoiceAction,
   AssistantConversationMode,
   AssistantPlanResponse,
   RecognizedGrocery,
@@ -61,6 +62,10 @@ interface AssistantComposerProps {
   initialRequest?: string;
   /** Called when that question is taken, so the parent can forget it (no resend on reload). */
   onInitialRequestTaken?: () => void;
+  /** The exact action of a tapped « Laquelle ? » answer, sent with it: no model call. */
+  initialChoice?: AssistantChoiceAction;
+  /** Called as soon as a message leaves, so the thread shows it before the reply. */
+  onSending?: (text: string) => void;
 }
 
 export default function AssistantComposer({
@@ -70,7 +75,7 @@ export default function AssistantComposer({
   onResponse,
   onError,
   autoFocus = false,
-  disabled, sessionMessages, sessionRevision, expectedUserId, initialRequest, onInitialRequestTaken,
+  disabled, sessionMessages, sessionRevision, expectedUserId, initialRequest, onInitialRequestTaken, initialChoice, onSending,
 }: AssistantComposerProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -78,7 +83,8 @@ export default function AssistantComposer({
   const [dictated, setDictated] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const focusAfterSend = useRef(false);
-  const request = useRef<{ id: string; text: string; conversationId?: string | null } | null>(null);
+  // A retry of the same message keeps its id, and the choice it was tapped with.
+  const request = useRef<{ id: string; text: string; conversationId?: string | null; choice?: AssistantChoiceAction } | null>(null);
   const joined = useJoinedPhotos();
   // The photos already read: a resend after a failed reply does not read them again.
   const recognized = useRef<{ photos: JoinedPhoto[]; seen: SeenGroceries } | null>(null);
@@ -129,7 +135,7 @@ export default function AssistantComposer({
     lastRequest.current = initialRequest;
     onInitialRequestTaken?.();
     setText(initialRequest);
-    void submit(initialRequest);
+    void submit(initialRequest, initialChoice);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialRequest, expectedUserId, disabled]);
 
@@ -149,7 +155,7 @@ export default function AssistantComposer({
     }
   }
 
-  async function submit(value: string) {
+  async function submit(value: string, choice?: AssistantChoiceAction) {
     const trimmed = value.trim();
     const photos = joined.photos;
     if ((!trimmed && photos.length === 0) || disabled || sending || isRecording || isTranscribing || joined.preparing) return;
@@ -165,11 +171,13 @@ export default function AssistantComposer({
         message = `${trimmed}\n\n${groceriesNote(groceries.items)}`;
       }
       if (!request.current || request.current.text !== message || request.current.conversationId !== conversationId)
-        request.current = { id: newClientRequestId(), text: message, conversationId };
+        request.current = { id: newClientRequestId(), text: message, conversationId, choice };
+      onSending?.(trimmed);
       const response = await postAssistantText({
         text: message,
         clientRequestId: request.current.id, expectedUserId,
         conversationId: conversationId ?? undefined, sessionMessages, sessionRevision,
+        choice: request.current.choice,
       });
       if (!response.memory_results?.some(r => r.status === 'verification_required')) { setText(''); setDictated(false); request.current = null; }
       if (groceries) { setSeen(groceries); joined.clear(); }

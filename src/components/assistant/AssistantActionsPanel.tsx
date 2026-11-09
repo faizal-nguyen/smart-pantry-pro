@@ -10,6 +10,7 @@ import { AlertTriangle, Check, Loader2, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { shortenList } from '@/lib/shortenList';
 import { useToast } from '@/hooks/use-toast';
 import {
   postAssistantConfirm,
@@ -113,7 +114,8 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       dispatchAgentDbChanged(done.actions_executed.flatMap(action => tablesForTool(action.tool)));
       // iPhone 2026-11-07: « 0 exécutée(s), 1 échec(s) » said nothing about why.
       const reasons = [...new Set(done.actions_failed.map(failure => failure.reason).filter((reason): reason is string => !!reason))];
-      const summaries = done.actions_executed.flatMap(action => summaryOf(action.result));
+      // The toast cannot be unfolded: long lists stay short there, whole in the executed row.
+      const summaries = done.actions_executed.flatMap(action => summaryOf(action.result)).map(line => shortenList(line) ?? line);
       toast({
         title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle' : 'Action non réalisée',
         description: !done.actions_failed.length ? summaries.length ? summaries.join(' ') : `${done.actions_executed.length} exécutée(s).`
@@ -190,7 +192,7 @@ function ExecutedRow({ action, onUndo, undoing }: { action: ExecutedAction; onUn
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
         {summaryOf(action.result).length > 0 && (
           <ul className="mt-1.5 space-y-0.5 text-sm text-foreground/80 break-words">
-            {summaryOf(action.result).map(line => <li key={line}>{line}</li>)}
+            {summaryOf(action.result).map(line => <DetailLine key={line} line={line} />)}
           </ul>
         )}
       </div>
@@ -200,6 +202,23 @@ function ExecutedRow({ action, onUndo, undoing }: { action: ExecutedAction; onUn
           <span className="ml-1 text-xs">Annuler</span>
         </Button>
       )}
+    </li>
+  );
+}
+
+/** One line of what an action does; a long list of names unfolds with « Voir tout ». */
+function DetailLine({ line }: { line: string }) {
+  const [open, setOpen] = useState(false);
+  const short = shortenList(line);
+  if (!short) return <li>{line}</li>;
+  return (
+    <li>
+      <span>{open ? line : short}</span>{' '}
+      {/* Inline, with a 44 px tap area that does not push the next line away. */}
+      <button type="button" className="-my-3 inline-flex min-h-11 items-center px-1 text-xs font-medium text-primary underline underline-offset-2"
+        aria-expanded={open} onClick={() => setOpen(value => !value)}>
+        {open ? 'Voir moins' : 'Voir tout'}
+      </button>
     </li>
   );
 }
@@ -216,7 +235,7 @@ function PendingRow({ action }: { action: PendingAction }) {
         <p className="text-sm text-foreground/80 whitespace-pre-line break-words leading-relaxed">{previewArgs(action.args, action.labels)}</p>
         {!!action.details?.length && (
           <ul className="mt-1.5 space-y-0.5 text-sm text-foreground/80 break-words">
-            {action.details.map(line => <li key={line}>{line}</li>)}
+            {action.details.map(line => <DetailLine key={line} line={line} />)}
           </ul>
         )}
         {action.reason && <p className="text-xs italic text-amber-800 mt-1.5 break-words">{action.reason}</p>}

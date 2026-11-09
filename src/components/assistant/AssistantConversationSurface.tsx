@@ -26,9 +26,11 @@ import AssistantMemoryNotice from './AssistantMemoryNotice';
 import AssistantHistoryNotice from './AssistantHistoryNotice';
 import AssistantModelDetails from './AssistantModelDetails';
 import { AssistantActionsPanel } from './AssistantActionsPanel';
+import AssistantPendingTurn from './AssistantPendingTurn';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
+  AssistantChoice,
   AssistantConversationMode,
   AssistantPlanResponse,
 } from '@/services/assistantApi';
@@ -65,15 +67,18 @@ export default function AssistantConversationSurface({
   const queryClient = useQueryClient();
   // In a saved conversation the thread scrolls to its end when the new messages
   // arrive: the block goes inside it, after the reply, or it ends up off screen.
-  // A tapped choice (« Lamb (Mutton) Biryani ») is sent like a typed answer.
-  const [quickReply, setQuickReply] = useState<string | null>(null);
+  // A tapped choice (« Lamb (Mutton) Biryani ») is sent like a typed answer, with its action.
+  const [quickReply, setQuickReply] = useState<AssistantChoice | null>(null);
+  // The message on its way, shown until its reply (or its error) arrives.
+  const [sending, setSending] = useState<{ owner?: string; text: string } | null>(null);
+  const sendingHere = sending && sending.owner === owner ? sending.text : null;
   const actions = latestHere && (
     <div ref={actionsRef} className="mt-4 space-y-3">
       {!!latestHere.choices?.length && (
         <div className="flex flex-wrap gap-2" role="group" aria-label="Réponses possibles">
           {latestHere.choices.map(choice => (
             <Button key={choice.label} type="button" variant="outline" size="sm" className="min-h-11 whitespace-normal text-left"
-              disabled={!!quickReply} onClick={() => setQuickReply(choice.reply)}>
+              disabled={!!quickReply} onClick={() => setQuickReply(choice)}>
               {choice.label}
             </Button>
           ))}
@@ -83,6 +88,7 @@ export default function AssistantConversationSurface({
         onResultPatched={patch => setLatest(previous => previous && previous.result === latestHere ? { ...previous, result: { ...previous.result, ...patch } } : previous)} />
     </div>
   );
+  const footer = sendingHere ? <AssistantPendingTurn text={sendingHere} /> : actions;
   const { messages, isLoading: messagesLoading } = useAssistantMessages(
     conversationId,
     { limit: 50, enabled: !!conversationId },
@@ -92,6 +98,7 @@ export default function AssistantConversationSurface({
   // thread renders them inline. We just need to invalidate after a turn
   // so the latest message (with its persisted buckets) flows back in.
   const handleResponse = (response: AssistantPlanResponse) => {
+    setSending(null);
     if (ownerRef.current !== owner) return;
     setLatest({ owner, result: response });
     // Stock, shopping or menu pages refresh what an executed action changed.
@@ -131,9 +138,9 @@ export default function AssistantConversationSurface({
         {!conversationId && currentSession.messages.length === 0 ? (
           <div className="kitchen-assistant-welcome"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ou dicte ta question ci-dessous, ou joins des photos de tes courses.</p></div>
         ) : (
-          <AssistantMessageThread messages={messages} isLoading={messagesLoading} footer={conversationId ? actions : null} />
+          <AssistantMessageThread messages={messages} isLoading={messagesLoading} footer={conversationId ? footer : null} />
         )}
-        {!conversationId && actions}
+        {!conversationId && footer}
       </CardContent>
       <AssistantComposer
         key={owner}
@@ -143,7 +150,10 @@ export default function AssistantConversationSurface({
         mode={mode}
         onModeChange={onModeChange}
         onResponse={handleResponse}
-        initialRequest={askedByButton ?? quickReply ?? undefined}
+        onSending={text => setSending({ owner, text })}
+        onError={() => setSending(null)}
+        initialRequest={askedByButton ?? quickReply?.reply ?? undefined}
+        initialChoice={askedByButton ? undefined : quickReply?.action}
         onInitialRequestTaken={() => { if (askedByButton) navigate(location.pathname + location.search, { replace: true, state: null }); else setQuickReply(null); }}
       />
     </Card>
