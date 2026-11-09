@@ -13,8 +13,8 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 PSQL = os.environ.get("V10_TEST_PSQL", "/opt/homebrew/opt/postgresql@16/bin/psql")
-SOCKET = "/private/tmp/smart-grocery-v10-pg"
-PORT = "55438"
+SOCKET = os.environ.get("V10_TEST_SOCKET", "/private/tmp/smart-grocery-v10-pg")
+PORT = os.environ.get("V10_TEST_PORT", "55438")
 DATABASE = "v10_test_" + uuid.uuid4().hex[:12]
 A = "00000000-0000-4000-8000-000000000001"
 B = "00000000-0000-4000-8000-000000000002"

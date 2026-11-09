@@ -72,11 +72,15 @@ describe('recipe ingredients checked against the pantry', () => {
     ['échalotes','Échalote',1], ['œufs','Oeufs',1], ['lait de coco','Lait de coco bio',2], ['oignon','Oignons rouges',2],
     ['味噌','味噌',1], ['đường','Đường',1], ['sel','Sel de Guérande',2], ['poivre','Poivre en grains',2],
     ['cuisses de poulet','Cuisses de poulet fermier Label Rouge',2], ['sel','Sel fin de Guérande',2], ["huile d'olive","Huile d’olive vierge extra",2], ['sucre','Sucre en poudre',2], ['sel','Sel de mer',2],
+    ['oignons verts','Oignons nouveaux',1], ['oignons nouveaux','Spring onions',1], ['spring onion','Oignon vert bio',2],
+    ['oignon vert','Oignons nouveaux (spring onions)',2], ['ail semoule','Ail semoule bio',2],
   ])('%s is found in stock as %s', (ingredient,product,rank) => expect(ingredientMatchRank(ingredient as string,product as string)).toBe(rank));
   test.each([
     ['lait','Lait de coco'], ['poulet','Bouillon de poulet'], ['huile',"Huile d'olive"], ['coriandre','Coriandre en poudre'],
     ['lait','Lait concentré sucré'], ['sauce soja','Sauce soja sucrée'], ['saumon','Saumon fumé'], ['riz','Farine de riz'], ['','Riz'],
     ['citron vert','Citron'], ['sucre glace','Sucre'], ['sucre','Sucre de coco'], ['sel','Sel de céleri'], ['poivre','Poivre de Sichuan'], ['味噌','味噌 blanc'],
+    ['oignon vert','Oignon'], ['oignon nouveau','Oignon rouge'], ['spring onion','Oignons nouveaux séchés'],
+    ['oignons verts','Oignons nouveaux en poudre'], ['ail','Ail semoule'], ['ail','ail caramélisé'], ['gingembre','Gingembre moulu'],
   ])('%s is not mistaken for %s', (ingredient,product) => expect(ingredientMatchRank(ingredient,product)).toBe(0));
   test('a plural or qualified product name covers the recipe ingredient', () => {
     const preview = allocateRecipeStock([need('échalotes',3), need('lait de coco',200,'ml')],[pantry('Échalote',5,'unité'),pantry('Lait de coco bio',400,'ml')],4,4);
@@ -86,6 +90,12 @@ describe('recipe ingredients checked against the pantry', () => {
   test('the exact product is used before a more specific one', () => {
     const preview = allocateRecipeStock([need('riz',200,'g')],[{ ...pantry('Riz basmati',1,'kg','basmati'), expiry_date: '2026-01-01' },pantry('Riz',1,'kg','plain')],4,4);
     expect(preview.allocations.map(item => item.inventory_id)).toEqual(['plain']);
+  });
+  test('a fresh culinary synonym allocates real stock while a dried form cannot cover it', () => {
+    const preview=allocateRecipeStock([need('oignons verts',2)],
+      [pantry('Oignons nouveaux séchés',10,'unité','dried'),pantry('Oignons nouveaux',3,'unité','fresh')],2,2);
+    expect(preview.missing).toEqual([]);
+    expect(preview.allocations).toEqual([expect.objectContaining({ inventory_id:'fresh',quantity:2 })]);
   });
   test('a linked product id still accepts a pantry lot with the same name', () => {
     expect(allocateRecipeStock([{ ...need('farine',200,'g'), inventory_product_id: 'catalog-flour' }],[pantry('Farine')],4,4).missing).toEqual([]);

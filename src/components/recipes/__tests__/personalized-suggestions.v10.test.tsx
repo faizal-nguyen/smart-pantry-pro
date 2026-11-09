@@ -6,6 +6,8 @@ import AssistantRecipeProposals from '@/components/assistant/AssistantRecipeProp
 import type { RecommendationResultView,RecommendedRecipeView } from '@/services/recommendationsApi';
 let mockResult:RecommendationResultView;
 let mockProfileVersion=1;
+let mockNow=new Date('1970-01-01T12:00:00Z');
+jest.mock('@/hooks/useCalendarNow',()=>({ useCalendarNow:()=>mockNow }));
 const mockPostFeedback=jest.fn();
 jest.mock('@/services/recommendationsApi',()=>({ ...jest.requireActual('@/services/recommendationsApi'),postRecipeFeedback:(...args:unknown[])=>mockPostFeedback(...args) }));
 const owner='00000000-0000-4000-8000-000000000001';
@@ -18,7 +20,7 @@ function candidate(id:string):RecommendedRecipeView { return { id,name:`Recette 
   availability:{ status:'available',missing:[],allocations:[],uncertainties:[],excluded_lots:[] },
   nutrition:{ status:'unavailable',coverage:0,known_ingredients:0,total_ingredients:1,per_serving:{ energyKcal:null,proteinG:null,fiberG:null },sources:[],limitations:['Données absentes, aucune estimation inventée.'] },
   reason_codes:[{ code:'TIME_FITS',text:'Durée enregistrée 15 min.' }],unavailable_criteria:['nutrition','variety'] }; }
-beforeEach(()=>{ jest.restoreAllMocks();localStorage.clear();mockProfileVersion=1;mockResult={ cookable_now:[candidate('a'),candidate('b'),candidate('c'),candidate('d')],almost_cookable:[],recent_suggestions:[],verify_suggestions:[],excluded_suggestions:[],total_user_recipes:4,pipeline_version:3,profile_version:1,calculated_at:'2026-10-09T12:00:00Z',has_constraints:false }; });
+beforeEach(()=>{ jest.restoreAllMocks();mockPostFeedback.mockClear();localStorage.clear();mockNow=new Date('1970-01-01T12:00:00Z');mockProfileVersion=1;mockResult={ cookable_now:[candidate('a'),candidate('b'),candidate('c'),candidate('d')],almost_cookable:[],recent_suggestions:[],verify_suggestions:[],excluded_suggestions:[],total_user_recipes:4,pipeline_version:3,profile_version:1,calculated_at:'2026-10-09T12:00:00Z',has_constraints:false }; });
 function wrap(element:React.ReactNode) { return <QueryClientProvider client={new QueryClient()}><MemoryRouter>{element}</MemoryRouter></QueryClientProvider>; }
 test('at most three ideas show calculated reasons, unavailable nutrition and an editable profile link',()=>{
   render(wrap(<PersonalizedRecipeSuggestions/>));
@@ -113,4 +115,46 @@ test('a featured idea says what is missing, and at most one doubt', () => {
   expect(screen.getByText('À vérifier dans ton stock (dates ou quantités) : Ail, Tomates.')).toBeInTheDocument();
   expect(screen.queryByText('Une autre remarque.')).not.toBeInTheDocument();
   expect(screen.queryByText('Des ingrédients restent à acheter ou à vérifier.')).not.toBeInTheDocument();
+});
+
+test('browsing the featured alternatives keeps missing ingredients visible and writes no feedback',()=>{
+  const almost={ ...candidate('b'),score_total:30,missing_ingredients:['Riz gluant'],availability:{ ...candidate('b').availability,status:'missing' as const } };
+  mockResult={ ...mockResult,cookable_now:[candidate('a')],almost_cookable:[almost] };
+  render(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByRole('heading',{name:'Recette a'})).toBeVisible();
+  const next=screen.getByRole('button',{name:'Autre idée'});
+  next.focus();
+  fireEvent.click(next);
+  expect(next).toHaveFocus();
+  expect(screen.getByRole('status')).toHaveTextContent('Recette b');
+  expect(screen.getByRole('heading',{name:'Recette b'})).toBeVisible();
+  expect(screen.getByText('Il te manque : Riz gluant.')).toBeVisible();
+  expect(screen.queryByText('Tout est dans ton stock.')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Autre idée'}));
+  expect(screen.getByRole('heading',{name:'Recette a'})).toBeVisible();
+  expect(mockPostFeedback).not.toHaveBeenCalled();
+});
+
+test('daily selection follows Paris midnight and manual selection resets when candidates change',()=>{
+  mockNow=new Date('1970-01-01T22:59:00Z');
+  const { rerender }=render(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByRole('heading',{name:'Recette a'})).toBeVisible();
+  mockNow=new Date('1970-01-01T23:00:00Z');
+  rerender(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByRole('heading',{name:'Recette b'})).toBeVisible();
+  fireEvent.click(screen.getByRole('button',{name:'Autre idée'}));
+  expect(screen.getByRole('heading',{name:'Recette c'})).toBeVisible();
+  mockResult={ ...mockResult,cookable_now:[candidate('only')] };
+  rerender(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByRole('heading',{name:'Recette only'})).toBeVisible();
+  expect(screen.queryByRole('button',{name:'Autre idée'})).not.toBeInTheDocument();
+});
+
+test('an in-stock container with an unknown amount never promises enough for the recipe',()=>{
+  const rasam=candidate('rasam');
+  rasam.availability={ ...rasam.availability,missing:[{ ingredient_index:0,ingredient_name:'Poudre de rasam',quantity:1,unit:'c. à café',reason:'UNIT_UNKNOWN',is_essential:true }],uncertainties:['En stock, quantité à vérifier : Poudre de rasam.'] };
+  mockResult={ ...mockResult,cookable_now:[rasam] };
+  render(wrap(<PersonalizedRecipeSuggestions featured/>));
+  expect(screen.getByText('Ingrédients présents · quantités à vérifier.')).toBeVisible();
+  expect(screen.queryByText('Tout est dans ton stock.')).not.toBeInTheDocument();
 });

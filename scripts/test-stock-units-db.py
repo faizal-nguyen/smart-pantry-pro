@@ -18,7 +18,7 @@ A, ROOT = stock.A, stock.ROOT
 
 MIGRATIONS = ["20261008151704_v10_reliability_commands.sql", "20261008210917_v10_mobile_routine.sql",
               "20261009095426_v10_personalization.sql", "20261031100000_v10_pantry_matching.sql",
-              "20261105100000_stock_units.sql"]
+              "20261105100000_stock_units.sql", "20261109190000_stock_culinary_synonyms.sql"]
 
 
 def in_unit(quantity, source, target):

@@ -94,7 +94,7 @@ export class RecommendationEngine {
     const stockVersion=stockFingerprint(lots);
     // Read authoritative inputs before cache: profile, date, edited recipes, product
     // provenance, feedback and cooked history all participate, even on direct writes.
-    const key='v10-03c:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
+    const key='v10-03d:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
       try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) {
         if (!ctx.memoryService || sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId))) return { ...cached.hit.result,...requestView };
