@@ -20,5 +20,14 @@ export function memoryModelToolResult(tool: string, result: unknown, policy: Mem
     return Object.fromEntries(['status', 'destination', 'reason', 'version'].map(k => [k, obj[k]]).filter(([, v]) => v !== undefined));
   const recommendation = recommendationModelContext(result, policy?.shareProfile ? policy.profileVersion : undefined);
   if (recommendation !== null) return recommendation;
+  if (tool==='read_inventory' && Array.isArray(obj.items)) {
+    // The generic history limit (30) must not turn a full pantry into an
+    // incomplete stock read. Keep the existing field/privacy redaction on
+    // every row; only the current-inventory envelope has a larger bound.
+    const {items,...metadata}=obj;
+    return { ...(redact(metadata,!!policy?.shareProfile) as Record<string,unknown>),
+      complete:obj.complete===true && items.length<=200,
+      items:items.slice(0,200).map(item=>redact(item,!!policy?.shareProfile)) };
+  }
   return redact(result, !!policy?.shareProfile);
 }
