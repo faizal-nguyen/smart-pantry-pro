@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {recipeNutritionSignature,SourcedRecipeNutritionSchema} from '@smart/shared';
 import {estimateNutrition,scoreNutritionGoal} from '../PersonalizationScoring.js';
 import {emptyNutritionProfile} from '@smart/shared';
@@ -29,7 +31,6 @@ test('an upper protein bound is not used as proof of a high-protein meal',()=>{
 });
 
 test('all 53 approved recipe snapshots validate against their persisted identities and quantities',()=>{
- const {readFileSync}=require('node:fs');const {resolve}=require('node:path');
  const collection=JSON.parse(readFileSync(resolve(process.cwd(),'data/recipes/classics-approved-2026-11-09.json'),'utf8'));
  expect(collection.recipes).toHaveLength(53);
  const ids=new Set<number>();
