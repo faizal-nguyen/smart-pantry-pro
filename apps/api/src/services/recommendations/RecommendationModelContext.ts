@@ -1,3 +1,4 @@
+import {NUTRIENTS} from '@smart/shared';
 /** Compact model transport only. The UI and private action receipt keep the
  * original evidence; this module never filters or ranks recipes. */
 const object = (value: unknown): Record<string, unknown> | null =>
@@ -49,7 +50,8 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
           return { ingredient_name: text(gap?.ingredient_name, 80), quantity: gap?.quantity, unit: text(gap?.unit, 30) };
         }),
         nutrition: { status: nutrition?.status, coverage: nutrition?.coverage,
-          per_serving: { energyKcal: object(nutrition?.per_serving)?.energyKcal, proteinG: object(nutrition?.per_serving)?.proteinG, fiberG: object(nutrition?.per_serving)?.fiberG },
+          per_serving:Object.fromEntries(NUTRIENTS.map(({key})=>[key,object(nutrition?.per_serving)?.[key] ?? null])),
+          upper_bounds:list(nutrition?.upper_bounds).filter(key=>NUTRIENTS.some(field=>field.key===key)),
           sources: list(nutrition?.sources).slice(0, 3).map(item => ({ source: text(object(item)?.source, 40), base: text(object(item)?.base, 30), updated_at: text(object(item)?.updated_at, 40) })),
         },
         unavailable_criteria: list(recipe.unavailable_criteria).slice(0, 8).map(value => text(value, 40)),

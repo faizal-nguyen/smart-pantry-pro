@@ -58,7 +58,7 @@ test.each(['recipes', 'user_recipes', 'recipes_catalog'] as const)('evaluates th
   expect(RecipeEvaluationSchema.safeParse(result).success).toBe(true);
   expect(result.reference).toEqual({ id: ID, source });
   expect(result.duration_minutes).toBe(25);
-  expect(result.nutrition.per_serving).toEqual({ energyKcal: 100, proteinG: 2, fiberG: 0 });
+  expect(result.nutrition.per_serving).toMatchObject({ energyKcal: 100, proteinG: 2, fiberG: 0, carbsG: null, fatG: null, vitaminCMg: null });
   expect(result.nutrition.sources[0]).toMatchObject({ source: 'manual', updated_at: '2026-10-08T12:00:00Z' });
   expect(client.rpc).not.toHaveBeenCalled();
   expect(serviceClient.from).not.toHaveBeenCalled();

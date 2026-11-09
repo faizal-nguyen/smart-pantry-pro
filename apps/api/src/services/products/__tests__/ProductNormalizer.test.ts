@@ -92,6 +92,11 @@ describe('projectNutritionFromOff', () => {
     expect(env?.rawFieldVersion).toBe(1);
   });
 
+  it('reads the native kcal key and converts micronutrient gram values into explicit mg or µg',()=>{
+    const result=projectNutritionFromOff({code:'1',nutriments:{'energy-kcal_100g':100,'vitamin-c_100g':0.02,'vitamin-d_100g':0.000002,calcium_100g:0.12,'vitamin-b12_100g':0.000001}});
+    expect(result?.per100g).toMatchObject({energyKcal:100,vitaminCMg:20,vitaminDUg:2,calciumMg:120,vitaminB12Ug:1});
+    expect(result?.per100g?.ironMg).toBeUndefined();
+  });
   it('falls back to kJ → kcal conversion when only energy_100g present', () => {
     const off: OffProductPayload = {
       code: '1',

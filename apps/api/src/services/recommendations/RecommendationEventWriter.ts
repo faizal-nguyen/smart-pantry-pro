@@ -259,6 +259,7 @@ export function buildRecommendationCacheKey(ctx: RecommendationContext): string 
   const fields: Array<keyof RecommendationContext> = [
     'almostThreshold',
     'cuisine',
+    'course',
     'goal',
     'includeRecentFallback',
     'limitPerBucket',

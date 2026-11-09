@@ -1,9 +1,10 @@
 import { allocateRecipeStock,calendarDaysUntil,convertQuantity,ingredientMatchRank,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
 import { RecipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js';
 import type { RecipeWithIngredients } from './types.js';
+import {NUTRIENTS,recipeNutritionSignature,SourcedRecipeNutritionSchema,type NutrientKey} from '@smart/shared';
 
 export interface IngredientProduct {
-  id:string;name:string;nutrition_json?:{ source?:string;per100g?:{ energyKcal?:number;proteinG?:number;fiberG?:number };rawFieldVersion?:number };
+  id:string;name:string;nutrition_json?:{ source?:string;per100g?:Partial<Record<NutrientKey,number>>;rawFieldVersion?:number };
   allergens_json?:{ source?:string;allergensTags?:string[];tracesTags?:string[];complete?:boolean };
   off_last_synced_at?:string|null;updated_at?:string|null;enrichment_status?:string;
 }
@@ -151,8 +152,22 @@ export function evaluateAvailability(recipe:RecipeWithIngredients,lots:Qualified
 
 export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<string,IngredientProduct>):NutritionEstimate {
   const ingredients=recipe.recipe_ingredients ?? [];
+  const snapshot=SourcedRecipeNutritionSchema.safeParse(recipe.nutrition_info);
+  if (snapshot.success && snapshot.data.ingredient_signature===recipeNutritionSignature(ingredients,recipe.servings) &&
+      snapshot.data.base_servings===recipe.servings && snapshot.data.ingredients.length<=ingredients.length && ingredients.length) {
+    const value=snapshot.data,coverage=value.ingredients.length/ingredients.length;
+    const allIngredients=coverage===1;
+    const complete=allIngredients && [value.per_serving.energyKcal,value.per_serving.proteinG,value.per_serving.fiberG].every(item=>item!==null);
+    return {status:complete ? 'estimated' : 'partial',coverage,known_ingredients:value.ingredients.length,total_ingredients:ingredients.length,
+      per_serving:allIngredients ? value.per_serving : {energyKcal:null,proteinG:null,fiberG:null},upper_bounds:value.upper_bounds,
+      sources:[{source:'ciqual2020',updated_at:'2020-07-07',base:'100g',url:value.reference_url}],
+      limitations:[...value.assumptions,...value.missing_ingredients.map(name=>`Référence nutritionnelle manquante : ${name}.`),
+        'Estimation à partir des ingrédients et des portions de cette version. Rendement de cuisson, pertes et variations des produits ne sont pas mesurés.',
+        'Les valeurs précédées de « < » sont des limites supérieures, pas des mesures exactes. Le rétinol ne comprend pas le bêta-carotène.']};
+  }
   let count=0,estimated=false;
-  const total={ energyKcal:0,proteinG:0,fiberG:0 },known={ energyKcal:0,proteinG:0,fiberG:0 };
+  const total=Object.fromEntries(NUTRIENTS.map(({key})=>[key,0])) as Record<NutrientKey,number>;
+  const known={...total};
   const sources:NutritionEstimate['sources']=[],limitations:string[]=[];
   for (const ingredient of ingredients) {
     const product=ingredient.inventory_product_id ? products.get(ingredient.inventory_product_id) : undefined;
@@ -161,7 +176,7 @@ export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<stri
     let grams:number;
     try { grams=convertQuantity(ingredient.quantity,ingredient.unit,'g'); } catch { limitations.push(`Poids inconnu pour ${ingredient.ingredient_name} ; aucune conversion pièces/volume en grammes inventée.`);continue; }
     let contributed=false;
-    for (const key of ['energyKcal','proteinG','fiberG'] as const) {
+    for (const {key} of NUTRIENTS) {
       const value=envelope.per100g[key];
       if (typeof value==='number' && Number.isFinite(value) && value>=0) { total[key]+=value*grams/100;known[key]++;contributed=true; }
     }
@@ -171,12 +186,13 @@ export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<stri
     }
   }
   const base=recipe.servings && Number.isFinite(recipe.servings) && recipe.servings>0 ? recipe.servings : null;
-  const complete=ingredients.length>0 && Object.values(known).every(value=>value===ingredients.length) && base!==null;
+  const complete=ingredients.length>0 && ['energyKcal','proteinG','fiberG'].every(key=>known[key as NutrientKey]===ingredients.length) && base!==null;
   if (!base) limitations.push('Portions de base inconnues ; estimation par portion indisponible.');
+  if (snapshot.success) limitations.push('Le calcul Ciqual enregistré ne correspond plus aux ingrédients ou aux portions actuels ; il doit être recalculé.');
   limitations.push('Base déclarée pour 100 g ; rendement et différences cru/cuit non documentés. Les cibles quotidiennes ne sont pas comparées à un repas isolé.');
   return { status:!count ? 'unavailable' : !complete ? 'partial' : estimated ? 'estimated' : 'known',coverage:ingredients.length ? count/ingredients.length : 0,
     known_ingredients:count,total_ingredients:ingredients.length,
-    per_serving:Object.fromEntries((['energyKcal','proteinG','fiberG'] as const).map(key=>[key,base && known[key]===ingredients.length && ingredients.length ? Math.round(total[key]/base*100)/100 : null])) as NutritionEstimate['per_serving'],
+    per_serving:Object.fromEntries(NUTRIENTS.map(({key})=>[key,base && known[key]===ingredients.length && ingredients.length ? Math.round(total[key]/base*100)/100 : null])) as NutritionEstimate['per_serving'],
     sources,limitations };
 }
 export function scoreExplicitTaste(recipe:RecipeWithIngredients,profile:NutritionProfileSettings) {
@@ -192,7 +208,7 @@ export function scoreNutritionGoal(estimate:NutritionEstimate,profile:NutritionP
   if (estimate.coverage!==1 || !['known','estimated'].includes(estimate.status)) return null;
   const values:number[]=[];
   // Documented culinary ranking rules, not health targets: grams per serving / fixed display scale.
-  if (profile.goals.includes('protein') || goal==='high_protein') { if (estimate.per_serving.proteinG===null) return null;values.push(Math.min(1,estimate.per_serving.proteinG/30)); }
-  if (profile.goals.includes('more_fiber')) { if (estimate.per_serving.fiberG===null) return null;values.push(Math.min(1,estimate.per_serving.fiberG/10)); }
+  if (profile.goals.includes('protein') || goal==='high_protein') { if (estimate.per_serving.proteinG===null || estimate.upper_bounds?.includes('proteinG')) return null;values.push(Math.min(1,estimate.per_serving.proteinG/30)); }
+  if (profile.goals.includes('more_fiber')) { if (estimate.per_serving.fiberG===null || estimate.upper_bounds?.includes('fiberG')) return null;values.push(Math.min(1,estimate.per_serving.fiberG/10)); }
   return values.length ? values.reduce((sum,value)=>sum+value,0)/values.length : null;
 }

@@ -169,6 +169,8 @@ export interface ProductNutritionProjection {
   saturatedFatG?: number;
   fiberG?: number;
   saltG?: number;
+  retinolUg?:number;vitaminCMg?:number;vitaminDUg?:number;vitaminEMg?:number;folateUg?:number;vitaminB12Ug?:number;
+  calciumMg?:number;ironMg?:number;magnesiumMg?:number;potassiumMg?:number;
   nutriScore?: 'a' | 'b' | 'c' | 'd' | 'e' | 'unknown';
   novaGroup?: 1 | 2 | 3 | 4;
 }

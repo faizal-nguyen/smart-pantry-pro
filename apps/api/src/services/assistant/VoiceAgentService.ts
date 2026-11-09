@@ -108,12 +108,13 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "rapide", "j'ai 20 minutes" → { "max_prep_time": 20, "goal": "quick" }
     - "ce soir" → { "meal_type": "dinner", "goal": "tonight" }
     - "anti-gaspi", "à finir bientôt" → { "goal": "anti_waste" }
-    - "léger", "healthy" → { "goal": "light" } (no health claim in your reply)
+    - "léger" → { "goal": "light" } (no health claim in your reply). For "healthy" or a balanced meal, consider vegetables, protein, sides and portions; use only supplied nutrition values, never a blanket health label or a calorie target inferred for the user.
     - "protéiné" → { "goal": "high_protein" }
     - "réconfortant" → { "goal": "comfort", "craving": "comfort" }
     - "batch cooking" → { "goal": "batch_cooking" }
     - "une recette italienne", "une recette tunisienne" → { "cuisine": "italienne" } or { "cuisine": "tunisienne" }; cuisine searches origin metadata, query searches dish names.
     - 4 personnes → { "servings": 4 }
+    - "une entrée", "un plat", "un dessert" → { "course": "starter" }, { "course": "main" } or { "course": "dessert" }; do not search these generic course words as dish titles.
     - "végétarien", "sans viande" → { "dietary_flag": "vegetarien" }
     - "sans crème", "pas de champignons" → { "exclude_ingredients": ["crème"] } (this request only). A follow-up like « Et sans crème ? » refines the previous ask: call the tool again with the earlier ingredient and context args plus the new exclusion.
 - The library is a starting point, not a requirement. An empty search does not mean no meal is possible. Read read_inventory and offer up to 2 useful culinary ideas under the exact heading « Idées chef hors bibliothèque », clearly labelled as proposals, never as saved or stock-verified recipes. Do not require an import before helping.

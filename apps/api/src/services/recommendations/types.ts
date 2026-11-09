@@ -156,6 +156,7 @@ export interface RecommendationResult {
  * `SuggestRecipesForContextHandler` queries today.
  */
 export interface RecipeWithIngredients {
+  nutrition_info?:unknown;
   source?:'recipes'|'user_recipes'|'recipes_catalog';
   canonicalId?:string;
   rest_time?:number|null;

@@ -58,6 +58,7 @@ export const MealContextSchema = z.object({
   servings:z.number().int().min(1).max(20).optional(),
   query:z.string().trim().max(200).optional(),
   cuisine:z.string().trim().min(1).max(100).optional(),
+  course:z.enum(['starter','main','dessert']).optional(),
   ingredient:z.string().trim().min(1).max(200).optional(),
   proteinFamily:z.enum(['poulet','boeuf','agneau','poisson','fruits_de_mer','tofu','oeuf','mixte']).optional(),
   proteinCut:z.string().trim().min(1).max(80).optional(),
@@ -90,8 +91,9 @@ export interface NutritionEstimate {
   coverage:number;
   known_ingredients:number;
   total_ingredients:number;
-  per_serving:{ energyKcal:number|null;proteinG:number|null;fiberG:number|null };
-  sources:Array<{ product_id:string;source:string;updated_at:string|null;base:'100g' }>;
+  per_serving:import('./nutrition.js').NutritionValues;
+  upper_bounds?:import('./nutrition.js').NutrientKey[];
+  sources:Array<{ product_id?:string;source:string;updated_at:string|null;base:'100g';url?:string }>;
   limitations:string[];
 }
 export interface RecommendationEvidence {

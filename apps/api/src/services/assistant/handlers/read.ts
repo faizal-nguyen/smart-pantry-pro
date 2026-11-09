@@ -628,7 +628,7 @@ export class SuggestRecipesForContextHandler
     args: SuggestRecipesForContextArgs
   ): Promise<ToolExecutionResult<SuggestRecipesResult>> {
     const recommendationContext: RecommendationContext = {
-      query: args.query,cuisine:args.cuisine,ingredient:args.ingredient,craving:args.craving,proteinFamily:args.protein_family,proteinCut:args.protein_cut,dietaryFlag:args.dietary_flag,
+      query: args.query,cuisine:args.cuisine,course:args.course,ingredient:args.ingredient,craving:args.craving,proteinFamily:args.protein_family,proteinCut:args.protein_cut,dietaryFlag:args.dietary_flag,
       mealType: args.meal_type,
       goal: args.goal,
       timeLimitMinutes: args.max_prep_time,

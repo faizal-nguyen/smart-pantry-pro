@@ -1,0 +1,315 @@
+{
+  "checked_at": "2026-11-09T22:41:47.369Z",
+  "results": [
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/soupe-oignon.html",
+      "status": 200,
+      "title": " Soupe à l'oignon - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Soupe à l'oignon",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/salade-cesar.html",
+      "status": 200,
+      "title": " Salade César - Notre recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Salade César",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/risotto-cepe.html",
+      "status": 200,
+      "title": " Risotto aux cèpes - La recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Risotto aux cèpes",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/blanquette-veau.html",
+      "status": 200,
+      "title": " Comment réaliser une bonne blanquette de veau ! - Meilleur du Chef ",
+      "recipe_name": "Blanquette de veau à l'ancienne",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/boeuf-bourguignon.html",
+      "status": 200,
+      "title": " Recette boeuf bourguignon - Meilleur du Chef ",
+      "recipe_name": "Boeuf Bourguignon",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/hachis-parmentier.html",
+      "status": 200,
+      "title": " Hachis parmentier - Recette de cuisine illustrée - Meilleur du Chef ",
+      "recipe_name": "Hachis parmentier",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/gratin-dauphinois.html",
+      "status": 200,
+      "title": " Recette gratin dauphinois - Meilleur du Chef ",
+      "recipe_name": "Gratin dauphinois",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/poulet-marengo.html",
+      "status": 200,
+      "title": " Poulet Marengo - Recette de cuisine illustrée - Meilleur du Chef ",
+      "recipe_name": "Poulet Marengo",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/sole-meuniere.html",
+      "status": 200,
+      "title": " Sole meunière - Fiche recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Sole meunière",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/dorade-espagnole.html",
+      "status": 200,
+      "title": " Dorade à l'espagnole - Recette de cuisine illustrée - Meilleur du Chef ",
+      "recipe_name": "Dorade à l'espagnole",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/chapon-aux-morilles.html",
+      "status": 200,
+      "title": " Chapon aux morilles - Notre recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Chapon aux morilles",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/gigot-agneau-7-heures.html",
+      "status": 200,
+      "title": " Gigot de 7 heures - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Gigot de 7 heures",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/quiche-saumon.html",
+      "status": 200,
+      "title": " Quiche au saumon - Notre recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Quiche au saumon",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/boeuf-carottes.html",
+      "status": 200,
+      "title": " Vous avez du boeuf, vous avez des carottes, faites du Boeuf carottes - Meilleur du Chef ",
+      "recipe_name": "Boeuf carottes",
+      "author": {
+        "@type": "Person",
+        "name": "Fabrice Idiart"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/lotte-americaine.html",
+      "status": 200,
+      "title": " Lotte à l'américaine et ses légumes wok - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Lotte à l'américaine et ses légumes wok",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/tourte-poulet-poireau.html",
+      "status": 200,
+      "title": " Tourte de poulet aux poireaux - Fiche recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Tourte de poulet aux poireaux",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/filet-boeuf-croute.html",
+      "status": 200,
+      "title": " Filet de bœuf en croûte - Notre recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Filet de bœuf en croûte",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/ballotine-poulet-bresse-farci-morilles.html",
+      "status": 200,
+      "title": " Ballotine de poulet de Bresse farci aux morilles - Notre recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Ballotine de poulet de Bresse farci aux morilles",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/tournedos-rossini.html",
+      "status": 200,
+      "title": " Tournedos Rossini - Notre recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Tournedos Rossini",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/carre-agneau-persille.html",
+      "status": 200,
+      "title": " Carré d'agneau persillé - Fiche recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Carré d'agneau persillé",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/filet-rouget-poivrons.html",
+      "status": 200,
+      "title": " Filet de rouget aux poivrons - La recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Filet de rouget aux poivrons",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/turbot-champagne.html",
+      "status": 200,
+      "title": " Filet de turbot au sabayon de champagne - La recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Filet de turbot au sabayon de champagne",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/bisque-homard.html",
+      "status": 200,
+      "title": " Bisque de homard - Recette de cuisine illustrée - Meilleur du Chef ",
+      "recipe_name": "Bisque de homard",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/coquille-saint-jacques-bretonne.html",
+      "status": 200,
+      "title": " Coquilles Saint-Jacques à la bretonne - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Coquilles Saint-Jacques à la bretonne",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/potage-pomme-terre.html",
+      "status": 200,
+      "title": " Potage de pommes de terre - La recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Potage de pommes de terre",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/veloute-cepes-espuma-truffe.html",
+      "status": 200,
+      "title": " Velouté de cèpes et son espuma à la truffe - La recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Velouté de cèpes et son espuma à la truffe",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/ris-veau-pissalat-anchois.html",
+      "status": 200,
+      "title": " Ris de veau croustillant, pissalat d'anchois - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Ris de veau croustillant, pissalat d'anchois",
+      "author": {
+        "@type": "Person",
+        "name": "Alexandre Bousquet, Maître restaurateur (64)"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/oeuf-mimosa-paques.html",
+      "status": 200,
+      "title": " Oeufs mimosa - Notre recette illustrée - Meilleur du Chef ",
+      "recipe_name": "Oeufs mimosa",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/gougeres.html",
+      "status": 200,
+      "title": " Gougères au fromage - Fiche recette avec photos - Meilleur du Chef ",
+      "recipe_name": "Gougères au fromage",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/mousse-chocolat.html",
+      "status": 200,
+      "title": " Comment - Meilleur du Chef ",
+      "recipe_name": "Mousse au chocolat",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    },
+    {
+      "url": "https://www.meilleurduchef.com/fr/recette/creme-brulee.html",
+      "status": 200,
+      "title": " Crème brûlée - Recette de cuisine avec photos - Meilleur du Chef ",
+      "recipe_name": "Crème brûlée",
+      "author": {
+        "@type": "Person",
+        "name": "Chef Philippe"
+      }
+    }
+  ]
+}
