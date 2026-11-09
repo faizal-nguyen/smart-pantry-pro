@@ -5,7 +5,6 @@ import { ThemeProvider } from "./components/ThemeProvider";
 import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
-import { AssistantProvider } from "./components/assistant/AssistantProvider";
 import { ResponsiveProvider } from "./contexts/ResponsiveContext";
 import { AuthSessionProvider } from "./contexts/AuthSessionContext";
 import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
@@ -149,18 +148,15 @@ protectedRoutes.push(...Object.entries(getLegacyRedirections())
   .filter(([path,to]) => path !== to && !protectedRoutes.some(route => route.path === path))
   .map(([path,to]) => ({ path, element:<Navigate to={to} replace /> })));
 
-// PRP-221: wrap every route under a layout that mounts the global
-// voice-assistant FAB + dialog. The FAB self-hides on /auth and when
-// the user is not signed in, so this is safe across the entire app.
-//
+// Voice input lives in the assistant composer; no global floating microphone.
 // V10-03: legacy preferences are reviewed explicitly in the versioned profile.
 const RootLayout = () => {
   const newVersion = useNewVersion();
   return (
-    <AssistantProvider>
+    <>
       <NewVersionBanner available={newVersion} />
       <Outlet />
-    </AssistantProvider>
+    </>
   );
 };
 

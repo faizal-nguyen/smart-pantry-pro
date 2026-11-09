@@ -18,6 +18,7 @@ interface AssistantSearchBarProps {
   className?: string;
   /** Limit on the result list. Default 10. */
   limit?: number;
+  onSelect?:()=>void;
 }
 
 function formatDate(iso: string): string {
@@ -45,6 +46,7 @@ function highlight(snippet: string, query: string): React.ReactNode {
 export default function AssistantSearchBar({
   className,
   limit = 10,
+  onSelect,
 }: AssistantSearchBarProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -102,6 +104,7 @@ export default function AssistantSearchBar({
                     onClick={() => {
                       setQuery('');
                       navigate(`/assistant?conversation=${m.conversation_id}`);
+                      onSelect?.();
                     }}
                   >
                     <p className="text-sm line-clamp-2">

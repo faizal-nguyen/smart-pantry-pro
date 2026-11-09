@@ -13,12 +13,19 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
-import { MemoryCommandSchema, MemoryPolicySchema, MemoryWriteResultSchema, type MemoryCommand, type MemoryWriteResult, type MemoryPolicy, type ReliableMemoryMetadata, classifyMemoryFact, normalizeMemoryText, NutritionProfileSettingsSchema } from '@smart/shared';
+import { assistantConversationTitle,MemoryCommandSchema, MemoryPolicySchema, MemoryWriteResultSchema, type MemoryCommand, type MemoryWriteResult, type MemoryPolicy, type ReliableMemoryMetadata, classifyMemoryFact, normalizeMemoryText, NutritionProfileSettingsSchema } from '@smart/shared';
 import { memoryRpc } from './memoryRpc.js';
 import { allowedMemory, allowedMessage, allowedSummary, allowedSession, privateProfileTerms } from './MemoryPolicy.js';
 
 type Tables = Database['public']['Tables'];
 type ConversationRow = Tables['assistant_conversations']['Row'] & { policy_revision?: number | null; expires_at?: string | null };
+type TitledConversationRow = ConversationRow & { first_message?:Array<{content:string}> };
+function withConversationTitle(row:TitledConversationRow):ConversationRow {
+  const {first_message,...conversation}=row;
+  if ((!conversation.title || conversation.title==='Échange en cuisine') && first_message?.[0]?.content)
+    conversation.title=assistantConversationTitle(first_message[0].content);
+  return conversation;
+}
 type MessageRow = Tables['assistant_messages']['Row'] & { policy_revision?: number | null; expires_at?: string | null };
 type MemoryRow = Tables['assistant_memory_items']['Row'] & Partial<ReliableMemoryMetadata>;
 type SummaryRow = Tables['assistant_conversation_summaries']['Row'] & { policy_revision?: number | null; coverage_hash?: string | null };
@@ -166,14 +173,19 @@ export class MemoryService {
   async getConversation(conversationId: string, userId: string): Promise<ConversationRow> {
     const { data, error } = await this.admin
       .from('assistant_conversations')
-      .select('*')
+      .select('*,first_message:assistant_messages(content)')
       .eq('id', conversationId)
       .eq('user_id', userId)
+      .eq('first_message.role','user')
+      .eq('first_message.user_id',userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`,{referencedTable:'first_message'})
+      .order('created_at',{referencedTable:'first_message',ascending:true})
+      .limit(1,{referencedTable:'first_message'})
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .maybeSingle();
     if (error) throw this.dbError('getConversation', error);
     if (!data) throw new MemoryServiceError('NOT_FOUND', 'conversation not found');
-    return data;
+    return withConversationTitle(data as unknown as TitledConversationRow);
   }
 
   async listConversations(
@@ -183,8 +195,13 @@ export class MemoryService {
     const limit = normaliseLimit(opts.limit);
     let query = this.admin
       .from('assistant_conversations')
-      .select('*')
+      .select('*,first_message:assistant_messages(content)')
       .eq('user_id', userId)
+      .eq('first_message.role','user')
+      .eq('first_message.user_id',userId)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`,{referencedTable:'first_message'})
+      .order('created_at',{referencedTable:'first_message',ascending:true})
+      .limit(1,{referencedTable:'first_message'})
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
@@ -203,7 +220,7 @@ export class MemoryService {
     }
     const { data, error } = await query;
     if (error) throw this.dbError('listConversations', error);
-    return this.paginate(data ?? [], limit);
+    return this.paginate(((data ?? []) as unknown as TitledConversationRow[]).map(withConversationTitle), limit);
   }
 
   async archiveConversation(conversationId: string, userId: string): Promise<ConversationRow> {

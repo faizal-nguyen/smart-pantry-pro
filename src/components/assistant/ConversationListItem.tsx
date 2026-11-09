@@ -6,9 +6,9 @@
  * Mutations invalidate the shared `['assistant-conversations']` query
  * key so the list refreshes after every change.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Archive, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ import {
 
 interface ConversationListItemProps {
   conversation: AssistantConversation;
+  onSelect?: () => void;
 }
 
 function formatDate(iso: string | null): string {
@@ -52,8 +53,11 @@ function formatDate(iso: string | null): string {
   });
 }
 
-export default function ConversationListItem({ conversation }: ConversationListItemProps) {
-  const navigate = useNavigate();
+export default function ConversationListItem({ conversation,onSelect }: ConversationListItemProps) {
+  const [searchParams]=useSearchParams();
+  const selected=searchParams.get('conversation')===conversation.id;
+  const destination=new URLSearchParams({ conversation:conversation.id });
+  if (conversation.mode!=='general') destination.set('mode',conversation.mode);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -108,22 +112,17 @@ export default function ConversationListItem({ conversation }: ConversationListI
   return (
     <li className="py-1">
       <div className="group flex items-center gap-1">
-        <Button
-          variant="ghost"
-          className="flex-1 justify-start h-auto py-2 text-left"
-          onClick={() => navigate(`/assistant?conversation=${conversation.id}`)}
-        >
+        <Link to={`/assistant?${destination}`} onClick={onSelect} aria-current={selected ? 'page' : undefined}
+          className={`min-w-0 flex-1 rounded-md px-3 py-3 text-left transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${selected ? 'bg-primary/10' : ''}`}>
           <div className="min-w-0">
-            <p className="font-medium truncate">
+            <p className="font-medium line-clamp-2 break-words">
               {conversation.title ?? 'Conversation sans titre'}
             </p>
             <p className="text-xs text-muted-foreground">
               {formatDate(conversation.last_message_at ?? conversation.created_at)}
-              {' · '}
-              {conversation.mode}
             </p>
           </div>
-        </Button>
+        </Link>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -131,7 +130,7 @@ export default function ConversationListItem({ conversation }: ConversationListI
               variant="ghost"
               size="icon"
               aria-label="Actions sur cette conversation"
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              className="sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity"
             >
               <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
             </Button>

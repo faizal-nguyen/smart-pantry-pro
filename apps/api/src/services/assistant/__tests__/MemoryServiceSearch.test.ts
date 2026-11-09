@@ -105,7 +105,10 @@ function makeAdmin(perTable: Record<string, MockConfig>) {
         },
         limit(_n: number) {
           calls.selects.push({ table, filters: { ...filters }, mode: 'limit' });
-          return Promise.resolve({ data: cfg.selectMany ?? [], error: null });
+          return chain;
+        },
+        then(resolve:(result:unknown)=>unknown) {
+          return Promise.resolve({ data: cfg.selectMany ?? [], error: null }).then(resolve);
         },
         async maybeSingle() {
           calls.selects.push({ table, filters: { ...filters }, mode: 'maybeSingle' });
@@ -119,6 +122,16 @@ function makeAdmin(perTable: Record<string, MockConfig>) {
 }
 
 describe('MemoryService search & conversation patch (PRP-224 PR1)', () => {
+  it('old generic titles use the first owned user message; custom titles remain intact',async()=>{
+    const {client,calls}=makeAdmin({assistant_conversations:{selectMany:[
+      {...makeConv({title:'Échange en cuisine'}),first_message:[{content:'Soupe aux oignons\npièce jointe'}]},
+      {...makeConv({id:'custom',title:'Mon menu'}),first_message:[{content:'Autre message'}]},
+    ]}});
+    const result=await new MemoryService(client).listConversations(USER,{limit:8});
+    expect(result.items.map(row=>row.title)).toEqual(['Soupe aux oignons','Mon menu']);
+    expect(JSON.stringify(result)).not.toContain('first_message');
+    expect(calls.selects[calls.selects.length-1].filters).toMatchObject({'user_id':USER,'first_message.user_id':USER,'first_message.role':'user'});
+  });
   describe('updateConversation', () => {
     it('patches title only', async () => {
       const after = makeConv({ title: 'Pâtes carbonara' });

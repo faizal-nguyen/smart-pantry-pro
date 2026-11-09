@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+/** A recognisable title from the user's own first message; no model or write. */
+export function assistantConversationTitle(message:string):string {
+  const photo=message.match(/📷\s*Sur mes photos[^\n:]*:\s*([^\n]+)/i)?.[1];
+  return (photo ? `Courses : ${photo}` : message.split('\n')[0]).replace(/\s+/g,' ').trim().slice(0,100);
+}
+
 export const MemoryKindSchema = z.enum(['response_style', 'preference', 'negative_preference',
   'cooking_style', 'constraint', 'diet_goal', 'recipe_feedback', 'shopping_pattern', 'habit']);
 export const MemoryDestinationSchema = z.enum(['memory', 'profile', 'feedback', 'session']);
