@@ -7,6 +7,13 @@ import { ProviderOutputError } from './OpenAITransport.js';
 
 const IMAGE_RESERVE_TOKENS=3000;
 
+// A rate limit or a server error is answered before any output: one more try, if time is left.
+// Not a timeout or a lost connection, whose output may already be billed, nor a stream already shown.
+const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+const RETRY_DELAY_MS = 500;
+const RETRY_MIN_WINDOW_MS = 5000;
+const retryable = (error: unknown) => RETRY_STATUSES.has((error as { status?: unknown } | null)?.status as number);
+
 export class ModelInvocation {
   readonly calls:ModelCallReceipt[]=[];
   private readonly toolCosts:AssociatedToolCost[]=[];
@@ -59,8 +66,17 @@ export class ModelInvocation {
         for await(const event of this.ai.completeStream(req)) if(event.done) terminal=event;
         if(!terminal) throw new Error('PROVIDER_STREAM_MISSING_TERMINAL');return terminal;
       };
+      // Audit 2026-11-07 (reliability P2 8): one 429 or 503 failed the whole turn.
+      const attempt=async()=>{
+        try { return await work(); }
+        catch(error) {
+          if(stream || !retryable(error) || controller.signal.aborted || Date.now()+RETRY_DELAY_MS+RETRY_MIN_WINDOW_MS>started+timeout) throw error;
+          await new Promise(resolve=>setTimeout(resolve,RETRY_DELAY_MS));
+          return work();
+        }
+      };
       const limit=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('PROVIDER_TIMEOUT'));},timeout);});
-      const result=await Promise.race([work(),limit]);absorb(result);row.status='completed';return result;
+      const result=await Promise.race([attempt(),limit]);absorb(result);row.status='completed';return result;
     } catch(error) {
       if(error instanceof ProviderOutputError && error.measured) absorb(error.measured);
       throw error;

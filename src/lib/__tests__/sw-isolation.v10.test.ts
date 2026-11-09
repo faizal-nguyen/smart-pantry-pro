@@ -7,7 +7,8 @@ type WorkerEvent = { request?: RequestLike; data?: { type: string }; respondWith
 function worker() {
   const handlers: Record<string,(event: WorkerEvent) => void> = {};
   const match = jest.fn(); const put = jest.fn(); const fetch = jest.fn();
-  const cache = { match,put,addAll: jest.fn() };
+  const keys = jest.fn(async (): Promise<Array<{ url: string }>> => []); const remove = jest.fn(async (_request: { url: string }) => true);
+  const cache = { match,put,addAll: jest.fn(),keys,delete: remove };
   const caches = { open: jest.fn(async () => cache), keys: jest.fn(async () => ['smart-grocery-v1','smart-grocery-static-v1','smart-grocery-static-v10-01','foreign-cache']), delete: jest.fn(async (_name: string) => true) };
   const self = { location: { origin: 'https://local.test' }, clients: { claim: jest.fn() },
     addEventListener: (name: string,callback: (event: WorkerEvent) => void) => { handlers[name] = callback; } };
@@ -16,7 +17,7 @@ function worker() {
     url: new URL(path,'https://local.test').href,method,mode,headers: { has: name => auth && name === 'authorization' },
   });
   const event = (req?: RequestLike): WorkerEvent => ({ request: req,respondWith: jest.fn(),waitUntil: jest.fn() });
-  return { handlers,match,put,fetch,caches,request,event };
+  return { handlers,match,put,fetch,caches,request,event,keys,remove };
 }
 test('private reads, authenticated assets and every write bypass the service worker cache', () => {
   const app = worker();
@@ -47,4 +48,16 @@ test('upgrade and account change purge previous application caches while preserv
   app.caches.delete.mockClear(); const message = { ...app.event(),data: { type: 'PURGE_PRIVATE_DATA' } }; app.handlers.message(message);
   await message.waitUntil.mock.calls[0][0];
   expect(app.caches.delete.mock.calls.map(([name]) => name)).toEqual(['smart-grocery-v1','smart-grocery-static-v1']);
+});
+
+// Audit 2026-11-07 (perf P1 3): every build's hashed assets stayed in the cache forever.
+test('the asset cache keeps the 120 latest files and never drops the shell or the icons', async () => {
+  const app = worker(); const response = { ok: true,clone: () => ({}) };
+  const old = Array.from({ length: 125 },(_,index) => ({ url: `https://local.test/assets/old-${index}.js` }));
+  app.keys.mockResolvedValue([{ url: 'https://local.test/' },{ url: 'https://local.test/icons/icon-192x192.png' },...old]);
+  app.match.mockResolvedValueOnce(undefined); app.fetch.mockResolvedValueOnce(response);
+  const event = app.event(app.request('/assets/new-1.js')); app.handlers.fetch(event);
+  await event.respondWith.mock.calls[0][0];
+  await new Promise(resolve => setTimeout(resolve,0));
+  expect(app.remove.mock.calls.map(([request]) => request.url)).toEqual(old.slice(0,5).map(request => request.url));
 });
