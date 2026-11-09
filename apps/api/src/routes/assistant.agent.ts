@@ -182,6 +182,11 @@ const TextRequestSchema = z.object({
   conversation_id: z.string().uuid().optional(),
   session_messages: AssistantSessionMessagesSchema.optional(),
   session_revision: z.number().int().nonnegative().optional(),
+  // A tapped « Laquelle ? » answer: its exact recipe action, prepared without a model call.
+  choice: z.object({
+    tool: z.enum(['cook_recipe', 'add_recipe_to_meal_plan', 'delete_recipe']),
+    args: z.record(z.unknown()),
+  }).strict().optional(),
 });
 
 const VoiceFormFieldsSchema = z.object({
@@ -571,7 +576,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
-          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision,
+          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision, choice: parsed.data.choice as VoiceAgentRequestInput['choice'],
         },
         ctx
       );
@@ -642,7 +647,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
-          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision,
+          conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision, choice: parsed.data.choice as VoiceAgentRequestInput['choice'],
         },
         ctx,
         writeEvent,

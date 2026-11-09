@@ -33,7 +33,7 @@ test('« Cuisinée » takes what the stock holds and says what it left out', asy
   expect(commandForIntent).toHaveBeenLastCalledWith('consume_recipe', 'recipe:30000000-0000-4000-8000-000000000001:cooked', expect.objectContaining({
     outside_inventory: [1], adjustments: [{ ingredient_index: 0, quantity: 100, unit: 'g' }] }));
   expect(outcome).toEqual({ title: 'Repas enregistré et stock mis à jour', commandId: 'command-1', details: [
-    'Retiré de ton stock : Oignon 2 pièce.', 'Tout ce que tu avais : Riz basmati 100 g (la recette en demande 300 g).', 'Pas dans ton stock, rien à retirer : Agneau.'] });
+    'Retiré de ton stock : Oignon 2 pièces.', 'Tout ce que tu avais : Riz basmati 100 g (la recette en demande 300 g).', 'Pas dans ton stock, rien à retirer : Agneau.'] });
 });
 
 describe('« Planifier » takes the next free dinner (audit 2026-11-07: it replaced tonight’s meal)', () => {

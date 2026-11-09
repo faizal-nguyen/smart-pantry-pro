@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { allocateRecipeStock, type StockIngredient, type StockLot, type StockMissing } from './quantities.js';
+import { allocateRecipeStock, normalizeIngredientName, type StockIngredient, type StockLot, type StockMissing } from './quantities.js';
 export const CookingAdjustmentSchema = z.object({
   ingredient_index: z.number().int().nonnegative(),
   // Actual quantity for the whole meal, not per original serving.
@@ -84,13 +84,35 @@ export function planCookFromStock(ingredients: StockIngredient[], lots: StockLot
   return plan;
 }
 
-const amount = (quantity: number, unit: string) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(quantity)} ${unit}`.trim();
+// Abbreviations stay as they are (« 2 tsp »); g, kg, ml or « c. à soupe » are never one plain word of 3 letters or more.
+const UNIT_ABBREVIATIONS = new Set(['tsp', 'tbsp', 'pcs', 'cas', 'cac']);
+/** « 2 unité » reads « 2 unités », « 2 litre » « 2 litres »; 1,5 stays singular, as in French. */
+function unitFor(quantity: number, unit: string): string {
+  const word = unit.trim();
+  if (quantity < 2 || !/^\p{L}{3,}$/u.test(word) || /[sxz]$/i.test(word) || UNIT_ABBREVIATIONS.has(word.toLowerCase())) return word;
+  return `${word}s`;
+}
+const amount = (quantity: number, unit: string) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(quantity)} ${unitFor(quantity, unit)}`.trim();
+const sameName = (name: string) => normalizeIngredientName(name);
+/** Each ingredient once (iPhone 2026-11-09: « ghee » twice in the same list). */
+const names = (items: Array<{ ingredient_name: string }>) => items
+  .filter((item, index) => items.findIndex(other => sameName(other.ingredient_name) === sameName(item.ingredient_name)) === index)
+  .map(item => item.ingredient_name).join(', ');
+/** The same ingredient taken twice in the same unit (rice for two steps) reads as one amount. */
+function takenOnce(items: CookStockPlan['taken']): CookStockPlan['taken'] {
+  const merged = new Map<string, CookStockPlan['taken'][number]>();
+  for (const item of items) {
+    const key = `${sameName(item.ingredient_name)}|${sameName(item.unit)}`;
+    const seen = merged.get(key);
+    merged.set(key, seen ? { ...seen, quantity: seen.quantity + item.quantity } : item);
+  }
+  return [...merged.values()];
+}
 
 /** What a cook takes from the stock, before it is confirmed (planned) or once it is done. */
 export function describeCookPlan(plan: CookStockPlan, tense: 'planned' | 'done'): string[] {
-  const names = (items: CookStockPlan['outside']) => items.map(item => item.ingredient_name).join(', ');
   const lines: string[] = [];
-  if (plan.taken.length) lines.push(`${tense === 'planned' ? 'Je retire de ton stock' : 'Retiré de ton stock'} : ${plan.taken.map(item => `${item.ingredient_name} ${amount(item.quantity, item.unit)}`).join(', ')}.`);
+  if (plan.taken.length) lines.push(`${tense === 'planned' ? 'Je retire de ton stock' : 'Retiré de ton stock'} : ${takenOnce(plan.taken).map(item => `${item.ingredient_name} ${amount(item.quantity, item.unit)}`).join(', ')}.`);
   if (plan.partial.length) lines.push(`${tense === 'planned' ? 'Je prends tout ce que tu as' : 'Tout ce que tu avais'} : ${plan.partial
     .map(item => `${item.ingredient_name} ${amount(item.quantity, item.unit)} (la recette en demande ${amount(item.needed, item.unit)})`).join(', ')}.`);
   if (!plan.taken.length && !plan.partial.length) lines.push('Rien à retirer de ton stock.');

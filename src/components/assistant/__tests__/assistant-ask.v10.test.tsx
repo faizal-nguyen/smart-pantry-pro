@@ -65,3 +65,28 @@ test('a question brought by a button waits for the account to be known', () => {
   render(<QueryClientProvider client={client()}><AssistantComposer initialRequest="Que cuisiner ce soir ?" /></QueryClientProvider>);
   expect(mockPost).not.toHaveBeenCalled();
 });
+
+// iPhone 2026-11-09: a tapped recipe took seconds with nothing on screen.
+test('a tapped choice is sent with its exact action, and the parent hears of the sending at once', async () => {
+  let answer: (value: unknown) => void = () => undefined;
+  mockPost.mockReturnValue(new Promise(resolve => { answer = resolve; }));
+  const onSending = jest.fn(), onResponse = jest.fn();
+  const choice = { tool: 'cook_recipe', args: { recipe_id: 'lamb', servings: 2 } };
+  render(<QueryClientProvider client={client()}>
+    <AssistantComposer expectedUserId="owner-a" initialRequest="J’ai cuisiné Lamb (Mutton) Biryani" initialChoice={choice} onSending={onSending} onResponse={onResponse} />
+  </QueryClientProvider>);
+  await waitFor(() => expect(onSending).toHaveBeenCalledWith('J’ai cuisiné Lamb (Mutton) Biryani'));
+  expect(onResponse).not.toHaveBeenCalled();
+  expect(mockPost.mock.calls[0][0]).toMatchObject({ text: 'J’ai cuisiné Lamb (Mutton) Biryani', choice });
+  answer({ message: 'ok' });
+  await waitFor(() => expect(onResponse).toHaveBeenCalledWith({ message: 'ok' }));
+});
+
+test('a typed message goes without a choice', async () => {
+  mockPost.mockResolvedValue({ message: 'ok' });
+  render(<QueryClientProvider client={client()}><AssistantComposer expectedUserId="owner-a" /></QueryClientProvider>);
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'J’ai cuisiné Lamb (Mutton) Biryani' } });
+  fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+  await waitFor(() => expect(mockPost).toHaveBeenCalledTimes(1));
+  expect(mockPost.mock.calls[0][0].choice).toBeUndefined();
+});

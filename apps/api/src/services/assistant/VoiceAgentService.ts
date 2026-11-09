@@ -156,7 +156,17 @@ export interface VoiceAgentRequestInput {
   conversationId?: string;
   sessionMessages?: AssistantSessionMessage[];
   sessionRevision?: number;
+  /**
+   * A tapped « Laquelle ? » choice: the recipe action it names is prepared without a model
+   * call (iPhone 2026-11-09: several seconds with nothing on screen). Only recipe writes are
+   * taken, their arguments go through the tool schema and the recipe must be in the library.
+   */
+  choice?: { tool: string; args: Record<string, unknown> };
 }
+
+/** A choice the client may send back as `choice`: the exact action of one candidate. */
+export interface RecipeChoiceAction { tool: string; args: Record<string, unknown> }
+const CHOICE_CALL_ID = 'tapped-choice';
 
 export interface ExecutedActionDescriptor {
   action_id: string;
@@ -190,7 +200,7 @@ export interface AssistantPlanResponse {
   detected_language?: string;
   message: string;
   /** Answers the user can tap when the reply asks which recipe (or a clarification). */
-  choices?: Array<{ label: string; reply: string }>;
+  choices?: Array<{ label: string; reply: string; action?: RecipeChoiceAction }>;
   actions_executed: ExecutedActionDescriptor[];
   actions_pending: PendingActionDescriptor[];
   confirmation_token: string | null;
@@ -492,8 +502,13 @@ export class VoiceAgentService {
       { role: 'user', content: transcript },
     ];
 
+    const chosen = input.choice && input.choice.tool in RECIPE_WRITES ? input.choice : null;
     let ai1: AICompletionResponse;
-    try { ai1 = await this.callLLMSafe(invocation, 'dialogue', aiMessages, tools, providerGuard, 'tool_selection'); }
+    // A tapped choice already names its tool and recipe: the loop below prepares it as if
+    // the model had called it, with the same checks, log, preview and confirmation.
+    if (chosen) ai1 = { content: '', model: '', usage: { prompt_tokens: 0, completion_tokens: 0 },
+      tool_calls: [{ id: CHOICE_CALL_ID, name: chosen.tool, arguments: JSON.stringify(chosen.args ?? {}) }] };
+    else try { ai1 = await this.callLLMSafe(invocation, 'dialogue', aiMessages, tools, providerGuard, 'tool_selection'); }
     catch {
       const receipt=invocation.receipt();
       return {session_id:sessionId,transcript,detected_language:detectedLanguage,
@@ -510,7 +525,7 @@ export class VoiceAgentService {
     const unverified: Array<{action_id:string;tool:string}> = [];
     let toolIssue = false;
     let activeResponse = ai1;
-    let followupUsed = false;
+    let followupUsed = !!chosen;
     let replayPrefix: Array<Record<string,unknown>> = [];
     // What the model may see of a tool call's outcome under the current policy.
     const modelOutcome = (call: { id: string; name: string }, policy: MemoryPolicy | null) => {
@@ -534,7 +549,7 @@ export class VoiceAgentService {
 
     // The same recipe action on several recipes means the model could not choose.
     let ambiguousRecipes: AmbiguousRecipes | null = null;
-    const firstCalls = keepUnambiguousRecipeWrites(ai1.tool_calls ?? [], new Map(), transcript);
+    const firstCalls = chosen ? { kept: ai1.tool_calls ?? [], ambiguous: null } : keepUnambiguousRecipeWrites(ai1.tool_calls ?? [], new Map(), transcript);
     ambiguousRecipes = firstCalls.ambiguous ?? ambiguousRecipes;
     const toolCalls = firstCalls.kept.slice(0, this.maxToolCalls);
 
@@ -553,7 +568,15 @@ export class VoiceAgentService {
       let tc = toolCalls[i];
       if (input.allowedTools && !input.allowedTools.includes(tc.name as ToolName)) { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
       try { this.toolRegistry.get(tc.name); } catch { outcomes.set(tc.id,{status:'unknown_tool'}); toolIssue=true; continue; }
-      if (tc.name in RECIPE_WRITES) {
+      if (tc.id === CHOICE_CALL_ID) {
+        // A tapped choice names its recipe: it only has to be one of the user's.
+        let chosenId: unknown;
+        try { chosenId = (JSON.parse(tc.arguments) as { recipe_id?: unknown }).recipe_id; } catch { chosenId = undefined; }
+        const recipes = await loadLibrary();
+        const found = recipes?.find(recipe => recipe.id === chosenId);
+        if (recipes && !found) { recipeNotFound = true; outcomes.set(tc.id,{status:'not_executed',reason:'recipe_not_found'}); continue; }
+        if (found) resolvedRecipeNames.set(found.id, found.name);
+      } else if (tc.name in RECIPE_WRITES) {
         const resolution = await resolveRecipeWrite(tc.name, tc.arguments, transcript, recipeNames(executed), loadLibrary);
         for (const [id, name] of resolution.names) resolvedRecipeNames.set(id, name);
         if (resolution.ambiguous) { ambiguousRecipes ??= resolution.ambiguous; outcomes.set(tc.id,{status:'not_executed',reason:'ambiguous_recipe'}); continue; }
@@ -820,6 +843,7 @@ export class VoiceAgentService {
     // in the user's language. `tool_choice='none'` prevents another
     // tool-call hop.
     if (
+      !chosen &&
       executed.length > 0 &&
       pending.length === 0 &&
       (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>recommendationModelContext(action.result,allowedProfileVersion)!==null))
@@ -1469,7 +1493,11 @@ const RECIPE_WRITES: Record<string, string> = {
   add_recipe_to_meal_plan: 'Laquelle veux-tu mettre au menu ?',
   delete_recipe: 'Laquelle veux-tu supprimer ?',
 };
-interface AmbiguousRecipes { tool: string; recipeIds: string[] }
+interface AmbiguousRecipes { tool: string; recipeIds: string[]; args?: Record<string, unknown> }
+/** A call's arguments without its recipe, shared by every candidate of a « Laquelle ? ». */
+function argsWithoutRecipe(raw: string): Record<string, unknown> | undefined {
+  try { const { recipe_id: _id, ...rest } = JSON.parse(raw) as Record<string, unknown>; return rest; } catch { return undefined; }
+}
 /**
  * Drops a recipe write the user's words do not pin down: one prepared on several
  * recipes, or one recipe picked among search results that match the words as well
@@ -1481,13 +1509,14 @@ function keepUnambiguousRecipeWrites<T extends { name: string; arguments: string
   const dropped = new Set<string>();
   for (const tool of Object.keys(RECIPE_WRITES)) {
     const ids = [...new Set(calls.filter(call => call.name === tool).map(recipeId).filter((id): id is string => !!id))];
-    if (ids.length > 1) { dropped.add(tool); ambiguous ??= { tool, recipeIds: ids }; continue; }
+    const args = argsWithoutRecipe(calls.find(call => call.name === tool)?.arguments ?? '{}');
+    if (ids.length > 1) { dropped.add(tool); ambiguous ??= { tool, recipeIds: ids, args }; continue; }
     const chosen = ids[0] && candidates.get(ids[0]);
     if (!chosen) continue;
     const score = recipeWordsMatched(chosen, transcript);
     // Words naming no candidate (« la première ») leave the choice to the model.
     const rivals = score > 0 ? [...candidates].filter(([id, name]) => id !== ids[0] && recipeWordsMatched(name, transcript) >= score).map(([id]) => id) : [];
-    if (rivals.length) { dropped.add(tool); ambiguous ??= { tool, recipeIds: [ids[0], ...rivals] }; }
+    if (rivals.length) { dropped.add(tool); ambiguous ??= { tool, recipeIds: [ids[0], ...rivals], args }; }
   }
   return { kept: calls.filter(call => !dropped.has(call.name)), ambiguous };
 }
@@ -1521,16 +1550,21 @@ async function resolveRecipeWrite(tool: string, rawArguments: string, transcript
   const top = best > 0 ? scored.filter(recipe => recipe.score === best) : [];
   const names = new Map(top.map(recipe => [recipe.id, recipe.name] as const));
   if (top.length === 1) return { arguments: JSON.stringify({ ...args, recipe_id: top[0].id }), names };
-  if (top.length > 1) return { arguments: rawArguments, names, ambiguous: { tool, recipeIds: top.map(recipe => recipe.id) } };
+  if (top.length > 1) return { arguments: rawArguments, names, ambiguous: { tool, recipeIds: top.map(recipe => recipe.id), args: argsWithoutRecipe(rawArguments) } };
   return { arguments: rawArguments, names, notFound: true };
 }
 /** One tappable answer per candidate, phrased so the next turn names it unambiguously. */
-function recipeChoices(ambiguous: AmbiguousRecipes, names: Map<string, string>, transcript: string): Array<{ label: string; reply: string }> {
-  return ambiguous.recipeIds.map(id => names.get(id)).filter((name): name is string => !!name).slice(0, 6).map(name => ({
-    label: name,
-    reply: ambiguous.tool === 'cook_recipe' ? `J’ai cuisiné ${name}`
-      : ambiguous.tool === 'delete_recipe' ? `Supprime la recette ${name}` : `${transcript.trim().replace(/[.!?]+$/, '')} : ${name}`,
-  }));
+function recipeChoices(ambiguous: AmbiguousRecipes, names: Map<string, string>, transcript: string): Array<{ label: string; reply: string; action: RecipeChoiceAction }> {
+  return ambiguous.recipeIds.filter(id => names.has(id)).slice(0, 6).map(id => {
+    const name = names.get(id)!;
+    return {
+      label: name,
+      reply: ambiguous.tool === 'cook_recipe' ? `J’ai cuisiné ${name}`
+        : ambiguous.tool === 'delete_recipe' ? `Supprime la recette ${name}` : `${transcript.trim().replace(/[.!?]+$/, '')} : ${name}`,
+      // Sent back when tapped: the server prepares it without asking the model again.
+      action: { tool: ambiguous.tool, args: { ...(ambiguous.args ?? {}), recipe_id: id } },
+    };
+  });
 }
 function clarificationChoices(executed: ExecutedActionDescriptor[]): Array<{ label: string; reply: string }> {
   const asked = executed.find(action => action.tool === 'ask_clarification');
