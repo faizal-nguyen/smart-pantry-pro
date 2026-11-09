@@ -9,6 +9,19 @@ const lot = (product: Partial<NonNullable<InventoryItem['product']>>): Inventory
   product: { id: 'p-1', name: 'Mayonnaise Kewpie', category: 'epicerie', unit_type: 'pot', ...product },
 } as InventoryItem);
 
+test('keeps qualitative amounts and opening checks on the lot, as text', () => {
+  const item = { ...lot({ name: 'Lait concentré sucré' }), notes: 'Plutôt plein. Ouvert depuis environ une semaine ; au réfrigérateur. Conservation à vérifier.\n<script>not executable</script>' };
+  const { container } = render(<ProductSheet now={NOW} onClose={jest.fn()} item={item} />);
+  expect(screen.getByLabelText('Notes du stock')).toHaveTextContent('Conservation à vérifier.');
+  expect(screen.getByText(/<script>not executable<\/script>/)).toBeInTheDocument();
+  expect(container.querySelector('script')).toBeNull();
+});
+
+test('old lots without notes keep the existing sheet', () => {
+  render(<ProductSheet now={NOW} onClose={jest.fn()} item={lot({})} />);
+  expect(screen.queryByLabelText('Notes du stock')).not.toBeInTheDocument();
+});
+
 test('shows the kept photo, the lot and the Open Food Facts details with their credit', () => {
   render(<ProductSheet now={NOW} onClose={jest.fn()} photoUrl="https://signed.example/kewpie.jpg" item={lot({
     brand: 'Kewpie', barcode: '4901577000058', enrichment_status: 'enriched', off_product_code: '4901577000058',

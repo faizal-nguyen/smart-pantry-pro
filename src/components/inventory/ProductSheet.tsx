@@ -49,6 +49,10 @@ export default function ProductSheet({ item, photoUrl, now, onClose }: ProductSh
           <dt className="text-muted-foreground">Zone</dt><dd>{item.location || 'non renseignée'}</dd>
           {product?.barcode && <><dt className="text-muted-foreground">Code-barres</dt><dd>{product.barcode}</dd></>}
         </dl>
+        {item.notes?.trim() && <section className="border-t pt-3 text-sm" aria-label="Notes du stock">
+          <h3 className="font-semibold">À propos de ce lot</h3>
+          <p className="whitespace-pre-wrap break-words">{item.notes}</p>
+        </section>}
         {offCode ? (
           <section aria-labelledby="product-sheet-off" className="space-y-2 border-t pt-3 text-sm">
             <h3 id="product-sheet-off" className="font-semibold">Infos Open Food Facts</h3>

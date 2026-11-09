@@ -65,6 +65,8 @@ export interface InventoryItem {
   stock_version?: number;
   date_kind?: 'use_by'|'best_before'|'unknown';
   quantity_quality?: 'measured'|'estimated'|'unknown';
+  /** Owner's lot details: remaining level, opened packaging, or storage checks. */
+  notes?: string | null;
   expiry_date?: string;
   location?: string;
   product?: Product;
