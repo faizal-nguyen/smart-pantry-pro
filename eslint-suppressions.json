@@ -1,0 +1,577 @@
+{
+  "apps/api/src/__tests__/PlatformAdapters.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/__tests__/RecipeExtractionService.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/__tests__/SocialImportRepository.counts.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "apps/api/src/__tests__/SocialImportService.extract.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/__tests__/SocialImportService.save.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/__tests__/health.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/__tests__/publicRoutesAuth.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "apps/api/src/__tests__/routes-mounted.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/__tests__/saveImportedDraftAsRecipe.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/app.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "apps/api/src/config/env.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/config/logger.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/middleware/auth.middleware.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-namespace": {
+      "count": 1
+    }
+  },
+  "apps/api/src/middleware/errorHandler.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/middleware/logger.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "apps/api/src/middleware/requestId.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/middleware/userRateLimit.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "apps/api/src/repositories/BaseRepository.ts": {
+    "no-useless-catch": {
+      "count": 1
+    }
+  },
+  "apps/api/src/repositories/InventoryRepository.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/__tests__/recommendations.routes.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "apps/api/src/routes/assistant.agent.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 60
+    }
+  },
+  "apps/api/src/routes/assistant.memory.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/routes/assistant.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    }
+  },
+  "apps/api/src/routes/imports.social.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/instagram.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    }
+  },
+  "apps/api/src/routes/inventory.routes.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/routes/media.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 8
+    }
+  },
+  "apps/api/src/routes/products.intelligence.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/routes/proxy.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/services/RecipeService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "apps/api/src/services/UserService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "apps/api/src/services/assistant/ActionLogWriter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/assistant/ProductResolver.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/assistant/__tests__/ActionLogWriter.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/assistant/__tests__/CookingJournalService.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/assistant/__tests__/MemoryServiceSearch.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/assistant/__tests__/ProductResolver.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    }
+  },
+  "apps/api/src/services/assistant/__tests__/VoiceAgentService.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 25
+    }
+  },
+  "apps/api/src/services/assistant/handlers/__tests__/high.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 22
+    }
+  },
+  "apps/api/src/services/assistant/handlers/__tests__/internal.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 22
+    }
+  },
+  "apps/api/src/services/assistant/handlers/__tests__/meta.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 14
+    }
+  },
+  "apps/api/src/services/assistant/handlers/__tests__/read.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "apps/api/src/services/assistant/handlers/__tests__/write.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 27
+    }
+  },
+  "apps/api/src/services/assistant/handlers/high.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/imports/RecipeExtractionService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/services/imports/platforms/htmlParsers.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "apps/api/src/services/imports/saveContract.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/ingredients/IngredientAliasResolver.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/ingredients/__tests__/IngredientAliasResolver.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    }
+  },
+  "apps/api/src/services/instagramThumbnailService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "no-empty": {
+      "count": 2
+    }
+  },
+  "apps/api/src/services/media/MediaAssetRepository.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "apps/api/src/services/media/MediaAssetResolver.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/services/media/MediaLifecycleService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/services/media/MediaUploadService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/services/media/__tests__/MediaAssetResolver.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 13
+    }
+  },
+  "apps/api/src/services/media/__tests__/ThumbnailSnapshotService.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 30
+    }
+  },
+  "apps/api/src/services/products/EmbeddingService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "apps/api/src/services/products/ProductNormalizer.ts": {
+    "@typescript-eslint/prefer-as-const": {
+      "count": 1
+    }
+  },
+  "apps/api/src/services/products/__tests__/ProductEnrichmentRepository.test.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "apps/api/src/services/recommendations/__tests__/RecipeEvaluation.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "apps/api/src/services/recommendations/__tests__/RecommendationEngine.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "apps/api/src/services/videoParserService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "apps/api/src/types/supabase.ts": {
+    "@typescript-eslint/no-empty-object-type": {
+      "count": 3
+    }
+  },
+  "apps/api/src/utils/errors.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "apps/api/src/utils/http.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    }
+  },
+  "apps/api/src/utils/responses.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "apps/api/src/utils/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "apps/api/src/utils/sanitization.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "e2e/fixtures.ts": {
+    "no-empty-pattern": {
+      "count": 1
+    },
+    "react-hooks/rules-of-hooks": {
+      "count": 2
+    }
+  },
+  "scripts/backfill-recipe-facets.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "scripts/backfill-recipe-ingredient-canonical.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "scripts/backfill-recipe-ingredient-fk.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "scripts/dedup-product-plurals.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/__tests__/integration/cipher-meal-planning-e2e.test.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/__tests__/performance-validation.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/components/insights/InteractiveCharts.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/components/onboarding/OnboardingFlow.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/onboarding/OnboardingStep.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/components/performance/PerformanceMonitor.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    }
+  },
+  "src/components/recipes/BulkImportButton.tsx": {
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "src/components/recipes/ExtractedRecipeModal.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/components/recipes/RecipeVoiceInput.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/components/social/SocialImportCard.tsx": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/hooks/__tests__/useClipboardImportSuggestion.test.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/hooks/useChartData.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/hooks/useInsightsData.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/hooks/useInstagramThumbnail.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/hooks/useRecipeCatalog.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/__tests__/sw-isolation.v10.test.ts": {
+    "no-restricted-imports": {
+      "count": 3
+    }
+  },
+  "src/pages/RecipeEdit.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/pages/pantry/PantryDashboard.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/services/__tests__/recipe-details.v10.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/services/ai/nutritionalAIService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    }
+  },
+  "src/services/ai/streamingAIService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    }
+  },
+  "src/services/context/PerformanceOptimizer.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/services/planning/smartMealPlannerService.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/services/planning/types.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/services/socialMediaParser/__tests__/enhanced-parser.test.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/services/socialMediaParser/enhancedSocialMediaParser.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    }
+  },
+  "src/services/socialMediaParser/socialMediaRecipeParser.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 14
+    }
+  },
+  "src/setupTests.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/types/family-mode.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/types/global.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  },
+  "src/types/onboarding.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/types/speech-recognition.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 12
+    }
+  },
+  "src/utils/__tests__/openai-cost-calculator.test.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/utils/recipeVoiceParser.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/rateLimiter.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "supabase/functions/_shared/security.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "no-useless-escape": {
+      "count": 15
+    }
+  },
+  "supabase/functions/ai-assistant-enhanced/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 16
+    }
+  },
+  "supabase/functions/panic-mode/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 10
+    }
+  },
+  "tailwind.config.ts": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 1
+    }
+  }
+}
