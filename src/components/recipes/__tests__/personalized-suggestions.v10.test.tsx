@@ -122,7 +122,11 @@ test('browsing the featured alternatives keeps missing ingredients visible and w
   mockResult={ ...mockResult,cookable_now:[candidate('a')],almost_cookable:[almost] };
   render(wrap(<PersonalizedRecipeSuggestions featured/>));
   expect(screen.getByRole('heading',{name:'Recette a'})).toBeVisible();
-  fireEvent.click(screen.getByRole('button',{name:'Autre idée'}));
+  const next=screen.getByRole('button',{name:'Autre idée'});
+  next.focus();
+  fireEvent.click(next);
+  expect(next).toHaveFocus();
+  expect(screen.getByRole('status')).toHaveTextContent('Recette b');
   expect(screen.getByRole('heading',{name:'Recette b'})).toBeVisible();
   expect(screen.getByText('Il te manque : Riz gluant.')).toBeVisible();
   expect(screen.queryByText('Tout est dans ton stock.')).not.toBeInTheDocument();
