@@ -7,7 +7,7 @@ export default function AssistantModelsSection() {
   const owner=useAuthSessionOptional().user?.id;
   const query=useQuery({queryKey:['assistant-models',owner],queryFn:()=>getAssistantModels(owner!),enabled:!!owner,retry:false});
   if(!owner) return <p>Connecte-toi pour consulter la configuration de l’assistant.</p>;
-  if(query.isPending) return <p role="status">Lecture des modèles…</p>;
+  if(query.isPending) return <p role="status">Chargement des modèles…</p>;
   if(query.isError) return <div role="alert"><p>La configuration des modèles n’a pas pu être lue.</p><Button onClick={()=>void query.refetch()} variant="outline" className="mt-3 min-h-11">Réessayer</Button></div>;
   const catalog=query.data;
   return <div className="space-y-5 min-w-0">

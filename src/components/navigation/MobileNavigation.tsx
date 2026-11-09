@@ -18,7 +18,7 @@ export default function MobileNavigation({ navigationConfig }: Props) {
     return () => { observer?.disconnect(); window.removeEventListener('resize',measure); document.documentElement.style.removeProperty('--mobile-nav-total-height'); };
   },[]);
   return <nav ref={ref} aria-label="Navigation principale" data-testid="mobile-bottom-nav" className="kitchen-bottom-nav fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur-md">
-    <div className="grid grid-cols-4 gap-1 p-1">
+    <div className="grid grid-cols-5 gap-1 p-1">
       {navigationConfig.mainNavigation.map(item => {
         const active = isNavigationActive(location.pathname,item.path), Icon = item.icon;
         return <button key={item.id} onClick={() => navigate(item.path)} aria-current={active ? 'page' : undefined} className={cn('min-h-[64px] min-w-11 rounded-lg flex flex-col items-center justify-center gap-1 px-1 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring',active ? 'bg-primary/10 text-primary' : 'text-muted-foreground')}>

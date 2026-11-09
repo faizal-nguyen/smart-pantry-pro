@@ -38,3 +38,12 @@ test('pending save freezes original values and resumes the same intent without e
   fireEvent.click(screen.getByRole('button',{ name:'Vérifier la sauvegarde' }));
   await screen.findByRole('alert');expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ allergies:['lait'] }),1,'save','explicit');
 });
+// Audit 2026-11-07 (UX P1 3): the save button stayed disabled without saying why.
+test('without the confirmation, the save says what is missing', () => {
+  mockProfile = { ...mockProfile, settings: { ...mockProfile.settings, consent: false } };
+  render(page());
+  expect(screen.getByRole('button', { name: 'Enregistrer et actualiser les idées' })).toBeDisabled();
+  expect(screen.getByText('Coche « Je confirme ce profil » ci-dessus pour enregistrer.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme ce profil/ }));
+  expect(screen.queryByText('Coche « Je confirme ce profil » ci-dessus pour enregistrer.')).not.toBeInTheDocument();
+});

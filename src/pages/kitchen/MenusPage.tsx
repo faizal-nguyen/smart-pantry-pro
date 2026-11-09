@@ -27,6 +27,7 @@ import AddRecipeToMenuDialog, {
   type MenuSlot,
 } from '@/components/meal-planning/AddRecipeToMenuDialog';
 import { useAskAssistant } from '@/hooks/useAskAssistant';
+import RecipesMenusSwitch from '@/components/recipes/RecipesMenusSwitch';
 
 function isoWeekStart(date: Date): string {
   return calendarWeekStart(date)!;
@@ -96,6 +97,7 @@ export default function MenusPage() {
 
   return (
     <div className="culinary-page kitchen-page kitchen-menus-page">
+        <RecipesMenusSwitch />
         <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<Button
             type="button"
             variant="outline"

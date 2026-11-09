@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { OnboardingFlow } from '@/components/onboarding';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { Button } from '@/components/ui/button';
@@ -34,18 +34,16 @@ const OnboardingPage: React.FC = () => {
     navigate('/', { replace: true });
   };
 
-  // If onboarding is already completed, redirect to main app
-  if (state.isCompleted) {
-    navigate('/', { replace: true });
-    return null;
-  }
-
-  // Start onboarding if not started
+  // Start onboarding if not started. Hooks run before any early return: one placed after
+  // the « completed » return crashed when onboarding finished (audit 2026-11-07, UX P1 4).
   React.useEffect(() => {
-    if (!state.hasStarted) {
+    if (!state.isCompleted && !state.hasStarted) {
       startOnboarding();
     }
-  }, [state.hasStarted, startOnboarding]);
+  }, [state.isCompleted, state.hasStarted, startOnboarding]);
+
+  // Already completed: back to the app, rendered as a redirect rather than a navigate() during render.
+  if (state.isCompleted) return <Navigate to="/" replace />;
 
   return (
     <div className="relative min-h-screen">

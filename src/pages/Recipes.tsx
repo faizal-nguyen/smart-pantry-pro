@@ -31,6 +31,7 @@ import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 // RecipeLibraryTab reste eager — c'est le default tab.
 import RoutineRecipeLibrary from '@/components/recipes/RoutineRecipeLibrary';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
+import RecipesMenusSwitch from '@/components/recipes/RecipesMenusSwitch';
 const RecipeImportTab = lazy(() => import('@/components/recipes/tabs/RecipeImportTab'));
 const RecipeDiscovery = lazy(() => import('@/components/recipes/discovery/RecipeDiscovery'));
 const CanonicalDraftEditor = lazy(() => import('@/components/recipes/discovery/DiscoveryDraftEditor'));
@@ -101,6 +102,7 @@ export default function Recipes() {
   return (
     <div className="culinary-page kitchen-page kitchen-recipes-page">
       <div className="kitchen-recipes-content">
+        <RecipesMenusSwitch />
         <KitchenPageHeader title="Recettes" description={activeTab==='library' ? 'Les plats que tu aimes, et ceux qu’il te reste à découvrir.' : activeTab==='discover' ? 'De nouvelles inspirations, à choisir et à cuisiner.' : 'Garde une recette pour plus tard.'} actions={<Button className="min-h-11" onClick={()=>setShowAddDialog(true)}><Plus className="h-4 w-4" aria-hidden="true"/>Écrire une recette</Button>} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -131,7 +133,7 @@ export default function Recipes() {
           </TabsContent>
 
           <TabsContent value="discover" className="space-y-6">
-            <Suspense fallback={<p role="status" className="text-sm py-6">Lecture de la découverte…</p>}>
+            <Suspense fallback={<p role="status" className="text-sm py-6">Chargement de la découverte…</p>}>
               <RecipeDiscovery />
             </Suspense>
           </TabsContent>
