@@ -5,6 +5,7 @@ import './styles/material-you.css'
 
 import { useAppStore } from './store/appStore';
 import { claimChunkReload } from './lib/chunkReload';
+import { installGlobalErrorReporting } from './lib/reportClientError';
 
 if (typeof window !== 'undefined') {
   try {
@@ -18,6 +19,8 @@ if (typeof window !== 'undefined') {
   } catch (error) {
     console.error('main.tsx: Error setting up PWA listeners:', error);
   }
+
+  installGlobalErrorReporting();
 
   // Vite fires this when a lazy route's chunk fails to load, typically in a
   // tab opened before the latest deploy.

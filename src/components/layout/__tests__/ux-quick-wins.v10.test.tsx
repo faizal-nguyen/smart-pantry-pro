@@ -7,6 +7,8 @@ import RouteError from '@/components/RouteError';
 import { AssistantHistoryNoticeView } from '@/components/assistant/AssistantHistoryNotice';
 
 jest.mock('@/services/assistantApi', () => ({ getAssistantMemoryPolicy: jest.fn() }));
+const mockReport = jest.fn();
+jest.mock('@/lib/reportClientError', () => ({ reportClientError: (...args: unknown[]) => mockReport(...args) }));
 
 const config = { mainNavigation: NAVIGATION_CONFIG, specialNavigation: SPECIAL_NAVIGATION_ITEMS, allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS] };
 const nav = (path: string) => render(<MemoryRouter initialEntries={[path]}><MobileNavigation navigationConfig={config} currentProfile={null} onNavigate={jest.fn()} /></MemoryRouter>);
@@ -42,6 +44,7 @@ test('a page that crashes shows a French screen that reloads', () => {
   expect(screen.getByRole('button', { name: 'Recharger' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Retour à l’accueil' })).toHaveAttribute('href', '/kitchen');
   expect(screen.queryByText(/Unexpected Application Error/)).not.toBeInTheDocument();
+  expect(mockReport).toHaveBeenCalledWith('route', expect.objectContaining({ message: 'boom' }));
   spy.mockRestore();
 });
 

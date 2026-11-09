@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { reportClientError } from '@/lib/reportClientError';
 
 interface Props {
   children: ReactNode;
@@ -34,10 +35,8 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ errorInfo });
 
-    // Log to external service if available
-    if (typeof window !== 'undefined' && window.Sentry) {
-      window.Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
-    }
+    // The crash reaches the server logs (Sentry was referenced but never set up).
+    void reportClientError('render', error);
   }
 
   private handleReload = () => {
@@ -109,15 +108,6 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     return this.props.children;
-  }
-}
-
-// Type declaration for Sentry
-declare global {
-  interface Window {
-    Sentry?: {
-      captureException: (error: Error, context?: Record<string, unknown>) => void;
-    };
   }
 }
 

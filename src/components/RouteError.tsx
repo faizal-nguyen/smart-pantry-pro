@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { isRouteErrorResponse, useRouteError } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { reportClientError } from '@/lib/reportClientError';
 
 /**
  * Shown when a page throws while rendering or loading (a lazy chunk included): React Router
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
  */
 export default function RouteError() {
   const error = useRouteError();
-  useEffect(() => { console.error('[route] page failed:', error); }, [error]);
+  useEffect(() => { console.error('[route] page failed:', error); void reportClientError('route', error); }, [error]);
   const missing = isRouteErrorResponse(error) && error.status === 404;
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center gap-4 p-6 text-center" role="alert">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,8 @@ import {
 import { Plus, Camera, Search, Loader2 } from "lucide-react";
 import { useInventory, Product } from "@/hooks/useInventory";
 import { useBarcodeAPI, ProductInfo } from "@/hooks/useBarcodeAPI";
-import BarcodeScanner from "./BarcodeScanner";
+// The scanner and its decoder (~300 kB) load when it opens, not with every manual add (audit 2026-11-07, perf P1 1).
+const BarcodeScanner = lazy(() => import("./BarcodeScanner"));
 import { ImageUploadSection } from "./ImageUploadSection";
 import { toast } from "@/hooks/use-toast";
 
@@ -641,11 +642,15 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
         )}
       </DialogContent>
       
-      <BarcodeScanner
-        isOpen={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleBarcodeScanned}
-      />
+      {scannerOpen && (
+        <Suspense fallback={null}>
+          <BarcodeScanner
+            isOpen
+            onClose={() => setScannerOpen(false)}
+            onScan={handleBarcodeScanned}
+          />
+        </Suspense>
+      )}
     </Dialog>
   );
 };

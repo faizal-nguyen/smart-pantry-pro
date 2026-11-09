@@ -1,6 +1,13 @@
 // V10-01: cache the application shell only. Private reads and all writes require the network.
 const STATIC_CACHE_NAME = 'smart-grocery-static-v10-01';
 const STATIC_ASSETS = ['/', '/manifest.json', '/icons/icon-192x192.png', '/icons/icon-512x512.png'];
+// Each build adds hashed /assets/ files that were kept forever: only the latest ones stay
+// (audit 2026-11-07, perf P1 3). The shell, the manifest and the icons are never dropped.
+const MAX_CACHED_ASSETS = 120;
+async function trimAssets(cache) {
+  const assets = (await cache.keys()).filter(request => new URL(request.url).pathname.startsWith('/assets/'));
+  await Promise.all(assets.slice(0, Math.max(0, assets.length - MAX_CACHED_ASSETS)).map(request => cache.delete(request)));
+}
 async function purgeOldCaches() {
   const names = await caches.keys();
   await Promise.all(names.filter(name => name.startsWith('smart-grocery-') && name !== STATIC_CACHE_NAME).map(name => caches.delete(name)));
@@ -30,7 +37,10 @@ self.addEventListener('fetch',event => {
     const cached = await cache.match(request);
     if (cached) return cached;
     const response = await fetch(request);
-    if (response.ok) await cache.put(request,response.clone());
+    if (response.ok) {
+      await cache.put(request,response.clone());
+      trimAssets(cache).catch(() => undefined);
+    }
     return response;
   }));
 });

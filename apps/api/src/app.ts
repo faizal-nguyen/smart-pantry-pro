@@ -32,6 +32,7 @@ import { createAssistantStreamRouter } from './routes/assistant.js';
 import { parseVideoRecipeRouter } from './routes/parseVideoRecipe.js';
 import { createInstagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
+import { createClientErrorsRouter } from './routes/client-errors.js';
 import { createImportsSocialRouter } from './routes/imports.social.js';
 import { createRecipeDiscoveryRouter } from './routes/recipes.discovery.js';
 import { createMediaRouter } from './routes/media.js';
@@ -50,6 +51,18 @@ const assistantRateLimit = () => rateLimit({ windowMs: 60_000, max: 30 });
 // from <img> tags, which send no token, so the image proxy is only rate limited; the Open Food
 // Facts proxies need an account.
 const imageProxyRateLimit = () => rateLimit({ windowMs: 60_000, max: 60 });
+const clientErrorsRateLimit = () => rateLimit({ windowMs: 60_000, max: 30 });
+
+// A promise rejected without a handler reaches the logs as one JSON line (audit 2026-11-07,
+// reliability P1 5). Registered once per process, whatever the number of apps created.
+const processLogging = globalThis as { __apiRejectionLogging?: boolean };
+if (!processLogging.__apiRejectionLogging) {
+  processLogging.__apiRejectionLogging = true;
+  process.on('unhandledRejection', reason => {
+    console.error(JSON.stringify({ event: 'unhandled_rejection', message: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack?.slice(0, 1500) : undefined }));
+  });
+}
 const offProxyRateLimit = () => rateLimit({ windowMs: 60_000, max: 60 });
 
 export interface CreateAppOptions {
@@ -131,6 +144,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/v1/social/instagram', instagramRouter);
   app.use('/api/v1/assistant', assistantRateLimit(), assistantStreamRouter);
+  app.use('/api/v1/client-errors', requireUser, clientErrorsRateLimit(), createClientErrorsRouter());
   app.use('/api/v1/proxy/image', imageProxyRateLimit());
   app.use('/api/v1/proxy/openfoodfacts', requireUser, offProxyRateLimit());
   app.use('/api/v1/proxy', proxyRouter);
