@@ -11,6 +11,8 @@ import { AuthSessionProvider } from "./contexts/AuthSessionContext";
 import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
 import { Toaster } from "./components/ui/toaster";
 import { Toaster as Sonner } from "./components/ui/sonner";
+import NewVersionBanner from "./components/layout/NewVersionBanner";
+import { useNewVersion } from "./hooks/useNewVersion";
 
 // Pages critiques (chargées immédiatement)
 import Index from "./pages/Index";
@@ -152,8 +154,10 @@ protectedRoutes.push(...Object.entries(getLegacyRedirections())
 //
 // V10-03: legacy preferences are reviewed explicitly in the versioned profile.
 const RootLayout = () => {
+  const newVersion = useNewVersion();
   return (
     <AssistantProvider>
+      <NewVersionBanner available={newVersion} />
       <Outlet />
     </AssistantProvider>
   );
