@@ -1,0 +1,89 @@
+# Every pull request and push to main: lint, types, all unit tests, app build.
+# Before (audit 2026-11-07): only 3 API suites, the API build and a secret scan ran;
+# the app tests, the app types, the lint and the Vite build never did.
+# Old lint and type errors are recorded (eslint-suppressions.json,
+# scripts/tsc-baseline.json): only new ones fail.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build shared package
+        run: npm run shared:build
+      - name: Lint (no new problem)
+        run: npm run lint:ci
+      - name: API types
+        run: npm run api:build:ts
+      - name: App types (no new error)
+        run: npm run typecheck:app
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # PRP-220.05: pino-pretty hangs on Node 20+ in some envs; force JSON.
+      LOG_PRETTY_PRINT: 'false'
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build shared package and API
+        run: npm run shared:build && npm run api:build:ts
+      # Serial runs: the timing-sensitive suites flake when every worker competes (11 s and 16 s here).
+      - name: App tests
+        run: npx jest --ci --no-coverage --runInBand
+      - name: API tests
+        run: npm run test:api -- --ci
+      - name: Upload API server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-api-log
+          path: apps/api/.jest-api.log
+          if-no-files-found: ignore
+
+  build:
+    name: App build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build shared package
+        run: npm run shared:build
+      - name: Build the app as Vercel does
+        run: npm run build:optimized

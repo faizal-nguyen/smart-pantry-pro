@@ -22,6 +22,8 @@ module.exports = {
     '<rootDir>/src/**/__tests__/**/*.(ts|tsx|js)',
     '<rootDir>/src/**/?(*.)(spec|test).(ts|tsx|js)',
   ],
+  // Shared test data next to the suites is not a suite.
+  testPathIgnorePatterns: ['/node_modules/', '/__tests__/fixtures\\.ts$'],
   collectCoverageFrom: [
     'src/**/*.(ts|tsx)',
     '!src/**/*.d.ts',
