@@ -8,7 +8,7 @@
  * PRP-224 PR3 — lit `?mode=` depuis l'URL, le passe au composer ;
  *  toute modification met à jour l'URL + persiste côté backend.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo,useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,8 @@ import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
 import AssistantConversationSurface from '@/components/assistant/AssistantConversationSurface';
 import type { AssistantConversationMode } from '@/services/assistantApi';
+import { Button } from '@/components/ui/button';
+import { Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription } from '@/components/ui/dialog';
 
 const VALID_MODES: readonly AssistantConversationMode[] = [
   'general',
@@ -44,6 +46,8 @@ const AssistantDashboard: React.FC = () => {
   const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationId = searchParams.get('conversation');
+  const [historyOpen,setHistoryOpen]=useState(false);
+  const [newThread,setNewThread]=useState(0);
   const mode = useMemo(() => normaliseMode(searchParams.get('mode')), [searchParams]);
 
   const handleModeChange = (next: AssistantConversationMode) => {
@@ -69,10 +73,15 @@ const AssistantDashboard: React.FC = () => {
         adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
       )}
     >
-        <KitchenPageHeader title="Assistant" description="Un coup de main pour cuisiner avec ce que tu as." actions={<Link to="/settings?section=assistant-memory" className="kitchen-inline-link">Ma mémoire</Link>}/>
+        <KitchenPageHeader title="Assistant" description="Un coup de main pour cuisiner avec ce que tu as." actions={<div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={()=>{ setNewThread(value=>value+1);setSearchParams(mode==='general' ? {} : {mode}); }}>Nouvelle conversation</Button>
+          <Button variant="outline" className="lg:hidden" onClick={()=>setHistoryOpen(true)}>Conversations</Button>
+          <Link to="/settings?section=assistant-memory" className="kitchen-inline-link">Ma mémoire</Link>
+        </div>}/>
 
         <div className="kitchen-assistant-layout">
           <AssistantConversationSurface
+            key={`${user.id}:${newThread}`}
             conversationId={conversationId}
             mode={mode}
             onModeChange={handleModeChange}
@@ -84,8 +93,10 @@ const AssistantDashboard: React.FC = () => {
           </aside>
         </div>
 
-      {/* Mobile : memory + history sous le fil */}
-      <details className="lg:hidden"><summary className="min-h-11 cursor-pointer text-sm">Retrouver une conversation</summary><ConversationHistoryList /></details>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}><DialogContent className="max-h-[85dvh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Retrouver une conversation</DialogTitle><DialogDescription>Choisis un échange pour le lire et le reprendre.</DialogDescription></DialogHeader>
+        <ConversationHistoryList onSelect={()=>setHistoryOpen(false)} />
+      </DialogContent></Dialog>
     </div>
   );
 };

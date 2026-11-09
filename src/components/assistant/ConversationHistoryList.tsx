@@ -21,11 +21,13 @@ interface ConversationHistoryListProps {
   showSearch?: boolean;
   /** Max conversations to fetch in the recent list. Default 8. */
   limit?: number;
+  onSelect?: () => void;
 }
 
 export default function ConversationHistoryList({
   showSearch = true,
-  limit = 8,
+  limit = 20,
+  onSelect,
 }: ConversationHistoryListProps) {
   const { conversations, isLoading, error, refetch } = useAssistantConversations({
     status: 'active',
@@ -57,7 +59,7 @@ export default function ConversationHistoryList({
           Conversations
         </h3>
 
-        {showSearch && <AssistantSearchBar limit={10} />}
+        {showSearch && <AssistantSearchBar limit={10} onSelect={onSelect} />}
 
         {isEmpty ? (
           <EmptyState
@@ -68,7 +70,7 @@ export default function ConversationHistoryList({
         ) : (
           <ul className="divide-y divide-border">
             {conversations.map(c => (
-              <ConversationListItem key={c.id} conversation={c} />
+              <ConversationListItem key={c.id} conversation={c} onSelect={onSelect} />
             ))}
           </ul>
         )}

@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import type { AssistantMessage } from '@/services/assistantApi';
 import AssistantRecipeProposals from './AssistantRecipeProposals';
 import AddChefIdeaDialog from './AddChefIdeaDialog';
-import AssistantModelDetails from './AssistantModelDetails';
 
 /**
  * PRP-239 PR4 §10.4 — split a chef synthesis text on the off-DB header.
@@ -140,7 +139,6 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
             ? <ChefContent content={msg.content} conversationId={msg.conversation_id} />
             : <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
           }
-          {isAssistant && <AssistantModelDetails receipt={msg.metadata?.model_receipt} />}
           <p
             className={cn(
               'text-[10px] mt-1 opacity-60',
@@ -174,10 +172,11 @@ export default function AssistantMessageThread({
   footer,
 }: AssistantMessageThreadProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageId=messages[messages.length-1]?.id;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length]);
+  }, [messages.length,lastMessageId]);
 
   if (isLoading) {
     return (

@@ -65,7 +65,7 @@ import {
 import { performUndo, UndoFailedError } from './undo.js';
 import type { SpeechTranscriber } from '../media/SpeechTranscriber.js';
 import type { RiskTier } from './schemas/tools.js';
-import type { AssistantModelReceipt, AssistantRole } from '@smart/shared';
+import { assistantConversationTitle,type AssistantModelReceipt, type AssistantRole } from '@smart/shared';
 import { loadAssistantModelConfig, freezeConfig, type AssistantModelConfig } from '../ai/ModelConfig.js';
 import { ModelInvocation } from '../ai/ModelInvocation.js';
 import { providerErrorSummary } from '../ai/OpenAITransport.js';
@@ -429,7 +429,7 @@ export class VoiceAgentService {
       return this.emptyResponse(start, sessionId, transcript, detectedLanguage, conversationId);
     }
 
-    if (requestPolicy?.saveHistory) conversationId = await this.resolveConversationId(input);
+    if (requestPolicy?.saveHistory) conversationId = await this.resolveConversationId(input,transcript);
 
     // Wait for the exact current-input commands before any claim of saving.
     const memoryResults = await this.runExtraction({ userId: input.userId, conversationId,
@@ -1141,7 +1141,7 @@ export class VoiceAgentService {
    * fall back to a fresh conversation (rather than throwing, to keep
    * the assistant available).
    */
-  private async resolveConversationId(input: VoiceAgentRequestInput): Promise<string | undefined> {
+  private async resolveConversationId(input: VoiceAgentRequestInput,transcript:string): Promise<string | undefined> {
     if (!this.memoryService) return undefined;
     if (input.conversationId) {
       try {
@@ -1155,6 +1155,7 @@ export class VoiceAgentService {
     try {
       const created = await this.memoryService.createConversation(input.userId, {
         mode: 'general',
+        title:assistantConversationTitle(transcript) || undefined,
       });
       return created.id;
     } catch (err) {

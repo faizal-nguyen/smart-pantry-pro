@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import AssistantMessageThread from '../AssistantMessageThread';
 
-jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AssistantRecipeProposals', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AddChefIdeaDialog', () => ({ __esModule: true, default: () => null }));
 

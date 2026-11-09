@@ -5,7 +5,6 @@
  * pending actions (undo, Confirmer) live in AssistantActionsPanel, shared
  * with the /assistant page.
  */
-import { useMemo } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,7 +20,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
-import AssistantModelDetails from './AssistantModelDetails';
 import { AssistantActionsPanel } from './AssistantActionsPanel';
 import type { AssistantPlanResponse } from '@/services/assistantApi';
 
@@ -41,11 +39,6 @@ export function AssistantResultDialog({
 }: AssistantResultDialogProps) {
   const navigate = useNavigate();
 
-  const totalCost = result?.cost.total_usd ?? 0;
-  const durationSec = useMemo(
-    () => (result ? Math.max(1, Math.round(result.duration_ms / 1000)) : 0),
-    [result]
-  );
 
   if (!result) return null;
 
@@ -74,7 +67,6 @@ export function AssistantResultDialog({
         <AssistantMemoryNotice result={result} />
 
         <ScrollArea className="max-h-[55vh] -mx-2 px-2">
-          <AssistantModelDetails receipt={result.model_receipt} />
           <AssistantActionsPanel result={result} onResultPatched={onResultPatched} />
 
           {result.actions_executed.length === 0 && result.actions_pending.length === 0 && (
@@ -85,9 +77,6 @@ export function AssistantResultDialog({
         </ScrollArea>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
-          <div className="text-xs text-muted-foreground tabular-nums">
-            {result.cost.total_usd===null ? 'Coût demande indisponible' : 'Coût demande'+(result.model_receipt?.quality==='estimated' ? ' estimé' : '')+' : $'+totalCost.toFixed(4)} • {durationSec}s • {result.model_used ?? 'Aucun modèle servi'}
-          </div>
           <div className="flex gap-2 ml-auto">
             {result.conversation_id && (
               <Button

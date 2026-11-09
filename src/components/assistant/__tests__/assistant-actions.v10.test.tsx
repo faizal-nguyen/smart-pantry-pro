@@ -18,7 +18,6 @@ jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQ
 jest.mock('@/hooks/useAssistantConversations', () => ({ useAssistantMessages: () => ({ messages: [], isLoading: false }) }));
 jest.mock('../AssistantMessageThread', () => ({ __esModule: true,
   default: ({ footer }: { footer?: React.ReactNode }) => <div data-testid="thread"><p>Fil de la conversation</p>{footer}</div> }));
-jest.mock('../AssistantModelDetails', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AssistantMemoryNotice', () => ({ __esModule: true, default: () => null }));
 jest.mock('../AssistantHistoryNotice', () => ({ __esModule: true, default: () => null }));
 // The composer is replaced by a button that delivers the next reply.

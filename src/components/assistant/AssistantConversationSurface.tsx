@@ -24,7 +24,6 @@ import AssistantMessageThread from './AssistantMessageThread';
 import AssistantComposer from './AssistantComposer';
 import AssistantMemoryNotice from './AssistantMemoryNotice';
 import AssistantHistoryNotice from './AssistantHistoryNotice';
-import AssistantModelDetails from './AssistantModelDetails';
 import { AssistantActionsPanel } from './AssistantActionsPanel';
 import AssistantPendingTurn from './AssistantPendingTurn';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
@@ -51,9 +50,11 @@ export default function AssistantConversationSurface({
   const askedByButton = readAssistantAsk(location.state);
   const owner = useAuthSessionOptional().user?.id;
   const ownerRef = useRef(owner); ownerRef.current = owner;
+  const conversationRef=useRef(conversationId);conversationRef.current=conversationId;
+  useEffect(()=>{ownerRef.current=owner;return()=>{ownerRef.current=undefined;};},[owner]);
   const [session, setSession] = useState<{ owner?: string; messages: AssistantSessionMessage[]; revision?: number }>({ messages: [] });
   const [latest, setLatest] = useState<{ owner?: string; result: AssistantPlanResponse } | null>(null);
-  const currentSession = session.owner === owner ? session : { messages: [] };
+  const currentSession = !conversationId && session.owner === owner ? session : { messages: [] };
   // Only the reply of this conversation (or of this session) may be confirmed here.
   const latestHere = latest && latest.owner === owner && (latest.result.conversation_id ?? null) === conversationId ? latest.result : null;
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -70,8 +71,8 @@ export default function AssistantConversationSurface({
   // A tapped choice (« Lamb (Mutton) Biryani ») is sent like a typed answer, with its action.
   const [quickReply, setQuickReply] = useState<AssistantChoice | null>(null);
   // The message on its way, shown until its reply (or its error) arrives.
-  const [sending, setSending] = useState<{ owner?: string; text: string } | null>(null);
-  const sendingHere = sending && sending.owner === owner ? sending.text : null;
+  const [sending, setSending] = useState<{ owner?: string; conversation:string|null;text: string } | null>(null);
+  const sendingHere = sending && sending.owner === owner && sending.conversation===conversationId ? sending.text : null;
   const actions = latestHere && (
     <div ref={actionsRef} className="mt-4 space-y-3">
       {!!latestHere.choices?.length && (
@@ -89,7 +90,7 @@ export default function AssistantConversationSurface({
     </div>
   );
   const footer = sendingHere ? <AssistantPendingTurn text={sendingHere} /> : actions;
-  const { messages, isLoading: messagesLoading } = useAssistantMessages(
+  const { messages, isLoading: messagesLoading,error:messagesError,refetch:refetchMessages } = useAssistantMessages(
     conversationId,
     { limit: 50, enabled: !!conversationId },
   );
@@ -98,8 +99,8 @@ export default function AssistantConversationSurface({
   // thread renders them inline. We just need to invalidate after a turn
   // so the latest message (with its persisted buckets) flows back in.
   const handleResponse = (response: AssistantPlanResponse) => {
+    if (ownerRef.current !== owner || conversationRef.current!==conversationId) return;
     setSending(null);
-    if (ownerRef.current !== owner) return;
     setLatest({ owner, result: response });
     // Stock, shopping or menu pages refresh what an executed action changed.
     dispatchAgentDbChanged(response.actions_executed.flatMap(action => tablesForTool(action.tool)));
@@ -131,11 +132,11 @@ export default function AssistantConversationSurface({
       data-testid="assistant-surface"
     >
       <CardContent className="kitchen-assistant-thread">
+        {conversationId && <h2 className="mb-3 text-sm font-medium line-clamp-2">{messages.find(message=>message.role==='user')?.content.split('\n')[0] ?? 'Conversation'}</h2>}
         <AssistantHistoryNotice owner={owner} />
-        <AssistantMemoryNotice result={latest && latest.owner === owner ? latest.result : null} />
-        {latest && latest.owner===owner && !latest.result.conversation_id && <AssistantModelDetails receipt={latest.result.model_receipt} />}
+        <AssistantMemoryNotice result={latestHere} />
         {currentSession.messages.length > 0 && <div className="space-y-4"><p className="text-xs text-muted-foreground">Échange de cette session. L’historique durable est désactivé ou indisponible.</p>{currentSession.messages.map((m,i) => <p key={i} className="whitespace-pre-wrap text-sm"><span className="block font-medium">{m.role === 'user' ? 'Vous' : 'Assistant'}</span>{m.content}</p>)}</div>}
-        {!conversationId && currentSession.messages.length === 0 ? (
+        {messagesError ? <div role="alert" className="space-y-3 py-6"><p>Impossible d’ouvrir les messages de cette conversation.</p><Button variant="outline" onClick={()=>void refetchMessages()}>Réessayer l’ouverture</Button></div> : !conversationId && currentSession.messages.length === 0 ? (
           <div className="kitchen-assistant-welcome"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ou dicte ta question ci-dessous, ou joins des photos de tes courses.</p></div>
         ) : (
           <AssistantMessageThread messages={messages} isLoading={messagesLoading} footer={conversationId ? footer : null} />
@@ -143,15 +144,15 @@ export default function AssistantConversationSurface({
         {!conversationId && footer}
       </CardContent>
       <AssistantComposer
-        key={owner}
+        key={`${owner}:${conversationId ?? 'new'}`}
         expectedUserId={owner}
         sessionMessages={currentSession.messages} sessionRevision={currentSession.revision}
         conversationId={conversationId}
         mode={mode}
         onModeChange={onModeChange}
         onResponse={handleResponse}
-        onSending={text => setSending({ owner, text })}
-        onError={() => setSending(null)}
+        onSending={text => setSending({ owner,conversation:conversationId,text })}
+        onError={() => {if (conversationRef.current===conversationId) setSending(null);}}
         initialRequest={askedByButton ?? quickReply?.reply ?? undefined}
         initialChoice={askedByButton ? undefined : quickReply?.action}
         onInitialRequestTaken={() => { if (askedByButton) navigate(location.pathname + location.search, { replace: true, state: null }); else setQuickReply(null); }}
