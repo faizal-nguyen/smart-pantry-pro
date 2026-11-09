@@ -127,11 +127,13 @@ export function projectNutritionFromOff(off: OffProductPayload): ProductNutritio
   const n = off.nutriments;
   // Energy is sometimes only published in kJ — OFF exposes both keys.
   const energyKcal =
-    numField(n, 'energy_kcal_100g') ??
+    numField(n, 'energy-kcal_100g') ?? numField(n, 'energy_kcal_100g') ??
     (numField(n, 'energy_100g') !== undefined
       ? Math.round((numField(n, 'energy_100g') as number) / 4.184)
       : undefined);
 
+  // OFF normalises these micronutrients in grams; the UI names carry mg/µg.
+  const scaled=(key:string,factor:number)=>{const value=numField(n,key);return value===undefined ? undefined : value*factor;};
   const per100g = {
     energyKcal,
     proteinG: numField(n, 'proteins_100g'),
@@ -141,6 +143,9 @@ export function projectNutritionFromOff(off: OffProductPayload): ProductNutritio
     saturatedFatG: numField(n, 'saturated-fat_100g'),
     fiberG: numField(n, 'fiber_100g'),
     saltG: numField(n, 'salt_100g'),
+    vitaminCMg:scaled('vitamin-c_100g',1000),vitaminDUg:scaled('vitamin-d_100g',1e6),vitaminEMg:scaled('vitamin-e_100g',1000),
+    folateUg:scaled('folates_100g',1e6) ?? scaled('vitamin-b9_100g',1e6),vitaminB12Ug:scaled('vitamin-b12_100g',1e6),
+    calciumMg:scaled('calcium_100g',1000),ironMg:scaled('iron_100g',1000),magnesiumMg:scaled('magnesium_100g',1000),potassiumMg:scaled('potassium_100g',1000),
   };
   const anyValue = Object.values(per100g).some((v) => typeof v === 'number');
   if (!anyValue && !off.serving_size && !off.nutrition_grades && !off.nutriscore_grade) {

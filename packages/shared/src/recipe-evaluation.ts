@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {NutritionValuesSchema,NutrientKeySchema} from './nutrition.js';
 
 export const ConcreteRecipeReferenceSchema = z.object({
   id: z.string().uuid(),
@@ -16,7 +17,6 @@ const missing = z.object({
   unit: z.string().nullable(), is_essential: z.boolean(),
   reason: z.enum(['NOT_IN_STOCK', 'INSUFFICIENT_QUANTITY', 'QUANTITY_UNKNOWN', 'UNIT_UNKNOWN', 'UNIT_INCOMPATIBLE']),
 });
-const nullableMacro = nonnegative.nullable();
 export const RecipeEvaluationSchema = z.object({
   reference: ConcreteRecipeReferenceSchema,
   servings: z.number().finite().positive().max(100).nullable(),
@@ -44,8 +44,9 @@ export const RecipeEvaluationSchema = z.object({
   nutrition: z.object({
     status: z.enum(['known', 'estimated', 'partial', 'unavailable']),
     coverage: nonnegative.max(1), known_ingredients: nonnegative.int(), total_ingredients: nonnegative.int(),
-    per_serving: z.object({ energyKcal: nullableMacro, proteinG: nullableMacro, fiberG: nullableMacro }),
-    sources: z.array(z.object({ product_id: z.string(), source: z.string(), updated_at: z.string().nullable(), base: z.literal('100g') })),
+    per_serving: NutritionValuesSchema,
+    upper_bounds:z.array(NutrientKeySchema).optional(),
+    sources: z.array(z.object({ product_id: z.string().optional(), source: z.string(), updated_at: z.string().nullable(), base: z.literal('100g'),url:z.string().url().optional() })),
     limitations: z.array(z.string()),
   }),
 });

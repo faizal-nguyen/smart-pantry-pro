@@ -9,6 +9,7 @@ export * from './calendar.js';
 export * from './cooking-adjustments.js';
 export * from './personalization.js';
 export * from './recipe-evaluation.js';
+export * from './nutrition.js';
 export * from './assistant-memory.js';
 export * from './assistant-models.js';
 

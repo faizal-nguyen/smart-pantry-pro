@@ -19,7 +19,7 @@ export interface RecommendationExecutionContext {
 type Interaction={ recipe_id:string|null;recipe_reference?:{ id:string;source:string }|null;feedback?:string|null;interaction_type:string;created_at:string };
 type History={ recipe_id:string|null;cooked_at:string;adjustments?:{ recipe_reference?:{ id:string;source:string } };voided_at?:string|null };
 const fingerprint=(value:unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const recipeColumns='id,user_id,is_public,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,updated_at,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)';
+const recipeColumns='id,user_id,is_public,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,updated_at,nutrition_info,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)';
 const stockFingerprint=(lots:QualifiedLot[]) => fingerprint([...lots].sort((a,b)=>a.id.localeCompare(b.id)));
 const clamp=(value:number) => Math.max(0,Math.min(1,value));
 /** Every recipe of a library: 200 left 123 of 323 never suggested (audit 2026-11-07). */
@@ -245,10 +245,17 @@ export class RecommendationEngine {
       if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
       if (input.cuisine && ![recipe.cuisine_category,...(recipe.tags ?? [])].some(value=>value && cuisineKey(input.cuisine) &&
         ` ${cuisineKey(value)} `.includes(` ${cuisineKey(input.cuisine)} `))) return false;
+      if (input.course) {
+        const labels=[recipe.meal_type,...(recipe.tags ?? [])].map(value=>mealKey(value));
+        const course=labels.some(value=>['dessert','desserts'].includes(value)) ? 'dessert'
+          : labels.some(value=>['entree','starter','appetizer'].includes(value)) ? 'starter'
+          : labels.some(value=>['main','plat','dinner','lunch','diner','dejeuner'].includes(value)) ? 'main' : null;
+        if (course!==input.course) return false;
+      }
       // Lunch, dinner and « main » dishes stand in for each other (the exact type ranks first);
       // a dessert or a drink is not a dinner. Types outside the known groups stay candidates.
       const wanted=mealGroup(input.mealType),offered=mealGroup(recipe.meal_type);
-      if (wanted && offered && wanted!==offered) return false;
+      if (!input.course && wanted && offered && wanted!==offered) return false;
       const ingredients=recipe.recipe_ingredients ?? [];
       if (input.ingredient && !ingredients.some(item=>normalizeIngredientName(item.ingredient_name).includes(normalizeIngredientName(input.ingredient!)))) return false;
       if (input.proteinFamily || input.proteinCut) {
