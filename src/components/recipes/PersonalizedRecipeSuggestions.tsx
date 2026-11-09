@@ -11,11 +11,20 @@ import RecipePreview from './RecipePreview';
 import NutritionEstimateView from './NutritionEstimateView';
 import { recipeDetailPath } from '@/lib/recipeLinks';
 import { useCulinaryDesign } from '@/contexts/CulinaryDesignContext';
+import { useCalendarNow } from '@/hooks/useCalendarNow';
+import { calendarDate } from '@smart/shared';
 /** « Il te manque : Agneau, Yaourt et Coriandre. », the first three named. */
 function missingLine(names:string[]):string {
   const shown=names.slice(0,3),rest=names.length-shown.length;
   const listed=rest>0 ? `${shown.join(', ')} et ${rest} ${rest===1 ? 'autre' : 'autres'}` : shown.length>1 ? `${shown.slice(0,-1).join(', ')} et ${shown[shown.length-1]}` : shown[0] ?? '';
   return `Il te manque : ${listed}.`;
+}
+function stockSummary(recipe:RecommendedRecipeView):string {
+  if (recipe.missing_ingredients?.length) return missingLine(recipe.missing_ingredients);
+  if (recipe.availability.status!=='available') return 'Disponibilité à vérifier.';
+  if (recipe.availability.missing.some(item=>item.is_essential && ['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'].includes(item.reason)))
+    return 'Ingrédients présents · quantités à vérifier.';
+  return recipe.availability.uncertainties.length ? 'Ingrédients présents · stock à vérifier.' : 'Tout est dans ton stock.';
 }
 const feedbackLabels=[['repeat','À refaire'],['dislike','Je n’aime pas'],['too_long','Trop long']] as const;
 const criteria:Record<string,string>={ nutrition:'nutrition',variety:'variété',expiry:'date proche',taste:'goûts',time:'durée',equipment:'matériel',skill:'niveau',feedback:'retours',meal_type:'type de repas',light_goal:'objectif léger sans mesure disponible' };
@@ -39,6 +48,8 @@ export default function PersonalizedRecipeSuggestions({ input={ goal:'tonight' }
 }
 function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel,featured }:{ featured:boolean;query:ReturnType<typeof useRoutineMealIdeas>;onAddStock?:()=>void;onBrowse?:()=>void;dismissLabel:string }) {
   const design=useCulinaryDesign();
+  const now=useCalendarNow();
+  const [selection,setSelection]=useState({ key:'',offset:0 });
   const [explore,setExplore]=useState(false);
   const client=useQueryClient();
   const [busy,setBusy]=useState(false),[error,setError]=useState<string|null>(null),[confirmation,setConfirmation]=useState<string|null>(null);
@@ -55,6 +66,12 @@ function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel
     } catch (failure) { setError((failure as Error).message); } finally { setBusy(false); }
   };
   const ideas=query.data ? [...query.data.cookable_now,...query.data.almost_cookable].sort((a,b)=>b.score_total-a.score_total).slice(0,3) : [];
+  // Vary the featured card each Paris calendar day within the server's top three.
+  // Browsing alternatives never writes taste feedback or modifies their stock evidence.
+  const day=calendarDate(now)!;
+  const selectionKey=JSON.stringify([day,ideas.map(recipe=>[recipe.reference.source,recipe.id,recipe.servings])]);
+  const offset=selection.key===selectionKey ? selection.offset : 0;
+  const featuredIndex=ideas.length ? (Math.floor(Date.parse(day+'T00:00:00Z')/86400000)+offset)%ideas.length : 0;
   // Nothing complete or almost: the closest recipes, with what is missing, rather than an empty box (iPhone 2026-11-08).
   const closest=query.data && !ideas.length ? [...query.data.recent_suggestions].sort((a,b)=>b.score_total-a.score_total).slice(0,3) : [];
   const render=(recipe:RecommendedRecipeView,mode:'idea'|'closest'|'verify'|'excluded',priority=false,compact=false)=><li key={`${recipe.reference.source}:${recipe.id}`} className="culinary-recipe-card">
@@ -64,13 +81,13 @@ function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel
     <div className="culinary-recipe-copy">
       <h3 className="culinary-recipe-name"><Link to={recipeDetailPath(recipe.reference,recipe.servings)}>{recipe.name}</Link></h3>
       <p className="culinary-recipe-meta">{recipe.duration_minutes==null ? 'Durée à vérifier' : `${recipe.duration_minutes} min`} · {recipe.servings ? `${recipe.servings} ${recipe.servings===1 ? 'personne' : 'personnes'}` : 'Portions à vérifier'}</p>
-      <p className="culinary-recipe-availability" data-available={recipe.availability.status==='available'}>{mode==='excluded' ? 'Écartée : voir le motif ci-dessous.' : mode==='verify' ? 'À vérifier avant de choisir' : mode==='closest' ? missingLine(recipe.missing_ingredients ?? []) : compact ? recipe.missing_ingredients?.length ? missingLine(recipe.missing_ingredients) : 'Tout est dans ton stock.' : recipe.reason_codes[0]?.text ?? 'Disponibilité à vérifier.'}</p>
+      <p className="culinary-recipe-availability" data-available={recipe.availability.status==='available'}>{mode==='excluded' ? 'Écartée : voir le motif ci-dessous.' : mode==='verify' ? 'À vérifier avant de choisir' : mode==='closest' ? missingLine(recipe.missing_ingredients ?? []) : compact ? stockSummary(recipe) : recipe.reason_codes[0]?.text ?? 'Disponibilité à vérifier.'}</p>
       {recipe.constraints.findings.map((finding,index)=><p className={recipe.constraints.status==='incompatible' ? 'culinary-recipe-warning text-destructive' : 'culinary-recipe-warning'} key={`visible:${index}`}>{finding.ingredient ? `${finding.ingredient} : ` : ''}{finding.message}</p>)}
       {/* One doubt on the card; all of them under « Pourquoi cette recette ? ». */}
       {compact && recipe.availability.uncertainties.slice(0,1).map((text,index)=><p className="culinary-recipe-warning" key={`uncertainty:${index}`}>{text}</p>)}
       {!compact && ['partial','unavailable'].includes(recipe.nutrition.status) && <p className="culinary-recipe-nutrition">Nutrition {recipe.nutrition.status==='partial' ? 'partielle' : 'indisponible'} : estimation à vérifier.</p>}
       <Button className="culinary-recipe-cta min-h-11 w-full" variant={mode==='idea' ? 'default':'outline'} asChild><Link to={recipeDetailPath(recipe.reference,recipe.servings)}>Voir la recette</Link></Button>
-      {compact ? <DialogTrigger asChild><Button className="culinary-recipe-more min-h-11" variant="link">Autres idées</Button></DialogTrigger> : <div className="culinary-recipe-evidence space-y-2">
+      {compact ? <>{ideas.length>1 && <Button className="min-h-11" variant="outline" onClick={()=>setSelection({ key:selectionKey,offset:offset+1 })}>Autre idée</Button>}<DialogTrigger asChild><Button className="culinary-recipe-more min-h-11" variant="link">Autres idées</Button></DialogTrigger></> : <div className="culinary-recipe-evidence space-y-2">
         <RecommendationEvidenceDetails recipe={recipe} summaryShown />
         {mode==='idea' && <><Button className="min-h-11 w-full" variant="ghost" disabled={busy || (!!pending && (pending.recipe.id!==recipe.id || pending.recipe.source!==recipe.reference.source || pending.feedback!=='not_today'))} onClick={()=>void feedback(recipe,'not_today')}>{dismissLabel}</Button><details><summary className="min-h-11 cursor-pointer text-sm">Donner un retour sur cette recette</summary><p className="mb-2 text-sm text-muted-foreground">Après l’avoir essayée, indique ce que tu voudrais retrouver dans tes prochaines idées.</p><div className="flex flex-wrap gap-2" aria-label={`Retour sur ${recipe.name}`}>{feedbackLabels.map(([value,label])=><Button key={value} className="min-h-11 whitespace-normal" variant="outline" disabled={busy || (!!pending && (pending.recipe.id!==recipe.id || pending.recipe.source!==recipe.reference.source || pending.feedback!==value))} onClick={()=>void feedback(recipe,value)}>{label}</Button>)}</div></details></>}
       </div>}
@@ -88,7 +105,7 @@ function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel
   </>;
   return <Dialog open={featured && explore} onOpenChange={setExplore}><div className={featured ? 'culinary-featured' : 'space-y-3'} data-culinary-view={design}>
     {query.isLoading ? <div className="culinary-recipe-state" role="status">Recherche d’idées avec ton profil et ton stock…</div> : query.isError ? <div role="alert" className="culinary-recipe-state"><p>{query.error?.message ?? 'Les idées ne peuvent pas être vérifiées.'}</p><Button className="min-h-11" variant="outline" onClick={()=>void query.refetch()}>Réessayer les idées</Button></div> : !ideas.length ? <div className="culinary-recipe-state"><h3 className="kitchen-section-title">Trouvons ton prochain repas.</h3>{closest.length ? <><p>Rien de complet dans ton stock pour ce repas : voici les recettes les plus proches.</p><ul className="culinary-recipe-grid">{closest.map((recipe,index)=>render(recipe,'closest',index===0))}</ul></>
-        : <p>Aucune idée pour ce repas avec ton stock. Tu peux regarder les recettes à vérifier ou ajouter tes ingrédients.</p>}{onAddStock && <Button className="min-h-11" variant="outline" onClick={onAddStock}>Ajouter des ingrédients</Button>}{onBrowse ? <Button className="min-h-11" variant="outline" onClick={onBrowse}>Parcourir les recettes</Button> : <Button className="min-h-11" variant="outline" asChild><Link to="/kitchen/recipes#recipe-search">Parcourir les recettes</Link></Button>}{featured && <DialogTrigger asChild><Button variant="link">Voir les recettes à vérifier</Button></DialogTrigger>}</div> : featured ? <ul className="culinary-featured-list">{render(ideas[0],'idea',true,true)}</ul> : <ul className="culinary-recipe-grid">{ideas.map((recipe,index)=>render(recipe,'idea',index===0))}</ul>}
+        : <p>Aucune idée pour ce repas avec ton stock. Tu peux regarder les recettes à vérifier ou ajouter tes ingrédients.</p>}{onAddStock && <Button className="min-h-11" variant="outline" onClick={onAddStock}>Ajouter des ingrédients</Button>}{onBrowse ? <Button className="min-h-11" variant="outline" onClick={onBrowse}>Parcourir les recettes</Button> : <Button className="min-h-11" variant="outline" asChild><Link to="/kitchen/recipes#recipe-search">Parcourir les recettes</Link></Button>}{featured && <DialogTrigger asChild><Button variant="link">Voir les recettes à vérifier</Button></DialogTrigger>}</div> : featured ? <ul className="culinary-featured-list">{render(ideas[featuredIndex],'idea',true,true)}</ul> : <ul className="culinary-recipe-grid">{ideas.map((recipe,index)=>render(recipe,'idea',index===0))}</ul>}
     {!featured && additionalGroups}
     {(!featured || !explore) && feedbackStatus}
     {featured && <DialogContent className="routine-dialog culinary-ideas-dialog"><DialogHeader><DialogTitle>D’autres idées pour ton repas</DialogTitle><DialogDescription>Retrouve les propositions, leurs raisons, les vérifications et tes retours.</DialogDescription></DialogHeader><ul className="culinary-recipe-grid">{ideas.map(recipe=>render(recipe,'idea'))}</ul>{additionalGroups}{feedbackStatus}</DialogContent>}

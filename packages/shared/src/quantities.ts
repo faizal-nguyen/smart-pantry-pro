@@ -25,7 +25,8 @@ const COMPLEMENT_WORDS = new Set(['de', 'd', 'du', 'des', 'a', 'au', 'aux', 'en'
 // Staples whose usual shop name carries a complement ("Sel de mer", "Sucre en poudre").
 const SAME_STAPLES = new Set(['sel de mer', 'sel de guerande', 'sucre en poudre', 'sucre de canne', 'poivre en grain']);
 // Qualifiers that turn a base ingredient into another product ("lait concentré", "saumon fumé").
-const TRANSFORMING_WORDS = new Set(['concentre', 'sucree', 'seche', 'sechee', 'deshydrate', 'deshydratee', 'fume', 'fumee']);
+const TRANSFORMING_WORDS = new Set(['concentre', 'sucree', 'seche', 'sechee', 'deshydrate', 'deshydratee', 'fume', 'fumee',
+  'semoule', 'caramelise', 'caramelisee', 'moulu', 'moulue', 'granule', 'granulee', 'confit', 'confite', 'frit', 'frite']);
 const TAP_WATER_WORDS = new Set(['chaude', 'froide', 'tiede', 'bouillante', 'glacee', 'fraiche', 'du', 'robinet']);
 // Letters without a decomposed form, so that "đường" keeps its first letter.
 const PLAIN_LETTERS: Record<string, string> = { 'œ': 'oe', 'æ': 'ae', 'đ': 'd', 'ð': 'd', 'ø': 'o', 'ł': 'l', 'ß': 'ss' };
@@ -35,6 +36,15 @@ export function ingredientNameTokens(value: string): string[] {
   return normalizeIngredientName(value).replace(/[œæđðøłß]/g, letter => PLAIN_LETTERS[letter])
     .split(/[^a-z0-9]+/).filter(Boolean)
     .map(token => token.length > 3 && /[sx]$/.test(token) ? token.slice(0, -1) : token);
+}
+
+// Culinary synonyms only. Preserve every suffix so dried or prepared products
+// still pass through the usual product-form checks rather than becoming fresh stock.
+function matchingTokens(value: string): string[] {
+  const tokens = ingredientNameTokens(value);
+  const head = tokens.slice(0, 2).join(' ');
+  return head === 'oignon vert' || head === 'spring onion'
+    ? ['oignon', 'nouveau', ...tokens.slice(2)] : tokens;
 }
 
 /**
@@ -67,8 +77,8 @@ export function productNameWithBrand(name: string, brand?: string | null): strin
 export function ingredientMatchRank(ingredientName: string, productName: string): 0 | 1 | 2 {
   const same = normalizeIngredientName(ingredientName);
   if (same && same === normalizeIngredientName(productName)) return 1; // any script, e.g. "味噌"
-  const ingredient = ingredientNameTokens(ingredientName);
-  const product = ingredientNameTokens(productName);
+  const ingredient = matchingTokens(ingredientName);
+  const product = matchingTokens(productName);
   if (!ingredient.length || ingredient.length > product.length) return 0;
   if (ingredient.join(' ') === product.join(' ')) return 1;
   if (ingredient.length === product.length || !ingredient.every((token, index) => product[index] === token)) return 0;
