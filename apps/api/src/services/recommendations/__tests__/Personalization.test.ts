@@ -34,6 +34,16 @@ async function suggest(tables:Record<string,unknown>,input:RecommendationContext
 }
 
 describe('V10-03 hard constraints on ingredients and provenance',()=>{
+  test('a cuisine request uses origin metadata and tags rather than requiring it in the dish title',async()=>{
+    const lablabi={...recipe('lab','Lablabi','Pois chiches','p'),cuisine_category:'Tunisienne'};
+    const ojja={...recipe('oj','Ojja','Tomates','p'),tags:['tunisien']};
+    const french={...recipe('fr','Soupe tunisienne imaginaire','Oignons','p'),cuisine_category:'Française'};
+    const result=await suggest({recipes:[lablabi,ojja,french],inventory:[{...lot('p'),products:{name:'Pois chiches'}}]}, {cuisine:'tunisien'});
+    expect(result.total_user_recipes).toBe(2);
+    const names=[...result.cookable_now,...result.almost_cookable,...result.recent_suggestions,...result.verify_suggestions].map(row=>row.name);
+    expect(names).toEqual(expect.arrayContaining(['Lablabi','Ojja']));
+    expect(names).not.toContain(french.name);
+  });
   test('a milk-free title cannot override butter, including aliases and supplier traces',()=>{
     const butter=recipe('r','Sans lait','Beurre');
     expect(evaluateConstraints(butter,profile({ allergies:['lait'] }),new Map()).status).toBe('incompatible');

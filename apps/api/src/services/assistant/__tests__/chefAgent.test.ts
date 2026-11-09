@@ -18,6 +18,7 @@ import {
   buildRedactedChefMessage,
   CHEF_ROUND2_INSTRUCTION,
   chefSystemPrompt,
+  emptyRecipeDiscovery,
   isRecipeTool,
   postcheckChefOutput,
   type AssistantStreamEvent,
@@ -63,7 +64,7 @@ describe('chefAgent — chefSystemPrompt', () => {
   });
 
   it('caps off-DB ideas at 2 for a general ask and labels them with a plain title', () => {
-    expect(prompt).toMatch(/Demande générale : jusqu'à 2 idées/);
+    expect(prompt).toMatch(/Demande générale ou cuisine demandée .*jusqu'à 2 idées/);
     expect(prompt).toMatch(/sans gras ni deux-points : Idées chef hors bibliothèque/);
     expect(prompt).toMatch(/Ajouter à mes recettes/);
     expect(prompt).not.toMatch(/pas.*actionnables/i);
@@ -71,12 +72,12 @@ describe('chefAgent — chefSystemPrompt', () => {
 
   it('always gives 2 to 3 ideas for a precise product, photographed ones included, never judged on the stock', () => {
     expect(prompt).toMatch(/produit précis .*📷 Sur mes photos.*TOUJOURS 2 à 3 idées/);
-    expect(prompt).toMatch(/ne conclus jamais que rien n'est réalisable avec le stock/);
+    expect(prompt).toMatch(/Seuls les produits photographiés ne sont pas encore dans le stock/);
     expect(prompt).toMatch(/remplace mirin et saké/);
   });
 
   it('for photographed products, says nothing about the stock and never repeats a library recipe as an idea', () => {
-    expect(prompt).toMatch(/Exception : pour des produits nommés ou photographiés[^"]*ne parle pas de ce qui est réalisable avec le stock/);
+    expect(prompt).toMatch(/pour un produit nommé, seul read_inventory établit sa présence/);
     expect(prompt).toMatch(/plats DIFFÉRENTS des recettes de la BDD que tu cites/);
   });
 
@@ -93,6 +94,17 @@ describe('chefAgent — chefSystemPrompt', () => {
 
   it('CHEF_ROUND2_INSTRUCTION asks for no further tool calls', () => {
     expect(CHEF_ROUND2_INSTRUCTION).toMatch(/n'invoque aucun outil/);
+  });
+});
+
+describe('emptyRecipeDiscovery',()=>{
+  it('only accepts explicitly empty successful discovery, never a failed or unrelated read',()=>{
+    expect(emptyRecipeDiscovery('search_recipes',{recipes:[]})).toBe(true);
+    expect(emptyRecipeDiscovery('search_recipes',{recipes:[{name:'Soupe'}]})).toBe(false);
+    expect(emptyRecipeDiscovery('suggest_recipes_for_context',{cookable_now:[],almost_cookable:[],verify_suggestions:[],excluded_suggestions:[],recent_suggestions:[]})).toBe(true);
+    expect(emptyRecipeDiscovery('suggest_recipes_for_context',{error:'unavailable'})).toBe(false);
+    expect(emptyRecipeDiscovery('read_recent_recipes',{recipes:[]})).toBe(false);
+    expect(emptyRecipeDiscovery('read_inventory',{items:[]})).toBe(false);
   });
 });
 

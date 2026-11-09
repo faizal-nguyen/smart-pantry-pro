@@ -57,6 +57,7 @@ export const MealContextSchema = z.object({
   timeLimitMinutes:z.number().int().min(1).max(600).optional(),
   servings:z.number().int().min(1).max(20).optional(),
   query:z.string().trim().max(200).optional(),
+  cuisine:z.string().trim().min(1).max(100).optional(),
   ingredient:z.string().trim().min(1).max(200).optional(),
   proteinFamily:z.enum(['poulet','boeuf','agneau','poisson','fruits_de_mer','tofu','oeuf','mixte']).optional(),
   proteinCut:z.string().trim().min(1).max(80).optional(),

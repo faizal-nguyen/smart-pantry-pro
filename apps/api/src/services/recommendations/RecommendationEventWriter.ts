@@ -258,6 +258,7 @@ export function buildRecommendationCacheKey(ctx: RecommendationContext): string 
   const stable: Record<string, unknown> = {};
   const fields: Array<keyof RecommendationContext> = [
     'almostThreshold',
+    'cuisine',
     'goal',
     'includeRecentFallback',
     'limitPerBucket',

@@ -73,6 +73,7 @@ import { providerErrorSummary } from '../ai/OpenAITransport.js';
 // PRP-239 PR4 — chef agent helpers (round-2 escalation + post-check).
 import {
   isRecipeTool,
+  emptyRecipeDiscovery,
   chefSystemPrompt,
   CHEF_ROUND2_INSTRUCTION,
   postcheckChefOutput,
@@ -111,16 +112,17 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "protéiné" → { "goal": "high_protein" }
     - "réconfortant" → { "goal": "comfort", "craving": "comfort" }
     - "batch cooking" → { "goal": "batch_cooking" }
-    - "une recette italienne" → { "query": "italien" }
+    - "une recette italienne", "une recette tunisienne" → { "cuisine": "italienne" } or { "cuisine": "tunisienne" }; cuisine searches origin metadata, query searches dish names.
     - 4 personnes → { "servings": 4 }
     - "végétarien", "sans viande" → { "dietary_flag": "vegetarien" }
     - "sans crème", "pas de champignons" → { "exclude_ingredients": ["crème"] } (this request only). A follow-up like « Et sans crème ? » refines the previous ask: call the tool again with the earlier ingredient and context args plus the new exclusion.
-- Only when all relevant tool calls come back empty should you ask the user to import a new recipe or add items to the shopping list.
-- DO NOT invent recipes out of thin air. Only propose recipes returned by a tool.
+- The library is a starting point, not a requirement. An empty search does not mean no meal is possible. Read read_inventory and offer up to 2 useful culinary ideas under the exact heading « Idées chef hors bibliothèque », clearly labelled as proposals, never as saved or stock-verified recipes. Do not require an import before helping.
+- For « je veux faire une soupe aux oignons, qu’est-ce qui manque ? », search the dish and read_inventory. If absent from the library, propose a clearly labelled version, distinguish ingredients present, absent from the stock read, and quantities/conservation to verify. A generic ingredient list without a stock comparison does not answer the question. Do not add anything without being asked.
+- Never invent persisted recipe IDs or stock evidence. A culinary proposal may use your cooking knowledge, but must respect the explicit dietary constraints, zero pork and zero alcohol. Do not certify sufficiency or safety from presence alone, unknown quantities, expired lots, or notes saying conservation must be checked. If constraints or stock cannot be checked, say so rather than claim compatibility.
 - When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
 
 Be precise:
-- never invent products, quantities, or recipes the user did not mention
+- never invent stock products or quantities, recorded recipe identities, or completed actions; distinguish proposed cooking quantities from measured stock
 - when the user mentions an item that may match several inventory rows, call ask_clarification
 - adding to the inventory or the shopping list never depends on current stock: call add_inventory_items / add_shopping_items directly, even when the inventory is empty
 - product names go to tools as plain text ("tomate", "yaourt grec") — the server resolves them to IDs
@@ -777,6 +779,17 @@ export class VoiceAgentService {
           reason: risk.reason ?? defaultReasonForTier(risk.tier, tc.name),
         });
       }
+      // Empty discovery still has a useful answer: read the stock through the
+      // normal scoped/logged executor, without spending a model call to request it.
+      // Never extend a cook/plan/delete command or a restricted tool surface.
+      if (i===toolCalls.length-1 && !chosen && !RECIPE_ACTION.test(transcript) && !answersRecipeQuestion(sessionTurns,recentMessagesText) && !toolIssue && !pending.length && !unverified.length &&
+          executed.length>0 && executed.every(action=>action.risk_tier==='read') && executed.some(action=>emptyRecipeDiscovery(action.tool,action.result)) &&
+          !toolCalls.some(call=>call.name==='read_inventory') && toolCalls.length<this.maxToolCalls &&
+          tools.some(tool=>tool.function.name==='read_inventory') && this.handlerRegistry.has('read_inventory')) {
+        toolCalls.push({ id:'recipe-fallback-stock',name:'read_inventory',arguments:'{}' });
+        followupUsed=true;
+        continue;
+      }
       // Permit one bounded follow-up after reads, so read → write ("ajoute…"
       // after read_inventory) and inventory → recommendation finish in one
       // turn. Chat Completions gets the receipts as text and skips the hop
@@ -852,7 +865,7 @@ export class VoiceAgentService {
       !chosen &&
       executed.length > 0 &&
       pending.length === 0 &&
-      (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>recommendationModelContext(action.result,allowedProfileVersion)!==null))
+      (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>emptyRecipeDiscovery(action.tool,action.result) || recommendationModelContext(action.result,allowedProfileVersion)!==null))
     ) {
       try {
         const currentPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
@@ -1448,12 +1461,24 @@ function todayContext(now: Date): string {
 // Tool results reach the model as text. Stock and shopping rows keep only what it
 // needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
 const MODEL_RESULT_CHARS = 6000;
-const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
+const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'quantity_quality', 'date_kind', 'notes', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
 function compactForModel(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const object = value as Record<string, unknown>;
   if (Array.isArray(object.items) && object.items.every(item => item && typeof item === 'object' && 'product_name' in (item as object))) {
-    return { ...object, total: object.items.length, items: (object.items as Array<Record<string, unknown>>).slice(0, 80)
+    const rows=object.items as Array<Record<string,unknown>>;
+    // Put every stocked name before verbose rows: a large pantry must not look
+    // empty merely because its quantity details exceed the model receipt budget.
+    const inventory=rows.every(item=>typeof item.expired==='boolean');
+    const names=[...new Set(rows.filter(item=>Number(item.quantity)>0 && !item.expired).map(item=>item.product_name))];
+    const stockNames:unknown[]=[];
+    for (const name of names) {
+      if (JSON.stringify([...stockNames,name]).length>3500) break;
+      stockNames.push(name);
+    }
+    return { total:rows.length,complete:object.complete===true && (!inventory || stockNames.length===names.length),
+      ...(inventory ? { stock_names:stockNames } : {}),
+      items:rows.slice(0, 80)
       .map(item => Object.fromEntries(ROW_FIELDS.filter(key => item[key] !== undefined && item[key] !== null).map(key => [key, item[key]]))) };
   }
   return 'result' in object ? { ...object, result: compactForModel(object.result) } : object;
