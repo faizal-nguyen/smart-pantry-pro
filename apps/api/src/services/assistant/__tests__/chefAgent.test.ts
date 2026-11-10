@@ -33,6 +33,8 @@ describe('chefAgent — isRecipeTool', () => {
     // QA-discovered: read_recent_recipes returns descriptions the LLM
     // tends to echo, so it must drive chefMode + post-check.
     expect(isRecipeTool('read_recent_recipes')).toBe(true);
+    expect(isRecipeTool('read_recipe')).toBe(true);
+    expect(isRecipeTool('search_web_recipes')).toBe(true);
   });
 
   it('rejects non-recipe tools (inventory / shopping / etc.)', () => {
@@ -44,7 +46,7 @@ describe('chefAgent — isRecipeTool', () => {
   });
 
   it('exposes the canonical name set for downstream consumers', () => {
-    expect(RECIPE_TOOL_NAMES.size).toBe(5);
+    expect(RECIPE_TOOL_NAMES.size).toBe(7);
     expect(RECIPE_TOOL_NAMES.has('find_recipes_using_ingredient')).toBe(true);
     expect(RECIPE_TOOL_NAMES.has('read_recent_recipes')).toBe(true);
   });
