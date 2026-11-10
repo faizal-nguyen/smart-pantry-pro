@@ -152,6 +152,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
         const before=Number(lot.quantity);
         if (command.command_type==='adjust_inventory') Object.assign(lot,item,{ stock_version:Number(lot.stock_version)+1 });
         else { lot.quantity=before-convertQuantity(item.quantity,item.unit,String(lot.unit));lot.stock_version=Number(lot.stock_version)+1; }
+        lot.updated_at=new Date().toISOString();
         result.changes.push({ id:item.id,before_quantity:before,after_quantity:Number(lot.quantity),unit:String(lot.unit),stock_version:Number(lot.stock_version) });
       }
       result.affected_tables=['inventory'];

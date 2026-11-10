@@ -1,3 +1,4 @@
+import {recipeNameMatchScore,recipeWordMatches} from '@smart/shared';
 /**
  * PRP-221 J5a — Read tool handlers.
  *
@@ -215,22 +216,6 @@ function nameKey(name: string): string {
 }
 
 const RECIPE_SEARCH_POOL = 1000;
-/** Optimal string alignment distance (adjacent swaps count once: « fired » → « fried »). */
-function editDistance(a: string, b: string): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
-  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
-    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
-    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
-  }
-  return d[a.length][b.length];
-}
-function wordMatches(word: string, wanted: string): boolean {
-  if (word === wanted) return true;
-  // Short words stay exact (« riz » is not « ris »); longer ones allow 1 or 2 typos.
-  const typos = wanted.length >= 7 ? 2 : wanted.length >= 4 ? 1 : 0;
-  return typos > 0 && Math.abs(word.length - wanted.length) <= typos && editDistance(word, wanted) <= typos;
-}
 // Command words say what to do, not which recipe.
 const COMMAND_WORDS = new Set(['menu', 'demain', 'soir', 'midi', 'matin', 'cuisine', 'recette', 'ajoute', 'met', 'mets', 'planifie', 'supprime',
   'semaine', 'prochain', 'prochaine', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche', 'dejeuner', 'diner', 'aujourd']);
@@ -238,20 +223,13 @@ const COMMAND_WORDS = new Set(['menu', 'demain', 'soir', 'midi', 'matin', 'cuisi
 export function recipeWordsMatched(name: string, text: string): number {
   const words = nameKey(name).split(' ');
   return [...new Set(nameKey(text).split(' ').filter(word => word.length >= 3 && !COMMAND_WORDS.has(word)))]
-    .filter(wanted => words.some(word => wordMatches(word, wanted))).length;
+    .filter(wanted => words.some(word => recipeWordMatches(word, wanted))).length;
 }
 
 /** Names that contain every query word (typos allowed), the exact phrase first. */
 function rankByName<T extends { name: string }>(rows: T[], query: string): T[] {
-  const wanted = nameKey(query).split(' ').filter(Boolean);
-  if (!wanted.length) return [];
-  const phrase = ` ${wanted.join(' ')} `;
   return rows
-    .map(row => {
-      const words = nameKey(row.name).split(' ');
-      const all = wanted.every(w => words.some(word => wordMatches(word, w)));
-      return { row, score: all ? 1 + (` ${words.join(' ')} `.includes(phrase) ? 1 : 0) : 0, length: row.name.length };
-    })
+    .map(row=>({row,score:recipeNameMatchScore(row.name,query),length:row.name.length}))
     .filter(entry => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.length - b.length)
     .map(entry => entry.row);

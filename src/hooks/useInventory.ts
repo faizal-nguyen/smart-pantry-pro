@@ -58,6 +58,8 @@ export interface Product {
 }
 
 export interface InventoryItem {
+  created_at?: string;
+  updated_at?: string;
   id: string;
   product_id: string;
   quantity: number;

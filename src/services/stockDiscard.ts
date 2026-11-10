@@ -30,7 +30,7 @@ export function readDiscardDraft(owner:string): DiscardDraft|null {
   if (!parsed.success || parsed.data.owner!==owner) throw new Error('La déclaration conservée ne peut pas être relue. Elle reste enregistrée.');
   return parsed.data;
 }
-export function prepareDiscard(owner:string,item:InventoryItem): DiscardDraft {
+export function prepareDiscard(owner:string,item:InventoryItem,reason:DiscardDraft['reason']='expired'): DiscardDraft {
   const existing=readDiscardDraft(owner);
   if (existing) {
     if (existing.inventory_id!==item.id) throw new Error('Reprenez la déclaration de perte précédente avant d’en commencer une autre.');
@@ -38,7 +38,7 @@ export function prepareDiscard(owner:string,item:InventoryItem): DiscardDraft {
   }
   const draft=DiscardDraftSchema.parse({ owner,event_id:crypto.randomUUID(),inventory_id:item.id,product_id:item.product_id,
     product_name:item.product?.name ?? 'Produit',category:item.product?.category ?? null,quantity:String(item.quantity),unit:(item.unit ?? item.product?.unit_type ?? '').trim(),
-    reason:'expired',notes:'',cost:'',occurred_at:new Date().toISOString(),command:null,stock_confirmed:false });
+    reason,notes:'',cost:'',occurred_at:new Date().toISOString(),command:null,stock_confirmed:false });
   writeOwnedValue(owner,key,draft);return draft;
 }
 export function editDiscard(owner:string,patch:Pick<DiscardDraft,'quantity'|'reason'|'notes'|'cost'>) {

@@ -40,3 +40,15 @@ test('the constraints of the current request reach the model even when the profi
   expect(recommendationModelContext(shaped, undefined)).toMatchObject({ request_constraints: { exclude_ingredients: ['crème'], diets: ['gluten_free'] } });
   expect(recommendationModelContext(result(), undefined)).not.toHaveProperty('request_constraints');
 });
+
+test('stock gaps preserve purchase versus quantity checks and are not silently cut after three ingredients',()=>{
+ const value={...recipe,availability:{status:'missing',uncertainties:[],missing:[
+ {ingredient_name:'Beurre',quantity:25,unit:'g',reason:'UNIT_INCOMPATIBLE',is_essential:true},
+ ...['Farine','Bouillon','Pain','Emmental'].map(ingredient_name=>({ingredient_name,quantity:100,unit:'g',reason:'NOT_IN_STOCK',is_essential:true})),
+ ]}};
+ const shaped=recommendationModelContext({...result(),cookable_now:[],almost_cookable:[value]},2) as {almost_cookable:Array<{missing_complete:boolean;missing:Array<{ingredient_name:string;needs_purchase:boolean}>}>};
+ expect(shaped.almost_cookable[0].missing_complete).toBe(true);
+ expect(shaped.almost_cookable[0].missing).toHaveLength(5);
+ expect(shaped.almost_cookable[0].missing[0]).toMatchObject({ingredient_name:'Beurre',needs_purchase:false});
+ expect(shaped.almost_cookable[0].missing[4]).toMatchObject({ingredient_name:'Emmental',needs_purchase:true});
+});

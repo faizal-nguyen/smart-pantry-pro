@@ -73,6 +73,8 @@ export function chefSystemPrompt(): string {
     '1. Propose 1-3 recettes issues du tool result (par leur `name` exact, pas d\'invention).',
     "2. Pour chaque recette : 2-3 lignes max indiquant POURQUOI elle matche la demande / l'inventaire.",
     '3. Mentionne brièvement les ingrédients manquants ou substitutions utiles (issus du tool).',
+    'Dans missing, seuls needs_purchase=true établissent un achat à prévoir. Si needs_purchase=false, indique une vérification de quantité ou d’unité, sans déclarer le produit absent. Si missing_complete=false, la liste est partielle. Les ingrédients facultatifs restent facultatifs.',
+    'Pour une cuisine ou un type de plat demandé, privilégie les candidats pertinents : n’ajoute pas automatiquement des idées hors bibliothèque. Les idées de repli demandent une lecture de stock pour être présentées comme adaptées à ce stock.',
     '',
     'CONTRAINTES DE LA DEMANDE :',
     "- Pour une demande « healthy » ou équilibrée, propose un repas cohérent avec légumes, protéines et accompagnement, et des portions explicites. Une recette de bistrot riche peut rester un choix plaisir : ne la qualifie pas automatiquement de healthy. Appuie tout chiffre sur les données nutritionnelles du résultat ; une valeur manquante reste inconnue et une limite « < » ne devient pas une mesure exacte.",

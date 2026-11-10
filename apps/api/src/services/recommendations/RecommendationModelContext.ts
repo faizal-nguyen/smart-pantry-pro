@@ -1,4 +1,4 @@
-import {NUTRIENTS} from '@smart/shared';
+import {NUTRIENTS,needsPurchase,type StockMissing} from '@smart/shared';
 /** Compact model transport only. The UI and private action receipt keep the
  * original evidence; this module never filters or ranks recipes. */
 const object = (value: unknown): Record<string, unknown> | null =>
@@ -45,9 +45,10 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
           const finding = object(item);
           return { code: finding?.code, ingredient: text(finding?.ingredient, 80), message: text(finding?.message) };
         }) },
-        missing: list(stock?.missing).slice(0, 3).map(item => {
+        missing_total:list(stock?.missing).length,missing_complete:list(stock?.missing).length<=20,
+        missing: list(stock?.missing).slice(0, 20).map(item => {
           const gap = object(item);
-          return { ingredient_name: text(gap?.ingredient_name, 80), quantity: gap?.quantity, unit: text(gap?.unit, 30) };
+          return { ingredient_name: text(gap?.ingredient_name, 80), quantity: gap?.quantity, unit: text(gap?.unit, 30),reason:text(gap?.reason,50),is_essential:gap?.is_essential!==false,needs_purchase:needsPurchase({reason:gap?.reason as StockMissing['reason']}) };
         }),
         nutrition: { status: nutrition?.status, coverage: nutrition?.coverage,
           per_serving:Object.fromEntries(NUTRIENTS.map(({key})=>[key,object(nutrition?.per_serving)?.[key] ?? null])),
