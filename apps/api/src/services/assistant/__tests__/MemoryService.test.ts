@@ -21,6 +21,22 @@ test('the thread lists its latest messages, oldest first (it stopped at the 50 o
   expect(page).toEqual({ items: [{ id: 'm2', created_at: '2' }, { id: 'm3', created_at: '3' }], nextCursor: null });
   expect(f.calls).toContainEqual({ table: 'assistant_messages', method: 'order', args: ['created_at', { ascending: false }] });
 });
+test('older messages use a stable timestamp/id cursor and do not disappear after the latest page',async()=>{
+  const ids=['33333333-3333-4333-8333-333333333333','22222222-2222-4222-8222-222222222222','11111111-1111-4111-8111-111111111111'];
+  const f=clientFixture({assistant_messages:{data:ids.map(id=>({id,created_at:'2026-11-10T10:00:00Z'}))}});
+  const service=new MemoryService(f.client),page=await service.listMessages(CONV,USER,{limit:2});
+  expect(page.items.map(r=>r.id)).toEqual([ids[1],ids[0]]);expect(page.nextCursor).toBeTruthy();
+  await service.listMessages(CONV,USER,{limit:2,cursor:page.nextCursor!});
+  expect(f.calls).toContainEqual({table:'assistant_messages',method:'or',args:[expect.stringContaining('id.lt.'+ids[1])]});
+});
+test('authorized global search still rejects expired, revoked, foreign and unshared profile messages',async()=>{
+  const f=clientFixture({nutrition_profiles:{data:{settings:{}}}});
+  const base={user_id:USER,id:CID,conversation_id:CONV,role:'user',content:'Une soupe',policy_revision:4,created_at:'2026-11-10T00:00:00Z'};
+  f.rpc.mockResolvedValue({data:[{source:'message',record:base},{source:'message',record:{...base,user_id:OTHER}},
+    {source:'message',record:{...base,policy_revision:0}},{source:'message',record:{...base,expires_at:'2000-01-01'}}] as never,error:null});
+  const result=await new MemoryService(f.client).searchAuthorizedHistory(USER,policy({historyFloor:3}),'soupe');
+  expect(result).toHaveLength(1);expect(result[0].snippet).toBe('Une soupe');
+});
 test('authenticated command envelope is validated before RPC; no admin memory inserts', async () => {
   const admin = clientFixture(), user = clientFixture(); user.rpc.mockResolvedValueOnce({ data: receipt(), error: null });
   const service = new MemoryService(admin.client);

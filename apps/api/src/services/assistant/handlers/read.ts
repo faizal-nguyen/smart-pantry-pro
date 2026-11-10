@@ -1,4 +1,6 @@
-import {recipeNameMatchScore,recipeWordMatches} from '@smart/shared';
+import {recipeNameMatchScore,recipeWordMatches,conservationReviewRequired} from '@smart/shared';
+import {ReadRecipeHandler} from './recipeDetail.js';
+import {SearchWebRecipesHandler} from './webRecipes.js';
 /**
  * PRP-221 J5a — Read tool handlers.
  *
@@ -51,6 +53,7 @@ export interface InventoryItemView {
   quantity_quality?: string | null;
   date_kind?: string | null;
   notes?: string | null;
+  conservation_review_required?: boolean;
 }
 
 export interface ShoppingItemView {
@@ -188,6 +191,7 @@ export class ReadInventoryHandler implements ToolHandler<ReadInventoryArgs, { it
           quantity_quality:row.quantity_quality ?? 'unknown',
           date_kind:row.date_kind ?? 'unknown',
           notes:row.notes ?? null,
+          conservation_review_required:conservationReviewRequired(row.notes),
           expiry_date: row.expiry_date,
           location: row.location,
           days_to_expiry: daysToExpiry(row.expiry_date),
@@ -647,6 +651,8 @@ export type { RecommendedRecipeView };
 import { ToolHandlerRegistry } from './types.js';
 
 export function registerReadHandlers(registry: ToolHandlerRegistry): void {
+  registry.register('search_web_recipes',new SearchWebRecipesHandler());
+  registry.register('read_recipe',new ReadRecipeHandler());
   registry.register('read_inventory', new ReadInventoryHandler());
   registry.register('read_shopping_list', new ReadShoppingListHandler());
   registry.register('read_recent_recipes', new ReadRecentRecipesHandler());

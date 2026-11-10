@@ -6,6 +6,8 @@ import { maximumCallCost, measureCost, PRICING_VERSION } from './ModelPricing.js
 import { ProviderOutputError } from './OpenAITransport.js';
 
 const IMAGE_RESERVE_TOKENS=3000;
+// https://developers.openai.com/api/docs/pricing — checked 2026-11-10.
+const WEB_SEARCH_USD=0.01;
 
 // A rate limit or a server error is answered before any output: one more try, if time is left.
 // Not a timeout or a lost connection, whose output may already be billed, nor a stream already shown.
@@ -43,7 +45,9 @@ export class ModelInvocation {
     // An image costs its patches, not its base64: at most 2,500 patches x 1.2 at high detail.
     const images=request.messages.reduce((n,m)=>n+(m.images?.length ?? 0),0);
     const text=request.messages.map(({images:_images,...m})=>m);
-    const reserve=maximumCallCost(target.model,Buffer.byteLength(JSON.stringify([text,request.tools,request.continuation]))+images*IMAGE_RESERVE_TOKENS,target.maxOutputTokens);
+    // Search content is billed input too: reserve the provider's full 128k search window.
+    const reserve=maximumCallCost(target.model,Buffer.byteLength(JSON.stringify([text,request.tools,request.continuation]))+images*IMAGE_RESERVE_TOKENS+(request.webSearch ? 128000*4 : 0),target.maxOutputTokens)
+      +(request.webSearch?.maxCalls ?? 0)*WEB_SEARCH_USD;
     if(this.reserved+reserve>this.config.limits.maxUsd) {this.limitReason='budget';throw new Error('INVOCATION_COST_LIMIT');}
     this.reserved+=reserve;
     const started=Date.now();const timeout=Math.min(target.timeoutMs,this.deadline-started);const controller=new AbortController();
@@ -57,6 +61,7 @@ export class ModelInvocation {
       Object.assign(row,measureCost(result),{served_model:result.model||null,input_tokens:result.usageKnown===false ? null : result.usage?.prompt_tokens ?? null,
         output_tokens:result.usageKnown===false ? null : result.usage?.completion_tokens ?? null,cached_input_tokens:result.usage?.cached_tokens ?? null,cache_write_tokens:result.usage?.cache_write_tokens ?? null,reasoning_tokens:result.usage?.reasoning_tokens ?? null});
       observeModel(this.config,role,result.model);
+      if(request.webSearch && row.usd!==null) row.usd+=(result.webSearch?.searchCalls ?? 0)*WEB_SEARCH_USD;
     };
     try {
       const work=async()=>{

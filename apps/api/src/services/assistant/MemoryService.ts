@@ -138,16 +138,17 @@ const MAX_LIMIT = 100;
  * Cursor encoding for stable pagination (PRP-223 §11 — never offset).
  * Tuple `created_at | id` base64url-encoded.
  */
-function encodeCursor(createdAt: string, id: string): string {
-  return Buffer.from(`${createdAt}|${id}`, 'utf8').toString('base64url');
+function encodeCursor(createdAt: string, id: string,lastMessageAt?:string|null): string {
+  return Buffer.from(`${createdAt}|${id}${lastMessageAt===undefined ? '' : '|'+(lastMessageAt ?? 'null')}`, 'utf8').toString('base64url');
 }
 
-function decodeCursor(raw: string): { createdAt: string; id: string } | null {
+function decodeCursor(raw: string): { createdAt: string; id: string;lastMessageAt?:string|null } | null {
   try {
     const decoded = Buffer.from(raw, 'base64url').toString('utf8');
-    const [createdAt, id] = decoded.split('|');
+    const [createdAt, id,last] = decoded.split('|');
     if (!createdAt || !id || !Number.isFinite(Date.parse(createdAt)) || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)) return null;
-    return { createdAt, id };
+    if(!/^[0-9TZ:+.-]+$/.test(createdAt) || (last!==undefined && last!=='null' && (!/^[0-9TZ:+.-]+$/.test(last)||!Number.isFinite(Date.parse(last))))) return null;
+    return { createdAt, id,...(last!==undefined ? {lastMessageAt:last==='null' ? null:last} : {}) };
   } catch {
     return null;
   }
@@ -215,12 +216,16 @@ export class MemoryService {
         // Cursor on (created_at, id) descending. Records with created_at
         // strictly less than the cursor, OR same created_at and id less
         // than cursor id. Acceptable approximation for V1.
-        query = query.lt('created_at', cur.createdAt);
+        const tail=`created_at.lt.${cur.createdAt},and(created_at.eq.${cur.createdAt},id.lt.${cur.id})`;
+        if(cur.lastMessageAt) query=query.or(`last_message_at.lt.${cur.lastMessageAt},and(last_message_at.eq.${cur.lastMessageAt},or(${tail})),last_message_at.is.null`);
+        else if(cur.lastMessageAt===null) query=query.is('last_message_at',null).or(tail);
+        else query=query.or(tail);
       }
     }
     const { data, error } = await query;
     if (error) throw this.dbError('listConversations', error);
-    return this.paginate(((data ?? []) as unknown as TitledConversationRow[]).map(withConversationTitle), limit);
+    const rows=((data ?? []) as unknown as TitledConversationRow[]).map(withConversationTitle),items=rows.slice(0,limit),last=items[items.length-1];
+    return {items,nextCursor:rows.length>limit && last ? encodeCursor(last.created_at,last.id,last.last_message_at) : null};
   }
 
   async archiveConversation(conversationId: string, userId: string): Promise<ConversationRow> {
@@ -317,21 +322,21 @@ export class MemoryService {
     const limit = normaliseLimit(opts.limit);
     // Without a cursor the thread shows its latest messages, oldest first: the
     // first page used to stop at the 50 oldest, hiding every new exchange.
-    if (!opts.cursor) return { items: await this.getRecentMessages(conversationId, userId, limit), nextCursor: null };
     let query = this.admin
       .from('assistant_messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
-      .order('created_at', { ascending: true })
-      .order('id', { ascending: true })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(limit + 1);
-    const cur = decodeCursor(opts.cursor);
-    if (cur) query = query.gt('created_at', cur.createdAt);
+    const cur = opts.cursor ? decodeCursor(opts.cursor) : null;
+    if (cur) query = query.or(`created_at.lt.${cur.createdAt},and(created_at.eq.${cur.createdAt},id.lt.${cur.id})`);
     const { data, error } = await query;
     if (error) throw this.dbError('listMessages', error);
-    return this.paginate(data ?? [], limit);
+    const page=this.paginate(data ?? [], limit);
+    return {...page,items:page.items.reverse()};
   }
 
   async getRecentMessages(
@@ -672,6 +677,29 @@ export class MemoryService {
     return { messages: messages.filter(row => allowedMessage(row, policy, terms)).slice(-limit),
       summary: summary && allowedSummary(summary, policy, terms) ? summary : null,
       session: session.filter(row => allowedSession(row, policy, conversationId, terms)), privateTerms: terms };
+  }
+
+  /** Search all retained conversations under the same policy as model context. */
+  async searchAuthorizedHistory(userId:string,policy:MemoryPolicy,query:string,limit=10) {
+    if(policy.userId!==userId || !policy.saveHistory) return [];
+    const {data,error}=await memoryRpc(this.admin,'search_assistant_model_history',{
+      p_user_id:userId,p_revision:policy.revision,p_query:query,p_limit:Math.min(100,limit*5),
+    });
+    if(error || !Array.isArray(data)) throw this.dbError('searchAuthorizedHistory',error);
+    const profile=await (this.admin as unknown as SupabaseClient).from('nutrition_profiles').select('settings').eq('user_id',userId).maybeSingle();
+    if(profile.error) throw this.dbError('searchAuthorizedHistory.profile',profile.error);
+    const settings=NutritionProfileSettingsSchema.safeParse(profile.data?.settings);
+    const terms=privateProfileTerms(settings.success ? settings.data : null);
+    return data.flatMap(value=>{
+      const item=value as {source:string;record:MessageRow|SummaryRow};
+      if(item.source==='message' && allowedMessage(item.record as MessageRow,policy,terms)) {
+        const row=item.record as MessageRow;return [{conversation_id:row.conversation_id,message_id:row.id,role:row.role,snippet:row.content}];
+      }
+      if(item.source==='summary' && allowedSummary(item.record as SummaryRow,policy,terms)) {
+        const row=item.record as SummaryRow;return [{conversation_id:row.conversation_id,message_id:row.id,role:'summary',snippet:row.summary}];
+      }
+      return [];
+    }).slice(0,limit);
   }
 
   // ----- Helpers -----------------------------------------------------------

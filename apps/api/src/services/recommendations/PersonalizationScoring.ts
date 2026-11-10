@@ -1,14 +1,14 @@
 import { allocateRecipeStock,calendarDaysUntil,convertQuantity,ingredientMatchRank,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
 import { RecipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js';
 import type { RecipeWithIngredients } from './types.js';
-import {NUTRIENTS,nutritionFromRecipeSnapshot,SourcedRecipeNutritionSchema,type NutrientKey} from '@smart/shared';
+import {NUTRIENTS,nutritionFromRecipeSnapshot,SourcedRecipeNutritionSchema,conservationReviewRequired,type NutrientKey} from '@smart/shared';
 
 export interface IngredientProduct {
   id:string;name:string;nutrition_json?:{ source?:string;per100g?:Partial<Record<NutrientKey,number>>;rawFieldVersion?:number };
   allergens_json?:{ source?:string;allergensTags?:string[];tracesTags?:string[];complete?:boolean };
   off_last_synced_at?:string|null;updated_at?:string|null;enrichment_status?:string;
 }
-export type QualifiedLot = StockLot & { date_kind?:'use_by'|'best_before'|'unknown';quantity_quality?:'measured'|'estimated'|'unknown';location?:string|null };
+export type QualifiedLot = StockLot & { date_kind?:'use_by'|'best_before'|'unknown';quantity_quality?:'measured'|'estimated'|'unknown';location?:string|null;notes?:string|null };
 const norm = (text:string) => normalizeIngredientName(text).replace(/œ/g,'oe').replace(/[_-]/g,' ');
 const contains = (text:string,term:string) => (` ${norm(text)} `).includes(` ${norm(term)} `);
 // Ingredient identities stay separate from allergen families: excluding butter
@@ -138,6 +138,10 @@ export function evaluateAvailability(recipe:RecipeWithIngredients,lots:Qualified
   const blocking:string[]=[];
   if (unknownBase) blocking.push('Portions de base de la recette inconnues ; quantités à confirmer avant de calculer les manquants.');
   if (!(recipe.recipe_ingredients?.length)) blocking.push('Liste d’ingrédients absente.');
+  const review = qualified.eligible.filter(lot=>conservationReviewRequired(lot.notes) &&
+    (used.has(lot.id) || result.missing.some(gap=>gap.is_essential && UNCLEAR_REASONS.includes(gap.reason) &&
+      matchesLot((recipe.recipe_ingredients ?? [])[gap.ingredient_index],lot))));
+  if (review.length) blocking.push(`Conservation à vérifier avant utilisation : ${[...new Set(review.map(lot=>lot.product_name))].join(', ')}.`);
   const doubtful=new Set(qualified.eligible.filter(lot=>used.has(lot.id) && (!lot.expiry_date || !lot.date_kind || lot.date_kind==='unknown' || lot.quantity_quality!=='measured'))
     .map(lot=>lot.product_name).filter(Boolean));
   // In stock, but the amount does not convert or is not given: present, to check.
@@ -196,6 +200,11 @@ export function scoreExplicitTaste(recipe:RecipeWithIngredients,profile:Nutritio
 export function scoreNutritionGoal(estimate:NutritionEstimate,profile:NutritionProfileSettings,goal?:string):number|null {
   if (estimate.coverage!==1 || !['known','estimated'].includes(estimate.status)) return null;
   const values:number[]=[];
+  if (goal==='light') {
+    const kcal=estimate.per_serving.energyKcal;
+    if (kcal===null || estimate.upper_bounds?.includes('energyKcal')) return null;
+    values.push(Math.max(0,1-kcal/1000));
+  }
   // Documented culinary ranking rules, not health targets: grams per serving / fixed display scale.
   if (profile.goals.includes('protein') || goal==='high_protein') { if (estimate.per_serving.proteinG===null || estimate.upper_bounds?.includes('proteinG')) return null;values.push(Math.min(1,estimate.per_serving.proteinG/30)); }
   if (profile.goals.includes('more_fiber')) { if (estimate.per_serving.fiberG===null || estimate.upper_bounds?.includes('fiberG')) return null;values.push(Math.min(1,estimate.per_serving.fiberG/10)); }

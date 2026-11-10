@@ -9,6 +9,14 @@ const recipe = {
   reason_codes: [{ code: 'STOCK_AVAILABLE', text: 'Stock renseigné.' }, { code: 'DECLARED_TASTE', text: 'Préférence privée pour le riz.' }],
 };
 const result = () => ({ pipeline_version: 3, profile_version: 2, cookable_now: [recipe], almost_cookable: [], verify_suggestions: [], excluded_suggestions: [recipe] });
+test('private profile cannot hide independent recipe/stock facts or leak its default portions',()=>{
+  const value={...recipe,servings:99,recipe_facts:{servings:4,availability:{status:'missing',missing:[{ingredient_name:'Bouillon',quantity:800,unit:'ml',reason:'NOT_IN_STOCK'}],uncertainties:['Conservation à vérifier : lait.']},nutrition:recipe.nutrition}};
+  const shaped=recommendationModelContext({...result(),cookable_now:[value]}) as {cookable_now:Array<Record<string,unknown>>};
+  expect(shaped.cookable_now[0]).toMatchObject({servings:4,missing:[{ingredient_name:'Bouillon',needs_purchase:true}],nutrition:{per_serving:{proteinG:8}}});
+  expect(JSON.stringify(shaped)).toContain('Conservation à vérifier');
+  expect(JSON.stringify(shaped)).not.toContain('Allergie privée');
+  expect(JSON.stringify(shaped)).not.toContain('99');
+});
 
 test('sharing disabled removes inferred profile details from model transport while preserving full UI evidence', () => {
   const original = result();

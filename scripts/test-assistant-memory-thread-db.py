@@ -22,6 +22,7 @@ C = "00000000-0000-4000-8000-0000000000c3"
 OLD = ["20261008151704_v10_reliability_commands.sql", "20261008210917_v10_mobile_routine.sql",
        "20261009095426_v10_personalization.sql", "20261011184535_v10_assistant_memory.sql"]
 NEW = "20261105110000_assistant_memory_thread.sql"
+CHEF = "20261110112236_assistant_chef_memory_negations.sql"
 
 
 def policy(owner=C):
@@ -168,9 +169,36 @@ if __name__ == "__main__":
         memory.enable(B, assistantMemoryEnabled=True, saveHistory=True)
         run(file=ROOT / "supabase/migrations" / NEW)
         run(file=ROOT / "supabase/migrations" / NEW)  # idempotent
+        run(file=ROOT / "supabase/migrations" / CHEF)
+        run(file=ROOT / "supabase/migrations" / CHEF)
         check("existing rows start with their history floor at their revision", floor_starts_at_revision)
         memory.tests(history_floor=True)
         tests()
+        def chef_negations_and_history():
+            classify=lambda text: json.loads(run("SELECT private.classify_memory("+literal(text)+",'preference',true);"))
+            equal(classify("Souviens-toi que je n’aime plus les plats épicés")["payload"]["value"],"mild")
+            equal(classify("Je ne suis plus végétarien")["payload"]["field"],None)
+            equal(classify("Je ne suis pas vegan")["payload"]["value"],None)
+            equal(classify("Je cuisine sans porc et sans alcool")["payload"]["value"],["no_pork","no_alcohol"])
+            equal(classify("Mon frère est vegan")["destination"],"session")
+            owner="00000000-0000-4000-8000-0000000000d4"
+            run("INSERT INTO auth.users(id) VALUES("+literal(owner)+");")
+            memory.enable(owner,assistantMemoryEnabled=True,saveHistory=True)
+            special=None
+            for i in range(22):
+                conv=artifact("conversation",{"title":"Histoire "+str(i)},owner=owner)
+                message=artifact("message",{"conversation_id":conv["id"],"role":"user","content":"Une soupe épicée" if i==0 else "Autre échange"},owner=owner)
+                if i==0: special=message
+            call=lambda actor,revision: "SELECT search_assistant_model_history("+literal(actor)+","+str(revision)+",'epicee',20);"
+            found=json.loads(run(call(owner,policy(owner)["revision"]),role="service_role"))
+            equal([r["record"]["id"] for r in found],[special["id"]])
+            equal(json.loads(run(call(owner,policy(owner)["revision"]-1),role="service_role")),[])
+            equal(json.loads(run(call(B,policy(B)["revision"]),role="service_role")),[])
+            run(call(owner,policy(owner)["revision"]),owner=B,error="permission denied")
+            run(call(owner,policy(owner)["revision"]),role="anon",error="permission denied")
+            run("UPDATE assistant_messages SET expires_at='2000-01-01' WHERE id="+literal(special["id"])+";")
+            equal(json.loads(run(call(owner,policy(owner)["revision"]),role="service_role")),[])
+        check("negations, compound diets and accent-normalized authorized history beyond 20 conversations",chef_negations_and_history)
         print(f"{stock.checks} groups passed with the assistant memory thread on real local PostgreSQL.")
     finally:
         run("DROP DATABASE " + stock.DATABASE + " WITH (FORCE);", database="postgres")

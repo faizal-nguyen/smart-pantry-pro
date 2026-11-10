@@ -2,12 +2,12 @@ import { withinMemoryHistory, type MemoryPolicy } from '@smart/shared';
 import { recommendationModelContext } from '../recommendations/RecommendationModelContext.js';
 
 const blockedKeys = /^(profile|settings|allergies|excludedIngredients|diets|goals|targets|personal_notes|notes|evidence|transcript|request_text|tool_args|audio_transcript|health|memory_context)$/i;
-function redact(value: unknown, share: boolean, depth = 0): unknown {
+function redact(value: unknown, share: boolean, depth = 0,maxRows=30,maxText=800): unknown {
   if (depth > 8) return null;
-  if (Array.isArray(value)) return value.slice(0, 30).map(v => redact(v, share, depth + 1));
-  if (!value || typeof value !== 'object') return typeof value === 'string' ? value.slice(0, 800) : value;
+  if (Array.isArray(value)) return value.slice(0, maxRows).map(v => redact(v, share, depth + 1,maxRows,maxText));
+  if (!value || typeof value !== 'object') return typeof value === 'string' ? value.slice(0, maxText) : value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => share || !blockedKeys.test(key))
-    .map(([key, val]) => [key, redact(val, share, depth + 1)]));
+    .map(([key, val]) => [key, redact(val, share, depth + 1,maxRows,maxText)]));
 }
 export function memoryModelToolResult(tool: string, result: unknown, policy: MemoryPolicy | null): unknown {
   const obj = result && typeof result === 'object' ? result as Record<string, unknown> : {};
@@ -20,6 +20,7 @@ export function memoryModelToolResult(tool: string, result: unknown, policy: Mem
     return Object.fromEntries(['status', 'destination', 'reason', 'version'].map(k => [k, obj[k]]).filter(([, v]) => v !== undefined));
   const recommendation = recommendationModelContext(result, policy?.shareProfile ? policy.profileVersion : undefined);
   if (recommendation !== null) return recommendation;
+  if(tool==='read_recipe') return redact(result,!!policy?.shareProfile,0,100,4000);
   if (tool==='read_inventory' && Array.isArray(obj.items)) {
     // The generic history limit (30) must not turn a full pantry into an
     // incomplete stock read. Keep the existing field/privacy redaction on

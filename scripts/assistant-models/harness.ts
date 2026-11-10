@@ -21,7 +21,7 @@ const recipe={id:RECIPE,reference:{id:RECIPE,source:'recipes'},profile_version:1
   reason_codes:[],nutrition:{status:'unavailable'}};
 const RECIPES={pipeline_version:3,profile_version:1,cookable_now:[recipe],almost_cookable:[],verify_suggestions:[],
   excluded_suggestions:[{...recipe,id:'excluded-fixture',name:'Recette exclue aux cacahuètes',constraints:{status:'incompatible',findings:[{code:'DECLARED_ALLERGY',ingredient:'cacahuètes',message:'Exclusion confirmée fictive.'}],limitations:[]}}],recent_suggestions:[]};
-export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient,fixtures?:Partial<Record<'read_inventory'|'suggest_recipes_for_context'|'search_recipes',unknown>>) {
+export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient,fixtures?:Partial<Record<'read_inventory'|'suggest_recipes_for_context'|'search_recipes'|'read_recipe'|'search_web_recipes',unknown>>,options:{shareProfile?:boolean}={}) {
   let calls=0;let effects=0;let providerLeak=false;let savedSummary:string|null=null;const rows:Array<Record<string,unknown>>=[];
   const executed:Array<{tool:string;args:Record<string,unknown>}>=[];
   const mock:AICompletionClient={complete:async(req)=>{
@@ -58,7 +58,7 @@ export async function runScenario(scenario:Scenario,config:AssistantModelConfig,
     return {result:{items:[],status:'read'}};
   }});
   const writer={insertPlanned:async(input:Record<string,unknown>)=>{const row={id:randomUUID(),...input};rows.push(row);return row;},markExecuted:async()=>undefined,markFailed:async()=>undefined,findByAudioSha:async()=>null} as unknown as ActionLogWriter;
-  const policy={userId:USER,revision:1,memoryEnabled:true,saveHistory:true,shareProfile:true,profileVersion:1};
+  const policy={userId:USER,revision:1,memoryEnabled:true,saveHistory:true,shareProfile:options.shareProfile ?? true,profileVersion:1};
   const conversationId='66666666-6666-4666-8666-666666666666';
   const memory={readPolicySafe:async(owner:string)=>{if(owner!==USER) throw new Error('WRONG_OWNER');return policy;},
     createConversation:async()=>({id:conversationId}),recordMessage:async()=>undefined,
@@ -66,8 +66,8 @@ export async function runScenario(scenario:Scenario,config:AssistantModelConfig,
       Array.from({length:20},(_,i)=>({id:'synthetic-message-'+i,role:i%2 ? 'assistant':'user',content:'Nous avons choisi une soupe. La durée de cuisson reste à vérifier.'})) : []}),
     persistArtifact:async()=>({claimed:true}),recordSummary:async(_conversation:string,_owner:string,value:{summary:string})=>{savedSummary=value.summary;},
   } as unknown as MemoryService;
-  const contextBuilder={build:async()=>({policy,profileVersion:1,shareProfileWithModel:true,
-    combinedText:'Profil fictif confirmé : les cacahuètes sont exclues. Préférence fictive : plats doux. Les durées et valeurs nutritionnelles sont inconnues.'})} as unknown as ContextBuilder;
+  const contextBuilder={build:async()=>({policy,profileVersion:1,shareProfileWithModel:policy.shareProfile,
+    combinedText:policy.shareProfile ? 'Profil fictif confirmé : les cacahuètes sont exclues. Préférence fictive : plats doux. Les durées et valeurs nutritionnelles sont inconnues.' : 'Profil de test privé ; aucun détail alimentaire partagé.'})} as unknown as ContextBuilder;
   const service=new VoiceAgentService(ai,{transcribe:async()=>{throw new Error('VOICE_NOT_IN_BENCHMARK');}},registry,handlers,writer,
     new ConfirmationTokenSigner('fictitious-benchmark-secret-'.repeat(3)),{modelConfig:config,memoryService:memory,contextBuilder});
   const ctx={userId:USER,userClient:{},adminClient:{},productResolver:{}} as unknown as ToolExecutionContext;

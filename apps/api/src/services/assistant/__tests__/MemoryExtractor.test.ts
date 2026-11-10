@@ -2,6 +2,19 @@ import { classifyMemoryFact } from '@smart/shared';
 import { MemoryExtractor } from '../MemoryExtractor.js';
 import { USER } from '../__fixtures__/memory.js';
 const extract = (text: string, source: 'text' | 'voice' = 'text') => new MemoryExtractor().extract({ userId: USER, text, source });
+test.each(['Je ne suis plus végétarien','Je ne suis pas vegan'])('retraction is a manual profile review, never an additive diet: %s',text=>{
+  expect(classifyMemoryFact(text)).toMatchObject({destination:'profile',status:'candidate',payload:{field:null,value:null,operation:null}});
+});
+test('negative spice correction changes the taste instead of reversing its meaning',()=>{
+  expect(classifyMemoryFact('Souviens-toi que je n’aime plus les plats épicés')).toMatchObject({status:'active',payload:{type:'taste',value:'mild'}});
+  expect(classifyMemoryFact('Je n’aime pas les plats doux')).toMatchObject({status:'candidate',payload:{type:'note'}});
+  expect(classifyMemoryFact('Je préfère les plats plus épicés')).toMatchObject({payload:{value:'spicy'}});
+  expect(classifyMemoryFact('Je préfère les plats plus doux')).toMatchObject({payload:{value:'mild'}});
+});
+test('compound diets are complete and third-party tastes do not become account preferences',()=>{
+  expect(classifyMemoryFact('Je cuisine sans porc et sans alcool')).toMatchObject({payload:{field:'diets',value:['no_pork','no_alcohol']}});
+  expect(extract('Mon frère est vegan')).toEqual([]);
+});
 test('M02 remember + specific taste is exactly one structured explicit fact', () => {
   const result = extract('Souviens-toi que je préfère les plats épicés');
   expect(result).toHaveLength(1);

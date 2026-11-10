@@ -29,6 +29,7 @@ function wireMessages(messages: AICompletionRequest['messages'], responses: bool
   ] });
 }
 export function completionParams(req: AICompletionRequest, stream = false): ObjectValue {
+  if(req.webSearch && (req.transport!=='responses' || req.tools?.length || stream)) throw new Error('WEB_SEARCH_TRANSPORT_INVALID');
   if (req.transport !== 'responses') {
     if (req.continuation?.length) throw new Error('CHAT_CONTINUATION_NOT_SUPPORTED');
     return { model:req.model, messages:wireMessages(req.messages,false), store:false, stream, service_tier:'default',
@@ -47,6 +48,7 @@ export function completionParams(req: AICompletionRequest, stream = false): Obje
     // Explicit non-strict mode preserves the optional legacy tool fields. Zod remains authoritative.
     ...(req.tools?.length ? { tools:req.tools.map(t=>({type:'function',...t.function,strict:false})),tool_choice:req.tool_choice ?? 'auto',parallel_tool_calls:false } : {}),
     ...(req.response_format ? { text:{format:req.response_format} } : {}),
+    ...(req.webSearch ? {tools:[{type:'web_search',search_context_size:'low',filters:{allowed_domains:req.webSearch.allowedDomains}}],tool_choice:'required',max_tool_calls:req.webSearch.maxCalls} : {}),
   };
 }
 export function parseCompletion(raw: unknown, transport: 'responses'|'chat_completions'): AICompletionResponse {
@@ -68,12 +70,16 @@ export function parseCompletion(raw: unknown, transport: 'responses'|'chat_compl
     if (message.refusal || ['length','content_filter'].includes(str(choice.finish_reason))) throw new ProviderOutputError('PROVIDER_OUTPUT_REJECTED',measured);
   } else {
     const texts:string[]=[]; const calls:NonNullable<AICompletionResponse['tool_calls']>=[]; const continuation:ObjectValue[]=[];
-    let refused=false;
+    let refused=false;const citations:Array<{url:string;title:string}>=[];let searchCalls=0;
     for (const value of Array.isArray(r.output)?r.output:[]) {
       const item=obj(value);
       if (item.type==='message') for(const part of Array.isArray(item.content)?item.content:[]) {
         const content=obj(part);if(content.type==='output_text') texts.push(str(content.text));if(content.type==='refusal') refused=true;
+        for(const raw of Array.isArray(content.annotations)?content.annotations:[]) {const annotation=obj(raw);
+          if(annotation.type==='url_citation' && /^https?:\/\//i.test(str(annotation.url))) citations.push({url:str(annotation.url),title:str(annotation.title)});
+        }
       }
+      if(item.type==='web_search_call' && obj(item.action).type==='search') searchCalls++;
       if (item.type==='function_call') {
         const call={id:str(item.call_id),name:str(item.name),arguments:str(item.arguments)};
         if(!call.id||!call.name||!call.arguments) throw new ProviderOutputError('PROVIDER_TOOL_INVALID',measured);
@@ -86,6 +92,7 @@ export function parseCompletion(raw: unknown, transport: 'responses'|'chat_compl
       }
     }
     measured.content=texts.join('\n'); measured.tool_calls=calls; measured.continuation=continuation;
+    if(searchCalls || citations.length) measured.webSearch={citations:[...new Map(citations.map(c=>[c.url,c])).values()],searchCalls};
     if(refused || r.status!=='completed') throw new ProviderOutputError('PROVIDER_OUTPUT_INCOMPLETE_OR_REFUSED',measured);
     if(JSON.stringify(continuation).length>48000) throw new ProviderOutputError('CONTINUATION_LIMIT',measured);
   }

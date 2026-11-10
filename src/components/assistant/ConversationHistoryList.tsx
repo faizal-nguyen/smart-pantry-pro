@@ -29,7 +29,7 @@ export default function ConversationHistoryList({
   limit = 20,
   onSelect,
 }: ConversationHistoryListProps) {
-  const { conversations, isLoading, error, refetch } = useAssistantConversations({
+  const { conversations, isLoading, error, refetch,hasMore,loadMore,isLoadingMore } = useAssistantConversations({
     status: 'active',
     limit,
   });
@@ -74,6 +74,7 @@ export default function ConversationHistoryList({
             ))}
           </ul>
         )}
+        {hasMore && <Button variant="outline" className="min-h-11" disabled={isLoadingMore} onClick={()=>void loadMore()}>{isLoadingMore ? 'Chargement…' : 'Voir les conversations précédentes'}</Button>}
       </CardContent>
     </Card>
   );

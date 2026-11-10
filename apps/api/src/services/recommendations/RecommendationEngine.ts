@@ -6,7 +6,7 @@ import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
 import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
 import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
-import { namesIngredient,qualifyLots,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,UNCLEAR_REASONS,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { namesIngredient,qualifyLots,evaluateAvailability,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,UNCLEAR_REASONS,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
 import { evaluateRecipe } from './RecipeEvaluation.js';
 import { requestConstraints,resolveExclusions } from './RequestConstraints.js';
 import { scoreMemoryTaste } from './MemoryTasteScoring.js';
@@ -35,6 +35,10 @@ const mealGroup=(value:string|null|undefined) => MEAL_GROUPS[mealKey(value)];
 /** The only scoring pipeline: explicit profile first, constraints before ranking,
  * qualified original lots, structured evidence, and no LLM or inferred-health input. */
 export class RecommendationEngine {
+  /** Detail uses the same ownership and personal customizations as evaluation. */
+  async readRecipeForUser(ctx:RecommendationExecutionContext,reference:RecipeEvaluationInput['recipe']) {
+    return this.loadRecipe(ctx,reference,true);
+  }
   async evaluateForUser(ctx:RecommendationExecutionContext,input:RecipeEvaluationInput):Promise<RecipeEvaluation> {
     const [recipe,{ profile,legacyServerPresent },lots]=await Promise.all([
       this.loadRecipe(ctx,input.recipe),new NutritionProfileService(ctx.userClient).read(ctx.userId),this.loadInventory(ctx),
@@ -95,7 +99,7 @@ export class RecommendationEngine {
     const stockVersion=stockFingerprint(lots);
     // Read authoritative inputs before cache: profile, date, edited recipes, product
     // provenance, feedback and cooked history all participate, even on direct writes.
-    const key='v10-03c:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
+    const key='chef-evidence-v2:'+fingerprint({ owner:ctx.userId,profile,effectiveSettings:settings,memoryBasis,memoryRevision:memoryPolicy?.revision ?? null,stockVersion,day:calendarDate(now),input:{ ...input,requestText:undefined },recipes,products:[...products],interactions,history });
     if (ctx.eventWriter) {
       try { const cached=await ctx.eventWriter.readCache(ctx.userId,key);if (cached.hit && !cached.expired && cached.hit.result.pipeline_version===3) {
         if (!ctx.memoryService || sameMemoryPolicy(memoryPolicy, await ctx.memoryService.readPolicySafe(ctx.userId))) return { ...cached.hit.result,...requestView };
@@ -161,7 +165,7 @@ export class RecommendationEngine {
       const parts:RecommendationScoreParts={ cookability:stockScore,expiryUrgency:expiry,preferenceMatch:Math.max(-1,Math.min(1,taste.score+rememberedTaste.score+feedbackScore)),timeFit:minutes===null ? 0 : effectiveTime ? clamp(1-minutes/(effectiveTime*2)) : clamp(1-minutes/180),novelty,nutritionFit,effortFit:effort,missingPenalty:threshold>0 ? Math.min(1,gaps.length/threshold) : gaps.length ? 1 : 0 };
       // Inactive goals remove an axis for every candidate. A missing value on an
       // active axis contributes zero, so incomplete data cannot gain a bonus.
-      const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein';
+      const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein' || input.goal==='light';
       const varietyActive=settings.goals.includes('variety') && !!history?.length;
       const expiryWeight=settings.goals.includes('anti_waste') || input.goal==='anti_waste' ? 23 : 18;
       const maxWeight=40+expiryWeight+14+10+(input.mealType ? 6 : 0)+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
@@ -172,22 +176,40 @@ export class RecommendationEngine {
         unlinked:!!unknown.length,unlinked_count:unknown.length,unknown_ingredients:unknown.map(item=>item.ingredient_name),
         score_total:Math.round(Math.max(0,Math.min(100,raw/maxWeight*100))),score_parts:parts,reasons:reasons.map(item=>item.text),reason_codes:reasons,
         ...evaluation,unavailable_criteria:unavailable,
+        recipe_facts:{servings:input.servings ?? recipe.servings ?? null,
+          availability:evaluateAvailability(recipe,lots,input.servings ?? recipe.servings ?? 1,now),nutrition},
         expiring_ingredients_used:near.map(lot=>({ product_id:lot.product_id,product_name:lot.product_name,days_to_expiry:calendarDaysUntil(lot.expiry_date,now)! })),
         suggested_actions:['open_recipe',...(availability.missing.length ? ['add_missing_to_shopping' as const] : []),'plan_recipe'] };
-      if (input.goal==='light') view.unavailable_criteria.push('light_goal');
+      if (input.goal==='light' || input.goal==='high_protein') {
+        const key=input.goal==='light' ? 'energyKcal' : 'proteinG';
+        const value=nutrition.coverage===1 && ['known','estimated'].includes(nutrition.status) && !nutrition.upper_bounds?.includes(key)
+          ? nutrition.per_serving[key] : null;
+        view.goal_evidence={goal:input.goal,status:value===null ? 'unknown' : input.goal==='high_protein' && value<20 ? 'not_met' : 'documented',
+          value,unit:input.goal==='light' ? 'kcal' : 'g',criterion:input.goal==='light'
+            ? 'Classement comparatif par énergie estimée par portion, du moins au plus énergétique ; aucune cible de santé personnelle.'
+            : 'Critère culinaire de sélection : au moins 20 g de protéines estimées par portion, sans certification nutritionnelle.'};
+      }
       if (constraints.status==='incompatible') { excluded.push(view);continue; }
       if (hardTime && minutes!==null && minutes>hardTime) continue;
+      if (latest?.feedback==='dislike') { excluded.push(view);continue; }
+      if (view.goal_evidence && view.goal_evidence.status!=='documented') {
+        view.unavailable_criteria.push(view.goal_evidence.status==='unknown' ? 'goal_nutrition_unknown' : 'goal_not_met');
+        verify.push(view);continue;
+      }
       if (interactions===null || constraints.status==='verify' || (hardTime && minutes===null) || missingEquipment.length || (latest?.feedback==='not_today' && daysAgo<1)) {
         if (missingEquipment.length) view.availability.uncertainties.push(`Matériel manquant : ${missingEquipment.join(', ')}.`);
         if (latest?.feedback==='not_today' && daysAgo<1) view.reason_codes.push({ code:'FEEDBACK',text:'Vous avez choisi « pas aujourd’hui » ; suggestion suspendue pendant 24 h.' });
         verify.push(view);continue;
       }
-      if (latest?.feedback==='dislike') { excluded.push(view);continue; }
       if (!essential.length || availability.status==='verify') { verify.push(view);continue; }
       if (gaps.length===0) cookable.push(view);
       else if (gaps.length<=threshold) almost.push(view);else recent.push(view);
     }
-    const sort=(a:RecommendedRecipeView,b:RecommendedRecipeView)=>b.score_total-a.score_total || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    const goalRank=(view:RecommendedRecipeView)=>view.goal_evidence?.status==='documented' ? 2 : view.goal_evidence?.status==='not_met' ? 1 : 0;
+    const sort=(a:RecommendedRecipeView,b:RecommendedRecipeView)=>
+      ((input.goal==='light' || input.goal==='high_protein') ? goalRank(b)-goalRank(a) : 0) ||
+      (input.goal==='light' && a.goal_evidence?.status==='documented' && b.goal_evidence?.status==='documented'
+        ? (a.goal_evidence.value! - b.goal_evidence.value!) : 0) || b.score_total-a.score_total || a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
     for (const bucket of [cookable,almost,verify,excluded,recent]) bucket.sort(sort);
     const selected=new Set([...cookable,...almost].sort(sort).slice(0,limit).map(recipe=>`${recipe.reference.source}:${recipe.id}`));
     const result:RecommendationResult={ cookable_now:cookable.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),almost_cookable:almost.filter(recipe=>selected.has(`${recipe.reference.source}:${recipe.id}`)),recent_suggestions:input.includeRecentFallback===false ? [] : recent.slice(0,limit).map(recipe=>({ ...recipe,description:recipe.description ?? null,servings:recipe.servings ?? null,cuisine_category:recipe.cuisine_category ?? null,meal_type:recipe.meal_type ?? null,tags:recipe.tags ?? null })),
@@ -210,13 +232,14 @@ export class RecommendationEngine {
   private catalogRecipe(row:RecipeCatalogRow & { ingredients_json?:unknown }):RecipeWithIngredients {
     return { ...this.libraryRecipe({ id:row.id,user_id:'',is_from_catalog:true,catalog_recipe:row,created_at:row.created_at,updated_at:row.updated_at }),source:'recipes_catalog' };
   }
-  private async loadRecipe(ctx:RecommendationExecutionContext,reference:RecipeEvaluationInput['recipe']):Promise<RecipeWithIngredients> {
+  private async loadRecipe(ctx:RecommendationExecutionContext,reference:RecipeEvaluationInput['recipe'],detail=false):Promise<RecipeWithIngredients> {
     if (reference.source==='recipes') {
-      const { data,error }=await ctx.userClient.from('recipes').select(recipeColumns).eq('id',reference.id)
+      const { data,error }=await ctx.userClient.from('recipes').select(detail ? recipeColumns+',instructions,source_url,source_name,source_metadata' : recipeColumns).eq('id',reference.id)
         .or('user_id.eq.'+ctx.userId+',is_public.eq.true').maybeSingle();
       if (error) throw new Error('RECIPE_DATA_UNAVAILABLE');
       if (!data) throw new ProfileError('RECIPE_NOT_FOUND',404);
-      return { ...data,source:'recipes',image_url:resolveRecipeImageUrl(data.image_url) } as RecipeWithIngredients;
+      const row=data as unknown as RecipeWithIngredients;
+      return { ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) };
     }
     if (reference.source==='user_recipes') {
       const { data,error }=await ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)')
@@ -261,7 +284,7 @@ export class RecommendationEngine {
     });
   }
   private async loadInventory(ctx:RecommendationExecutionContext):Promise<QualifiedLot[]> {
-    const { data,error }=await ctx.userClient.from('inventory').select('id,product_id,quantity,unit,stock_version,expiry_date,date_kind,quantity_quality,location,products(name,unit_type)').eq('user_id',ctx.userId);
+    const { data,error }=await ctx.userClient.from('inventory').select('id,product_id,quantity,unit,stock_version,expiry_date,date_kind,quantity_quality,location,notes,products(name,unit_type)').eq('user_id',ctx.userId);
     if (error) throw new Error('STOCK_DATA_UNAVAILABLE');
     return (data ?? []).map(row=>{ const product=Array.isArray(row.products) ? row.products[0] : row.products;return { ...row,quantity:Number(row.quantity),stock_version:Number(row.stock_version),unit:row.unit ?? product?.unit_type ?? null,product_name:product?.name ?? '' }; });
   }

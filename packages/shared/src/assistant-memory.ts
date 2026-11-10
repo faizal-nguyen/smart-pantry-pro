@@ -94,6 +94,11 @@ export function classifyMemoryFact(text: string, options: { explicit?: boolean; 
   const source = explicit ? 'user_explicit' : 'assistant_inferred';
   const clean = content.replace(/^(?:souviens[-\s]?toi|rappelle[-\s]?toi|retiens|mémorise)\s*(?:que|de)?\s*/iu, '');
   const tail = (value: string) => value.replace(/[.!?;].*$/s, '').trim();
+  // A third person's diet is not a durable fact about this account.
+  if (/^(?:(?:souviens toi|retiens|memorise) (?:que )?)?(?:mon|ma|mes|son|sa|ses|ton|ta|tes) \S+ (?:est|sont|aime|adore|prefere)\b/.test(n)) return null;
+  // Retractions need a reviewed profile edit, never an opposite positive fact.
+  if (/\b(?:pas|plus|jamais|non)\s+(?:\S+\s+)?(?:vegan\w*|vegetari\w*|halal|casher|kosher|allergique|intolerant\w*)\b/.test(n))
+    return profileFact(content, null, null, null, source, isSensitiveMemoryText(content));
   const allergy = clean.match(/(?:allergique|allergie)\s+(?:à la|à l[’']|aux?|au|à|de|d[’'])\s*(.+)/iu);
   if (allergy && !/\b(pas allergique|ne suis pas)\b/.test(n))
     return tail(allergy[1]!).length <= 80 && !/\bet (?:je|j |aussi)\b/.test(normalizeMemoryText(allergy[1]!))
@@ -106,9 +111,9 @@ export function classifyMemoryFact(text: string, options: { explicit?: boolean; 
     [/sans lactose/, 'lactose_free'], [/\bhalal\b/, 'halal'], [/\bcasher\b|\bkosher\b/, 'kosher'],
     [/sans porc/, 'no_pork'], [/sans alcool/, 'no_alcohol'],
   ];
-  const diet = diets.find(([pattern]) => pattern.test(n));
+  const dietValues = diets.filter(([pattern]) => pattern.test(n)).map(([,value])=>value);
   const temporary = /\b(ce soir|aujourd hui|maintenant|pour ce repas|ce midi|demain)\b/.test(n);
-  if (diet && !temporary) return profileFact(content, 'diets', [diet[1]], 'add', source, /sans (gluten|lactose)/.test(n));
+  if (dietValues.length && !temporary) return profileFact(content, 'diets', dietValues, 'add', source, /sans (gluten|lactose)/.test(n));
   if (isSensitiveMemoryText(content)) return profileFact(content, null, null, null, source, true);
   if (temporary) return {
     destination: 'session', kind: 'habit', content,
@@ -120,7 +125,12 @@ export function classifyMemoryFact(text: string, options: { explicit?: boolean; 
       payload: { type: 'note', subject: 'recipe_feedback', value: content }, semanticSubject: 'recipe_feedback',
       sensitivity: 'normal', status: 'candidate', source, pattern: 'feedback' };
   if (/\b(epice\w*|doux|douce|piquant\w*)\b/.test(n) && /\b(prefere|aime|plats|cuisine)\b/.test(n)) {
-    const value = /\b(doux|douce|pas epice|peu epice|pas piquant)\b/.test(n) ? 'mild' : 'spicy';
+    if (/\b(?:pas|jamais)\b.{0,24}\b(?:doux|douce)\b|\b(?:n|ne) \w+(?: \w+){0,2} plus\b.{0,24}\b(?:doux|douce)\b/.test(n)) return {
+      destination:'memory',kind:'preference',content,payload:{type:'note',subject:'spiciness_review',value:content},
+      semanticSubject:'spiciness_review',sensitivity:'normal',status:'candidate',source,pattern:'spiciness_review',
+    };
+    const negativeSpice = /\b(?:pas|jamais|peu|moins)\b.{0,24}\b(?:epice\w*|piquant\w*)\b|\b(?:n|ne) \w+(?: \w+){0,2} plus\b.{0,24}\b(?:epice\w*|piquant\w*)\b/.test(n);
+    const value = negativeSpice || /\b(doux|douce)\b/.test(n) ? 'mild' : 'spicy';
     return { destination: 'memory', kind: 'preference',
       content: value === 'spicy' ? 'Je préfère les plats épicés.' : 'Je préfère les plats doux.',
       payload: { type: 'taste', subject: 'spiciness', value }, semanticSubject: 'taste:spiciness',

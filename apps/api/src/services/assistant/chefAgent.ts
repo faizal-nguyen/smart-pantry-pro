@@ -30,6 +30,8 @@ import type { PolicyViolation } from '../recipeQuality/policyTypes.js';
  * the gpt-4o-mini single-pass behaviour from PRP-224.
  */
 export const RECIPE_TOOL_NAMES = new Set<string>([
+  'search_web_recipes',
+  'read_recipe',
   'find_recipes_using_ingredient',
   'suggest_recipes_for_context',
   'search_recipes',
@@ -74,6 +76,7 @@ export function chefSystemPrompt(): string {
     "2. Pour chaque recette : 2-3 lignes max indiquant POURQUOI elle matche la demande / l'inventaire.",
     '3. Mentionne brièvement les ingrédients manquants ou substitutions utiles (issus du tool).',
     'Dans missing, seuls needs_purchase=true établissent un achat à prévoir. Si needs_purchase=false, indique une vérification de quantité ou d’unité, sans déclarer le produit absent. Si missing_complete=false, la liste est partielle. Les ingrédients facultatifs restent facultatifs.',
+    'Pour un objectif léger ou protéiné, seuls les candidats dont goal_evidence.status=documented répondent au critère indiqué. unknown ou not_met ne le satisfont pas : explique la limite ou propose un complément clairement annoncé comme adaptation. Léger signifie ici comparaison de l’énergie par portion, pas certification healthy. Équilibre aussi légumes, protéines et accompagnement.',
     'Pour une cuisine ou un type de plat demandé, privilégie les candidats pertinents : n’ajoute pas automatiquement des idées hors bibliothèque. Les idées de repli demandent une lecture de stock pour être présentées comme adaptées à ce stock.',
     '',
     'CONTRAINTES DE LA DEMANDE :',

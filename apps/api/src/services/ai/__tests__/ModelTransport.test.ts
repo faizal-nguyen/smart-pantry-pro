@@ -13,6 +13,20 @@ const raw={model:'gpt-6-luna',status:'completed',usage:{input_tokens:100,output_
     {type:'message',content:[{type:'output_text',text:'Première partie'},{type:'output_text',text:'Deuxième partie'}]},
     {type:'function_call',id:'item1',call_id:'call1',name:'read_inventory',arguments:'{}'},
     {type:'function_call',id:'item2',call_id:'call2',name:'read_shopping_list',arguments:'{}'}]};
+test('Web search is bounded, required, cited and priced from actual search receipts',async()=>{
+  const params=completionParams({...request,tools:undefined,webSearch:{allowedDomains:['marmiton.org'],maxCalls:2}});
+  expect(params).toMatchObject({tool_choice:'required',max_tool_calls:2,tools:[{type:'web_search',filters:{allowed_domains:['marmiton.org']}}]});
+  expect(()=>completionParams({...request,webSearch:{allowedDomains:[],maxCalls:2}})).toThrow('WEB_SEARCH_TRANSPORT_INVALID');
+  const response=parseCompletion({...raw,output:[{type:'web_search_call',action:{type:'search'}},
+    {type:'message',content:[{type:'output_text',text:'Une soupe',annotations:[{type:'url_citation',url:'https://marmiton.org/soupe',title:'Soupe'}]}]}]},'responses');
+  expect(response.webSearch).toEqual({searchCalls:1,citations:[{url:'https://marmiton.org/soupe',title:'Soupe'}]});
+  const ai={complete:jest.fn(async()=>response)},invocation=new ModelInvocation('web',freezeConfig({...benchmarkConfig('luna'),version:'web-isolated-test'}),ai);
+  await invocation.complete('dialogue',{messages:[],webSearch:{allowedDomains:['marmiton.org'],maxCalls:2}},'search');
+  expect(invocation.receipt().llm_usd).toBeCloseTo(measureCost(response).usd!+0.01,8);
+  const limited=freezeConfig({...benchmarkConfig('luna'),limits:{...benchmarkConfig('luna').limits,maxUsd:0.01}});
+  await expect(new ModelInvocation('capped',limited,ai).complete('dialogue',{messages:[],webSearch:{allowedDomains:[],maxCalls:2}},'search')).rejects.toThrow('COST_LIMIT');
+  expect(ai.complete).toHaveBeenCalledTimes(1);
+});
 test('Responses reads every useful item, associates call_id, and only retains encrypted reasoning',()=>{
   const result=parseCompletion(raw,'responses');expect(result.content).toBe('Première partie\nDeuxième partie');
   expect(result.tool_calls?.map(t=>t.id)).toEqual(['call1','call2']);expect(JSON.stringify(result.continuation)).not.toContain('PRIVATE REASONING');

@@ -97,6 +97,9 @@ export interface NutritionEstimate {
   limitations:string[];
 }
 export interface RecommendationEvidence {
+  goal_evidence?: { goal:'light'|'high_protein';status:'documented'|'unknown'|'not_met';value:number|null;unit:'kcal'|'g';criterion:string };
+  /** Recipe/stock facts evaluated at requested or recipe portions, never profile defaults. */
+  recipe_facts?: { servings:number|null;availability:RecommendationEvidence['availability'];nutrition:NutritionEstimate };
   reference:{ id:string;source:Exclude<RecipeReference['source'],'auto'> };
   profile_version:number;
   stock_version:string;
