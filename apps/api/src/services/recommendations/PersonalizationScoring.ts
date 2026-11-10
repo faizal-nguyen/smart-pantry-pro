@@ -64,7 +64,7 @@ export function vegetableCriterion(recipe:RecipeWithIngredients) {
   const names=[...new Set((recipe.recipe_ingredients ?? []).filter(item=>facts(item.ingredient_name)?.vegetable).map(item=>norm(item.ingredient_name)))];
   return { score:Math.min(1,names.length/3),names };
 }
-export function evaluateConstraints(recipe:RecipeWithIngredients,profile:NutritionProfileSettings,products:Map<string,IngredientProduct>):ConstraintEvaluation {
+export function evaluateConstraints(recipe:Pick<RecipeWithIngredients,'name'|'recipe_ingredients'>,profile:NutritionProfileSettings,products:Map<string,IngredientProduct>):ConstraintEvaluation {
   const findings:ConstraintEvaluation['findings']=[];
   let incompatible=false,unknown=false;
   const add=(code:string,ingredient:string|null,message:string,banned=false) => { findings.push({ code,ingredient,message }); if (banned) incompatible=true;else unknown=true; };

@@ -2,6 +2,7 @@ import { discoveryFixtureRequest, isDiscoveryFixturePath } from './discovery';
 import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
+import {buildFoodGuidance} from '@smart/shared';
 
 // Only for the isolated visual fixture; never supplies a real access token.
 export async function authHeader(): Promise<Record<string,string>> { return {}; }
@@ -176,6 +177,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
+  if(path==='/v1/recommendations/food-guidance')return buildFoodGuidance(data.inventory.map(lot=>({...lot,id:String(lot.id),product_id:String(lot.product_id),quantity:Number(lot.quantity),product_name:String(data.products.find(p=>p.id===lot.product_id)?.name??'')}))) as T;
   if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('GET', path) as Promise<T>;
   if(path==='/assistant/models') {
     if(failures.modelsOffline) throw new ApiError('Catalogue fictif indisponible.',{status:503});

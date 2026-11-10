@@ -1256,20 +1256,48 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     ['Une recette tunisienne avec les ingrédients qu’on a ?','suggest_recipes_for_context','{"cuisine":"tunisienne"}'],
   ])('an empty discovery reads real stock before answering: %s',async(text,tool,args)=>{
     const {ai,requests}=scripted([{content:'Importe une recette avant de continuer.',call:{name:tool,arguments:args}},
+      {content:'Je vais proposer une version.'},
       {content:'Idées chef hors bibliothèque\n**Soupe aux oignons adaptée**\nOignons présents ; bouillon à prévoir.'}]);
     const stock={execute:jest.fn(async()=>({result:{complete:true,items:[{product_name:'Oignons',quantity:1,unit_type:'kg',quantity_quality:'estimated',expired:false,notes:'Environ un kilo.'}]}}))};
     const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{[tool]:{execute:async()=>({result:{recipes:[]}})},read_inventory:stock}});
     const response=await service.handleRequest({...input,text},makeCtx());
     expect(stock.execute).toHaveBeenCalledTimes(1);
     expect(response.actions_executed.map(action=>action.tool)).toEqual([tool,'read_inventory']);
-    expect(response.model_receipt?.calls.map(call=>call.purpose)).toEqual(['tool_selection','synthesis']);
+    expect(response.model_receipt?.calls.map(call=>call.purpose)).toEqual(['tool_selection','tool_followup','synthesis']);
     expect(response.message).not.toContain('Importe une recette');
-    const synthesis=JSON.stringify(requests[1].messages);
+    expect(JSON.stringify(requests[1].messages)).toContain('Oignons');
+    const synthesis=JSON.stringify(requests[2].messages);
     expect(synthesis).toContain('Oignons');
     expect(synthesis).toContain('estimated');
     expect(synthesis).toContain('Environ un kilo.');
     expect(synthesis).toContain('la bibliothèque est une source, pas une limite');
     expect(String(requests[0].messages[0].content)).not.toContain('Only propose recipes returned by a tool');
+  });
+  it.each(['luna','baseline'] as const)('completes an empty recipe search with stock, plant evidence and real links using %s',async preset=>{
+    const requests:AICompletionRequest[]=[];
+    const calls=[
+      [{id:'recipe-search',name:'suggest_recipes_for_context',arguments:'{"ingredient":"radis noir"}'}],
+      [{id:'health-read',name:'read_food_guidance',arguments:'{}'},{id:'web-search',name:'search_web_recipes',arguments:'{"query":"recettes radis noir"}'}],
+    ];
+    const ai:AICompletionClient={complete:async request=>{
+      requests.push(request);const tool_calls=calls[requests.length-1];
+      return {content:tool_calls?'':'Une recette et les précautions de tes plantes.',model:request.model,usage:{prompt_tokens:100,completion_tokens:20},
+        ...(tool_calls?{tool_calls,continuation:tool_calls.map(c=>({type:'function_call',call_id:c.id,name:c.name,arguments:c.arguments}))}:{})};
+    }};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig(preset),handlers:{
+      suggest_recipes_for_context:{execute:async()=>({result:{recipes:[]}})},
+      read_inventory:{execute:async()=>({result:{complete:true,items:[{product_name:'Radis noir',quantity:4,expired:false}]}})},
+      read_food_guidance:{execute:async()=>({result:{facts:[{name:'Pollen d’abeilles',precautions:['Risque allergique.']}]}})},
+      search_web_recipes:{execute:async()=>({result:{sources:[{title:'Recette radis noir',url:'https://www.marmiton.org/recette-radis-noir',ingredients_verified:false}]}})},
+    }});
+    const response=await service.handleRequest({...input,text:'Recettes avec mon radis noir et bienfaits de mes tisanes ?',allowedTools:['suggest_recipes_for_context','read_inventory','read_food_guidance','search_web_recipes']},makeCtx());
+    expect(response.actions_executed.map(a=>a.tool)).toEqual(['suggest_recipes_for_context','read_inventory','read_food_guidance','search_web_recipes']);
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup','synthesis']);
+    expect(JSON.stringify(requests[1].messages)).toContain('Radis noir');
+    expect(JSON.stringify(requests[1].continuation??[])).not.toContain('recipe-fallback-stock');
+    expect(JSON.stringify(requests[2].messages)).toContain('Pollen d’abeilles');
+    expect(JSON.stringify(requests[2].messages)).toContain('https://www.marmiton.org/recette-radis-noir');
+    expect(requests[1].tools?.map(t=>t.function.name)).toEqual(['search_web_recipes','read_food_guidance']);
   });
   it('does not read stock outside the allowed tools after an empty search',async()=>{
     const {ai}=scripted([{call:{name:'search_recipes',arguments:'{"query":"soupe"}'}},{content:'Une version proposée, stock non vérifié.'}]);

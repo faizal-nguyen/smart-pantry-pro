@@ -20,6 +20,7 @@ import MealContextPanel from '@/components/recipes/MealContextPanel';
 import { defaultMealContext } from '@/lib/mealContext';
 import { useCulinaryDesign } from '@/contexts/CulinaryDesignContext';
 import { useNutritionProfile } from '@/hooks/useNutritionProfile';
+import DailyFoodGuidance from '@/components/recipes/DailyFoodGuidance';
 export default function KitchenDashboard() {
   const user = useAuthenticatedUser(), stock = useInventory(), shopping = useShoppingList(), preferences = useRoutinePreferences(), now = useCalendarNow();
   const [saved,,sessionsError] = useOwnedValue<CookingSession[]>(user.id,'cooking-sessions',[]);
@@ -71,6 +72,7 @@ export default function KitchenDashboard() {
         </Link></li>;
       })}</ul> : <p className="text-sm text-muted-foreground">{stock.error ? 'Dates non disponibles pour le moment.' : 'Aucune date proche renseignée.'}</p>}
     </section>
+    <DailyFoodGuidance now={now}/>
     <MealContextPanel variant="prompt" value={context} onChange={value=>updateContext(value)} defaults={profile.error ? undefined : { minutes:profile.data?.profile.settings.usualTimeMinutes,servings:profile.data?.profile.settings.usualServings }} />
     {intro && !['done','skipped'].includes(intro) && <details className="kitchen-onboarding"><summary>Prendre tes repères</summary><div><p className="text-sm text-muted-foreground">Ajoute quelques ingrédients, puis choisis un repas. Ton profil peut attendre.</p><div className="flex flex-wrap gap-2"><Button onClick={()=>setAdd(true)}>Ajouter des ingrédients</Button><Button variant="outline" asChild><Link to="/kitchen/recipes">Choisir une recette</Link></Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('skipped')}>Passer l’introduction</Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('done')}>J’ai pris mes repères</Button></div></div></details>}
     <QuickStockDialog firstUse open={add} onOpenChange={setAdd} onSaved={() => { void advance('recipe'); void stock.refetch(); setAdd(false); }} />

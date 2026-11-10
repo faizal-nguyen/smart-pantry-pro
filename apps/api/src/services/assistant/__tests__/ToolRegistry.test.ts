@@ -8,7 +8,7 @@ import { TOOL_SPECS } from '../schemas/tools.js';
 
 describe('ToolRegistry', () => {
   // The exact catalog the model sees: a tool added or removed must be a deliberate change.
-  const CATALOG = ['search_web_recipes','read_recipe','read_inventory', 'read_shopping_list', 'read_recent_recipes', 'read_meal_plan', 'find_cookable_recipes',
+  const CATALOG = ['search_web_recipes','read_recipe','read_food_guidance','read_inventory', 'read_shopping_list', 'read_recent_recipes', 'read_meal_plan', 'find_cookable_recipes',
     'search_recipes', 'find_recipes_using_ingredient', 'suggest_recipes_for_context', 'add_inventory_items', 'add_shopping_items',
     'mark_shopping_items_bought', 'unmark_shopping_items_bought', 'add_recipe_to_meal_plan', 'cook_recipe', 'consume_inventory_items',
     'update_inventory_item', 'remove_shopping_items', 'delete_recipe', 'clear_shopping_list', 'clear_inventory_category',

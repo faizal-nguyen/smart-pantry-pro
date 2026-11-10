@@ -103,6 +103,14 @@ PRODUCT IDENTITY FOR STOCK AND SHOPPING ADDS:
 - Quantities left in stock or visible on a photo are not automatically quantities to buy. Keep the requested purchase amount; if none is specified, add one, without calculating a restocking target.
 - Confirm additions using the exact product_name returned by the tool, including flavour and brand, so the user can verify what was added.
 
+FOOD BENEFITS, HERBS AND SEASONS:
+- Call read_food_guidance for benefits, health, herbs/teas, pollen or seasons. It reads ALL stock; focus prioritizes. Cover named plants, not just ginger.
+- Mixed asks: complete recipes AND benefits. Use suggest_recipes_for_context, read_food_guidance and search_web_recipes together for requested links or an empty library.
+- Cite health URLs separately from recipes. Preserve evidence, limits, forms and precautions. No invented medical claims, nutrients, cures or doses. Bleuet petals are not blueberries; rose/bleuet must be edible.
+- No daily herbal rotation: senna is medicinal, pollen risks severe allergy. Respect moringa/ashwagandha/Jéricho precautions in the facts.
+- General ADULT food ideas. Disease, medication, pregnancy or child advice: appropriate professional, no treatment routine. Never infer/save medical facts automatically.
+- Use season_months/seasonal_calendar for other seasons (1=January), with France métropolitaine reference. Distinguish stock from purchases; no unrequested writes.
+
 RECIPE SUGGESTIONS — VERY IMPORTANT:
 - A request for websites, links, verified external recipes or Web sources → search_web_recipes with only the dish or cuisine. Cite its exact source URLs as clickable Markdown links. Never invent URLs. Only ingredients_verified=true establishes that a page's ingredients were read. External originals can require adaptation to zero pork/zero alcohol; label that adaptation. Never import or change stock without a request.
 - Pick the RIGHT tool based on what the user actually asked:
@@ -128,7 +136,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "une entrée", "un plat", "un dessert" → { "course": "starter" }, { "course": "main" } or { "course": "dessert" }; do not search these generic course words as dish titles.
     - "végétarien", "sans viande" → { "dietary_flag": "vegetarien" }
     - "sans crème", "pas de champignons" → { "exclude_ingredients": ["crème"] } (this request only). A follow-up like « Et sans crème ? » refines the previous ask: call the tool again with the earlier ingredient and context args plus the new exclusion.
-- The library is a starting point, not a requirement. An empty search does not mean no meal is possible. Read read_inventory and offer up to 2 useful culinary ideas under the exact heading « Idées chef hors bibliothèque », clearly labelled as proposals, never as saved or stock-verified recipes. Do not require an import before helping.
+- The library is a starting point, not a requirement. An empty search does not mean no meal is possible. Read read_inventory and search_web_recipes for real recipe links using the requested dish or ingredient only. If Web lookup is unavailable, offer up to 2 useful culinary ideas under the exact heading « Idées chef hors bibliothèque », clearly labelled as proposals, never as saved or stock-verified recipes. Do not invent a recipe URL or require an import before helping.
 - For « je veux faire une soupe aux oignons, qu’est-ce qui manque ? », call suggest_recipes_for_context with { "query": "soupe aux oignons" }. If this search returns no recipe, read_inventory. If absent from the library, propose a clearly labelled version, distinguish ingredients present, absent from the stock read, and quantities/conservation to verify. A generic ingredient list without a stock comparison does not answer the question. Do not add anything without being asked.
 - Never invent persisted recipe IDs or stock evidence. A culinary proposal may use your cooking knowledge, but must respect the explicit dietary constraints, zero pork and zero alcohol. Do not certify sufficiency or safety from presence alone, unknown quantities, expired lots, or notes saying conservation must be checked. If constraints or stock cannot be checked, say so rather than claim compatibility.
 - When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
@@ -799,7 +807,6 @@ export class VoiceAgentService {
           !toolCalls.some(call=>call.name==='read_inventory') && toolCalls.length<this.maxToolCalls &&
           tools.some(tool=>tool.function.name==='read_inventory') && this.handlerRegistry.has('read_inventory')) {
         toolCalls.push({ id:'recipe-fallback-stock',name:'read_inventory',arguments:'{}' });
-        followupUsed=true;
         continue;
       }
       // Permit one bounded follow-up after reads, so read → write ("ajoute…"
@@ -810,18 +817,19 @@ export class VoiceAgentService {
       const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
       // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe; so does
       // « le Lamb Biryani » answering our « Laquelle as-tu cuisinée ? » (live repro 2026-11-08).
-      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || RECIPE_ACTION.test(transcript)
+      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || executed.some(action=>action.tool==='read_inventory') || RECIPE_ACTION.test(transcript)
           || answersRecipeQuestion(sessionTurns, recentMessagesText)) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
         followupUsed=true;
         const policy=this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const continuation=continuationFor(activeResponse,'dialogue',policy);
-        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+serializeToolReceipt(call.name,modelOutcome(call,policy)));
+        const receipts=toolCalls.filter(call=>outcomes.has(call.id)).map(call=>'• '+call.name+' → '+serializeToolReceipt(call.name,modelOutcome(call,policy)));
         const messages:AICompletionRequest['messages']=[
           {role:'system',content:systemContent},...aiMessages.slice(1),
-          ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
-          {role:'user',content:'Les résultats des outils sont fournis. Appelle seulement un outil encore nécessaire pour terminer cette demande, sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
+          // Include the synthetic stock read as text too: it has no provider call_id.
+          {role:'assistant',content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`},
+          {role:'user',content:'Les résultats des outils sont fournis. Appelle les outils distincts encore nécessaires pour terminer toutes les parties de cette demande (recettes, liens Web, bienfaits et plantes inclus), sinon réponds en utilisant ces reçus. Ne répète aucune action.'},
         ];
         // The hop exists to act on what was read: offer writes, clarification
         // and the recipe engine (inventory → recommendation), never a tool that
@@ -831,7 +839,7 @@ export class VoiceAgentService {
         const followupTools=tools.filter(tool=>{
           const name=tool.function.name;
           if(executed.some(action=>action.tool===name)) return false;
-          return this.toolRegistry.get(name).defaultRiskTier!=='read' || isRecipeTool(name);
+          return this.toolRegistry.get(name).defaultRiskTier!=='read' || isRecipeTool(name) || name==='read_food_guidance';
         });
         try {
           const next=await this.callLLMSafe(invocation,'dialogue',messages,followupTools,providerGuard,'tool_followup',continuation);
@@ -1482,7 +1490,7 @@ function todayContext(now: Date): string {
 // needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
 const MODEL_RESULT_CHARS = 6000;
 function serializeToolReceipt(tool:string,result:unknown):string {
-  const limit=tool==='read_recipe' ? 24000 : tool==='search_web_recipes' ? 16000 : MODEL_RESULT_CHARS;
+  const limit=tool==='read_food_guidance' ? 36000 : tool==='read_recipe' ? 24000 : tool==='search_web_recipes' ? 16000 : MODEL_RESULT_CHARS;
   const text=JSON.stringify(compactForModel(result));
   return text.length<=limit ? text : JSON.stringify({truncated:true,note:'Résultat partiel : ne complète pas les informations absentes.',preview:text.slice(0,limit-150)});
 }
