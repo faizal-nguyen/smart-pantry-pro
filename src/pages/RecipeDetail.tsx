@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { canAddToShoppingList, recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
+import { canAddToShoppingList, nutritionFromRecipeSnapshot, recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
 import { ArrowLeft, Clock, Users, Star, Heart, Share, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -158,6 +158,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
     <p>Chargement de la recette…</p><div className="h-64 rounded-lg bg-muted animate-pulse" />
   </div>;
 
+  const savedNutrition=!details.error && !details.isFetching ? nutritionFromRecipeSnapshot(recipe.nutrition_info,ingredients,recipe.servings) : null;
   const mediaMetadata=(recipe as RecipeSourceLike).source_metadata;
   const referencePhoto=mediaMetadata?.photo;
   const photoCaption=!overrideImageUrl && referencePhoto && recipe.image_url===referencePhoto.image_url ? `Photo de référence · ${referencePhoto.publisher}` : undefined;
@@ -202,8 +203,8 @@ function RecipeDetailContent({ id }: { id?: string }) {
         onChange={event => setChosenServings(event.target.value === '' ? 0 : Number(event.target.value))} />
     </label>
     {!hasBaseServings && <p className="mb-4 rounded-md border p-3 text-sm" role="note">Les portions de base ne sont pas renseignées. Les quantités et les commandes de stock restent à vérifier avant de lancer la cuisine.</p>}
-    <RecipeNutritionPanel nutrition={evaluation.data?.nutrition} loading={evaluation.isLoading || evaluation.isFetching || details.isFetching}
-      error={details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={evaluation.validServings} />
+    <RecipeNutritionPanel nutrition={savedNutrition ?? evaluation.data?.nutrition} loading={!savedNutrition && (evaluation.isLoading || evaluation.isFetching || details.isFetching)}
+      error={savedNutrition ? null : details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={!!savedNutrition || evaluation.validServings} />
     <RecipeEvaluationPanel evaluation={evaluation.data} loading={evaluation.isLoading} refreshing={evaluation.isFetching || details.isFetching}
       error={details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={evaluation.validServings} />
     <div className="kitchen-recipe-primary"><RecipePrimaryActions {...actions} /></div>
