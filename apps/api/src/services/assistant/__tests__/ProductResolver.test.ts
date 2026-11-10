@@ -725,6 +725,15 @@ describe('ProductResolver — brand read on the pack', () => {
   const amora = makeProduct({ id: 'amora', name: 'Mayonnaise Amora', normalized_name: 'mayonnaise amora' });
   const kewpie = makeProduct({ id: 'kewpie', name: 'Mayonnaise Kewpie', normalized_name: 'mayonnaise kewpie' });
 
+  it('keeps the photographed Babybio label instead of joining the generic compotes product',async()=>{
+    const compote=makeProduct({id:'generic-compotes',name:'compotes',normalized_name:'compotes'});
+    const {client,inserts}=makeSemanticClient({exactSingle:null,semanticHits:[{product:compote,score:.96}],fuzzy:[{product:compote,score:.8}]});
+    const resolver=new ProductResolver(client,{embeddingService:makeStubEmbeddingService({vector:FAKE_VEC})});
+    const result=await resolver.resolve(USER_ID,{name:'Brassé coco pomme poire Babybio',brand:'Babybio'});
+    expect(result.kind).toBe('created');
+    expect(inserts[0]).toMatchObject({name:'Brassé coco pomme poire Babybio',brand:'Babybio'});
+  });
+
   it('a branded product never joins a close product without its brand: it is created, with its brand', async () => {
     const { client, inserts } = makeSemanticClient({
       exactSingle: null,

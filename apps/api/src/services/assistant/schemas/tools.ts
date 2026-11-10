@@ -53,7 +53,8 @@ const itemJsonSchema = {
   // the Zod schema stays lenient and falls back to the product unit.
   required: ['name', 'quantity', 'unit'],
   properties: {
-    name: { type: 'string', maxLength: 200 },
+    name: { type: 'string', maxLength: 200, description: 'Full product identity as named or shown on the referenced photo: preserve flavour, variety and brand. Never replace « Brassé coco pomme poire Babybio » with the generic category « compote ».' },
+    brand: { type: 'string', maxLength: 80, description: 'Brand explicitly named by the user or read on the referenced product photo. Also retain it in name. Omit when unknown or when the user explicitly wants any brand.' },
     category: { type: 'string', maxLength: 100 },
     unit: { type: 'string', minLength: 1, maxLength: 50, description: 'the unit the user said (kg, g, L, sachet…); « unité » when the user gave only a count (« 2 pommes de terre »)' },
     quantity: { type: 'number', minimum: 0, maximum: 100_000 },
@@ -613,7 +614,7 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   },
   {
     name: 'add_shopping_items',
-    description: 'Add items to the user shopping list (is_purchased=false).',
+    description: 'Add items to the user shopping list (is_purchased=false). Preserve the full identity of the requested product, including flavour and brand from its referenced photo; do not replace it with a generic category.',
     schema: addShoppingItemsArgs,
     jsonSchema: {
       type: 'object',
