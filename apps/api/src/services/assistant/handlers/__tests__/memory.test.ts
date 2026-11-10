@@ -5,6 +5,7 @@ import type { CookingJournalService } from '../../../cooking/CookingJournalServi
 import { USER,CONV,CID,policy,memory,receipt,clientFixture } from '../../__fixtures__/memory.js';
 function setup() {
   const service={readPolicySafe:jest.fn(async()=>policy()),readPolicy:jest.fn(async()=>policy()),modelMemories:jest.fn(async()=>[memory()]),
+    searchAuthorizedHistory:jest.fn(async()=>[] as Array<{conversation_id:string;message_id:string;role:string;snippet:string}>),
     modelArtifacts:jest.fn(async()=>({messages:[],summary:null})),listConversations:jest.fn(async()=>({items:[{id:CONV}]})),
     saveExtractedFact:jest.fn(async(..._args:Parameters<MemoryService['saveExtractedFact']>)=>receipt()),executeCommand:jest.fn(async()=>receipt()),getCommandReceipt:jest.fn(async()=>null),getMemory:jest.fn(async()=>memory())};
   const db=clientFixture();const registry=new ToolHandlerRegistry();
@@ -55,7 +56,7 @@ test('feedback calls the authenticated atomic interaction/journal command and do
 test('with memory off, searching past conversations does not bring preferences back',async()=>{
   const {registry,service,ctx}=setup();
   const rows=[{id:'m1',role:'user',content:'Je n’aime pas les champignons'},{id:'m2',role:'assistant',content:'Une poêlée de champignons et de riz.'}];
-  service.modelArtifacts.mockResolvedValue({messages:rows,summary:null} as never);
+  service.searchAuthorizedHistory.mockResolvedValue(rows.map(row=>({conversation_id:CONV,message_id:row.id,role:row.role,snippet:row.content})));
   const off=policy({memoryEnabled:false});service.readPolicySafe.mockResolvedValue(off);
   const hidden=(await registry.get('search_conversation_history')!.execute(ctx,{query:'champignons'})).result as {matches:Array<{message_id:string}>};
   expect(hidden.matches.map(m=>m.message_id)).toEqual(['m2']);

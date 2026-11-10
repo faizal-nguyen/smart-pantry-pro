@@ -9,7 +9,7 @@
  * mirroring `read.test.ts`).
  */
 
-import { emptyNutritionProfile } from '@smart/shared';
+import { emptyNutritionProfile,recipeNutritionSignature } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { MemoryService } from '../../assistant/MemoryService.js';
 import { clientFixture, memory, policy } from '../../assistant/__fixtures__/memory.js';
@@ -108,6 +108,29 @@ function makeRecipe(opts: {
 function makeInvRow(pid: string, qty: number, expiry: string | null = null) {
   return { id: `lot-${pid}`, product_id: pid, quantity: qty, unit: "g", stock_version: 0, expiry_date: expiry ?? isoPlusDays(60), date_kind:'best_before',quantity_quality:'measured', products: null };
 }
+function documented(recipe:ReturnType<typeof makeRecipe>,protein:number,energy:number) {
+  return {...recipe,nutrition_info:{schema_version:1,source:'ciqual2020',computed_at:'2026-05-01T00:00:00Z',
+    ingredient_signature:recipeNutritionSignature(recipe.recipe_ingredients,recipe.servings),base_servings:recipe.servings,
+    per_serving:{energyKcal:energy,proteinG:protein,fiberG:3},ingredients:recipe.recipe_ingredients.map(i=>({ingredient_name:i.ingredient_name,food_code:'1',food_name:'Référence fictive',weight_g:i.quantity})),
+    missing_ingredients:[],assumptions:['Données fictives de test.'],reference_url:'https://ciqual.anses.fr'}};
+}
+test('a protein request keeps undocumented Rasam out of cookable suggestions',async()=>{
+  const plain=makeRecipe({id:'rasam',name:'Rasam',ings:[{pid:'p',qty:1,name:'Tomate'}]});
+  const protein=documented(makeRecipe({id:'protein',name:'Poulet',ings:[{pid:'p',qty:1,name:'Poulet'}]}),30,400);
+  const low=documented(makeRecipe({id:'low',name:'Soupe',ings:[{pid:'p',qty:1,name:'Tomate'}]}),3,100);
+  const {engine,ctx}=buildEngine({recipes:[plain,protein,low],inventory:[makeInvRow('p',100)]});
+  const result=await engine.suggestForUser(ctx,{goal:'high_protein'});
+  expect(result.cookable_now.map(r=>r.id)).toEqual(['protein']);
+  expect(result.verify_suggestions.map(r=>r.id)).toEqual(expect.arrayContaining(['rasam','low']));
+});
+test('lighter dishes use documented energy per serving and unknown values stay unverified',async()=>{
+  const rich=documented(makeRecipe({id:'rich',name:'Gratin',ings:[{pid:'p',qty:1,name:'Tomate'}]}),20,800);
+  const light=documented(makeRecipe({id:'light',name:'Légumes',prep:40,ings:[{pid:'p',qty:1,name:'Tomate'}]}),10,250);
+  const {engine,ctx}=buildEngine({recipes:[rich,light],inventory:[makeInvRow('p',100)]});
+  const result=await engine.suggestForUser(ctx,{goal:'light'});
+  expect(result.cookable_now.map(r=>r.id)).toEqual(['light','rich']);
+  expect(result.cookable_now[0].goal_evidence).toMatchObject({status:'documented',value:250,unit:'kcal'});
+});
 
 function buildEngine(plan: MockPlan) {
   const client = makeClient(plan);
@@ -147,7 +170,7 @@ describe('RecommendationEngine — bucket assignment', () => {
     plan.contextRevision = 2; plan.inventory = [makeInvRow('p',0)];
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);
     const keys=writer.readCache.mock.calls.map(call=>call[1]);
-    expect(keys.every(key=>key.startsWith('v10-03c:'))).toBe(true);
+    expect(keys.every(key=>key.startsWith('chef-evidence-v2:'))).toBe(true);
     expect(keys[0]).not.toBe(keys[1]);
     plan.contextRevision = null;
     expect((await engine.suggestForUser(ctx,{})).cookable_now).toHaveLength(0);

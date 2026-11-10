@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import type { AssistantMessage } from '@/services/assistantApi';
 import AssistantRecipeProposals from './AssistantRecipeProposals';
 import AddChefIdeaDialog from './AddChefIdeaDialog';
+import {AssistantText} from './AssistantText';
 
 /**
  * PRP-239 PR4 §10.4 — split a chef synthesis text on the off-DB header.
@@ -49,16 +50,16 @@ function ChefContent({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   if (!offDb) {
-    return <p className="whitespace-pre-wrap text-sm">{content}</p>;
+    return <p className="whitespace-pre-wrap text-sm"><AssistantText text={content}/></p>;
   }
   return (
     <>
-      <p className="whitespace-pre-wrap text-sm">{db}</p>
+      <p className="whitespace-pre-wrap text-sm"><AssistantText text={db}/></p>
       <div className="mt-3 pt-3 border-t border-border/60 space-y-2">
         <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           Idées chef hors bibliothèque
         </p>
-        <p className="whitespace-pre-wrap text-sm opacity-90">{offDb}</p>
+        <p className="whitespace-pre-wrap text-sm opacity-90"><AssistantText text={offDb}/></p>
         <Button
           type="button"
           variant="outline"
@@ -176,7 +177,7 @@ export default function AssistantMessageThread({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages.length,lastMessageId]);
+  }, [lastMessageId]);
 
   if (isLoading) {
     return (

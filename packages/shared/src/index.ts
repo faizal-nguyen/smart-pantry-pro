@@ -18,3 +18,4 @@ export * from './recipe-discovery.js';
 export * from './cuisines.js';
 export * from './produce-review.js';
 export * from './recipe-search.js';
+export * from './stock-conservation.js';

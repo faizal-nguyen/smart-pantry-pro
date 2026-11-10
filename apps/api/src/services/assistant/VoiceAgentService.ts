@@ -94,8 +94,10 @@ DIRECT COMMANDS are not suggestions:
 - A recipe command (« j’ai cuisiné X », « mets X au menu demain soir », « supprime la recette X ») needs the recipe id: first call search_recipes with { "query": "<X>" } (it tolerates typos), then cook_recipe / add_recipe_to_meal_plan / delete_recipe with the id from that result. If several recipes match, ask_clarification with their names; if none matches, say so.
 - Acting on something already there (« j’ai utilisé / mangé / jeté 200 g de riz », « retire le lait de ma liste », « coche le pain », « corrige la date du yaourt ») needs that row's id: first call read_inventory with { "search": "<product>" } or read_shopping_list with { "search": "<item>" }, then call consume_inventory_items / update_inventory_item / remove_shopping_items / mark_shopping_items_bought with the id from that result. Never invent an id; if several rows match and the user did not say which, ask_clarification.
 In read_inventory results, expired: true means already past its date: say « périmé depuis le … », never « expire le … ».
+conservation_review_required=true means a conservation warning is recorded: report « conservation à vérifier » and never claim there is no note or certify the product usable. This signal is separate from the private dietary profile.
 
 RECIPE SUGGESTIONS — VERY IMPORTANT:
+- A request for websites, links, verified external recipes or Web sources → search_web_recipes with only the dish or cuisine. Cite its exact source URLs as clickable Markdown links. Never invent URLs. Only ingredients_verified=true establishes that a page's ingredients were read. External originals can require adaptation to zero pork/zero alcohol; label that adaptation. Never import or change stock without a request.
 - Pick the RIGHT tool based on what the user actually asked:
     A. OPEN suggestions ("qu'est-ce que je peux faire", "propose-moi", "que cuisiner ce soir", "j'ai envie de quelque chose de léger"):
        → call suggest_recipes_for_context. It returns cookable_now, almost_cookable, verify_suggestions and excluded_suggestions, with structured evidence. Suggest at most 3 candidates; never recommend excluded_suggestions as compatible and never certify verify_suggestions. Explain only actual reason_codes and nutrition coverage; a missing criterion is unavailable.
@@ -103,7 +105,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
        → call suggest_recipes_for_context with { "ingredient": "<the ingredient phrase>" }. It applies the same explicit profile, original lots and personal adaptations as open suggestions.
        Products the user names or shows on photos (a « 📷 Sur mes photos » line, « je fais quoi avec ça ? ») are INGREDIENT-CENTRIC, never an open suggestion: call suggest_recipes_for_context once per product, with its generic ingredient and no brand (« mayonnaise » for « Mayonnaise Kewpie », « sauce yakisoba » for « Yakisoba Sauce Otafuku »). Products on photos are not in the stock yet: never conclude that nothing can be cooked with the stock.
     C. RECIPE-BY-NAME lookup ("la recette de Bibimbap", "tu as une carbonara"):
-       → call search_recipes with the name as query.
+       → call search_recipes with the name as query. For ingredients, exact quantities, steps or cooking guidance, then read_recipe with its id and source. Only read_recipe establishes saved instructions. Label adaptations separately from the saved recipe.
     D. RECIPE versus STOCK ("je veux une soupe aux oignons, qu’est-ce qui manque ?", "ai-je tout pour la blanquette ?"):
        → call suggest_recipes_for_context with { "query": "<dish name>" }. This evaluates the stored recipe ingredients against the full stock. search_recipes and read_recent_recipes only locate recipes; they do not establish availability. Use the returned missing ingredients and uncertainties.
 - For narrower asks on suggest_recipes_for_context pass context args to the same tool:
@@ -553,7 +555,7 @@ export class VoiceAgentService {
         // Every output has its corresponding function item, including injected clients.
         if(!continuation.some(item=>item.type==='function_call'&&item.call_id===call.id))
           continuation.push({type:'function_call',call_id:call.id,name:call.name,arguments:call.arguments});
-        continuation.push({type:'function_call_output',call_id:call.id,output:JSON.stringify(modelOutcome(call,policy))});
+        continuation.push({type:'function_call_output',call_id:call.id,output:serializeToolReceipt(call.name,modelOutcome(call,policy))});
       }
       return continuation;
     };
@@ -715,7 +717,7 @@ export class VoiceAgentService {
 
           console.log(`[assistant.handler] executing ${tc.name}`);
           const exec = await handler.execute(
-            { ...ctx, commandId: planned.id, sessionId, conversationId, requestText: transcript },
+            { ...ctx, commandId: planned.id, sessionId, conversationId, requestText: transcript,modelInvocation:invocation },
             parsedArgs,
           );
           if(exec.extraCostUsd!==undefined) invocation.addToolCost(planned.id,tc.name,exec.extraCostUsd);
@@ -808,7 +810,7 @@ export class VoiceAgentService {
         followupUsed=true;
         const policy=this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
         const continuation=continuationFor(activeResponse,'dialogue',policy);
-        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+JSON.stringify(compactForModel(modelOutcome(call,policy))).slice(0,MODEL_RESULT_CHARS));
+        const receipts=(activeResponse.tool_calls ?? []).map(call=>'• '+call.name+' → '+serializeToolReceipt(call.name,modelOutcome(call,policy)));
         const messages:AICompletionRequest['messages']=[
           {role:'system',content:systemContent},...aiMessages.slice(1),
           ...(chatTransport ? [{role:'assistant' as const,content:`J'ai déjà exécuté ces outils :\n${receipts.join('\n')}`}] : []),
@@ -877,7 +879,7 @@ export class VoiceAgentService {
             stillAdmitted(currentPolicy) ? currentPolicy : null)
             : recommendationModelContext(a.result, allowedProfileVersion) ?? a.result;
           // Tool arguments can contain private preferences. Results are enough.
-          return '• ' + a.tool + ' → ' + JSON.stringify(compactForModel(result)).slice(0, MODEL_RESULT_CHARS);
+          return '• ' + a.tool + ' → ' + serializeToolReceipt(a.tool,result);
         });
 
         // PRP-239 PR4 §10.3 — escalate to the quality model when a
@@ -983,6 +985,13 @@ export class VoiceAgentService {
       activeResponse.content && activeResponse.content.trim().length > 0
         ? activeResponse.content.trim()
         : synthesizeMessage(executed, pending);
+    // Exact URLs come from verified tool receipts, not from generated prose.
+    const webSources=executed.filter(a=>a.tool==='search_web_recipes').flatMap(a=>{
+      const sources=(a.result as {sources?:Array<{url:string;title?:string}>}|null)?.sources;
+      return Array.isArray(sources) ? sources.filter(s=>/^https:\/\//i.test(s.url)) : [];
+    }).filter((s,i,all)=>all.findIndex(other=>other.url===s.url)===i);
+    const uncited=webSources.filter(s=>!message.includes(s.url));
+    if(uncited.length) message+='\n\nSources :\n'+uncited.map(s=>`- [${(s.title ?? 'Recette source').replace(/[[\]\n]/g,' ')}](${s.url})`).join('\n');
 
     for (const action of executed) {
       const result = MemoryWriteResultSchema.safeParse(action.result);
@@ -1465,7 +1474,12 @@ function todayContext(now: Date): string {
 // Tool results reach the model as text. Stock and shopping rows keep only what it
 // needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
 const MODEL_RESULT_CHARS = 6000;
-const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'quantity_quality', 'date_kind', 'notes', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
+function serializeToolReceipt(tool:string,result:unknown):string {
+  const limit=tool==='read_recipe' ? 24000 : tool==='search_web_recipes' ? 16000 : MODEL_RESULT_CHARS;
+  const text=JSON.stringify(compactForModel(result));
+  return text.length<=limit ? text : JSON.stringify({truncated:true,note:'Résultat partiel : ne complète pas les informations absentes.',preview:text.slice(0,limit-150)});
+}
+const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'quantity_quality', 'date_kind', 'conservation_review_required', 'notes', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
 function compactForModel(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const object = value as Record<string, unknown>;

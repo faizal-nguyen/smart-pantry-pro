@@ -33,7 +33,9 @@ export function recipeDurationMinutes(recipe: { prep_time?: number | null; cook_
 }
 
 export function normalizeRecipeInstructions(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((line): line is string => typeof line === 'string').map(line => line.trim()).filter(Boolean);
+  if (Array.isArray(value)) return value.map(line=>typeof line==='string' ? line :
+    line && typeof line==='object' && typeof line.description==='string' ? line.description :
+    line && typeof line==='object' && typeof line.text==='string' ? line.text : '').map(line=>line.trim()).filter(Boolean);
   if (typeof value !== 'string' || !value.trim()) return [];
   try {
     const parsed: unknown = JSON.parse(value);

@@ -69,6 +69,8 @@ export interface AICompletionToolCall {
 }
 
 export interface AICompletionRequest {
+  /** Bounded source discovery; never mixed with function tools. Responses only. */
+  webSearch?: { allowedDomains:string[];maxCalls:number };
   model: string;
   messages: AICompletionMessage[];
   temperature?: number;
@@ -88,6 +90,7 @@ export interface AICompletionRequest {
 }
 
 export interface AICompletionResponse {
+  webSearch?: { citations:Array<{url:string;title:string}>;searchCalls:number };
   content: string;
   model: string;
   usage: {

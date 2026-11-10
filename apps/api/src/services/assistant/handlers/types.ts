@@ -24,6 +24,7 @@ import type { ProductIntelligenceService } from '../../products/ProductIntellige
  * plus the resolver shared across handlers in the same request.
  */
 export interface ToolExecutionContext {
+  modelInvocation?:import('../../ai/ModelInvocation.js').ModelInvocation;
   userId: string;
   /** Stable action-log id used by stock transactions and retries. */
   commandId?: string;

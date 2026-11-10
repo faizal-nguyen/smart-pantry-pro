@@ -30,21 +30,23 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
   };
   const candidate = (item: unknown) => {
     const recipe = object(item) ?? {};
-    const stock = object(recipe.availability), constraints = object(recipe.constraints), nutrition = object(recipe.nutrition);
     const share = mayShare(item);
+    const facts = share ? recipe : object(recipe.recipe_facts);
+    const stock = object(facts?.availability), constraints = object(recipe.constraints), nutrition = object(facts?.nutrition);
     const reasons = list(recipe.reason_codes).map(object).filter(reason => reason &&
       (share || ['STOCK_AVAILABLE', 'STOCK_MISSING', 'STOCK_UNCERTAIN', 'TIME_UNKNOWN', 'NEAR_DATE'].includes(String(reason.code))))
       .slice(0, 3).map(reason => ({ code: reason!.code, text: text(reason!.text) }));
+    if(!share && facts && stock) {
+      reasons.splice(0,reasons.length,{code:stock.status==='available' ? 'STOCK_AVAILABLE' : stock.status==='missing' ? 'STOCK_MISSING' : 'STOCK_UNCERTAIN',
+        text:stock.status==='available' ? 'Présence en stock ; vérifier les quantités et la conservation signalées.' : stock.status==='missing' ? 'Ingrédients manquants détaillés ci-dessous pour ces portions.' : 'Quantités ou conservation à vérifier.'});
+    }
     return {
       id: recipe.id, name: text(recipe.name, 120), reference: { id: object(recipe.reference)?.id, source: object(recipe.reference)?.source },
       duration_minutes: recipe.duration_minutes,
-      availability: { status: stock?.status }, reason_codes: reasons,
-      ...(share ? {
-        servings: recipe.servings,
-        constraints: { status: constraints?.status, findings: list(constraints?.findings).slice(0, 2).map(item => {
-          const finding = object(item);
-          return { code: finding?.code, ingredient: text(finding?.ingredient, 80), message: text(finding?.message) };
-        }) },
+      ...(object(recipe.goal_evidence) ? {goal_evidence:recipe.goal_evidence} : {}),
+      availability: { status: stock?.status ?? object(recipe.availability)?.status }, reason_codes: reasons,
+      ...(facts ? {
+        servings: facts.servings,
         missing_total:list(stock?.missing).length,missing_complete:list(stock?.missing).length<=20,
         missing: list(stock?.missing).slice(0, 20).map(item => {
           const gap = object(item);
@@ -55,8 +57,14 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
           upper_bounds:list(nutrition?.upper_bounds).filter(key=>NUTRIENTS.some(field=>field.key===key)),
           sources: list(nutrition?.sources).slice(0, 3).map(item => ({ source: text(object(item)?.source, 40), base: text(object(item)?.base, 30), updated_at: text(object(item)?.updated_at, 40) })),
         },
+        limitations: [...list(stock?.uncertainties), ...list(nutrition?.limitations),...(share ? list(constraints?.limitations) : [])].slice(0, 6).map(value => text(value)),
+      } : {}),
+      ...(share ? {
+        constraints: { status: constraints?.status, findings: list(constraints?.findings).slice(0, 2).map(item => {
+          const finding = object(item);
+          return { code: finding?.code, ingredient: text(finding?.ingredient, 80), message: text(finding?.message) };
+        }) },
         unavailable_criteria: list(recipe.unavailable_criteria).slice(0, 8).map(value => text(value, 40)),
-        limitations: [...list(stock?.uncertainties), ...list(constraints?.limitations), ...list(nutrition?.limitations)].slice(0, 3).map(value => text(value)),
       } : {}),
     };
   };

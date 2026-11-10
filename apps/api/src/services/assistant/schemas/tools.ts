@@ -86,6 +86,10 @@ export interface ToolSpec<TArgs = unknown> {
 }
 
 // ---- READ tools ------------------------------------------------------
+export const readRecipeArgs=z.object({recipe_id:z.string().uuid(),source:z.enum(['recipes','user_recipes','recipes_catalog']).default('recipes'),servings:z.number().int().min(1).max(100).optional()});
+export type ReadRecipeArgs=z.infer<typeof readRecipeArgs>;
+export const searchWebRecipesArgs=z.object({query:z.string().trim().min(2).max(200),limit:z.number().int().min(1).max(3).optional()});
+export type SearchWebRecipesArgs=z.infer<typeof searchWebRecipesArgs>;
 
 const readInventoryArgs = z.object({
   search: z.string().max(200).optional(),
@@ -390,6 +394,10 @@ export type RecordRecipeFeedbackArgs = z.infer<typeof recordRecipeFeedbackArgs>;
 // ---- Catalog --------------------------------------------------------
 
 export const TOOL_SPECS: readonly ToolSpec[] = [
+  {name:'search_web_recipes',description:'Search reliable cooking websites for external recipe links and verify available recipe ingredients. Use when the user requests websites, sources, links or recipes outside the library. Pass only the dish/cuisine query, never private profile/history or stock. Does not import recipes or buy anything.',
+    schema:searchWebRecipesArgs,jsonSchema:{type:'object',required:['query'],properties:{query:{type:'string',minLength:2,maxLength:200},limit:{type:'integer',minimum:1,maximum:3}},additionalProperties:false},defaultRiskTier:'read',reversible:false},
+  {name:'read_recipe',description:'Read a full saved recipe by a reference returned by search or recommendations: exact ingredients, quantities, steps, nutrition and source links. Use after search_recipes for instructions, ingredient lists or adapting portions. Never invent the recipe id.',
+    schema:readRecipeArgs,jsonSchema:{type:'object',required:['recipe_id'],properties:{recipe_id:{type:'string',format:'uuid'},source:{type:'string',enum:['recipes','user_recipes','recipes_catalog']},servings:{type:'integer',minimum:1,maximum:100}},additionalProperties:false},defaultRiskTier:'read',reversible:false},
   // ===== READ =====
   {
     name: 'read_inventory',

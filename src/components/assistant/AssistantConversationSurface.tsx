@@ -26,6 +26,7 @@ import AssistantMemoryNotice from './AssistantMemoryNotice';
 import AssistantHistoryNotice from './AssistantHistoryNotice';
 import { AssistantActionsPanel } from './AssistantActionsPanel';
 import AssistantPendingTurn from './AssistantPendingTurn';
+import {AssistantText} from './AssistantText';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
 import { useAssistantMessages } from '@/hooks/useAssistantConversations';
 import type {
@@ -90,7 +91,7 @@ export default function AssistantConversationSurface({
     </div>
   );
   const footer = sendingHere ? <AssistantPendingTurn text={sendingHere} /> : actions;
-  const { messages, isLoading: messagesLoading,error:messagesError,refetch:refetchMessages } = useAssistantMessages(
+  const { messages, isLoading: messagesLoading,error:messagesError,refetch:refetchMessages,hasMore,loadMore,isLoadingMore } = useAssistantMessages(
     conversationId,
     { limit: 50, enabled: !!conversationId },
   );
@@ -135,7 +136,8 @@ export default function AssistantConversationSurface({
         {conversationId && <h2 className="mb-3 text-sm font-medium line-clamp-2">{messages.find(message=>message.role==='user')?.content.split('\n')[0] ?? 'Conversation'}</h2>}
         <AssistantHistoryNotice owner={owner} />
         <AssistantMemoryNotice result={latestHere} />
-        {currentSession.messages.length > 0 && <div className="space-y-4"><p className="text-xs text-muted-foreground">Échange de cette session. L’historique durable est désactivé ou indisponible.</p>{currentSession.messages.map((m,i) => <p key={i} className="whitespace-pre-wrap text-sm"><span className="block font-medium">{m.role === 'user' ? 'Vous' : 'Assistant'}</span>{m.content}</p>)}</div>}
+        {hasMore && <Button variant="outline" className="min-h-11" disabled={isLoadingMore} onClick={()=>void loadMore()}>{isLoadingMore ? 'Chargement…' : 'Afficher les messages précédents'}</Button>}
+        {currentSession.messages.length > 0 && <div className="space-y-4"><p className="text-xs text-muted-foreground">Échange de cette session. L’historique durable est désactivé ou indisponible.</p>{currentSession.messages.map((m,i) => <p key={i} className="whitespace-pre-wrap text-sm"><span className="block font-medium">{m.role === 'user' ? 'Vous' : 'Assistant'}</span><AssistantText text={m.content}/></p>)}</div>}
         {messagesError ? <div role="alert" className="space-y-3 py-6"><p>Impossible d’ouvrir les messages de cette conversation.</p><Button variant="outline" onClick={()=>void refetchMessages()}>Réessayer l’ouverture</Button></div> : !conversationId && currentSession.messages.length === 0 ? (
           <div className="kitchen-assistant-welcome"><h2 className="text-lg font-semibold">Un coup de main en cuisine ?</h2><p className="text-sm text-muted-foreground">Demande quoi préparer avec tes ingrédients ou par quoi remplacer un produit. Écris ou dicte ta question ci-dessous, ou joins des photos de tes courses.</p></div>
         ) : (
