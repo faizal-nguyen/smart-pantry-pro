@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
+import { useResponsive } from '@/hooks/useResponsive';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import ConversationHistoryList from '@/components/assistant/ConversationHistoryList';
@@ -48,6 +49,7 @@ const AssistantDashboard: React.FC = () => {
   const conversationId = searchParams.get('conversation');
   const [historyOpen,setHistoryOpen]=useState(false);
   const [newThread,setNewThread]=useState(0);
+  const {viewport}=useResponsive();
   const mode = useMemo(() => normaliseMode(searchParams.get('mode')), [searchParams]);
 
   const handleModeChange = (next: AssistantConversationMode) => {
@@ -67,6 +69,7 @@ const AssistantDashboard: React.FC = () => {
 
   return (
     <div
+      data-compact={viewport.availableHeight<600}
       className={cn(
         'culinary-page kitchen-page kitchen-assistant-page',
         getStyleClasses(),
@@ -74,9 +77,9 @@ const AssistantDashboard: React.FC = () => {
       )}
     >
         <KitchenPageHeader title="Assistant" description="Un coup de main pour cuisiner avec ce que tu as." actions={<div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={()=>{ setNewThread(value=>value+1);setSearchParams(mode==='general' ? {} : {mode}); }}>Nouvelle conversation</Button>
+          <Button variant="outline" aria-label="Nouvelle conversation" onClick={()=>{ setNewThread(value=>value+1);setSearchParams(mode==='general' ? {} : {mode}); }}><span className="sm:hidden">Nouveau</span><span className="hidden sm:inline">Nouvelle conversation</span></Button>
           <Button variant="outline" className="lg:hidden" onClick={()=>setHistoryOpen(true)}>Conversations</Button>
-          <Link to="/settings?section=assistant-memory" className="kitchen-inline-link">Ma mémoire</Link>
+          <Link to="/settings?section=assistant-memory" aria-label="Ma mémoire" className="kitchen-inline-link"><span className="sm:hidden">Mémoire</span><span className="hidden sm:inline">Ma mémoire</span></Link>
         </div>}/>
 
         <div className="kitchen-assistant-layout">

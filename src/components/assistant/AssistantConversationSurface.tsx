@@ -120,13 +120,8 @@ export default function AssistantConversationSurface({
     }
   };
 
-  // Mobile audit P2#8 — sur mobile le `h-[70vh]` dans une Card laissait
-  // ~30vh aux bords + header AppNavigation + nav bottom, le composer
-  // sticky se retrouvait à mi-écran. On bascule en chat plein écran :
-  //   • mobile : `h-[calc(100dvh-13rem)]` (≈208px = header page + nav 96)
-  //              + bords droits pour gagner les marges.
-  //   • desktop : on garde la Card 70vh.
-  // Le composer est en flex-col donc dock naturellement en bas.
+  // The page owns the available viewport height. Only the thread scrolls;
+  // the composer keeps its space below the messages.
   return (
     <Card
       className="kitchen-assistant-conversation"
