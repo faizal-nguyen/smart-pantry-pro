@@ -336,7 +336,7 @@ describe('SearchRecipesHandler', () => {
   const recipe = (id: string, name: string) => ({ id, name, description: null, prep_time: 10, cook_time: 20, servings: 2, image_url: null,
     cuisine_category: null, meal_type: 'dinner', tags: [] });
   const book = [recipe('a', 'Lamb (Mutton) Biryani'), recipe('b', 'Kimchi Fried Rice'), recipe('c', 'Hibachi Fried Rice'),
-    recipe('d', 'Pâtes carbonara'), recipe('e', 'Bœuf bourguignon'), recipe('f', 'Risotto aux champignons'), recipe('g', '50% Off Salad')];
+    recipe('d', 'Pâtes carbonara'), recipe('e', 'Bœuf bourguignon'), recipe('f', 'Risotto aux champignons'), recipe('g', '50% Off Salad'),recipe('h','Soupe à l’oignon gratinée')];
   const search = async (query: string) => {
     const { client } = makeClient({ routes: { recipes: { data: book } } });
     return (await new SearchRecipesHandler().execute(makeCtx(client), { query })).result.recipes.map(r => r.name);
@@ -350,6 +350,7 @@ describe('SearchRecipesHandler', () => {
     expect(await search('CARBONARA')).toEqual(['Pâtes carbonara']);
     expect(await search('riz')).toEqual([]);
   });
+  it('finds soupe aux oignons despite connecting words and plural inflections',async()=>{expect(await search('soupe aux oignons')).toEqual(['Soupe à l’oignon gratinée']);});
   it('treats % and _ as plain text', async () => {
     expect(await search('50% off')).toEqual(['50% Off Salad']);
   });

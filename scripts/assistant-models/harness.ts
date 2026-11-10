@@ -21,7 +21,7 @@ const recipe={id:RECIPE,reference:{id:RECIPE,source:'recipes'},profile_version:1
   reason_codes:[],nutrition:{status:'unavailable'}};
 const RECIPES={pipeline_version:3,profile_version:1,cookable_now:[recipe],almost_cookable:[],verify_suggestions:[],
   excluded_suggestions:[{...recipe,id:'excluded-fixture',name:'Recette exclue aux cacahuètes',constraints:{status:'incompatible',findings:[{code:'DECLARED_ALLERGY',ingredient:'cacahuètes',message:'Exclusion confirmée fictive.'}],limitations:[]}}],recent_suggestions:[]};
-export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient) {
+export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient,fixtures?:Partial<Record<'read_inventory'|'suggest_recipes_for_context'|'search_recipes',unknown>>) {
   let calls=0;let effects=0;let providerLeak=false;let savedSummary:string|null=null;const rows:Array<Record<string,unknown>>=[];
   const executed:Array<{tool:string;args:Record<string,unknown>}>=[];
   const mock:AICompletionClient={complete:async(req)=>{
@@ -48,6 +48,7 @@ export async function runScenario(scenario:Scenario,config:AssistantModelConfig,
   for(const spec of registry.toOpenAITools()) handlers.register(spec.function.name,{execute:async(ctx,args)=>{
     if(ctx.userId!==USER) throw new Error('WRONG_OWNER');const a=args as Record<string,unknown>;const tool=spec.function.name;
     executed.push({tool,args:a});
+    if(fixtures&&Object.prototype.hasOwnProperty.call(fixtures,tool))return {result:fixtures[tool as keyof typeof fixtures]};
     if(tool==='read_inventory') return {result:{items:INVENTORY.filter(item=>item.user_id===ctx.userId)}};
     if(tool==='suggest_recipes_for_context') return {result:RECIPES};
     if(tool==='search_recipes'||tool==='read_recent_recipes') return {result:{recipes:RECIPES.cookable_now}};

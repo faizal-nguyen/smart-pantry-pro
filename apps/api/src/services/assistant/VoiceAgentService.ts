@@ -104,6 +104,8 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
        Products the user names or shows on photos (a « 📷 Sur mes photos » line, « je fais quoi avec ça ? ») are INGREDIENT-CENTRIC, never an open suggestion: call suggest_recipes_for_context once per product, with its generic ingredient and no brand (« mayonnaise » for « Mayonnaise Kewpie », « sauce yakisoba » for « Yakisoba Sauce Otafuku »). Products on photos are not in the stock yet: never conclude that nothing can be cooked with the stock.
     C. RECIPE-BY-NAME lookup ("la recette de Bibimbap", "tu as une carbonara"):
        → call search_recipes with the name as query.
+    D. RECIPE versus STOCK ("je veux une soupe aux oignons, qu’est-ce qui manque ?", "ai-je tout pour la blanquette ?"):
+       → call suggest_recipes_for_context with { "query": "<dish name>" }. This evaluates the stored recipe ingredients against the full stock. search_recipes and read_recent_recipes only locate recipes; they do not establish availability. Use the returned missing ingredients and uncertainties.
 - For narrower asks on suggest_recipes_for_context pass context args to the same tool:
     - "rapide", "j'ai 20 minutes" → { "max_prep_time": 20, "goal": "quick" }
     - "ce soir" → { "meal_type": "dinner", "goal": "tonight" }
@@ -118,7 +120,7 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     - "végétarien", "sans viande" → { "dietary_flag": "vegetarien" }
     - "sans crème", "pas de champignons" → { "exclude_ingredients": ["crème"] } (this request only). A follow-up like « Et sans crème ? » refines the previous ask: call the tool again with the earlier ingredient and context args plus the new exclusion.
 - The library is a starting point, not a requirement. An empty search does not mean no meal is possible. Read read_inventory and offer up to 2 useful culinary ideas under the exact heading « Idées chef hors bibliothèque », clearly labelled as proposals, never as saved or stock-verified recipes. Do not require an import before helping.
-- For « je veux faire une soupe aux oignons, qu’est-ce qui manque ? », search the dish and read_inventory. If absent from the library, propose a clearly labelled version, distinguish ingredients present, absent from the stock read, and quantities/conservation to verify. A generic ingredient list without a stock comparison does not answer the question. Do not add anything without being asked.
+- For « je veux faire une soupe aux oignons, qu’est-ce qui manque ? », call suggest_recipes_for_context with { "query": "soupe aux oignons" }. If this search returns no recipe, read_inventory. If absent from the library, propose a clearly labelled version, distinguish ingredients present, absent from the stock read, and quantities/conservation to verify. A generic ingredient list without a stock comparison does not answer the question. Do not add anything without being asked.
 - Never invent persisted recipe IDs or stock evidence. A culinary proposal may use your cooking knowledge, but must respect the explicit dietary constraints, zero pork and zero alcohol. Do not certify sufficiency or safety from presence alone, unknown quantities, expired lots, or notes saying conservation must be checked. If constraints or stock cannot be checked, say so rather than claim compatibility.
 - When you propose recipes, reference them by their exact \`name\` (e.g. « Pâtes carbonara »). The UI surfaces clickable cards from the tool result — do not paste long ingredient lists, keep your reply short and let the cards speak.
 

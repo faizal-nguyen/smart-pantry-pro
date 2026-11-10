@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Leaf, Milk, Package } from 'lucide-react';
 import KitchenWeekPreview from '@/components/meal-planning/KitchenWeekPreview';
-import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
+import { calendarDaysUntil, pantryDateLabel, produceReview } from '@smart/shared';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useInventory } from '@/hooks/useInventory';
 import { useShoppingList } from '@/hooks/useShoppingList';
@@ -35,6 +35,7 @@ export default function KitchenDashboard() {
   try { share = readShareCapture(user.id); } catch { /* Retain corrupt capture; opening the capture page displays the error. */ }
   const active = (Array.isArray(saved) ? saved : []).map(item => CookingSessionSchema.safeParse(item)).filter((parsed):parsed is { success:true;data:CookingSession } => parsed.success).map(parsed => parsed.data).find(item => item.owner===user.id && !['done','abandoned'].includes(item.state));
   const soon = stock.inventory.filter(item => { const days=calendarDaysUntil(item.expiry_date,now); return item.quantity>0 && days != null && days<=7; }).sort((a,b) => (a.expiry_date ?? '').localeCompare(b.expiry_date ?? '')).slice(0,3);
+  const produceChecks=stock.inventory.filter(item=>produceReview(item,now));
   const bought = shopping.getPurchasedCount();
   const next = active ? { title:`Reprendre ${active.name}`,detail:active.state==='pending' ? 'Une confirmation reste à vérifier.' : `Étape ${active.step+1} · ${active.servings} ${active.servings===1 ? 'portion' : 'portions'}`,path:`/kitchen/cooking/${active.id}`,cta:'Reprendre ma cuisine' }
     : shopping.pendingTransfer || bought>0 ? { title:'Tes achats attendent leur rangement',detail:shopping.pendingTransfer ? 'Un rangement reste à confirmer.' : `${bought} ${bought===1 ? 'produit coché' : 'produits cochés'}.`,path:'/shopping/list',cta:'Ranger mes achats' }
@@ -50,6 +51,7 @@ export default function KitchenDashboard() {
     {next && <Card className="kitchen-next"><CardContent><div><h2>{next.title}</h2><p>{next.detail}</p></div><Button className="min-h-11" asChild><Link to={next.path}>{next.cta}</Link></Button></CardContent></Card>}
     {(stock.error || shopping.error || sessionsError) && <div role="alert" className="kitchen-notice"><p>Certaines données n’ont pas pu être lues.</p><Button variant="outline" onClick={() => { void stock.refetch(); void shopping.refetch().catch(() => undefined); }}>Réessayer</Button></div>}
     {share && !['saved','captured'].includes(share.status) && <div className="kitchen-notice"><p>Un lien de recette reste à reprendre.</p><Button variant="outline" asChild><Link to="/share-target">Reprendre le partage</Link></Button></div>}
+    {!stock.loading&&!stock.error&&produceChecks.length>0&&<div className="kitchen-notice"><p>{produceChecks.length} {produceChecks.length===1?'fruit, légume ou herbe à vérifier':'fruits, légumes ou herbes à vérifier'} : en as-tu encore ?</p><Button className="min-h-11" variant="outline" asChild><Link to="/pantry/inventory#produce-review">Vérifier mon stock</Link></Button></div>}
     {error && <p role="alert" className="text-destructive">{error}</p>}
     <div className="kitchen-today-grid">
       <section className="min-w-0" aria-label="Idée pour ton repas"><PersonalizedRecipeSuggestions featured input={input} onAddStock={()=>setAdd(true)} /></section>

@@ -1,3 +1,4 @@
+import {recipeMatchesCuisine,recipeNameMatchScore} from '@smart/shared';
 import { createHash } from 'node:crypto';
 import { classifyMemoryFact,ingredientNameTokens,mapLibraryRecipe,resolveRecipeImageUrl,normalizeIngredientName,calendarDaysUntil,calendarDate,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type RecommendationReason } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -30,11 +31,6 @@ const MEAL_GROUPS:Record<string,'main'|'breakfast'|'snack'>={ dinner:'main',lunc
   snack:'snack',appetizer:'snack',dessert:'snack',drink:'snack',gouter:'snack',apero:'snack' };
 const mealKey=(value:string|null|undefined) => (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const mealGroup=(value:string|null|undefined) => MEAL_GROUPS[mealKey(value)];
-
-// French cuisine adjectives agree with « cuisine » or « plat ». Whole words
-// prevent an origin request from matching an unrelated dish title.
-const cuisineKey=(value:string)=>normalizeIngredientName(value).replace(/[^a-z0-9]+/g,' ').trim().split(' ')
-  .map(word=>word.replace(/(?:ien(?:ne)?s?|en(?:ne)?s?|aise?s?|oise?s?)$/,'')).join(' ');
 
 /** The only scoring pipeline: explicit profile first, constraints before ranking,
  * qualified original lots, structured evidence, and no LLM or inferred-health input. */
@@ -235,16 +231,14 @@ export class RecommendationEngine {
     return this.catalogRecipe(data as RecipeCatalogRow & { ingredients_json?:unknown });
   }
   private async loadRecipes(ctx:RecommendationExecutionContext,input:RecommendationContext):Promise<RecipeWithIngredients[]> {
-    let query=ctx.userClient.from('recipes').select(recipeColumns).eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(LIBRARY_POOL);
-    if (input.query?.trim()) query=query.ilike('name','%'+input.query.trim().replace(/[%_]/g,'\\$&')+'%');
+    const query=ctx.userClient.from('recipes').select(recipeColumns).eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(LIBRARY_POOL);
     const [own,library,catalog]=await Promise.all([query,ctx.userClient.from('user_recipes').select('*,catalog_recipe:recipes_catalog(*)').eq('user_id',ctx.userId).limit(LIBRARY_POOL),ctx.userClient.from('recipes_catalog').select('*').order('created_at',{ ascending:false }).limit(200)]);
     for (const row of [own,library,catalog]) if (row.error) throw new Error('RECIPE_DATA_UNAVAILABLE');
     const libraryRows=(library.data ?? []) as LibraryRecipeRow[],catalogOwned=new Set(libraryRows.map(row=>row.recipe_id));
     const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) })),...libraryRows.map(row=>this.libraryRecipe(row)),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>this.catalogRecipe(row as RecipeCatalogRow & { ingredients_json?:unknown }))] as RecipeWithIngredients[];
     return rows.filter(recipe=>{
-      if (input.query && !normalizeIngredientName(recipe.name).includes(normalizeIngredientName(input.query))) return false;
-      if (input.cuisine && ![recipe.cuisine_category,...(recipe.tags ?? [])].some(value=>value && cuisineKey(input.cuisine) &&
-        ` ${cuisineKey(value)} `.includes(` ${cuisineKey(input.cuisine)} `))) return false;
+      if (input.query && !recipeNameMatchScore(recipe.name,input.query)) return false;
+      if (input.cuisine && !recipeMatchesCuisine(recipe.cuisine_category,recipe.tags,input.cuisine)) return false;
       if (input.course) {
         const labels=[recipe.meal_type,...(recipe.tags ?? [])].map(value=>mealKey(value));
         const course=labels.some(value=>['dessert','desserts'].includes(value)) ? 'dessert'

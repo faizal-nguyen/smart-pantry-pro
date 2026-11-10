@@ -6,8 +6,8 @@ import RoutineRecipeLibrary from '../RoutineRecipeLibrary';
 const A='00000000-0000-4000-8000-000000000001';
 jest.mock('@/hooks/useAuthenticatedUser',()=>({ useAuthenticatedUser:()=>({ id:A }) }));
 jest.mock('@/hooks/useRecipeFavorites',()=>({ useRecipeFavorites:()=>({ data:[],isFavorite:()=>false,refetch:jest.fn() }) }));
-jest.mock('@/hooks/useRecipes',()=>({ useRecipes:()=>({ recipes:[{ id:'legacy',source:'recipes',name:'Pain maison',image_url:'/legacy.jpg',prep_time:10,cook_time:20,rest_time:15,servings:4,user_id:A },{ id:'wrapper',source:'user_recipes',name:'Soupe personnelle',image_url:'/personal.jpg',prep_time:null,cook_time:null,servings:null,user_id:A,inlineIngredients:[{ name:'Tomate' }] }],loading:false,fetchRecipes:jest.fn() }) }));
-jest.mock('@/hooks/useRoutineCatalog',()=>({ useRoutineCatalog:()=>({ data:{ pages:[{ rows:[{ id:'catalog',title:'Riz simple',photo_url:'/catalog.jpg',prep_time:5,cook_time:15,servings:2,ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }] }] }] },refetch:jest.fn() }) }));
+jest.mock('@/hooks/useRecipes',()=>({ useRecipes:()=>({ recipes:[{ id:'legacy',source:'recipes',name:'Pain maison',cuisine_category:'Française',image_url:'/legacy.jpg',prep_time:10,cook_time:20,rest_time:15,servings:4,user_id:A },{ id:'wrapper',source:'user_recipes',name:'Soupe personnelle',cuisine_category:'Japonaise',image_url:'/personal.jpg',prep_time:null,cook_time:null,servings:null,user_id:A,inlineIngredients:[{ name:'Tomate' }] }],loading:false,fetchRecipes:jest.fn() }) }));
+jest.mock('@/hooks/useRoutineCatalog',()=>({ useRoutineCatalog:()=>({ data:{ pages:[{ rows:[{ id:'catalog',title:'Riz simple',cuisine_category:'Japanese',photo_url:'/catalog.jpg',prep_time:5,cook_time:15,servings:2,ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }] }] }] },refetch:jest.fn() }) }));
 jest.mock('@/integrations/supabase/client',()=>({ supabase:{ from:()=>{
   const query={ select:()=>query,in:()=>query,abortSignal:async()=>({ data:[{ recipe_id:'legacy',ingredient_name:'Farine',inventory_product_id:'flour' }],error:null }) };return query;
 } } }));
@@ -51,4 +51,15 @@ test('an empty search offers an effective reset rather than returning to the sam
   fireEvent.click(screen.getByRole('button',{ name:'Retirer les filtres et la recherche' }));
   expect(screen.getByRole('searchbox')).toHaveValue('');
   expect(screen.getByRole('heading',{ name:'Riz simple' })).toBeVisible();
+});
+
+
+test('cuisine filtering keeps its URL state, combines with search and can be reset',()=>{
+ show('/kitchen/recipes?cuisine=japonaise');
+ expect(screen.queryByRole('heading',{name:'Pain maison'})).not.toBeInTheDocument();
+ expect(screen.getByRole('heading',{name:'Soupe personnelle'})).toBeVisible();
+ expect(screen.getByRole('heading',{name:'Riz simple'})).toBeVisible();
+ fireEvent.change(screen.getByRole('combobox',{name:'Type de cuisine'}),{target:{value:'francaise'}});
+ expect(screen.getByRole('heading',{name:'Pain maison'})).toBeVisible();
+ expect(screen.queryByRole('heading',{name:'Riz simple'})).not.toBeInTheDocument();
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { canAddToShoppingList, nutritionFromRecipeSnapshot, recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
 import { ArrowLeft, Clock, Users, Star, Heart, Share, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import RecipeSourcePreview from '@/components/recipes/RecipeSourcePreview';
 import type { RecipeSourceLike } from '@/components/recipes/RecipeSourceCard';
 import RecipeEvaluationPanel from '@/components/recipes/RecipeEvaluationPanel';
 import RecipeNutritionPanel from '@/components/recipes/RecipeNutritionPanel';
+import {recipeLibraryReturnUrl} from '@/hooks/useRecipeListReturn';
 import { useRecipeDetails } from '@/hooks/useRecipeDetails';
 import { useRecipeEvaluation } from '@/hooks/useRecipeEvaluation';
 import { useRecipes } from '@/hooks/useRecipes';
@@ -39,6 +40,8 @@ export default function RecipeDetail() {
 
 function RecipeDetailContent({ id }: { id?: string }) {
   const navigate = useNavigate();
+  const location=useLocation();
+  const backToRecipes=()=>{if(recipeLibraryReturnUrl(location.state))navigate(-1);else navigate('/kitchen/recipes');};
   const [params] = useSearchParams();
   const user = useAuthenticatedUser();
   const parsed = RecipeReferenceSchema.safeParse({ id, source: params.get('source') ?? 'auto' });
@@ -173,7 +176,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   };
   return <div className="culinary-page kitchen-page kitchen-recipe-detail">
     <div className="kitchen-recipe-toolbar">
-      <Button variant="ghost" aria-label="Retour aux recettes" onClick={() => navigate('/kitchen/recipes')}><ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />Recettes</Button>
+      <Button variant="ghost" aria-label="Retour aux recettes" onClick={backToRecipes}><ArrowLeft className="w-4 h-4 mr-2" aria-hidden="true" />Recettes</Button>
       <div className="flex gap-2">
         <Button variant="outline" size="icon" className="h-11 w-11" aria-label={favorites.isFavorite(recipe.id) ? 'Retirer des favoris' : 'Mettre en favori'} aria-pressed={favorites.isFavorite(recipe.id)} disabled={favoriting || favorites.isLoading || favorites.isError}
           onClick={() => { if (favoriting || !reference) return; setFavoriting(true); void favorites.toggle(reference).catch(showActionError).finally(() => setFavoriting(false)); }}><Heart className="w-4 h-4" aria-hidden="true" /></Button>

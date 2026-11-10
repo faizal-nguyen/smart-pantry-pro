@@ -15,3 +15,6 @@ export * from './assistant-models.js';
 
 export * from './recipe-import-quality.js';
 export * from './recipe-discovery.js';
+export * from './cuisines.js';
+export * from './produce-review.js';
+export * from './recipe-search.js';
