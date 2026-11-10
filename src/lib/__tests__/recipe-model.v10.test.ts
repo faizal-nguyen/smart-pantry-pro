@@ -19,3 +19,10 @@ test('empty photo and missing time remain distinct from a fallback URL and recor
   expect(recipeDurationMinutes({ prep_time: null, cook_time: 0 })).toBeNull();
   expect(recipeDurationMinutes({ prep_time: 0, cook_time: 0 })).toBe(0);
 });
+test('a reference photo keeps its attribution only while that photo is displayed',()=>{
+  const photo={image_url:'https://images.example.test/curry.jpg',source_url:'https://example.test/curry',publisher:'Chef',note:'Photo de référence.'};
+  const row={id:'personal',user_id:'owner',is_from_catalog:false,created_at:'',updated_at:'',custom_photo_url:photo.image_url,custom_modifications:{photo}};
+  expect(mapLibraryRecipe(row).source_metadata?.photo).toEqual(photo);
+  expect(mapLibraryRecipe({...row,custom_photo_url:'https://images.example.test/my-photo.jpg'}).source_metadata).toBeUndefined();
+  expect(mapLibraryRecipe({...row,custom_photo_url:null}).source_metadata).toBeUndefined();
+});
