@@ -15,7 +15,8 @@ export interface LibraryRecipeRow {
   custom_title?: string | null; custom_ingredients_json?: unknown; custom_instructions?: string | null;
   custom_photo_url?: string | null; personal_notes?: string | null; personal_tags?: string[] | null;
   personal_rating?: number | null; created_at: string; updated_at: string;
-  custom_modifications?: { title?: string; ingredients_override?: unknown; instructions_append?: string; servings_multiplier?: number } | null;
+  custom_modifications?: { title?: string; ingredients_override?: unknown; instructions_append?: string; servings_multiplier?: number;
+    photo?: { image_url:string;source_url:string;publisher:string;author?:string;note?:string } } | null;
 }
 
 /** The same media precedence is used by cards, the detail and the server. */
@@ -68,12 +69,14 @@ export function mapLibraryRecipe(row: LibraryRecipeRow) {
   const multiplier = edits.servings_multiplier ?? 1;
   if (!Number.isFinite(multiplier) || multiplier <= 0) throw new Error('Nombre de portions personnalisé invalide.');
   const original = catalog?.instructions ?? row.custom_instructions ?? '';
+  const personalPhoto=resolveRecipeImageUrl(row.custom_photo_url);
   return {
     id: row.id, source: 'user_recipes' as const, canonicalId: catalog?.id ?? row.id, user_id: row.user_id,
     name: edits.title ?? row.custom_title ?? catalog?.title ?? 'Recette sans titre',
     description: catalog?.description ?? row.personal_notes ?? null,
     image_url: resolveRecipeImageUrl(row.custom_photo_url, catalog?.photo_url),
     image_origin: resolveRecipeImageUrl(row.custom_photo_url) ? 'personal' as const : resolveRecipeImageUrl(catalog?.photo_url) ? 'catalog' as const : null,
+    source_metadata: personalPhoto && edits.photo?.image_url===personalPhoto ? {photo:edits.photo} : undefined,
     cuisine_category: catalog?.cuisine_category ?? null, meal_type: catalog?.meal_type ?? null,
     prep_time: catalog?.prep_time ?? null, cook_time: catalog?.cook_time ?? null, rest_time: catalog?.rest_time ?? null,
     servings: catalog?.servings && Number.isFinite(catalog.servings * multiplier) && catalog.servings > 0 ? catalog.servings * multiplier : null, difficulty: catalog?.difficulty ?? null,
