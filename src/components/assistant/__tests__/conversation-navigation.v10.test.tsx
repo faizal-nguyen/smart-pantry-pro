@@ -2,6 +2,7 @@ import {fireEvent,render,screen,within} from '@testing-library/react';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {MemoryRouter,Routes,Route} from 'react-router-dom';
 import AssistantDashboard from '@/pages/assistant/AssistantDashboard';
+import {ResponsiveProvider} from '@/contexts/ResponsiveContext';
 const mockRetry=jest.fn();
 let mockError=false;
 const conversations=[{id:'soup',title:'Soupe aux oignons',mode:'general',created_at:'2026-11-09T20:00:00Z',last_message_at:null},
@@ -23,7 +24,7 @@ jest.mock('../AssistantRecipeProposals',()=>({__esModule:true,default:()=>null})
 jest.mock('../AddChefIdeaDialog',()=>({__esModule:true,default:()=>null}));
 jest.mock('@/lib/agentEvents',()=>({dispatchAgentDbChanged:jest.fn(),tablesForTool:()=>[]}));
 beforeEach(()=>{mockError=false;mockRetry.mockClear();HTMLElement.prototype.scrollIntoView=jest.fn();});
-function mount(){return render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/assistant?conversation=soup']}><Routes><Route path="/assistant" element={<AssistantDashboard/>}/></Routes></MemoryRouter></QueryClientProvider>);}
+function mount(){return render(<ResponsiveProvider><QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={['/assistant?conversation=soup']}><Routes><Route path="/assistant" element={<AssistantDashboard/>}/></Routes></MemoryRouter></QueryClientProvider></ResponsiveProvider>);}
 test('opening an old conversation closes the history panel, switches both messages and composer, and keeps receipts out of the chat',()=>{
   mount();
   expect(screen.getByText('Réponse soupe')).toBeVisible();

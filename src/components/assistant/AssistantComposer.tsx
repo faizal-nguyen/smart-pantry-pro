@@ -231,13 +231,6 @@ export default function AssistantComposer({
       {dictated && text.trim() && !isRecording && !isTranscribing && (
         <p className="mb-2 text-xs text-muted-foreground">Texte dicté : relis-le et corrige-le si besoin, puis envoie.</p>
       )}
-      <div className="flex gap-2 items-end min-w-0">
-        <AssistantModePicker
-          value={mode}
-          onChange={handleModeChange}
-          disabled={disabled || sending || isRecording || isTranscribing}
-          compact
-        />
         <Textarea
           ref={textareaRef}
           value={text}
@@ -255,9 +248,17 @@ export default function AssistantComposer({
           autoFocus={autoFocus}
           disabled={disabled || sending || isRecording || isTranscribing}
           rows={1}
-          className="min-w-0 flex-1 resize-none min-h-[44px] py-2 text-base"
+          className="kitchen-assistant-input min-w-0 resize-none min-h-[44px] py-2 text-base"
           aria-label="Message à envoyer à l'assistant"
         />
+      <div className="mt-2 flex items-center justify-between gap-2 min-w-0">
+        <AssistantModePicker
+          value={mode}
+          onChange={handleModeChange}
+          disabled={disabled || sending || isRecording || isTranscribing}
+          compact
+        />
+        <div className="flex items-center gap-2">
         <JoinPhotosButton onFiles={files => void joined.add(files)}
           disabled={disabled || sending || isRecording || isTranscribing || joined.preparing || joined.photos.length >= MAX_JOINED_PHOTOS} />
         <DictationMicButton dictation={dictation} disabled={disabled || sending} />
@@ -275,6 +276,7 @@ export default function AssistantComposer({
             <Send className="h-4 w-4" aria-hidden="true" />
           )}
         </Button>
+        </div>
       </div>
     </form>
     {review && <GroceryReviewDialog key={review.key} owner={expectedUserId} photos={review.photos} items={review.items}
