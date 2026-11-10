@@ -23,6 +23,7 @@ import type { Database } from '../types/supabase.js';
 import { MemoryService } from '../services/assistant/MemoryService.js';
 import { RecommendationEngine } from '../services/recommendations/RecommendationEngine.js';
 import { RecommendationEventWriter } from '../services/recommendations/RecommendationEventWriter.js';
+import {FoodGuidanceService} from '../services/recommendations/FoodGuidanceService.js';
 import { ProfileError,profileDatabaseError } from '../services/recommendations/NutritionProfileService.js';
 
 const SuggestRequestSchema = MealContextSchema;
@@ -43,6 +44,12 @@ export function createRecommendationsRouter(
     freeMax: 60,
     premiumMax: 600,
     windowMs: HOUR,
+  });
+
+  router.get('/food-guidance',limiter,async(req,res)=>{
+    if(!req.user?.id||!req.supabaseClient)return fail(res,'Unauthorized',401,'UNAUTHORIZED');
+    try{return ok(res,await new FoodGuidanceService().read(req.user.id,req.supabaseClient),'OK','FOOD_GUIDANCE_OK');}
+    catch{return fail(res,'Les conseils liés au stock ne peuvent pas être vérifiés. Réessaie.',503,'FOOD_GUIDANCE_UNAVAILABLE');}
   });
 
   router.post('/suggest', limiter, async (req, res) => {

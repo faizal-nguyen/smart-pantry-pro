@@ -21,7 +21,7 @@ const recipe={id:RECIPE,reference:{id:RECIPE,source:'recipes'},profile_version:1
   reason_codes:[],nutrition:{status:'unavailable'}};
 const RECIPES={pipeline_version:3,profile_version:1,cookable_now:[recipe],almost_cookable:[],verify_suggestions:[],
   excluded_suggestions:[{...recipe,id:'excluded-fixture',name:'Recette exclue aux cacahuètes',constraints:{status:'incompatible',findings:[{code:'DECLARED_ALLERGY',ingredient:'cacahuètes',message:'Exclusion confirmée fictive.'}],limitations:[]}}],recent_suggestions:[]};
-export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient,fixtures?:Partial<Record<'read_inventory'|'suggest_recipes_for_context'|'search_recipes'|'read_recipe'|'search_web_recipes',unknown>>,options:{shareProfile?:boolean}={}) {
+export async function runScenario(scenario:Scenario,config:AssistantModelConfig,provider?:AICompletionClient,fixtures?:Partial<Record<'read_food_guidance'|'read_inventory'|'suggest_recipes_for_context'|'search_recipes'|'read_recipe'|'search_web_recipes',unknown>>,options:{shareProfile?:boolean}={}) {
   let calls=0;let effects=0;let providerLeak=false;let savedSummary:string|null=null;const rows:Array<Record<string,unknown>>=[];
   const executed:Array<{tool:string;args:Record<string,unknown>}>=[];
   const mock:AICompletionClient={complete:async(req)=>{

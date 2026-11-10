@@ -20,7 +20,8 @@ test('chef ideas get their own section, whatever the title punctuation', () => {
     const message = { id: 'm-' + title, conversation_id: 'c', user_id: 'u', role: 'assistant' as const, action_log_ids: [], metadata: {},
       content: `Aucune recette de ta bibliothèque n’utilise ces produits.\n\n${title}\n1. **Yakisoba maison** : nouilles sautées.`, created_at: new Date().toISOString() };
     const { unmount } = render(<AssistantMessageThread messages={[message] as never} />);
-    expect(screen.getByText(/^1\. \*\*Yakisoba maison\*\*/)).toBeInTheDocument();
+    expect(screen.getByText('Yakisoba maison').tagName).toBe('STRONG');
+    expect(screen.getByText('Yakisoba maison').parentElement).toHaveTextContent('1. Yakisoba maison : nouilles sautées.');
     expect(screen.queryByText(/^:\*\*/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ajouter à mes recettes' })).toBeInTheDocument();
     unmount();

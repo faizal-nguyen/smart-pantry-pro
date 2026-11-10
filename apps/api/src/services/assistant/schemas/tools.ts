@@ -400,6 +400,8 @@ export const TOOL_SPECS: readonly ToolSpec[] = [
   {name:'read_recipe',description:'Read a full saved recipe by a reference returned by search or recommendations: exact ingredients, quantities, steps, nutrition and source links. Use after search_recipes for instructions, ingredient lists or adapting portions. Never invent the recipe id.',
     schema:readRecipeArgs,jsonSchema:{type:'object',required:['recipe_id'],properties:{recipe_id:{type:'string',format:'uuid'},source:{type:'string',enum:['recipes','user_recipes','recipes_catalog']},servings:{type:'integer',minimum:1,maximum:100}},additionalProperties:false},defaultRiskTier:'read',reversible:false},
   // ===== READ =====
+  {name:'read_food_guidance',description:'Read ALL owned stock for documented food benefits, herbal/bee-product precautions, daily food ideas and French metropolitan seasonality. Use for health, nutrition benefits, tisanes, plants or seasonal eating questions, including mixed recipe/health requests. Keeps full plant names and distinguishes established nutrition, traditional use and limited evidence. Not a treatment, dosage or automatic ingestion schedule.',
+    schema:z.object({focus:z.string().trim().min(1).max(80).optional()}),jsonSchema:{type:'object',properties:{focus:{type:'string',maxLength:80,description:'Optional named product to put first; the rest of the stock is still read.'}},additionalProperties:false},defaultRiskTier:'read',reversible:false},
   {
     name: 'read_inventory',
     description:

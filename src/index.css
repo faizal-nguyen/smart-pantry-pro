@@ -846,6 +846,12 @@
   .kitchen-settings-section { @apply bg-card/40; border:1px solid oklch(var(--border)); border-radius:12px; padding:20px; }
   .kitchen-settings-section > h2 { margin-bottom:20px; }
   .kitchen-settings-section h3 { font-family:Georgia,'Times New Roman',serif; font-size:1.2rem; }
+  .kitchen-food-guidance { @apply bg-card/50; display:grid; gap:16px; min-width:0; border:1px solid oklch(var(--border)); border-radius:12px; padding:16px; overflow-wrap:anywhere; }
+  .kitchen-food-guidance-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; }
+  .kitchen-food-guidance-card { display:grid; align-content:start; gap:12px; min-width:0; }
+  .kitchen-food-guidance .kitchen-inline-link { height:auto; white-space:normal; }
+  .kitchen-food-plant { border-top:1px solid oklch(var(--border)); }
+  @media(min-width:768px) { .kitchen-food-guidance-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; } }
   .kitchen-assistant-page { display:flex; flex-direction:column; gap:16px; height:calc(var(--routine-viewport-height,100dvh) - 53px - env(safe-area-inset-top,0px) - var(--mobile-nav-total-height,0px)); padding-bottom:12px; }
   .kitchen-assistant-page > header { flex-shrink:0; }
   .kitchen-assistant-layout { display:grid; grid-template-columns:minmax(0,1fr); min-width:0; min-height:0; flex:1; gap:20px; }

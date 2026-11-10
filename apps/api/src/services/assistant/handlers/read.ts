@@ -1,5 +1,6 @@
 import {recipeNameMatchScore,recipeWordMatches,conservationReviewRequired} from '@smart/shared';
 import {ReadRecipeHandler} from './recipeDetail.js';
+import {ReadFoodGuidanceHandler} from './foodGuidance.js';
 import {SearchWebRecipesHandler} from './webRecipes.js';
 /**
  * PRP-221 J5a — Read tool handlers.
@@ -653,6 +654,7 @@ import { ToolHandlerRegistry } from './types.js';
 export function registerReadHandlers(registry: ToolHandlerRegistry): void {
   registry.register('search_web_recipes',new SearchWebRecipesHandler());
   registry.register('read_recipe',new ReadRecipeHandler());
+  registry.register('read_food_guidance',new ReadFoodGuidanceHandler());
   registry.register('read_inventory', new ReadInventoryHandler());
   registry.register('read_shopping_list', new ReadShoppingListHandler());
   registry.register('read_recent_recipes', new ReadRecentRecipesHandler());

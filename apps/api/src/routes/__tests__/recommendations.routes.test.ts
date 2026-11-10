@@ -4,6 +4,8 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { createRecommendationsRouter } from '../recommendations.routes.js';
 import { RecommendationEngine } from '../../services/recommendations/RecommendationEngine.js';
 import { ProfileError } from '../../services/recommendations/NutritionProfileService.js';
+import {FoodGuidanceService} from '../../services/recommendations/FoodGuidanceService.js';
+import {buildFoodGuidance} from '@smart/shared';
 
 jest.mock('../../middleware/userRateLimit.js', () => ({ userRateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
 const OWNER = '00000000-0000-4000-8000-000000000001';
@@ -26,6 +28,14 @@ function appFor(signedIn = true) {
   return { app, userClient, adminClient };
 }
 afterEach(() => jest.restoreAllMocks());
+test('food guidance uses the authenticated owner and client, never a query-string owner or the admin client',async()=>{
+ const read=jest.spyOn(FoodGuidanceService.prototype,'read').mockResolvedValue(buildFoodGuidance([]));
+ await request(appFor(false).app).get('/api/v1/recommendations/food-guidance').expect(401);expect(read).not.toHaveBeenCalled();
+ const {app,userClient,adminClient}=appFor();await request(app).get('/api/v1/recommendations/food-guidance?user_id=other').expect(200);
+ expect(read).toHaveBeenCalledWith(OWNER,userClient);expect(adminClient.from).not.toHaveBeenCalled();
+ read.mockRejectedValueOnce(new Error('private medical note'));
+ const failed=await request(app).get('/api/v1/recommendations/food-guidance').expect(503);expect(JSON.stringify(failed.body)).not.toContain('private medical');
+});
 test('authentication and a strict concrete recipe contract are mandatory', async () => {
   const evaluate = jest.spyOn(RecommendationEngine.prototype, 'evaluateForUser').mockResolvedValue(evidence() as any);
   await request(appFor(false).app).post('/api/v1/recommendations/evaluate').send(input).expect(401);
