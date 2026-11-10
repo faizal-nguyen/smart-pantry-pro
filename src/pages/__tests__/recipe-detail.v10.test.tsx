@@ -1,3 +1,4 @@
+import {recipeNutritionSignature} from '@smart/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import RecipeDetail from '../RecipeDetail';
@@ -9,11 +10,12 @@ const OWNER = '00000000-0000-4000-8000-000000000001';
 const ID = '10000000-0000-4000-8000-000000000001';
 const NEXT = '10000000-0000-4000-8000-000000000002';
 let mockOwner = OWNER, mockBase: number | null = 4, mockFailure: Error | null = null, mockDetailFailure: Error | null = null;
+let mockSavedNutrition:unknown;
 const mockRetry = jest.fn();
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthenticatedUser: () => ({ id: mockOwner }) }));
 jest.mock('@/hooks/useRecipeDetails', () => ({ useRecipeDetails: (_owner: string, ref: { id: string; source: string }) => ({
   data: { recipe: { ...ref, canonicalId: ref.id, user_id: OWNER, name: ref.id === NEXT ? 'Autre recette' : 'Riz personnel', servings: mockBase,
-    prep_time: 5, cook_time: 15, rest_time: 5, image_url: '/personal.jpg', instructions: 'Cuire le riz.' },
+    nutrition_info:mockSavedNutrition, prep_time: 5, cook_time: 15, rest_time: 5, image_url: '/personal.jpg', instructions: 'Cuire le riz.' },
   ingredients: [{ id: 'ingredient', ingredient_name: 'Riz', quantity: 100, unit: 'g', is_essential: true }], instructions: ['Cuire le riz.'] },
   isFetching: false, error: mockDetailFailure, refetch: mockRetry,
 }) }));
@@ -43,7 +45,7 @@ function NextLink() { const navigate = useNavigate(); return <button onClick={()
 function show() { return render(<MemoryRouter initialEntries={[`/kitchen/recipes/${ID}?source=user_recipes&servings=2`]}><NextLink /><Routes>
   <Route path="/kitchen/recipes/:id" element={<RecipeDetail />} /><Route path="/kitchen/cooking/:id" element={<p>Session ouverte</p>} />
 </Routes></MemoryRouter>); }
-beforeEach(() => { jest.clearAllMocks(); mockOwner = OWNER; mockBase = 4; mockFailure = null; mockDetailFailure = null; });
+beforeEach(() => { jest.clearAllMocks(); mockOwner = OWNER; mockBase = 4; mockFailure = null; mockDetailFailure = null; mockSavedNutrition=undefined; });
 
 test('the common evidence, selected portions and typed cooking reference appear together; no heuristic badge', async () => {
   show();
@@ -52,8 +54,8 @@ test('the common evidence, selected portions and typed cooking reference appear 
   expect(screen.getByText('À acheter : Coriandre · 1 botte (facultatif).')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Ajouter 1 ingrédient manquant aux courses' })).toBeInTheDocument();
   expect(screen.getByText('Contraintes à vérifier.')).toBeVisible();
-  expect(screen.getByText(/Nutrition · estimation partielle/)).toBeVisible();
-  fireEvent.click(screen.getByText(/Nutrition · estimation partielle/));
+  expect(screen.getByRole('heading',{name:'Valeurs nutritionnelles'})).toBeVisible();
+  expect(screen.getByText('100 kcal')).toBeVisible();
   expect(screen.getAllByText('Non renseigné').length).toBeGreaterThan(0); expect(screen.getByText('0 g')).toBeVisible();
   expect(screen.getByText(/saisie manuelle/)).toBeInTheDocument();
   expect(screen.queryByText(/Nutri.Score|Open Food Facts/)).not.toBeInTheDocument();
@@ -96,4 +98,15 @@ test('a recipe that is now inaccessible cannot keep showing its cached detail',(
   expect(screen.getByRole('heading',{ name:'Recette indisponible' })).toBeVisible();
   expect(screen.queryByRole('heading',{ name:'Riz personnel' })).not.toBeInTheDocument();
   expect(screen.queryByText('Cuire le riz.')).not.toBeInTheDocument();
+});
+
+
+test('a validated recipe snapshot stays visible when stock/profile evaluation is unavailable',()=>{
+ mockFailure=new Error('Profil indisponible.');
+ mockSavedNutrition={schema_version:1,source:'ciqual2020',computed_at:'2026-11-10T00:00:00Z',base_servings:4,
+ ingredient_signature:recipeNutritionSignature([{ingredient_name:'Riz',quantity:100,unit:'g'}],4),
+ per_serving:{energyKcal:240,proteinG:4,fiberG:1,carbsG:20,fatG:2},ingredients:[{ingredient_name:'Riz',food_code:'9100',food_name:'Riz blanc, cru',weight_g:100}],assumptions:[],reference_url:'https://ciqual.anses.fr/'};
+ show();expect(screen.getByText('240 kcal')).toBeVisible();
+ expect(screen.queryByText('L’estimation nutritionnelle n’a pas pu être relue.')).not.toBeInTheDocument();
+ expect(screen.getByText('Profil indisponible.')).toBeVisible();
 });

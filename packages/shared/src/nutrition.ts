@@ -1,3 +1,4 @@
+import type {NutritionEstimate} from './personalization.js';
 import {z} from 'zod';
 import {normalizeIngredientName,type StockIngredient} from './quantities.js';
 
@@ -41,3 +42,22 @@ export const SourcedRecipeNutritionSchema=z.object({
   missing_ingredients:z.array(z.string()).default([]),assumptions:z.array(z.string()),
   reference_url:z.string().url().startsWith('https://'),
 });
+
+
+/** A recipe's saved composition does not depend on stock or dietary profiles. */
+export function nutritionFromRecipeSnapshot(snapshotValue:unknown,ingredients:StockIngredient[],baseServings:number|null|undefined):NutritionEstimate|null {
+  const snapshot=SourcedRecipeNutritionSchema.safeParse(snapshotValue);
+  if (snapshot.success && snapshot.data.ingredient_signature===recipeNutritionSignature(ingredients,baseServings) &&
+      snapshot.data.base_servings===baseServings && snapshot.data.ingredients.length<=ingredients.length && ingredients.length) {
+    const value=snapshot.data,coverage=value.ingredients.length/ingredients.length;
+    const allIngredients=coverage===1;
+    const complete=allIngredients && [value.per_serving.energyKcal,value.per_serving.proteinG,value.per_serving.fiberG].every(item=>item!==null);
+    return {status:complete ? 'estimated' : 'partial',coverage,known_ingredients:value.ingredients.length,total_ingredients:ingredients.length,
+      per_serving:allIngredients ? value.per_serving : {energyKcal:null,proteinG:null,fiberG:null},upper_bounds:value.upper_bounds,
+      sources:[{source:'ciqual2020',updated_at:'2020-07-07',base:'100g',url:value.reference_url}],
+      limitations:[...value.assumptions,...value.missing_ingredients.map(name=>`Référence nutritionnelle manquante : ${name}.`),
+        'Estimation à partir des ingrédients et des portions de cette version. Rendement de cuisson, pertes et variations des produits ne sont pas mesurés.',
+        'Les valeurs précédées de « < » sont des limites supérieures, pas des mesures exactes. Le rétinol ne comprend pas le bêta-carotène.']};
+  }
+  return null;
+}

@@ -1,7 +1,7 @@
 import { allocateRecipeStock,calendarDaysUntil,convertQuantity,ingredientMatchRank,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
 import { RecipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js';
 import type { RecipeWithIngredients } from './types.js';
-import {NUTRIENTS,recipeNutritionSignature,SourcedRecipeNutritionSchema,type NutrientKey} from '@smart/shared';
+import {NUTRIENTS,nutritionFromRecipeSnapshot,SourcedRecipeNutritionSchema,type NutrientKey} from '@smart/shared';
 
 export interface IngredientProduct {
   id:string;name:string;nutrition_json?:{ source?:string;per100g?:Partial<Record<NutrientKey,number>>;rawFieldVersion?:number };
@@ -152,19 +152,8 @@ export function evaluateAvailability(recipe:RecipeWithIngredients,lots:Qualified
 
 export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<string,IngredientProduct>):NutritionEstimate {
   const ingredients=recipe.recipe_ingredients ?? [];
-  const snapshot=SourcedRecipeNutritionSchema.safeParse(recipe.nutrition_info);
-  if (snapshot.success && snapshot.data.ingredient_signature===recipeNutritionSignature(ingredients,recipe.servings) &&
-      snapshot.data.base_servings===recipe.servings && snapshot.data.ingredients.length<=ingredients.length && ingredients.length) {
-    const value=snapshot.data,coverage=value.ingredients.length/ingredients.length;
-    const allIngredients=coverage===1;
-    const complete=allIngredients && [value.per_serving.energyKcal,value.per_serving.proteinG,value.per_serving.fiberG].every(item=>item!==null);
-    return {status:complete ? 'estimated' : 'partial',coverage,known_ingredients:value.ingredients.length,total_ingredients:ingredients.length,
-      per_serving:allIngredients ? value.per_serving : {energyKcal:null,proteinG:null,fiberG:null},upper_bounds:value.upper_bounds,
-      sources:[{source:'ciqual2020',updated_at:'2020-07-07',base:'100g',url:value.reference_url}],
-      limitations:[...value.assumptions,...value.missing_ingredients.map(name=>`Référence nutritionnelle manquante : ${name}.`),
-        'Estimation à partir des ingrédients et des portions de cette version. Rendement de cuisson, pertes et variations des produits ne sont pas mesurés.',
-        'Les valeurs précédées de « < » sont des limites supérieures, pas des mesures exactes. Le rétinol ne comprend pas le bêta-carotène.']};
-  }
+  const savedNutrition=nutritionFromRecipeSnapshot(recipe.nutrition_info,ingredients,recipe.servings);
+  if (savedNutrition) return savedNutrition;
   let count=0,estimated=false;
   const total=Object.fromEntries(NUTRIENTS.map(({key})=>[key,0])) as Record<NutrientKey,number>;
   const known={...total};
@@ -188,7 +177,7 @@ export function estimateNutrition(recipe:RecipeWithIngredients,products:Map<stri
   const base=recipe.servings && Number.isFinite(recipe.servings) && recipe.servings>0 ? recipe.servings : null;
   const complete=ingredients.length>0 && ['energyKcal','proteinG','fiberG'].every(key=>known[key as NutrientKey]===ingredients.length) && base!==null;
   if (!base) limitations.push('Portions de base inconnues ; estimation par portion indisponible.');
-  if (snapshot.success) limitations.push('Le calcul Ciqual enregistré ne correspond plus aux ingrédients ou aux portions actuels ; il doit être recalculé.');
+  if (SourcedRecipeNutritionSchema.safeParse(recipe.nutrition_info).success) limitations.push('Le calcul Ciqual enregistré ne correspond plus aux ingrédients ou aux portions actuels ; il doit être recalculé.');
   limitations.push('Base déclarée pour 100 g ; rendement et différences cru/cuit non documentés. Les cibles quotidiennes ne sont pas comparées à un repas isolé.');
   return { status:!count ? 'unavailable' : !complete ? 'partial' : estimated ? 'estimated' : 'known',coverage:ingredients.length ? count/ingredients.length : 0,
     known_ingredients:count,total_ingredients:ingredients.length,

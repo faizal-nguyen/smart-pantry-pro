@@ -98,3 +98,19 @@ describe('RecipeSourceCard (PRP-220.17)', () => {
     expect(screen.queryByRole('link', { name: /Voir la source/i })).not.toBeInTheDocument();
   });
 });
+
+test('house recipes show multiple deduplicated references and photo attribution without claiming an exact import',()=>{
+ render(<RecipeSourceCard recipe={{source_platform:'manual',source_metadata:{sources:[
+  {url:'https://example.com/recipe',title:'Le plat de référence',kind:'recipe',publisher:'Cuisine'},
+  {url:'https://www.youtube.com/watch?v=example',title:'La technique en vidéo',kind:'video'},
+  {url:'https://example.com/recipe',title:'Doublon',kind:'recipe'},
+  {url:'javascript:alert(1)',title:'Lien dangereux',kind:'recipe'},
+ ],photo:{image_url:'https://example.com/photo.jpg',source_url:'https://example.com/recipe',publisher:'Cuisine',author:'Chef Exemple',note:'Variante de présentation.'}}}}/>);
+ expect(screen.getByText('Sources et inspirations')).toBeVisible();
+ expect(screen.getByRole('link',{name:'Le plat de référence'})).toHaveAttribute('href','https://example.com/recipe');
+ expect(screen.getByRole('link',{name:'La technique en vidéo'})).toHaveAttribute('rel','noopener noreferrer nofollow');
+ expect(screen.queryByText('Doublon')).not.toBeInTheDocument();
+ expect(screen.queryByText('Lien dangereux')).not.toBeInTheDocument();
+ expect(screen.getByText(/Chef Exemple/)).toBeVisible();
+ expect(screen.getByText('Variante de présentation.')).toBeVisible();
+});
