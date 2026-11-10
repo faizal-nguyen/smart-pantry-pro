@@ -10,8 +10,8 @@ pas étiquetées automatiquement comme des plats équilibrés.
 `classics-source-check.json`. Certaines pages donnent une technique ou un plat
 proche, ce que les descriptions et hypothèses annoncent. Elles ne doivent pas
 être présentées comme la source exacte des versions adaptées. Les autres fiches
-n'ont pas de lien inventé. Aucune photographie n'est attribuée à tort : les images
-restent absentes, avec le comportement de remplacement existant.
+n'ont pas de lien inventé. Le lot initial ne contient pas de photo. L’enrichissement séparé décrit ci-dessous
+ajoute les photos et leurs attributions sans réimporter les recettes.
 
 Nutrition : voir `../nutrition/README.md`. 50/53 estimations énergétiques sont
 calculables ; les trois recettes contenant un vinaigre sans énergie documentée
@@ -49,3 +49,43 @@ L'annulation éventuelle doit être préparée à partir des IDs du journal et c
 les fiches/ingrédients à leur état importé dans une transaction avant de supprimer
 uniquement ces nouveaux enregistrements. Ne jamais supprimer par nom ou par
 simple tag, ni effacer une fiche modifiée depuis l'import.
+
+
+## Photos et références ajoutées le 10 novembre 2026
+
+`classics-media-2026-11-10.json` contient 53 photos publiées sur des sites de
+cuisine, leurs liens de provenance et 67 références (dont six vidéos YouTube
+vérifiées par titre/auteur via oEmbed). Les choix de pages/cadrages figurent dans
+`classics-media-candidates.json` et les vidéos dans `classics-video-references.json`.
+Les 53 images ont été contrôlées visuellement et chargées avec succès dans
+Chromium sans referrer, comme les images de l’application. Les logos et images
+de remplacement ont été exclus. Les crédits photographiques ne sont pas déduits
+du nom de l’auteur de la recette : le site éditeur et sa page sont crédités.
+
+Les photos restent hébergées chez les éditeurs, avec attribution et lien retour.
+La disponibilité ultérieure dépend de ces serveurs ; l’interface conserve son
+état « Photo indisponible » en cas de rupture. Les références et photos illustrent
+parfois une variante ; les différences avec la version maison sont annoncées.
+Les six vidéos ajoutées sont des liens de consultation, sans lecture automatique.
+
+```sh
+node scripts/recipes/prepare-classics-media.mjs
+node scripts/recipes/apply-classics-media.mjs --env /path/to/.env --owner OWNER_UUID
+node scripts/recipes/apply-classics-media.mjs --env /path/to/.env --owner OWNER_UUID --apply
+```
+
+La préparation télécharge les images dans `/private/tmp/classics-media` pour
+contrôle local. Après régénération du manifeste, contrôler à nouveau les images
+et renseigner les dimensions et `browser_image_verified` avant application.
+L’application est limitée aux 53 IDs de sélection du propriétaire approuvé,
+préserve la nutrition, les étapes et les autres recettes, et utilise `updated_at`
+pour arrêter une mise à jour concurrente. Elle refuse de remplacer une photo
+personnelle existante. Un journal sauvegarde les lignes antérieures avant toute
+écriture et les horodatages des résultats ; ne pas écraser ce journal lors d’une
+reprise (utiliser un nouveau chemin `--journal`). Les mises à jour sont atomiques
+par fiche et reprises sans double ajout ; elles ne forment pas une transaction
+commune. Une restauration doit comparer chaque ligne à son état d’enrichissement
+avant de rétablir uniquement les champs photo/source, sans écraser des éditions.
+
+Le script d’import initial refuse les métadonnées modifiées après enrichissement :
+c’est une protection. Utiliser le script d’enrichissement pour ces photos.

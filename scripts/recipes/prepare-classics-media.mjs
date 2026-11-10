@@ -1,0 +1,35 @@
+/** Prepare and verify references only. Does not write to the database. */
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {load} from 'cheerio';
+const pack=JSON.parse(await readFile('data/recipes/classics-approved-2026-11-09.json','utf8'));
+const overrides=JSON.parse(await readFile(process.argv[2]??'data/recipes/classics-media-candidates.json','utf8'));
+const target='data/recipes/classics-media-2026-11-10.json';
+const videoReferences=JSON.parse(await readFile('data/recipes/classics-video-references.json','utf8'));
+await mkdir('/private/tmp/classics-media',{recursive:true});
+const only=process.argv[3]?.split(',').map(Number);
+const previous=only ? JSON.parse(await readFile(target,'utf8')).recipes.filter(r=>!only.includes(r.selection_id)) : [];
+const queue=pack.recipes.filter(r=>!only||only.includes(r.selection_id)),results=[...previous];
+const absolute=(value,base)=>{try{const url=new URL(value,base);return url.protocol==='https:'?url.href:null;}catch{return null;}};
+const imageValue=value=>typeof value==='string'?value:Array.isArray(value)?imageValue(value[0]):value?.url??value?.contentUrl;
+const authorName=value=>typeof value==='string'?value:Array.isArray(value)?value.map(authorName).filter(Boolean).join(', '):value?.name;
+await Promise.all(Array.from({length:4},async()=>{while(queue.length){const r=queue.shift();const chosen=overrides[r.selection_id];const url=(typeof chosen==='string'?chosen:chosen?.url)??r.source_url;
+ try{if(!url)throw Error('No source');const response=await fetch(url,{signal:AbortSignal.timeout(25000)});if(!response.ok)throw Error(`Page HTTP ${response.status}`);
+ const html=await response.text();await writeFile(`/private/tmp/classics-media/${r.selection_id}.html`,html);const $=load(html);const recipes=[];
+ const visit=v=>{if(Array.isArray(v))v.forEach(visit);else if(v&&typeof v==='object'){if([v['@type']].flat().includes('Recipe'))recipes.push(v);if(v['@graph'])visit(v['@graph']);}};
+ $('script[type="application/ld+json"]').each((_,el)=>{try{visit(JSON.parse($(el).text()));}catch{}});
+ const recipe=recipes[0];const title=recipe?.name??$('meta[property="og:title"]').attr('content')??$('title').text();
+ const publisher=$('meta[property="og:site_name"]').attr('content')??new URL(url).hostname.replace(/^www\./,'');
+ const author=authorName(recipe?.author)??$('meta[name="author"]').attr('content');
+ const rawImage=(typeof chosen==='object'?chosen.image_url:undefined)??imageValue(recipe?.image)??$('meta[property="og:image"]').attr('content');const image=rawImage&&absolute(rawImage,url);
+ if(!image||/placeholder|default_img|logo/i.test(image))throw Error('No usable dish photo');const img=await fetch(image,{headers:{Referer:'https://smart-pantry-pro.vercel.app/'},signal:AbortSignal.timeout(25000)});
+ if(!img.ok||!img.headers.get('content-type')?.startsWith('image/'))throw Error('Image unavailable '+img.status);
+ const bytes=new Uint8Array(await img.arrayBuffer());if(bytes.length<3000||bytes.length>12000000)throw Error('Image size invalid');
+ await writeFile(`/private/tmp/classics-media/${r.selection_id}.image`,bytes);
+ const sources=[{url,title,kind:'recipe',publisher,...(author?{author}:{})}];
+ if(r.source_url&&r.source_url!==url)sources.push({url:r.source_url,title:'Autre référence de technique — Meilleur du Chef',kind:'technique',publisher:'Meilleur du Chef'});
+ for(const video of videoReferences)if(video.selection_id===r.selection_id)sources.push({url:video.url,title:video.title,kind:'video',publisher:video.publisher,author:video.author});
+ results.push({selection_id:r.selection_id,name:r.name,image_url:image,photo:{image_url:image,source_url:url,publisher,note:'Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison.'},sources,image_bytes:bytes.length,verified_at:new Date().toISOString()});
+ }catch(e){results.push({selection_id:r.selection_id,name:r.name,url,error:e.message});}
+}}));
+results.sort((a,b)=>a.selection_id-b.selection_id);await writeFile(target,JSON.stringify({collection_id:pack.collection_id,checked_at:new Date().toISOString(),recipes:results},null,2));
+console.log(JSON.stringify({total:results.length,photos:results.filter(r=>r.image_url).length,errors:results.filter(r=>r.error)}));

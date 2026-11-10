@@ -52,8 +52,8 @@ test('the common evidence, selected portions and typed cooking reference appear 
   expect(screen.getByText('À acheter : Coriandre · 1 botte (facultatif).')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Ajouter 1 ingrédient manquant aux courses' })).toBeInTheDocument();
   expect(screen.getByText('Contraintes à vérifier.')).toBeVisible();
-  expect(screen.getByText(/Nutrition · estimation partielle/)).toBeVisible();
-  fireEvent.click(screen.getByText(/Nutrition · estimation partielle/));
+  expect(screen.getByRole('heading',{name:'Valeurs nutritionnelles'})).toBeVisible();
+  expect(screen.getByText('100 kcal')).toBeVisible();
   expect(screen.getAllByText('Non renseigné').length).toBeGreaterThan(0); expect(screen.getByText('0 g')).toBeVisible();
   expect(screen.getByText(/saisie manuelle/)).toBeInTheDocument();
   expect(screen.queryByText(/Nutri.Score|Open Food Facts/)).not.toBeInTheDocument();

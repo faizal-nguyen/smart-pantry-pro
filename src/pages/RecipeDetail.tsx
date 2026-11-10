@@ -13,6 +13,7 @@ import RecipeMobileActionBar from '@/components/recipes/RecipeMobileActionBar';
 import RecipeSourcePreview from '@/components/recipes/RecipeSourcePreview';
 import type { RecipeSourceLike } from '@/components/recipes/RecipeSourceCard';
 import RecipeEvaluationPanel from '@/components/recipes/RecipeEvaluationPanel';
+import RecipeNutritionPanel from '@/components/recipes/RecipeNutritionPanel';
 import { useRecipeDetails } from '@/hooks/useRecipeDetails';
 import { useRecipeEvaluation } from '@/hooks/useRecipeEvaluation';
 import { useRecipes } from '@/hooks/useRecipes';
@@ -157,6 +158,10 @@ function RecipeDetailContent({ id }: { id?: string }) {
     <p>Chargement de la recette…</p><div className="h-64 rounded-lg bg-muted animate-pulse" />
   </div>;
 
+  const mediaMetadata=(recipe as RecipeSourceLike).source_metadata;
+  const referencePhoto=mediaMetadata?.photo;
+  const photoCaption=!overrideImageUrl && referencePhoto && recipe.image_url===referencePhoto.image_url ? `Photo de référence · ${referencePhoto.publisher}` : undefined;
+  const mealLabels:Record<string,string>={breakfast:'Petit-déjeuner',lunch:'Déjeuner',dinner:'Dîner',snack:'Collation',starter:'Entrée',dessert:'Dessert'};
   const minutes = recipeDurationMinutes(recipe);
   const quantityScale = recipe.servings && servings ? servings / recipe.servings : null;
   const onEdit = () => navigate('/kitchen/recipes/' + recipe.id + '/edit?source=' + recipe.source);
@@ -176,7 +181,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
       </div>
     </div>
     <div className="kitchen-recipe-hero">
-    <RecipeMediaFrame imageUrl={overrideImageUrl ?? recipe.image_url} alt={recipe.name} editable={ownsRecipe} onUpload={handlePhotoUpload} imageCaption={!overrideImageUrl && recipe.source==='user_recipes' && recipe.image_origin==='catalog' ? 'Photo du catalogue' : undefined} />
+    <RecipeMediaFrame imageUrl={overrideImageUrl ?? recipe.image_url} alt={recipe.name} editable={ownsRecipe} onUpload={handlePhotoUpload} imageCaption={photoCaption ?? (!overrideImageUrl && recipe.source==='user_recipes' && recipe.image_origin==='catalog' ? 'Photo du catalogue' : undefined)} />
     <div className="kitchen-recipe-summary">
     <header className="mb-3">
       <h1 className="culinary-title mb-2">{recipe.name}</h1>
@@ -197,6 +202,8 @@ function RecipeDetailContent({ id }: { id?: string }) {
         onChange={event => setChosenServings(event.target.value === '' ? 0 : Number(event.target.value))} />
     </label>
     {!hasBaseServings && <p className="mb-4 rounded-md border p-3 text-sm" role="note">Les portions de base ne sont pas renseignées. Les quantités et les commandes de stock restent à vérifier avant de lancer la cuisine.</p>}
+    <RecipeNutritionPanel nutrition={evaluation.data?.nutrition} loading={evaluation.isLoading || evaluation.isFetching || details.isFetching}
+      error={details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={evaluation.validServings} />
     <RecipeEvaluationPanel evaluation={evaluation.data} loading={evaluation.isLoading} refreshing={evaluation.isFetching || details.isFetching}
       error={details.error ?? evaluation.error ?? null} onRetry={details.error ? details.refetch : evaluation.refetch} validServings={evaluation.validServings} />
     <div className="kitchen-recipe-primary"><RecipePrimaryActions {...actions} /></div>
@@ -225,7 +232,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
       {recipe.description && <p className="text-sm text-muted-foreground">{recipe.description}</p>}
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         {([['Préparation', recipe.prep_time], ['Cuisson', recipe.cook_time], ['Repos', recipe.rest_time]] as const).map(([label, value]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd>{value == null ? 'Non renseigné' : value + ' min'}</dd></div>)}
-        <div><dt className="text-muted-foreground">Type de repas</dt><dd>{recipe.meal_type || 'Non renseigné'}</dd></div>
+        <div><dt className="text-muted-foreground">Type de repas</dt><dd>{mealLabels[recipe.meal_type ?? ''] ?? (recipe.meal_type || 'Non renseigné')}</dd></div>
       </dl>
       {!!recipe.tags?.length && <div className="flex flex-wrap gap-2">{recipe.tags.map(tag => <Badge key={tag} variant="secondary">{tag}</Badge>)}</div>}
     </div></details>

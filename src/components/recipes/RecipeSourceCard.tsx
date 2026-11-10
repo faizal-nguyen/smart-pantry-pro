@@ -17,9 +17,12 @@ import { safeRecipeSourceUrl } from '@/lib/recipeLinks';
  * migration.
  */
 export interface RecipeSourceLike {
+  image_url?: string | null;
   source_platform?: SourcePlatform | string | null;
   source_url?: string | null;
   source_metadata?: {
+    sources?: Array<{url:string;title:string;kind:'recipe'|'video'|'technique';publisher?:string;author?:string}>;
+    photo?: {image_url:string;source_url:string;publisher:string;author?:string;note?:string};
     canonicalUrl?: string;
     authorName?: string;
     authorHandle?: string;
@@ -67,6 +70,26 @@ function inferPlatformFromUrl(url: string | null | undefined): SourcePlatform {
 export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, className }) => {
   const rawPlatform = (recipe.source_platform ?? null) as SourcePlatform | string | null;
   const sourceUrl = safeRecipeSourceUrl(recipe.source_url);
+  const meta = recipe.source_metadata ?? {};
+  const seen=new Set<string>();
+  const references=(Array.isArray(meta.sources) ? meta.sources : []).flatMap(item=>{
+    if (!item || typeof item!=='object' || typeof item.title!=='string') return [];
+    const url=safeRecipeSourceUrl(item.url);
+    if (!url || seen.has(url)) return [];
+    seen.add(url);return [{...item,url}];
+  });
+  const photoUrl=recipe.image_url===undefined || recipe.image_url===meta.photo?.image_url ? safeRecipeSourceUrl(meta.photo?.source_url) : null;
+  if (references.length || photoUrl) return <Card className={className} data-testid="recipe-source-card">
+    <CardHeader className="pb-3"><CardTitle className="text-base">Sources et inspirations</CardTitle></CardHeader>
+    <CardContent className="space-y-3">
+      <p className="text-sm text-muted-foreground">Ces références présentent le plat ou une technique. Leurs ingrédients peuvent différer de cette version maison sans porc ni alcool.</p>
+      <ul className="space-y-2">{references.map(item=><li key={item.url}>
+        <a className="inline-flex min-h-11 items-center gap-2 underline underline-offset-2" href={item.url} target="_blank" rel="noopener noreferrer nofollow"><ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true"/>{item.title}</a>
+        <p className="text-xs text-muted-foreground">{item.kind==='video' ? 'Vidéo' : item.kind==='technique' ? 'Technique' : 'Recette de référence'}{item.publisher ? ` · ${item.publisher}` : ''}{item.author ? ` · ${item.author}` : ''}</p>
+      </li>)}</ul>
+      {photoUrl && <div className="border-t pt-2 text-sm"><p>Photo de référence : {meta.photo?.author || meta.photo?.publisher}. <a className="inline-flex min-h-11 items-center underline" href={photoUrl} target="_blank" rel="noopener noreferrer nofollow">Voir la photo sur le site source</a></p>{meta.photo?.note && <p className="text-xs text-muted-foreground">{meta.photo.note}</p>}</div>}
+    </CardContent>
+  </Card>;
   // Hide only when both signals are missing. If we have a URL alone
   // (seeded rows, legacy imports before PRP-220.16), infer and show.
   if ((!rawPlatform || rawPlatform === 'manual') && !sourceUrl) return null;
@@ -76,7 +99,6 @@ export const RecipeSourceCard: React.FC<RecipeSourceCardProps> = ({ recipe, clas
       ? (rawPlatform as SourcePlatform)
       : inferPlatformFromUrl(sourceUrl);
 
-  const meta = recipe.source_metadata ?? {};
   const confidence = typeof meta.confidence === 'number' ? meta.confidence : null;
   const importedAt = meta.importedAt ? safeFormatDate(meta.importedAt) : null;
 

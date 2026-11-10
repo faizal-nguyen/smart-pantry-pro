@@ -1,0 +1,1516 @@
+{
+  "collection_id": "classics-approved-2026-11-09",
+  "checked_at": "2026-11-10T06:06:10.996Z",
+  "recipes": [
+    {
+      "selection_id": 1,
+      "name": "Soupe à l’oignon gratinée",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/soupe-oignon/soupe-oignon-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/soupe-oignon/soupe-oignon-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/soupe-oignon.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/soupe-oignon.html",
+          "title": "Soupe à l'oignon",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 40227,
+      "verified_at": "2026-11-10T05:58:41.788Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 7,
+      "name": "Risotto aux champignons sans vin",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/risotto-cepe/risotto-cepe-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/risotto-cepe/risotto-cepe-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/risotto-cepe.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/risotto-cepe.html",
+          "title": "Risotto aux cèpes",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 28552,
+      "verified_at": "2026-11-10T05:58:41.761Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 10,
+      "name": "Ojja aux œufs",
+      "image_url": "https://www.latunisienne.fr/wp-content/uploads/2014/11/ojja-tunisienne-revisit%C3%A9e.jpg",
+      "photo": {
+        "image_url": "https://www.latunisienne.fr/wp-content/uploads/2014/11/ojja-tunisienne-revisit%C3%A9e.jpg",
+        "source_url": "https://www.latunisienne.fr/ojja-tunisienne-revisitee/",
+        "publisher": "La Tunisienne | Ojja tunisienne revisitée",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.latunisienne.fr/ojja-tunisienne-revisitee/",
+          "title": "Ojja tunisienne revisitée",
+          "kind": "recipe",
+          "publisher": "La Tunisienne | Ojja tunisienne revisitée",
+          "author": "Sonia"
+        }
+      ],
+      "image_bytes": 876627,
+      "verified_at": "2026-11-10T06:01:25.414Z",
+      "image_dimensions": [
+        3072,
+        4608
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 11,
+      "name": "Chorba frik au poulet",
+      "image_url": "https://img-3.journaldesfemmes.fr/smYN_fIzrMww4Mgv4UuljGD0HdM=/750x500/32e2b0f3740e44468944ffb50f6b8883/ccmcms-jdf/39949914.jpg",
+      "photo": {
+        "image_url": "https://img-3.journaldesfemmes.fr/smYN_fIzrMww4Mgv4UuljGD0HdM=/750x500/32e2b0f3740e44468944ffb50f6b8883/ccmcms-jdf/39949914.jpg",
+        "source_url": "https://cuisine.journaldesfemmes.fr/recette/3101947-chorba-frik",
+        "publisher": "Journal des Femmes Cuisiner",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://cuisine.journaldesfemmes.fr/recette/3101947-chorba-frik",
+          "title": "Chorba frik au poulet : la recette facile",
+          "kind": "recipe",
+          "publisher": "Journal des Femmes Cuisiner",
+          "author": "Morgane"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=5z0U-T_LF8Y",
+          "title": "Recette de la chorba frik algérienne au poulet    Jari Bel Frik  #ramadan #chorba",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Recette Cuisine Ha"
+        }
+      ],
+      "image_bytes": 53526,
+      "verified_at": "2026-11-10T05:58:41.753Z",
+      "image_dimensions": [
+        750,
+        500
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 17,
+      "name": "César au poulet — variante de sauce au yaourt",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/salade-cesar/salade-cesar-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/salade-cesar/salade-cesar-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/salade-cesar.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/salade-cesar.html",
+          "title": "Salade César",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 44158,
+      "verified_at": "2026-11-10T05:58:41.842Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 21,
+      "name": "Blanquette de veau sans vin",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/blanquette-veau/blanquette-veau-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/blanquette-veau/blanquette-veau-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/blanquette-veau.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/blanquette-veau.html",
+          "title": "Blanquette de veau à l'ancienne",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=9YhSbl6aPw4",
+          "title": "Blanquette de Veau",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Chef Michel Dumas et Jean-Pierre Dumas"
+        }
+      ],
+      "image_bytes": 62894,
+      "verified_at": "2026-11-10T05:58:41.881Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 22,
+      "name": "Bœuf façon bourguignon sans vin",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/boeuf-bourguignon/boeuf-bourguignon-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/boeuf-bourguignon/boeuf-bourguignon-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/boeuf-bourguignon.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/boeuf-bourguignon.html",
+          "title": "Boeuf Bourguignon",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 62709,
+      "verified_at": "2026-11-10T05:58:42.082Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 24,
+      "name": "Bœuf-carottes",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/boeuf-carottes/boeuf-carottes-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/boeuf-carottes/boeuf-carottes-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/boeuf-carottes.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/boeuf-carottes.html",
+          "title": "Boeuf carottes",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Fabrice Idiart"
+        }
+      ],
+      "image_bytes": 61485,
+      "verified_at": "2026-11-10T05:58:42.145Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 25,
+      "name": "Hachis parmentier",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/hachis-parmentier/hachis-parmentier-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/hachis-parmentier/hachis-parmentier-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/hachis-parmentier.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/hachis-parmentier.html",
+          "title": "Hachis parmentier",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 32077,
+      "verified_at": "2026-11-10T05:58:42.045Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 28,
+      "name": "Gratin dauphinois",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gratin-dauphinois/gratin-dauphinois-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gratin-dauphinois/gratin-dauphinois-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/gratin-dauphinois.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/gratin-dauphinois.html",
+          "title": "Gratin dauphinois",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 49625,
+      "verified_at": "2026-11-10T05:58:42.082Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 39,
+      "name": "Poulet rôti et pommes de terre",
+      "image_url": "https://img-3.journaldesfemmes.fr/5_lpzlXfceGdOSRh3ZP7bvvUG_c=/750x500/992e78d7311f45abbd9034314dcac301/ccmcms-jdf/39893863.jpg",
+      "photo": {
+        "image_url": "https://img-3.journaldesfemmes.fr/5_lpzlXfceGdOSRh3ZP7bvvUG_c=/750x500/992e78d7311f45abbd9034314dcac301/ccmcms-jdf/39893863.jpg",
+        "source_url": "https://cuisine.journaldesfemmes.fr/recette/361300-poulet-roti-a-l-ail-et-aux-pommes-de-terre-rattes",
+        "publisher": "Journal des Femmes Cuisiner",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://cuisine.journaldesfemmes.fr/recette/361300-poulet-roti-a-l-ail-et-aux-pommes-de-terre-rattes",
+          "title": "Poulet rôti à l'ail et aux pommes de terre rattes",
+          "kind": "recipe",
+          "publisher": "Journal des Femmes Cuisiner",
+          "author": "Béatrice"
+        }
+      ],
+      "image_bytes": 74467,
+      "verified_at": "2026-11-10T05:58:42.107Z",
+      "image_dimensions": [
+        750,
+        500
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 41,
+      "name": "Veau Marengo sans vin",
+      "image_url": "https://www.la-viande.fr/sites/default/files/styles/facebook/public/recettes/images/Veau%20Marengo.jpg?itok=2S8Elkhq",
+      "photo": {
+        "image_url": "https://www.la-viande.fr/sites/default/files/styles/facebook/public/recettes/images/Veau%20Marengo.jpg?itok=2S8Elkhq",
+        "source_url": "https://www.la-viande.fr/recettes/veau/veau-marengo",
+        "publisher": "La Viande",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.la-viande.fr/recettes/veau/veau-marengo",
+          "title": "Veau Marengo",
+          "kind": "recipe",
+          "publisher": "La Viande"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/poulet-marengo.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 55543,
+      "verified_at": "2026-11-10T05:58:42.247Z",
+      "image_dimensions": [
+        600,
+        316
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 44,
+      "name": "Escalope de veau crème et champignons",
+      "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/rahmschnitzel-mit-herbstpilzen-2010x2560.jpg",
+      "photo": {
+        "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/rahmschnitzel-mit-herbstpilzen-2010x2560.jpg",
+        "source_url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM200610_55/escalopes-a-la-creme-et-aux-champignons/",
+        "publisher": "Swissmilk",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM200610_55/escalopes-a-la-creme-et-aux-champignons/",
+          "title": "Escalopes à la crème  et aux champignons - Recette | Swissmilk",
+          "kind": "recipe",
+          "publisher": "Swissmilk",
+          "author": "Schweizer Milchproduzenten SMP Genossenschaft"
+        }
+      ],
+      "image_bytes": 156783,
+      "verified_at": "2026-11-10T06:01:25.087Z",
+      "image_dimensions": [
+        1200,
+        630
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 45,
+      "name": "Sole meunière",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/sole-meuniere/sole-meuniere-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/sole-meuniere/sole-meuniere-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/sole-meuniere.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/sole-meuniere.html",
+          "title": "Sole meunière",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 31861,
+      "verified_at": "2026-11-10T05:58:42.208Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 50,
+      "name": "Parmentier de poisson",
+      "image_url": "https://images.ricardocuisine.com/services/recipes/1x1/7211.jpg",
+      "photo": {
+        "image_url": "https://images.ricardocuisine.com/services/recipes/1x1/7211.jpg",
+        "source_url": "https://www.ricardocuisine.com/recettes/7211-parmentier-de-poisson",
+        "publisher": "Ricardo",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.ricardocuisine.com/recettes/7211-parmentier-de-poisson",
+          "title": "Parmentier de poisson",
+          "kind": "recipe",
+          "publisher": "Ricardo",
+          "author": "Ricardocuisine"
+        }
+      ],
+      "image_bytes": 89515,
+      "verified_at": "2026-11-10T05:58:43.428Z",
+      "image_dimensions": [
+        900,
+        900
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 51,
+      "name": "Dorade au four et pommes de terre",
+      "image_url": "https://static.750g.com/images/1200-630/ab33e0f7cfec0006474527b709f947ca/gettyimages-177965198.jpg",
+      "photo": {
+        "image_url": "https://static.750g.com/images/1200-630/ab33e0f7cfec0006474527b709f947ca/gettyimages-177965198.jpg",
+        "source_url": "https://www.750g.com/dorade-au-four-sur-lit-de-pommes-de-terre-r42342.htm",
+        "publisher": "750g",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.750g.com/dorade-au-four-sur-lit-de-pommes-de-terre-r42342.htm",
+          "title": "Recette Dorade au four sur lit de pommes de terre - 750g.com",
+          "kind": "recipe",
+          "publisher": "750g"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/dorade-espagnole.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 155515,
+      "verified_at": "2026-11-10T06:01:23.651Z",
+      "image_dimensions": [
+        1200,
+        630
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 52,
+      "name": "Bouillabaisse sans vin",
+      "image_url": "https://www.gaultmillau.ch/fp/1200/675/2676/1930/sites/default/files/media/field_image/2026-04/bouillabaisse_medusa.jpeg",
+      "photo": {
+        "image_url": "https://www.gaultmillau.ch/fp/1200/675/2676/1930/sites/default/files/media/field_image/2026-04/bouillabaisse_medusa.jpeg",
+        "source_url": "https://www.gaultmillau.ch/fr/recettes/bouillabaisse-vice-championne-du-monde-934731",
+        "publisher": "Gault Millau",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.gaultmillau.ch/fr/recettes/bouillabaisse-vice-championne-du-monde-934731",
+          "title": "Bouillabaisse vice-championne du monde",
+          "kind": "recipe",
+          "publisher": "Gault Millau"
+        }
+      ],
+      "image_bytes": 191225,
+      "verified_at": "2026-11-10T05:58:42.824Z",
+      "image_dimensions": [
+        1200,
+        675
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 57,
+      "name": "Quiche saumon-épinards",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/quiche-saumon/quiche-saumon-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/quiche-saumon/quiche-saumon-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/quiche-saumon.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/quiche-saumon.html",
+          "title": "Quiche au saumon",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 53598,
+      "verified_at": "2026-11-10T05:58:42.345Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 59,
+      "name": "Suprême de volaille à la crème et aux morilles",
+      "image_url": "https://img-3.journaldesfemmes.fr/izh9eMn643dOEuLNErVpSOzb7pE=/750x500/fc241c3d28af439ea9db68dc6311aaf4/ccmcms-jdf/39877538.jpg",
+      "photo": {
+        "image_url": "https://img-3.journaldesfemmes.fr/izh9eMn643dOEuLNErVpSOzb7pE=/750x500/fc241c3d28af439ea9db68dc6311aaf4/ccmcms-jdf/39877538.jpg",
+        "source_url": "https://cuisine.journaldesfemmes.fr/recette/352825-supreme-de-volailles-fermieres-des-landes-aux-morilles",
+        "publisher": "Journal des Femmes Cuisiner",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://cuisine.journaldesfemmes.fr/recette/352825-supreme-de-volailles-fermieres-des-landes-aux-morilles",
+          "title": "Suprême de volailles fermières des Landes aux morilles",
+          "kind": "recipe",
+          "publisher": "Journal des Femmes Cuisiner",
+          "author": "La"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/chapon-aux-morilles.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 57698,
+      "verified_at": "2026-11-10T05:58:42.857Z",
+      "image_dimensions": [
+        750,
+        500
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 61,
+      "name": "Filet de bœuf sauce au poivre sans cognac",
+      "image_url": "https://ucarecdn.com/177927f9-2785-428f-8da6-4c2479600ad0/-/crop/1919x2592/1,0/-/preview/-/crop/1:1/",
+      "photo": {
+        "image_url": "https://ucarecdn.com/177927f9-2785-428f-8da6-4c2479600ad0/-/crop/1919x2592/1,0/-/preview/-/crop/1:1/",
+        "source_url": "https://www.ricardocuisine.com/recettes/10196-steak-au-poivre-le-meilleur",
+        "publisher": "Ricardo",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.ricardocuisine.com/recettes/10196-steak-au-poivre-le-meilleur",
+          "title": "Steak au poivre (le meilleur)",
+          "kind": "recipe",
+          "publisher": "Ricardo",
+          "author": "Ricardocuisine"
+        }
+      ],
+      "image_bytes": 412636,
+      "verified_at": "2026-11-10T06:03:51.160Z",
+      "image_dimensions": [
+        1516,
+        1516
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 62,
+      "name": "Filet de veau rôti aux champignons",
+      "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/kalbsfilet-mit-pilzen-und-polentasternen.jpg",
+      "photo": {
+        "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/kalbsfilet-mit-pilzen-und-polentasternen.jpg",
+        "source_url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM200106_42_MEN106B042A/filet-de-veau-aux-champignons-et-polenta/",
+        "publisher": "Swissmilk",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM200106_42_MEN106B042A/filet-de-veau-aux-champignons-et-polenta/",
+          "title": "Filet de veau aux champignons et polenta - Recette | Swissmilk",
+          "kind": "recipe",
+          "publisher": "Swissmilk",
+          "author": "Schweizer Milchproduzenten SMP Genossenschaft"
+        }
+      ],
+      "image_bytes": 96744,
+      "verified_at": "2026-11-10T05:58:43.421Z",
+      "image_dimensions": [
+        1200,
+        630
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 65,
+      "name": "Bar rôti, purée de céleri et sauce citronnée",
+      "image_url": "https://res.cloudinary.com/thibaults/image/upload/t_thumbnail_josie/v1626939401/Recipes/20210721_filet_puree_celeri.jpg",
+      "photo": {
+        "image_url": "https://res.cloudinary.com/thibaults/image/upload/t_thumbnail_josie/v1626939401/Recipes/20210721_filet_puree_celeri.jpg",
+        "source_url": "https://josies-recipes.netlify.app/blog/254-filet-bar-puree-celeri/",
+        "publisher": "josies-recipes.netlify.app",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://josies-recipes.netlify.app/blog/254-filet-bar-puree-celeri/",
+          "title": "Filet de bar purée de celeri et jus à l&#x27;orange",
+          "kind": "recipe",
+          "publisher": "josies-recipes.netlify.app",
+          "author": "Josie"
+        }
+      ],
+      "image_bytes": 71015,
+      "verified_at": "2026-11-10T06:01:24.559Z",
+      "image_dimensions": [
+        600,
+        800
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 66,
+      "name": "Saint-Jacques poêlées, fondue de poireaux",
+      "image_url": "https://cache.marieclaire.fr/data/photo/w1000_ci/1s7/recette-saint-jacques-roties-fondue-poireaux.jpg",
+      "photo": {
+        "image_url": "https://cache.marieclaire.fr/data/photo/w1000_ci/1s7/recette-saint-jacques-roties-fondue-poireaux.jpg",
+        "source_url": "https://www.marieclaire.fr/cuisine/saint-jacques-roties-et-fondue-de-poireaux%2C1464458.asp",
+        "publisher": "Marie Claire",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.marieclaire.fr/cuisine/saint-jacques-roties-et-fondue-de-poireaux%2C1464458.asp",
+          "title": "Saint-Jacques rôties et fondue de poireaux",
+          "kind": "recipe",
+          "publisher": "Marie Claire",
+          "author": "Marie Leteuré"
+        }
+      ],
+      "image_bytes": 117977,
+      "verified_at": "2026-11-10T06:03:51.015Z",
+      "image_dimensions": [
+        1000,
+        1500
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 67,
+      "name": "Ballotine de volaille aux champignons",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/ballotine-poulet-bresse-farci-morilles/ballotine-poulet-bresse-farci-morilles-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/ballotine-poulet-bresse-farci-morilles/ballotine-poulet-bresse-farci-morilles-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/ballotine-poulet-bresse-farci-morilles.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/ballotine-poulet-bresse-farci-morilles.html",
+          "title": "Ballotine de poulet de Bresse farci aux morilles",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 43524,
+      "verified_at": "2026-11-10T05:58:43.119Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 71,
+      "name": "Gigot d’agneau de sept heures sans vin",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gigot-agneau-7-heures/gigot-agneau-7-heures-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gigot-agneau-7-heures/gigot-agneau-7-heures-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/gigot-agneau-7-heures.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/gigot-agneau-7-heures.html",
+          "title": "Gigot de 7 heures",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 60646,
+      "verified_at": "2026-11-10T05:58:43.151Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 72,
+      "name": "Carré d’agneau en croûte d’herbes",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/carre-agneau-persille/carre-agneau-persille-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/carre-agneau-persille/carre-agneau-persille-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/carre-agneau-persille.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/carre-agneau-persille.html",
+          "title": "Carré d'agneau persillé",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 44895,
+      "verified_at": "2026-11-10T05:58:43.218Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 73,
+      "name": "Lotte à l’armoricaine sans alcool",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/lotte-americaine/lotte-americaine-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/lotte-americaine/lotte-americaine-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/lotte-americaine.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/lotte-americaine.html",
+          "title": "Lotte à l'américaine et ses légumes wok",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 36041,
+      "verified_at": "2026-11-10T05:58:43.256Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 77,
+      "name": "Œufs cocotte aux champignons",
+      "image_url": "https://img-3.journaldesfemmes.fr/5LcRn45lLcj30fnaM4ClV-7eBNA=/750x500/f1ab429081674bca9e3f96547d80b77d/ccmcms-jdf/39886175.jpg",
+      "photo": {
+        "image_url": "https://img-3.journaldesfemmes.fr/5LcRn45lLcj30fnaM4ClV-7eBNA=/750x500/f1ab429081674bca9e3f96547d80b77d/ccmcms-jdf/39886175.jpg",
+        "source_url": "https://cuisine.journaldesfemmes.fr/recette/354527-oeuf-cocotte-aux-champignons-des-bois",
+        "publisher": "Journal des Femmes Cuisiner",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://cuisine.journaldesfemmes.fr/recette/354527-oeuf-cocotte-aux-champignons-des-bois",
+          "title": "Oeuf cocotte aux champignons des bois",
+          "kind": "recipe",
+          "publisher": "Journal des Femmes Cuisiner",
+          "author": "La"
+        }
+      ],
+      "image_bytes": 56896,
+      "verified_at": "2026-11-10T05:58:43.280Z",
+      "image_dimensions": [
+        750,
+        500
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 79,
+      "name": "Poulet de Bresse à la crème",
+      "image_url": "https://www.bourgenbressedestinations.fr/app/uploads/bourg-en-bresse/2021/05/thumbs/6086/poulet-de-bresse-aop-et-crepes-vonnassiennes-de-la-mere-blanc-640x320-crop-1768847003.webp",
+      "photo": {
+        "image_url": "https://www.bourgenbressedestinations.fr/app/uploads/bourg-en-bresse/2021/05/thumbs/6086/poulet-de-bresse-aop-et-crepes-vonnassiennes-de-la-mere-blanc-640x320-crop-1768847003.webp",
+        "source_url": "https://www.bourgenbressedestinations.fr/se-regaler/recettes-de-grands-meres/poulet-de-bresse-a-la-creme-facon-grand-mere-blanc/",
+        "publisher": "Bourg-en-Bresse destinations – Office de tourisme",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.bourgenbressedestinations.fr/se-regaler/recettes-de-grands-meres/poulet-de-bresse-a-la-creme-facon-grand-mere-blanc/",
+          "title": "Poulet de Bresse à la crème façon Grand-Mère Blanc | Bourg-en-Bresse destinations – Office de tourisme",
+          "kind": "recipe",
+          "publisher": "Bourg-en-Bresse destinations – Office de tourisme"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=MkUHbV0rhxQ",
+          "title": "Je retente le POULET À LA CRÈME de Bocuse... avec un Chef Bocuse.",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Tom Cooks"
+        }
+      ],
+      "image_bytes": 19928,
+      "verified_at": "2026-11-10T06:06:10.996Z",
+      "image_dimensions": [
+        640,
+        320
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 80,
+      "name": "Tourte poulet-champignons",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/tourte-poulet-poireau/tourte-poulet-poireau-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/tourte-poulet-poireau/tourte-poulet-poireau-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/tourte-poulet-poireau.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/tourte-poulet-poireau.html",
+          "title": "Tourte de poulet aux poireaux",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 29544,
+      "verified_at": "2026-11-10T05:58:43.378Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 81,
+      "name": "Bœuf en croûte aux champignons sans porc",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/filet-boeuf-croute/filet-boeuf-croute-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/filet-boeuf-croute/filet-boeuf-croute-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/filet-boeuf-croute.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/filet-boeuf-croute.html",
+          "title": "Filet de bœuf en croûte",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 33670,
+      "verified_at": "2026-11-10T05:58:43.486Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 82,
+      "name": "Médaillons de veau à l’estragon",
+      "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/kalbsmedaillons-mit-roestitalern-und-gruenspargeln.jpg",
+      "photo": {
+        "image_url": "https://res.cloudinary.com/swissmilk/image/fetch/w_1200,h_630,c_fill,g_auto,f_auto,q_auto/https://api.swissmilk.ch/wp-content/uploads/2019/06/kalbsmedaillons-mit-roestitalern-und-gruenspargeln.jpg",
+        "source_url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM201205_42/medaillon-de-veau-galette-de-roesti-et-asperges-vertes/",
+        "publisher": "Swissmilk",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.swissmilk.ch/fr/recettes-idees/recettes/LM201205_42/medaillon-de-veau-galette-de-roesti-et-asperges-vertes/",
+          "title": "Médaillon de veau, galette de rösti et asperges vertes - Recette | Swissmilk",
+          "kind": "recipe",
+          "publisher": "Swissmilk",
+          "author": "Schweizer Milchproduzenten SMP Genossenschaft"
+        }
+      ],
+      "image_bytes": 108129,
+      "verified_at": "2026-11-10T05:58:45.225Z",
+      "image_dimensions": [
+        1200,
+        630
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 83,
+      "name": "Cabillaud sauce aux crevettes",
+      "image_url": "https://www.ptitchef.com/imgupl/recipe/filet-de-cabillaud-cuit-a-basse-temperature-servi-avec-une-sauce-aux-crevettes-grises--458041p715055.webp",
+      "photo": {
+        "image_url": "https://www.ptitchef.com/imgupl/recipe/filet-de-cabillaud-cuit-a-basse-temperature-servi-avec-une-sauce-aux-crevettes-grises--458041p715055.webp",
+        "source_url": "https://www.ptitchef.com/recettes/plat/filet-de-cabillaud-cuit-a-basse-temperature-servi-avec-une-sauce-aux-crevettes-grises-fid-1572674",
+        "publisher": "ptitchef.com",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.ptitchef.com/recettes/plat/filet-de-cabillaud-cuit-a-basse-temperature-servi-avec-une-sauce-aux-crevettes-grises-fid-1572674",
+          "title": "Filet de cabillaud cuit à basse température servi avec une sauce aux crevettes grises",
+          "kind": "recipe",
+          "publisher": "ptitchef.com",
+          "author": "Miamponpon"
+        }
+      ],
+      "image_bytes": 31834,
+      "verified_at": "2026-11-10T05:58:43.646Z",
+      "image_dimensions": [
+        1200,
+        800
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 84,
+      "name": "Dos de lieu sauce citronnée, écrasé de pommes de terre",
+      "image_url": "https://static.750g.com/images/1200-675/f98a0dd95554494aed0d99646e1f07bb/filets-de-lieu-noir-au-citron-et-aux-capres.png",
+      "photo": {
+        "image_url": "https://static.750g.com/images/1200-675/f98a0dd95554494aed0d99646e1f07bb/filets-de-lieu-noir-au-citron-et-aux-capres.png",
+        "source_url": "https://www.750g.com/filets-de-lieu-noir-au-citron-et-aux-capres-r38657.htm",
+        "publisher": "750g",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.750g.com/filets-de-lieu-noir-au-citron-et-aux-capres-r38657.htm",
+          "title": "Filets de lieu noir au citron et aux câpres",
+          "kind": "recipe",
+          "publisher": "750g",
+          "author": "FranceAgriMer"
+        }
+      ],
+      "image_bytes": 1167024,
+      "verified_at": "2026-11-10T05:58:44.011Z",
+      "image_dimensions": [
+        1024,
+        675
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 87,
+      "name": "Velouté de champignons",
+      "image_url": "https://images.ricardocuisine.com/services/recipes/1x1/soup-portrait-1505310548.jpg",
+      "photo": {
+        "image_url": "https://images.ricardocuisine.com/services/recipes/1x1/soup-portrait-1505310548.jpg",
+        "source_url": "https://www.ricardocuisine.com/recettes/7667-veloute-de-champignons",
+        "publisher": "Ricardo",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.ricardocuisine.com/recettes/7667-veloute-de-champignons",
+          "title": "Velouté de champignons",
+          "kind": "recipe",
+          "publisher": "Ricardo",
+          "author": "Ricardocuisine"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/veloute-cepes-espuma-truffe.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 170359,
+      "verified_at": "2026-11-10T06:01:25.286Z",
+      "image_dimensions": [
+        900,
+        900
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 89,
+      "name": "Tournedos Rossini avec jus sans alcool",
+      "image_url": "https://static.750g.com/images/1200-675/928f192699216f3011146f97e891316b/rossini.jpg",
+      "photo": {
+        "image_url": "https://static.750g.com/images/1200-675/928f192699216f3011146f97e891316b/rossini.jpg",
+        "source_url": "https://www.750g.com/tournedos-rossini-r203978.htm",
+        "publisher": "750g",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.750g.com/tournedos-rossini-r203978.htm",
+          "title": "Tournedos Rossini",
+          "kind": "recipe",
+          "publisher": "750g",
+          "author": "Chef Damien"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/tournedos-rossini.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 209259,
+      "verified_at": "2026-11-10T06:01:25.256Z",
+      "image_dimensions": [
+        1200,
+        675
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 90,
+      "name": "Côte de veau à la normande sans alcool",
+      "image_url": "https://media.hachette.fr/fit-in/800x800/28/2025-03/LC207QP.jpg",
+      "photo": {
+        "image_url": "https://media.hachette.fr/fit-in/800x800/28/2025-03/LC207QP.jpg",
+        "source_url": "https://www.editions-larousse.fr/recette/cotes-de-veau-la-normande/",
+        "publisher": "editions-larousse.fr",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.editions-larousse.fr/recette/cotes-de-veau-la-normande/",
+          "title": "Côtes de veau à la normande",
+          "kind": "recipe",
+          "publisher": "editions-larousse.fr"
+        }
+      ],
+      "image_bytes": 38507,
+      "verified_at": "2026-11-10T05:58:44.201Z",
+      "image_dimensions": [
+        533,
+        800
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 91,
+      "name": "Filets de rouget sauce vierge",
+      "image_url": "https://www.uneaiguilledanslpotage.com/wp-content/uploads/2016/07/DSC_2526.jpg",
+      "photo": {
+        "image_url": "https://www.uneaiguilledanslpotage.com/wp-content/uploads/2016/07/DSC_2526.jpg",
+        "source_url": "https://www.uneaiguilledanslpotage.com/2016/07/filets-de-rouget-sauce-vierge.html",
+        "publisher": "Une aiguille dans l'potage",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.uneaiguilledanslpotage.com/2016/07/filets-de-rouget-sauce-vierge.html",
+          "title": "Filets de rouget, sauce vierge – Une aiguille dans l'potage",
+          "kind": "recipe",
+          "publisher": "Une aiguille dans l'potage",
+          "author": "Lou"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/filet-rouget-poivrons.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 76640,
+      "verified_at": "2026-11-10T05:58:44.510Z",
+      "image_dimensions": [
+        426,
+        640
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 92,
+      "name": "Turbot rôti au citron",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/turbot-champagne/turbot-champagne-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/turbot-champagne/turbot-champagne-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/turbot-champagne.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/turbot-champagne.html",
+          "title": "Filet de turbot au sabayon de champagne",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=VgFfCdT_HG4",
+          "title": "Recette : Turbot rôti au citron vert",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Midi en France"
+        }
+      ],
+      "image_bytes": 25545,
+      "verified_at": "2026-11-10T06:03:51.116Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 93,
+      "name": "Saint-Pierre sur fondue de poireaux",
+      "image_url": "https://www.academiedugout.fr/images/41881/1200-675/saint-pierre-recad.jpg?poix=50&poiy=50",
+      "photo": {
+        "image_url": "https://www.academiedugout.fr/images/41881/1200-675/saint-pierre-recad.jpg?poix=50&poiy=50",
+        "source_url": "https://www.academiedugout.fr/recettes/saint-pierre-iode-cuit-a-la-juste-temperature-poireaux-fondus-au_9141_2",
+        "publisher": "L'Académie du Goût",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.academiedugout.fr/recettes/saint-pierre-iode-cuit-a-la-juste-temperature-poireaux-fondus-au_9141_2",
+          "title": "Saint-pierre iodé cuit à la juste température, poireaux fondus au babeurre coloré par Yannick Alléno",
+          "kind": "recipe",
+          "publisher": "L'Académie du Goût"
+        }
+      ],
+      "image_bytes": 80073,
+      "verified_at": "2026-11-10T06:06:10.934Z",
+      "image_dimensions": [
+        1200,
+        675
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 94,
+      "name": "Soupe de poissons et rouille",
+      "image_url": "https://static.750g.com/images/1200-630/2f17a8721fe89005318f3be84660a927/recette-soupe-de-poissons.png",
+      "photo": {
+        "image_url": "https://static.750g.com/images/1200-630/2f17a8721fe89005318f3be84660a927/recette-soupe-de-poissons.png",
+        "source_url": "https://www.750g.com/soupe-de-poissons-r77287.htm",
+        "publisher": "750g",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.750g.com/soupe-de-poissons-r77287.htm",
+          "title": "Recette Soupe de poissons - 750g.com",
+          "kind": "recipe",
+          "publisher": "750g"
+        }
+      ],
+      "image_bytes": 102932,
+      "verified_at": "2026-11-10T06:01:25.373Z",
+      "image_dimensions": [
+        1200,
+        630
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 95,
+      "name": "Bisque de crevettes sans cognac",
+      "image_url": "https://www.intermarche.be/files/uploads/2022/08/automne_2013_rdf035_weekmain.jpg",
+      "photo": {
+        "image_url": "https://www.intermarche.be/files/uploads/2022/08/automne_2013_rdf035_weekmain.jpg",
+        "source_url": "https://www.intermarche.be/recettes/bisque-de-crevettes/",
+        "publisher": "Intermarché",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.intermarche.be/recettes/bisque-de-crevettes/",
+          "title": "Bisque de crevettes",
+          "kind": "recipe",
+          "publisher": "Intermarché"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/bisque-homard.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 233421,
+      "verified_at": "2026-11-10T05:58:44.830Z",
+      "image_dimensions": [
+        850,
+        618
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 96,
+      "name": "Gratin de Saint-Jacques",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/coquille-saint-jacques-bretonne/coquille-saint-jacques-bretonne-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/coquille-saint-jacques-bretonne/coquille-saint-jacques-bretonne-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/coquille-saint-jacques-bretonne.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/coquille-saint-jacques-bretonne.html",
+          "title": "Coquilles Saint-Jacques à la bretonne",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 43740,
+      "verified_at": "2026-11-10T05:58:44.695Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 98,
+      "name": "Bœuf mironton",
+      "image_url": "https://www.la-viande.fr/sites/default/files/styles/facebook/public/recettes/images/Boeuf%20Mironton.jpg?itok=7hfHLtlk",
+      "photo": {
+        "image_url": "https://www.la-viande.fr/sites/default/files/styles/facebook/public/recettes/images/Boeuf%20Mironton.jpg?itok=7hfHLtlk",
+        "source_url": "https://www.la-viande.fr/recettes/boeuf/boeuf-mironton",
+        "publisher": "La Viande",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.la-viande.fr/recettes/boeuf/boeuf-mironton",
+          "title": "Boeuf Mironton",
+          "kind": "recipe",
+          "publisher": "La Viande"
+        }
+      ],
+      "image_bytes": 38619,
+      "verified_at": "2026-11-10T05:58:46.829Z",
+      "image_dimensions": [
+        600,
+        316
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 99,
+      "name": "Rosbif sauce aux échalotes sans vin",
+      "image_url": "https://www.delhaize.lu/fr/file/16298.recipes-structured-datas-1x1/854042e47f8a84c2445389839e48ff0f/6d5d76d6c1bc453c9f6746641c852f7d.jpg",
+      "photo": {
+        "image_url": "https://www.delhaize.lu/fr/file/16298.recipes-structured-datas-1x1/854042e47f8a84c2445389839e48ff0f/6d5d76d6c1bc453c9f6746641c852f7d.jpg",
+        "source_url": "https://www.delhaize.lu/fr/Recettes/single/rosbif-aux-echalotes",
+        "publisher": "Delhaize Luxembourg",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.delhaize.lu/fr/Recettes/single/rosbif-aux-echalotes",
+          "title": "Rosbif aux échalotes",
+          "kind": "recipe",
+          "publisher": "Delhaize Luxembourg",
+          "author": "Delhaize Luxembourg"
+        }
+      ],
+      "image_bytes": 36949,
+      "verified_at": "2026-11-10T05:58:45.239Z",
+      "image_dimensions": [
+        400,
+        400
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 106,
+      "name": "Ris de veau aux morilles",
+      "image_url": "https://i0.wp.com/cuisinedegut.net/wp-content/uploads/2017/12/ris-de-veau-sauce-morilles1.jpg?fit=1024%2C732&ssl=1",
+      "photo": {
+        "image_url": "https://i0.wp.com/cuisinedegut.net/wp-content/uploads/2017/12/ris-de-veau-sauce-morilles1.jpg?fit=1024%2C732&ssl=1",
+        "source_url": "https://cuisinedegut.net/2017/12/15/ris-de-veau-aux-morilles/",
+        "publisher": "CUISINE DE GUT",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://cuisinedegut.net/2017/12/15/ris-de-veau-aux-morilles/",
+          "title": "Ris de veau aux morilles",
+          "kind": "recipe",
+          "publisher": "CUISINE DE GUT"
+        },
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/ris-veau-pissalat-anchois.html",
+          "title": "Autre référence de technique — Meilleur du Chef",
+          "kind": "technique",
+          "publisher": "Meilleur du Chef"
+        }
+      ],
+      "image_bytes": 204683,
+      "verified_at": "2026-11-10T06:04:39.623Z",
+      "image_dimensions": [
+        1024,
+        732
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 110,
+      "name": "Saumon sauce au beurre citronné",
+      "image_url": "https://recipecontent.fooby.ch/rezeptbilder/rms_data/28572/3_2_1200_800.jpeg",
+      "photo": {
+        "image_url": "https://recipecontent.fooby.ch/rezeptbilder/rms_data/28572/3_2_1200_800.jpeg",
+        "source_url": "https://fooby.ch/fr/recettes/28572/saumon-au-beurre-citronne",
+        "publisher": "FOOBY",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://fooby.ch/fr/recettes/28572/saumon-au-beurre-citronne",
+          "title": "Saumon au beurre citronné",
+          "kind": "recipe",
+          "publisher": "FOOBY"
+        }
+      ],
+      "image_bytes": 401460,
+      "verified_at": "2026-11-10T05:58:45.446Z",
+      "image_dimensions": [
+        1200,
+        800
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 114,
+      "name": "Velouté de poireaux et pommes de terre",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/potage-pomme-terre/potage-pomme-terre-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/potage-pomme-terre/potage-pomme-terre-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/potage-pomme-terre.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/potage-pomme-terre.html",
+          "title": "Potage de pommes de terre",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 23396,
+      "verified_at": "2026-11-10T06:03:51.221Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 116,
+      "name": "Crème Dubarry — velouté de chou-fleur",
+      "image_url": "https://sebplatform.api.groupe-seb.com/statics/8d0bb1ee-06f5-47b5-91da-e07badbb989e.jpeg",
+      "photo": {
+        "image_url": "https://sebplatform.api.groupe-seb.com/statics/8d0bb1ee-06f5-47b5-91da-e07badbb989e.jpeg",
+        "source_url": "https://www.moulinex.fr/recette/detail/PRO/creme-dubarry/922558",
+        "publisher": "moulinex.fr",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.moulinex.fr/recette/detail/PRO/creme-dubarry/922558",
+          "title": "Crème Dubarry",
+          "kind": "recipe",
+          "publisher": "moulinex.fr",
+          "author": "christou95"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=Z8LR0aGVvEY",
+          "title": "Crème Dubarry",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Afpa"
+        }
+      ],
+      "image_bytes": 282503,
+      "verified_at": "2026-11-10T05:58:47.545Z",
+      "image_dimensions": [
+        1280,
+        958
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 117,
+      "name": "Œufs mimosa",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/oeuf-mimosa-paques/oeuf-mimosa-paques-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/oeuf-mimosa-paques/oeuf-mimosa-paques-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/oeuf-mimosa-paques.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/oeuf-mimosa-paques.html",
+          "title": "Oeufs mimosa",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 39216,
+      "verified_at": "2026-11-10T05:58:45.366Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 120,
+      "name": "Gougères au comté",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gougeres/gougeres-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/gougeres/gougeres-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/gougeres.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/gougeres.html",
+          "title": "Gougères au fromage",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 27496,
+      "verified_at": "2026-11-10T05:58:45.455Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 122,
+      "name": "Crème brûlée à la vanille",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/creme-brulee/creme-brulee-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/creme-brulee/creme-brulee-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/creme-brulee.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/creme-brulee.html",
+          "title": "Crème brûlée",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        },
+        {
+          "url": "https://www.youtube.com/watch?v=lROX8gJ8SPE",
+          "title": "🥄 La crème brûlée",
+          "publisher": "YouTube",
+          "kind": "video",
+          "author": "Philippe Etchebest"
+        }
+      ],
+      "image_bytes": 34869,
+      "verified_at": "2026-11-10T05:58:45.548Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    },
+    {
+      "selection_id": 123,
+      "name": "Mousse au chocolat",
+      "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/mousse-chocolat/mousse-chocolat-640.jpg",
+      "photo": {
+        "image_url": "https://files.meilleurduchef.com/mdc/photo/recette/mousse-chocolat/mousse-chocolat-640.jpg",
+        "source_url": "https://www.meilleurduchef.com/fr/recette/mousse-chocolat.html",
+        "publisher": "Meilleur du Chef",
+        "note": "Photo d’une recette de référence : présentation et ingrédients peuvent différer de cette version maison."
+      },
+      "sources": [
+        {
+          "url": "https://www.meilleurduchef.com/fr/recette/mousse-chocolat.html",
+          "title": "Mousse au chocolat",
+          "kind": "recipe",
+          "publisher": "Meilleur du Chef",
+          "author": "Chef Philippe"
+        }
+      ],
+      "image_bytes": 35413,
+      "verified_at": "2026-11-10T05:58:45.579Z",
+      "image_dimensions": [
+        640,
+        480
+      ],
+      "browser_image_verified": true
+    }
+  ]
+}
