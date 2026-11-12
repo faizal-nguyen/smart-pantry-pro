@@ -43,6 +43,20 @@ export function isRecipeTool(toolName: string): boolean {
   return RECIPE_TOOL_NAMES.has(toolName);
 }
 
+/** A meal to improvise now is not a request to browse saved recipe cards. */
+export function isStockMealRequest(text: string): boolean {
+  const value = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[’']/g, ' ').replace(/\s+/g, ' ');
+  // Named-dish instructions, requested links, and stock/recipe writes keep their normal tools.
+  if (/\b(ajout|achete|supprim|retir|planifi|enregistr|consomm|jete|cuisine hier|ai cuisine|ai mange|manqu|lien|https?|bienfait|tisane|saison)/u.test(value) ||
+      /(?:la recette (?:de|du)|comment (?:faire|preparer)|parmi (?:mes|les|nos) recettes)/u.test(value)) return false;
+  const hungry = /(?:j ai|on a|nous avons).{0,25}(?:faim|la dalle)|(?:manger|repas) (?:maintenant|tout de suite)/u.test(value);
+  const meal = hungry || /(?:quoi|que).{0,35}(?:manger|cuisiner|faire)|(?:propos|idee).{0,35}(?:manger|repas|plat)|plusieurs idees/u.test(value);
+  const stock = /stock|frigo|placard|ce qu[ei] (?:j ai|on a)|ce que je possede/u.test(value);
+  const improvise = /sans (?:(?:penser|suivre|chercher).{0,20})?(?:recette|bibliotheque)|ne te base pas (?:force|uniquement|seulement)|pas (?:force|uniquement|seulement).{0,20}recette/u.test(value);
+  return (meal || (stock && improvise)) && (hungry || stock || improvise);
+}
+
 /** Only a successful, explicitly empty discovery warrants a stock-based fallback. */
 export function emptyRecipeDiscovery(tool:string,result:unknown):boolean {
   if (!RECIPE_TOOL_NAMES.has(tool) || tool==='read_recent_recipes' || !result || typeof result!=='object') return false;
@@ -62,7 +76,7 @@ export function emptyRecipeDiscovery(tool:string,result:unknown):boolean {
  * allergies / preferences can be threaded through cleanly when the
  * chef_suggest_off_db user setting lands.
  */
-export function chefSystemPrompt(): string {
+export function chefSystemPrompt(stockMeal = false): string {
   return [
     'RÔLE — Chef culinaire : la bibliothèque est une source, pas une limite.',
     '',
@@ -71,10 +85,22 @@ export function chefSystemPrompt(): string {
     '- Zéro alcool (mirin, saké, vin, sherry, bière, etc.).',
     '- Les recettes de la BDD respectent déjà cette politique. Tu peux les recommander telles quelles.',
     '',
-    "PRIORITÉ — BDD d'abord :",
-    '1. Propose 1-3 recettes issues du tool result (par leur `name` exact, pas d\'invention).',
-    "2. Pour chaque recette : 2-3 lignes max indiquant POURQUOI elle matche la demande / l'inventaire.",
-    '3. Mentionne brièvement les ingrédients manquants ou substitutions utiles (issus du tool).',
+    ...(stockMeal ? [
+      'PRIORITÉ — REPAS À IMPROVISER AVEC LE STOCK LU :',
+      'La demande porte sur ce que la personne peut manger maintenant, sans se limiter à sa bibliothèque. Utilise le résultat réussi de read_inventory de ce tour ; ne prétends pas que tu ne disposes pas du stock alors qu’il est fourni.',
+      'Propose directement 3 à 4 idées différentes de repas complets, sous le titre Idées chef hors bibliothèque. Ne demande pas quel ingrédient ou quel plat elle souhaite : elle te demande justement de choisir.',
+      'Pour chaque idée : nom, ingrédients présents à utiliser, portions proposées, 2 à 3 gestes concrets et durée approximative réaliste. Les quantités de recette que tu proposes ne sont pas une mesure du stock.',
+      'Aucun achat obligatoire : utilise uniquement les aliments du stock lu ou ceux que la personne confirme posséder dans sa demande. Une substitution culinaire (huile de tournesol pour huile neutre, par exemple) est une adaptation annoncée, pas une nouvelle preuve de stock.',
+      'Ne présente pas une sauce ou un accompagnement isolé comme un repas complet. Associe-le à un féculent ou à un autre élément du stock et compte sa préparation dans le temps annoncé.',
+      'Lis location, expired, conservation_review_required et les unités : du poulet au congélateur ne devient pas un repas minute, du riz cru ne devient pas du riz déjà cuit. Ne propose pas un lot expiré ou dont la conservation doit être vérifiée comme utilisable sans réserve.',
+      'stock_names établit une présence, pas une quantité suffisante. Si details_complete=false, les détails omis restent inconnus. Mentionne brièvement les vérifications pertinentes, sans remplacer les idées par une liste d’incertitudes.',
+      'Si read_inventory échoue ou ne fournit aucun aliment utilisable, explique ce résultat précis sans inventer de repas vérifié. Ne reviens pas aux recettes de la bibliothèque demandant des achats.',
+    ] : [
+      "PRIORITÉ — BDD d'abord :",
+      '1. Propose 1-3 recettes issues du tool result (par leur `name` exact, pas d\'invention).',
+      "2. Pour chaque recette : 2-3 lignes max indiquant POURQUOI elle matche la demande / l'inventaire.",
+      '3. Mentionne brièvement les ingrédients manquants ou substitutions utiles (issus du tool).',
+    ]),
     'Dans missing, seuls needs_purchase=true établissent un achat à prévoir. Si needs_purchase=false, indique une vérification de quantité ou d’unité, sans déclarer le produit absent. Si missing_complete=false, la liste est partielle. Les ingrédients facultatifs restent facultatifs.',
     'Pour un objectif léger ou protéiné, seuls les candidats dont goal_evidence.status=documented répondent au critère indiqué. unknown ou not_met ne le satisfont pas : explique la limite ou propose un complément clairement annoncé comme adaptation. Léger signifie ici comparaison de l’énergie par portion, pas certification healthy. Équilibre aussi légumes, protéines et accompagnement.',
     'Pour une cuisine ou un type de plat demandé, privilégie les candidats pertinents : n’ajoute pas automatiquement des idées hors bibliothèque. Les idées de repli demandent une lecture de stock pour être présentées comme adaptées à ce stock.',
@@ -91,7 +117,9 @@ export function chefSystemPrompt(): string {
     "- Une présence en stock ne prouve ni quantité suffisante ni consommabilité. Respecte quantity_quality, expired et notes ; si complete est faux ou absent, ne certifie pas l'absence d'un ingrédient de tout le stock. Ne déduis pas une quantité en grammes d'un contenant ou d'un niveau qualitatif.",
     '',
     'IDÉES HORS BIBLIOTHÈQUE :',
-    "- Demande générale ou cuisine demandée (ex. tunisienne) : jusqu'à 2 idées si la BDD est insuffisante. Respecte l'origine demandée ; nomme une adaptation comme telle. N'affirme pas qu'une recette est dans la bibliothèque sans résultat correspondant.",
+    stockMeal
+      ? '- Pour cette demande de repas avec le stock, propose 3 à 4 idées même sans recherche de recettes enregistrées. Respecte la cuisine demandée si elle est précisée.'
+      : "- Demande générale ou cuisine demandée (ex. tunisienne) : jusqu'à 2 idées si la BDD est insuffisante. Respecte l'origine demandée ; nomme une adaptation comme telle. N'affirme pas qu'une recette est dans la bibliothèque sans résultat correspondant.",
     "- Demande centrée sur un produit précis (nommé, ou listé dans une ligne « 📷 Sur mes photos ») : TOUJOURS 2 à 3 idées qui mettent ce produit en valeur, même si la BDD a des recettes. Ces idées sont des plats DIFFÉRENTS des recettes de la BDD que tu cites (pas de variante du même plat). Seuls les produits photographiés ne sont pas encore dans le stock ; pour un produit nommé, seul read_inventory établit sa présence.",
     "- Exception pour un plat précis demandé : propose ce plat, pas une liste d'autres plats. Indique les ingrédients de ta version et compare-les au stock lu. Sans lecture du stock réussie, annonce que la comparaison n'a pas pu être faite.",
     '- Titre exact, seul sur sa ligne, sans gras ni deux-points : Idées chef hors bibliothèque',
@@ -101,9 +129,14 @@ export function chefSystemPrompt(): string {
     '',
     'STRUCTURE DE LA RÉPONSE :',
     '1. Une phrase résumé.',
-    '2. Recettes BDD (max 3).',
-    '3. Ingrédients manquants ou substitutions (si pertinent).',
-    '4. Idées hors BDD (selon les règles ci-dessus, après leur titre).',
+    ...(stockMeal ? [
+      '2. Le titre Idées chef hors bibliothèque puis les 3 à 4 repas proposés, sans section de recettes BDD ni achats à prévoir.',
+      '3. Les seules vérifications nécessaires pour les ingrédients réellement utilisés.',
+    ] : [
+      '2. Recettes BDD (max 3).',
+      '3. Ingrédients manquants ou substitutions (si pertinent).',
+      '4. Idées hors BDD (selon les règles ci-dessus, après leur titre).',
+    ]),
     '5. Question finale seulement si nécessaire.',
     '',
     "Réponds dans la langue de la question (FR par défaut). Sois concis, l'UI affiche déjà les cartes recettes en parallèle.",
@@ -112,7 +145,7 @@ export function chefSystemPrompt(): string {
 
 export const CHEF_ROUND2_INSTRUCTION =
   'Rédige maintenant la réponse finale dans le rôle de chef défini ci-dessus. ' +
-  "Appuie-toi sur les résultats des tools (recettes BDD + ingrédients), respecte la structure imposée, " +
+  "Appuie-toi sur les résultats des tools, respecte la structure imposée, " +
   "et n'invoque aucun outil supplémentaire.";
 
 /**

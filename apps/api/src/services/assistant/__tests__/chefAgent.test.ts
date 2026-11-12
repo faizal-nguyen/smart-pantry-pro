@@ -20,6 +20,7 @@ import {
   chefSystemPrompt,
   emptyRecipeDiscovery,
   isRecipeTool,
+  isStockMealRequest,
   postcheckChefOutput,
   type AssistantStreamEvent,
 } from '../chefAgent';
@@ -107,6 +108,35 @@ describe('emptyRecipeDiscovery',()=>{
     expect(emptyRecipeDiscovery('suggest_recipes_for_context',{error:'unavailable'})).toBe(false);
     expect(emptyRecipeDiscovery('read_recent_recipes',{recipes:[]})).toBe(false);
     expect(emptyRecipeDiscovery('read_inventory',{items:[]})).toBe(false);
+  });
+});
+
+describe('immediate meals from pantry stock',()=>{
+  it.each([
+    'J’ai faim de ouf - je peux me faire quoi à manger là avec ce que j’ai ?',
+    'Non mais si j’ai pas ce qu’il faut par rapport aux recettes, dis moi ce que je peux faire sinon ? Ne te base pas forcément dessus.',
+    'Non rien propose moi j’ai la dalle là - plusieurs idées',
+    'Juste avec ce que j’ai en stock et sans penser recette',
+    'Que puis-je cuisiner avec mon stock ?',
+  ])('recognizes the reported request: %s',text=>expect(isStockMealRequest(text)).toBe(true));
+
+  it.each([
+    'Ajoute des œufs à mon stock, j’ai faim',
+    'Je veux faire une soupe aux oignons, qu’est-ce qui nous manque ?',
+    'Quelles recettes parmi mes recettes enregistrées avec mon stock ?',
+    'Quoi cuisiner avec mon stock, avec des liens vers des sites ?',
+    'Quels sont les bienfaits du radis noir de mon stock ?',
+    'Qu’est-ce que j’ai dans mon stock ?',
+    'J’ai cuisiné le poulet hier',
+  ])('keeps other requests on their existing tool flow: %s',text=>expect(isStockMealRequest(text)).toBe(false));
+
+  it('requires concrete complete meals without restoring the library-first structure',()=>{
+    const prompt=chefSystemPrompt(true);
+    expect(prompt).toContain('3 à 4 idées différentes de repas complets');
+    expect(prompt).toContain('du poulet au congélateur ne devient pas un repas minute');
+    expect(prompt).toContain('details_complete=false');
+    expect(prompt).not.toContain("PRIORITÉ — BDD d'abord");
+    expect(prompt).not.toContain('2. Recettes BDD (max 3)');
   });
 });
 

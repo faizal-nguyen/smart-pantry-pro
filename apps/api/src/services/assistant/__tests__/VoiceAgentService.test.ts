@@ -19,7 +19,7 @@ import {
   type ToolHandler,
   type ToolExecutionContext,
 } from '../handlers/types.js';
-import { VoiceAgentService, VoiceAgentError } from '../VoiceAgentService.js';
+import { VoiceAgentService, VoiceAgentError, extractRecipeProposalsFromExecuted } from '../VoiceAgentService.js';
 import type { AICompletionClient,AICompletionRequest } from '../../imports/RecipeExtractionService.js';
 import type { SpeechTranscriber } from '../../media/SpeechTranscriber.js';
 import type { ActionLogRow, ActionLogWriter } from '../ActionLogWriter.js';
@@ -997,7 +997,7 @@ describe('V10-03D transport, receipts and replay boundaries',()=>{
     }};
     const read={execute:jest.fn(async()=>({result:{items:[]}}))};const suggest={execute:jest.fn(async()=>({result:{recipes:[]}}))};
     const {service}=makeService({ai,modelConfig:benchmarkConfig('luna'),handlers:{read_inventory:read,suggest_recipes_for_context:suggest}});
-    const response=await service.handleRequest({...input,text:'Que cuisiner avec mon stock ?'},makeCtx());
+    const response=await service.handleRequest({...input,text:'Que cuisiner parmi mes recettes avec mon stock ?'},makeCtx());
     expect(read.execute).toHaveBeenCalledTimes(1);expect(suggest.execute).toHaveBeenCalledTimes(1);
     expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['tool_selection','tool_followup','synthesis']);
     expect(requests[2].continuation).toEqual(expect.arrayContaining([
@@ -1321,6 +1321,71 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
     const response=await service.handleRequest({...input,text:'Que cuisiner ce soir ?'},makeCtx());
     expect(response.model_receipt?.calls.map(c=>c.purpose)).not.toContain('tool_followup');
     expect(response.model_receipt?.calls).toHaveLength(2);
+  });
+});
+
+describe('stock-first meals (hungry-user report 2026-11-12)',()=>{
+  const input={userId:USER,clientRequestId:'22222222-2222-4222-8222-222222222222',source:'text' as const};
+  it.each(['luna','baseline'] as const)('reads stock once and synthesizes meals without a recipe-search loop (%s)',async preset=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:jest.fn(async request=>{
+      requests.push(request);
+      return {content:'Idées chef hors bibliothèque\n**Nouilles au brocoli**\nFais sauter les légumes puis les nouilles.',model:request.model,usage:{prompt_tokens:100,completion_tokens:50}};
+    })};
+    const stock={execute:jest.fn(async()=>({result:{complete:true,items:[
+      {product_name:'Nouilles Lamian',quantity:1,unit:'sachet',expired:false},
+      {product_name:'Brocoli',quantity:1,unit:'pièce',expired:false},
+      {product_name:'Riz basmati',quantity:10,unit:'kg',expired:false},
+    ]}}))};
+    const recipes={execute:jest.fn(async()=>({result:{cookable_now:[{id:'rasam',name:'Rasam'}]}}))};
+    const {service}=makeService({ai,modelConfig:benchmarkConfig(preset),handlers:{read_inventory:stock,suggest_recipes_for_context:recipes}});
+    const response=await service.handleRequest({...input,text:'J’ai faim de ouf - je peux me faire quoi à manger là avec ce que j’ai ?'},makeCtx());
+    expect(stock.execute).toHaveBeenCalledTimes(1);
+    expect(recipes.execute).not.toHaveBeenCalled();
+    expect(response.actions_executed.map(a=>a.tool)).toEqual(['read_inventory']);
+    expect(extractRecipeProposalsFromExecuted(response.actions_executed)).toBeNull();
+    expect(requests).toHaveLength(1);
+    expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['synthesis']);
+    expect(requests[0].continuation ?? []).toEqual([]);
+    const sent=JSON.stringify(requests[0].messages);
+    expect(sent).toContain('Nouilles Lamian');
+    expect(sent).toContain('3 à 4 idées différentes de repas complets');
+    expect(sent).not.toContain("PRIORITÉ — BDD d'abord");
+  });
+
+  it('keeps a large stock receipt structured, with all names and conservation alerts',async()=>{
+    const requests:AICompletionRequest[]=[];
+    const ai:AICompletionClient={complete:async request=>{requests.push(request);return {content:'Des idées avec le stock lu.',model:request.model,usage:{prompt_tokens:100,completion_tokens:50}};}};
+    const items=Array.from({length:121},(_,i)=>({id:'lot-'+i,product_name:i===120?'Nouilles Lamian':'Produit '+i,quantity:1,unit:'sachet',expired:i===100,
+      conservation_review_required:i===110,notes:'Une note longue. '.repeat(100)}));
+    const {service}=makeService({ai,handlers:{read_inventory:{execute:async()=>({result:{items,complete:true}})}}});
+    await service.handleRequest({...input,text:'Plusieurs idées avec mon stock, j’ai faim'},makeCtx());
+    const receipt=requests[0].messages.find(m=>m.role==='assistant'&&String(m.content).includes('read_inventory → '))!;
+    const data=JSON.parse(String(receipt.content).split('read_inventory → ')[1]);
+    expect(JSON.stringify(data).length).toBeLessThanOrEqual(24000);
+    expect(data).toMatchObject({complete:true,details_complete:false,total:121});
+    expect(data.stock_names).toContain('Nouilles Lamian');
+    expect(data.stock_names).not.toContain('Produit 100');
+    expect(data.expired_stock_names).toEqual(['Produit 100']);
+    expect(data.conservation_review_stock_names).toEqual(['Produit 110']);
+    expect(data).not.toHaveProperty('preview');
+  });
+
+  it('does not bypass a restricted tool surface',async()=>{
+    const stock={execute:jest.fn()};
+    const {service}=makeService({ai:makeAi([],'Lecture du stock indisponible sur cette page.'),handlers:{read_inventory:stock}});
+    const response=await service.handleRequest({...input,text:'J’ai faim, que faire avec mon stock ?',allowedTools:['ask_clarification']},makeCtx());
+    expect(stock.execute).not.toHaveBeenCalled();
+    expect(response.actions_executed).toEqual([]);
+  });
+
+  it('reports a failed stock read without inventing meals or asking for a product',async()=>{
+    const ai={complete:jest.fn()};
+    const {service}=makeService({ai:ai as AICompletionClient,handlers:{read_inventory:{execute:async()=>{throw new Error('stock unavailable');}}}});
+    const response=await service.handleRequest({...input,text:'J’ai la dalle, propose plusieurs idées avec mon stock'},makeCtx());
+    expect(ai.complete).not.toHaveBeenCalled();
+    expect(response.message).toContain('Je n’ai pas pu lire ton stock');
+    expect(response.message).not.toContain('Précise le produit');
   });
 });
 
