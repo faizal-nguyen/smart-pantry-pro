@@ -73,6 +73,7 @@ import { providerErrorSummary } from '../ai/OpenAITransport.js';
 // PRP-239 PR4 — chef agent helpers (round-2 escalation + post-check).
 import {
   isRecipeTool,
+  isStockMealRequest,
   emptyRecipeDiscovery,
   chefSystemPrompt,
   CHEF_ROUND2_INSTRUCTION,
@@ -525,6 +526,8 @@ export class VoiceAgentService {
     ];
 
     const chosen = input.choice && input.choice.tool in RECIPE_WRITES ? input.choice : null;
+    const stockMealMode = !chosen && isStockMealRequest(transcript) &&
+      tools.some(tool=>tool.function.name==='read_inventory') && this.handlerRegistry.has('read_inventory');
     let ai1: AICompletionResponse;
     // A tapped choice already names its tool and recipe: the loop below prepares it as if
     // the model had called it, with the same checks, log, preview and confirmation.
@@ -535,6 +538,13 @@ export class VoiceAgentService {
       await providerGuard?.(aiMessages);
       ai1 = { content: '', model: '', usage: { prompt_tokens: 0, completion_tokens: 0 },
         tool_calls: [{ id: CHOICE_CALL_ID, name: chosen.tool, arguments: JSON.stringify(chosen.args ?? {}) }] };
+    }
+    else if (stockMealMode) {
+      // This request needs the pantry, even when a saved recipe search would find Rasam.
+      // Use the normal scoped, validated and logged executor; the model only synthesizes.
+      await providerGuard?.(aiMessages);
+      ai1 = { content: '', model: '', usage: { prompt_tokens: 0, completion_tokens: 0 },
+        tool_calls: [{ id: 'meal-stock', name: 'read_inventory', arguments: '{}' }] };
     }
     else try { ai1 = await this.callLLMSafe(invocation, 'dialogue', aiMessages, tools, providerGuard, 'tool_selection'); }
     catch {
@@ -817,7 +827,7 @@ export class VoiceAgentService {
       const chatTransport=this.modelConfig.roles.dialogue.transport!=='responses';
       // « J'ai cuisiné les carbonara » needs the recipe id read here to call cook_recipe; so does
       // « le Lamb Biryani » answering our « Laquelle as-tu cuisinée ? » (live repro 2026-11-08).
-      if (i===toolCalls.length-1 && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || executed.some(action=>action.tool==='read_inventory') || RECIPE_ACTION.test(transcript)
+      if (i===toolCalls.length-1 && !stockMealMode && !followupUsed && (!chatTransport || !executed.some(action=>isRecipeTool(action.tool)) || executed.some(action=>action.tool==='read_inventory') || RECIPE_ACTION.test(transcript)
           || answersRecipeQuestion(sessionTurns, recentMessagesText)) &&
           executed.length>0 && executed.every(action=>action.risk_tier==='read') && !pending.length && !unverified.length && !toolIssue &&
           toolCalls.length<this.maxToolCalls && invocation.calls.length<this.modelConfig.limits.maxCalls-1) {
@@ -871,7 +881,7 @@ export class VoiceAgentService {
     // QA suite (recipe.002) revealed that a round-1-with-content path
     // could leak "porc" from a recipe description without ever entering
     // the chef branch.
-    const chefMode = executed.some((a) => isRecipeTool(a.tool));
+    const chefMode = executed.some((a) => isRecipeTool(a.tool)) || (stockMealMode && executed.some(a=>a.tool==='read_inventory'));
 
     // PRP-224 follow-up — LLM Round 2 synthesis. The Round 1 call often
     // returns only tool_calls and an empty `content`. Without a second
@@ -907,10 +917,11 @@ export class VoiceAgentService {
         // Preserve the old chef baseline for a fair comparison. Candidates only
         // escalate explicitly for a complex menu; ordinary recipes stay economical.
         const synthesisRole: AssistantRole = chefMode && (this.modelConfig.preset === 'baseline' || /batch|menu|plusieurs repas|adapter.*plusieurs/iu.test(transcript)) ? 'culinary' : 'dialogue';
-        const continuation = continuationFor(activeResponse,synthesisRole,currentPolicy);
+        // The stock read was chosen by the server, not returned by a provider call.
+        const continuation = stockMealMode ? [] : continuationFor(activeResponse,synthesisRole,currentPolicy);
         const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? basePrompt : systemContent;
         const synthesisSystem = chefMode
-          ? `${currentSystem}\n\n${chefSystemPrompt()}`
+          ? `${currentSystem}\n\n${chefSystemPrompt(stockMealMode)}`
           : currentSystem;
         const synthesisInstruction = chefMode
           ? CHEF_ROUND2_INSTRUCTION
@@ -1031,6 +1042,8 @@ export class VoiceAgentService {
         // Worded so the change-claim guard below does not read « a été modifié ».
         + (changed ? '. ' + synthesizeMessage(executed, pending)
           : unavailable ? ' : je n’ai rien changé.' : ' : je n’ai rien changé. Précise le produit et redis-le-moi.');
+      if (stockMealMode && !executed.some(action=>action.tool==='read_inventory'))
+        message = 'Je n’ai pas pu lire ton stock pour ce repas. Réessaie dans un instant pour que je te propose des idées avec tes ingrédients.';
     }
     if (unverified.length) message = 'Une action n’a pas pu être confirmée. Vérifie son résultat avant de la répéter. ' + synthesizeMessage(executed,pending);
     // A model can announce a change no write tool made ("J'ai ajouté…" after
@@ -1490,8 +1503,25 @@ function todayContext(now: Date): string {
 // needs, so 40 rows fit instead of the first four or five (audit 2026-11-07).
 const MODEL_RESULT_CHARS = 6000;
 function serializeToolReceipt(tool:string,result:unknown):string {
-  const limit=tool==='read_food_guidance' ? 36000 : tool==='read_recipe' ? 24000 : tool==='search_web_recipes' ? 16000 : MODEL_RESULT_CHARS;
-  const text=JSON.stringify(compactForModel(result));
+  const limit=tool==='read_food_guidance' ? 36000 : tool==='read_inventory' || tool==='read_recipe' ? 24000 : tool==='search_web_recipes' ? 16000 : MODEL_RESULT_CHARS;
+  const compact=compactForModel(result) as Record<string,unknown>;
+  let text=JSON.stringify(compact);
+  if (tool==='read_inventory' && text.length>limit) {
+    const data=(compact.result && typeof compact.result==='object' ? compact.result : compact) as Record<string,unknown>;
+    // Keep a valid receipt and every pantry name before optional lot details. A raw
+    // JSON preview made a large pantry look unreadable (hungry-user report, 2026-11-12).
+    if (Array.isArray(data.items)) {
+      data.details_complete=false;
+      while (text.length>limit && data.items.length) {
+        data.items.pop();text=JSON.stringify(compact);
+      }
+    }
+    if (Array.isArray(data.stock_names)) {
+      while (text.length>limit && data.stock_names.length) {
+        data.stock_names.pop();data.complete=false;text=JSON.stringify(compact);
+      }
+    }
+  }
   return text.length<=limit ? text : JSON.stringify({truncated:true,note:'Résultat partiel : ne complète pas les informations absentes.',preview:text.slice(0,limit-150)});
 }
 const ROW_FIELDS = ['id', 'product_name', 'name', 'quantity', 'unit', 'unit_type', 'quantity_quality', 'date_kind', 'conservation_review_required', 'notes', 'expiry_date', 'days_to_expiry', 'expired', 'is_purchased', 'location'];
@@ -1504,14 +1534,11 @@ function compactForModel(value: unknown): unknown {
     // empty merely because its quantity details exceed the model receipt budget.
     const inventory=rows.every(item=>typeof item.expired==='boolean');
     const names=[...new Set(rows.filter(item=>Number(item.quantity)>0 && !item.expired).map(item=>item.product_name))];
-    const stockNames:unknown[]=[];
-    for (const name of names) {
-      if (JSON.stringify([...stockNames,name]).length>3500) break;
-      stockNames.push(name);
-    }
-    return { total:rows.length,complete:object.complete===true && (!inventory || stockNames.length===names.length),
-      ...(inventory ? { stock_names:stockNames } : {}),
-      items:rows.slice(0, 80)
+    return { total:rows.length,complete:object.complete===true,
+      ...(inventory ? { stock_names:names,details_complete:true,
+        expired_stock_names:[...new Set(rows.filter(item=>Number(item.quantity)>0 && item.expired).map(item=>item.product_name))],
+        conservation_review_stock_names:[...new Set(rows.filter(item=>Number(item.quantity)>0 && item.conservation_review_required).map(item=>item.product_name))] } : {}),
+      items:rows.slice(0, inventory ? rows.length : 80)
       .map(item => Object.fromEntries(ROW_FIELDS.filter(key => item[key] !== undefined && item[key] !== null).map(key => [key, item[key]]))) };
   }
   return 'result' in object ? { ...object, result: compactForModel(object.result) } : object;
