@@ -1,3 +1,4 @@
+import {RecipeLifecycleWriteSchema,foldRecipeLifecycle,type RecipeLifecycleEvent} from '@smart/shared';
 import { discoveryFixtureRequest, isDiscoveryFixturePath } from './discovery';
 import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
@@ -48,6 +49,11 @@ let privacy={ hasConsent:false,allowAnalytics:false,saveHistory:true,assistantMe
 const memoryReceipts=new Map<string,MemoryWriteResult>();
 const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  if(path==='/v1/recommendations/library-events'){
+    const {commands}=RecipeLifecycleWriteSchema.parse(body);
+    for(const c of commands)if(!data.recipe_interactions.some(row=>row.id===c.id))data.recipe_interactions.push({id:c.id,user_id:OWNER,recipe_reference:c.recipe,metadata:{library_lifecycle:true,action:c.action},created_at:new Date().toISOString()});
+    persistFixtureData();return {ids:commands.map(c=>c.id)} as T;
+  }
   if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('POST', path, body) as Promise<T>;
   if (path==='/v1/settings/privacy') { privacy={...privacy,...body as typeof privacy};memoryRevision++;return {settings:privacy} as T; }
   if (path==='/assistant/memory-commands') {
@@ -177,6 +183,10 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
 export async function apiGet<T>(path:string):Promise<T> {
+  if(path==='/v1/recommendations/library-state'){
+    const events=data.recipe_interactions.filter(r=>(r.metadata as {library_lifecycle?:boolean})?.library_lifecycle).map(r=>({id:r.id,recipe:r.recipe_reference,action:(r.metadata as {action:string}).action,at:r.created_at})) as RecipeLifecycleEvent[];
+    return {...foldRecipeLifecycle(events),eligibility:[...data.recipes.map(r=>({recipe:{id:r.id,source:'recipes'},status:'compatible'})),...data.user_recipes.map(r=>({recipe:{id:r.id,source:'user_recipes'},status:'compatible'}))]} as T;
+  }
   if(path==='/v1/recommendations/food-guidance')return buildFoodGuidance(data.inventory.map(lot=>({...lot,id:String(lot.id),product_id:String(lot.product_id),quantity:Number(lot.quantity),product_name:String(data.products.find(p=>p.id===lot.product_id)?.name??'')}))) as T;
   if (isDiscoveryFixturePath(path)) return discoveryFixtureRequest('GET', path) as Promise<T>;
   if(path==='/assistant/models') {

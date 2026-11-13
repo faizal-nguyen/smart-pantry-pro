@@ -1,3 +1,7 @@
+jest.mock('@/components/recipes/RecipeLifecycleProvider',()=>({__esModule:true,default:({children}:{children:React.ReactNode})=><>{children}</>}));
+jest.mock('@/components/recipes/RecipePendingChoice',()=>({__esModule:true,default:()=>null}));
+jest.mock('@/components/recipes/RecipeInspiration',()=>({__esModule:true,default:()=> <div>Idées du test</div>}));
+jest.mock('@/components/recipes/RecipeSoon',()=>({__esModule:true,default:()=> <div>Envies du test</div>}));
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';

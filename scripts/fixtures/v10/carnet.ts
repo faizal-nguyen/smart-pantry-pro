@@ -1,7 +1,7 @@
 import { calendarDate } from '@smart/shared';
 
-export const carnetScene = new URLSearchParams(location.search).get('scene') === 'carnet';
-export const fixtureStorageKey = carnetScene ? 'v10-carnet-fixture-data' : 'v10-fixture-data';
+export const carnetScene = new URLSearchParams(location.search).get('scene') === 'carnet' || new URLSearchParams(location.search).get('scene')==='recipe-life';
+export const fixtureStorageKey = new URLSearchParams(location.search).get('scene')==='recipe-life'?'v10-recipe-life-fixture':carnetScene ? 'v10-carnet-fixture-data' : 'v10-fixture-data';
 
 /** A separate fictional household for judging the approved design, not production seeds. */
 export function seedCarnetScene(data: Record<string, Record<string, unknown>[]>, owner: string, recipe: string) {
@@ -18,4 +18,13 @@ export function seedCarnetScene(data: Record<string, Record<string, unknown>[]>,
   const dayIndex=(today.getUTCDay()+6)%7;
   data.weekly_meal_plans=[{id:id(8,1),user_id:owner,week_start_date:date(-dayIndex)}];
   data.meal_plan_entries=[{id:id(9,1),meal_plan_id:id(8,1),day_of_week:dayIndex,meal_type:'dinner',recipe_id:recipe,recipe_reference:{id:recipe,source:'recipes'},recipe_name:'Couscous de légumes',servings:2,prep_time:10,cook_time:15}];
+}
+
+export function seedRecipeLifeScene(data:Record<string,Record<string,unknown>[]>,owner:string){
+ if(new URLSearchParams(location.search).get('scene')!=='recipe-life')return;
+ const base=data.recipes[0],names=['Couscous de légumes rôtis','Soupe de saison','Pain maison','Riz sauté aux légumes','Blanquette de veau','Bœuf mijoté','Nouilles au poulet','Salade croquante'];
+ const id=(n:number)=>`61000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
+ data.recipes=Array.from({length:460},(_,i)=>({...base,id:i===0?base.id:id(i),name:names[i%names.length]+(i>=names.length?` · variante ${i+1}`:''),cuisine_category:['Française','Chinoise','Marocaine','Italienne'][i%4],prep_time:10,cook_time:i%3===0?50:15,rest_time:0,created_at:`2026-10-01T12:00:00.000Z`,image_url:'/scripts/fixtures/v10/assets/'+(i%3===0?'couscous-demo.png':i%3===1?'soupe.svg':'riz.svg')}));
+ const ingredients=[...data.recipe_ingredients];data.recipe_ingredients=data.recipes.flatMap((r,i)=>ingredients.map((ing,j)=>({...ing,id:`62000000-0000-4000-8000-${String(i*100+j).padStart(12,'0')}`,recipe_id:r.id})));
+ data.recipe_interactions=[{id:id(9990),user_id:owner,recipe_reference:{id:data.recipes[4].id,source:'recipes'},metadata:{library_lifecycle:true,action:'queue'},created_at:'2026-11-01T12:00:00.000Z'}];
 }

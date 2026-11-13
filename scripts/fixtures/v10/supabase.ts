@@ -1,4 +1,4 @@
-import { carnetScene, fixtureStorageKey, seedCarnetScene } from './carnet';
+import { carnetScene, fixtureStorageKey, seedCarnetScene,seedRecipeLifeScene } from './carnet';
 /* Fictitious local QA data, persisted only on this dedicated localhost origin. */
 export const OWNER = '00000000-0000-4000-8000-000000000001';
 export const RECIPE = '30000000-0000-4000-8000-000000000001';
@@ -27,6 +27,7 @@ export const data: Record<string, Row[]> = {
   mobile_routine_preferences: [],routine_recipe_favorites: [],user_meal_preferences: [],nutrition_profiles:[],assistant_memory_items:[],recipe_interactions:[],recommendation_events:[],
 };
 if (carnetScene) seedCarnetScene(data,OWNER,RECIPE);
+seedRecipeLifeScene(data,OWNER);
 try { Object.assign(data,JSON.parse(localStorage.getItem(fixtureStorageKey) ?? '{}')); } catch { /* New fixture. */ }
 if (!data.recipes_catalog.some(row=>row.id===CATALOG)) data.recipes_catalog.push({ id:CATALOG,title:'Riz express',prep_time:5,cook_time:15,servings:2,instructions:'Rincer le riz.\nCuire le riz.',ingredients_json:[{ name:'Riz',amount:'100',unit:'g' }],tags:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });
 if (!data.user_recipes.some(row=>row.id===WRAPPER)) data.user_recipes.push({ id:WRAPPER,user_id:OWNER,is_from_catalog:false,custom_title:'Soupe personnelle',custom_instructions:'Couper les tomates.\nFaire cuire.',custom_ingredients_json:[{ name:'Tomate',amount:'2',unit:'pièce' }],custom_modifications:{},personal_tags:[],collections:[],created_at:'2026-10-08T10:00:00Z',updated_at:'2026-10-08T10:00:00Z' });

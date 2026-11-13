@@ -1,3 +1,5 @@
+import {useRecipeExposure} from '@/hooks/useRecipeLifecycle';
+import type {ReactNode} from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +13,10 @@ import RecipePreview from './RecipePreview';
 import NutritionEstimateView from './NutritionEstimateView';
 import { recipeDetailPath } from '@/lib/recipeLinks';
 import { useCulinaryDesign } from '@/contexts/CulinaryDesignContext';
+function SuggestionFrame({owner,recipe,children}:{owner?:string;recipe:RecommendedRecipeView;children:ReactNode}){
+  const ref=useRecipeExposure(owner,recipe.reference);
+  return <li ref={ref} className="culinary-recipe-card">{children}</li>;
+}
 /** « Il te manque : Agneau, Yaourt et Coriandre. », the first three named. */
 function missingLine(names:string[]):string {
   const shown=names.slice(0,3),rest=names.length-shown.length;
@@ -57,7 +63,7 @@ function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel
   const ideas=query.data ? [...query.data.cookable_now,...query.data.almost_cookable].sort((a,b)=>b.score_total-a.score_total).slice(0,3) : [];
   // Nothing complete or almost: the closest recipes, with what is missing, rather than an empty box (iPhone 2026-11-08).
   const closest=query.data && !ideas.length ? [...query.data.recent_suggestions].sort((a,b)=>b.score_total-a.score_total).slice(0,3) : [];
-  const render=(recipe:RecommendedRecipeView,mode:'idea'|'closest'|'verify'|'excluded',priority=false,compact=false)=><li key={`${recipe.reference.source}:${recipe.id}`} className="culinary-recipe-card">
+  const render=(recipe:RecommendedRecipeView,mode:'idea'|'closest'|'verify'|'excluded',priority=false,compact=false)=><SuggestionFrame key={`${recipe.reference.source}:${recipe.id}`} owner={query.owner??undefined} recipe={recipe}>
     <Link to={recipeDetailPath(recipe.reference,recipe.servings)} className="culinary-recipe-image-link" aria-label={`Voir ${recipe.name}`}>
       <RecipePreview imageUrl={recipe.image_url} title={recipe.name} decorative priority={priority} className="culinary-recipe-photo" caption={recipe.reference.source==='user_recipes' && recipe.image_origin==='catalog' ? 'Photo du catalogue' : undefined} />
     </Link>
@@ -75,7 +81,7 @@ function PersonalizedSuggestionsContent({ query,onAddStock,onBrowse,dismissLabel
         {mode==='idea' && <><Button className="min-h-11 w-full" variant="ghost" disabled={busy || (!!pending && (pending.recipe.id!==recipe.id || pending.recipe.source!==recipe.reference.source || pending.feedback!=='not_today'))} onClick={()=>void feedback(recipe,'not_today')}>{dismissLabel}</Button><details><summary className="min-h-11 cursor-pointer text-sm">Donner un retour sur cette recette</summary><p className="mb-2 text-sm text-muted-foreground">Après l’avoir essayée, indique ce que tu voudrais retrouver dans tes prochaines idées.</p><div className="flex flex-wrap gap-2" aria-label={`Retour sur ${recipe.name}`}>{feedbackLabels.map(([value,label])=><Button key={value} className="min-h-11 whitespace-normal" variant="outline" disabled={busy || (!!pending && (pending.recipe.id!==recipe.id || pending.recipe.source!==recipe.reference.source || pending.feedback!==value))} onClick={()=>void feedback(recipe,value)}>{label}</Button>)}</div></details></>}
       </div>}
     </div>
-  </li>;
+  </SuggestionFrame>;
   const additionalGroups=<>
     {!query.isError && query.data && query.data.verify_suggestions.length>0 && <details open={!ideas.length}><summary className="min-h-11 cursor-pointer">Recettes à vérifier ({query.data.verify_suggestions.length})</summary><ul className="culinary-recipe-grid">{query.data.verify_suggestions.map(recipe=>render(recipe,'verify'))}</ul></details>}
     {!query.isError && query.data && query.data.excluded_suggestions.length>0 && <details><summary className="min-h-11 cursor-pointer">Recettes écartées : voir les raisons</summary><ul className="culinary-recipe-grid">{query.data.excluded_suggestions.map(recipe=>render(recipe,'excluded'))}</ul></details>}

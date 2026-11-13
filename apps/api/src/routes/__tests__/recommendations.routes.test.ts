@@ -64,3 +64,19 @@ test('absence, database failure and malformed results stay distinct and do not l
   evaluate.mockResolvedValueOnce({} as any);
   await request(appFor().app).post('/api/v1/recommendations/evaluate').send(input).expect(503);
 });
+
+test('library state and writes are authenticated, strictly validated and use the session client',async()=>{
+ const {RecipeLifecycleService}=await import('../../services/recommendations/RecipeLifecycleService.js');
+ const read=jest.spyOn(RecipeLifecycleService.prototype,'read').mockResolvedValue({recipes:[],eligibility:[]});
+ const write=jest.spyOn(RecipeLifecycleService.prototype,'write').mockResolvedValue({ids:[input.recipe.id]});
+ await request(appFor(false).app).get('/api/v1/recommendations/library-state').expect(401);
+ await request(appFor(false).app).post('/api/v1/recommendations/library-events').send({commands:[]}).expect(401);
+ const app=appFor();await request(app.app).get('/api/v1/recommendations/library-state?user_id=other').expect(200);
+ expect(read).toHaveBeenCalledTimes(1);expect(app.adminClient.from).not.toHaveBeenCalled();
+ await request(app.app).post('/api/v1/recommendations/library-events').send({user_id:OWNER,commands:[{id:input.recipe.id,recipe:input.recipe,action:'queue'}]}).expect(400);
+ expect(write).not.toHaveBeenCalled();
+ await request(app.app).post('/api/v1/recommendations/library-events').send({commands:[{id:input.recipe.id,recipe:input.recipe,action:'queue'}]}).expect(200);
+ write.mockRejectedValueOnce(new Error('private database details'));
+ const failed=await request(app.app).post('/api/v1/recommendations/library-events').send({commands:[{id:input.recipe.id,recipe:input.recipe,action:'queue'}]}).expect(503);
+ expect(JSON.stringify(failed.body)).not.toContain('private database');
+});

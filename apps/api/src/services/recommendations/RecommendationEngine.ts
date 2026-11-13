@@ -6,7 +6,7 @@ import type { MemoryService } from '../assistant/MemoryService.js';
 import type { RecommendationEventWriter } from './RecommendationEventWriter.js';
 import { extractRecipeFacets } from '../recipes/RecipeFacetExtractor.js';
 import { NutritionProfileService,ProfileError } from './NutritionProfileService.js';
-import { namesIngredient,qualifyLots,evaluateAvailability,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,UNCLEAR_REASONS,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
+import { evaluateConstraints,namesIngredient,qualifyLots,evaluateAvailability,scoreExplicitTaste,scoreNutritionGoal,vegetableCriterion,normalizeEquipment,UNCLEAR_REASONS,type IngredientProduct,type QualifiedLot } from './PersonalizationScoring.js';
 import { evaluateRecipe } from './RecipeEvaluation.js';
 import { requestConstraints,resolveExclusions } from './RequestConstraints.js';
 import { scoreMemoryTaste } from './MemoryTasteScoring.js';
@@ -17,7 +17,7 @@ export interface RecommendationExecutionContext {
   userId:string;userClient:SupabaseClient;serviceClient?:SupabaseClient;now?:Date;
   conversationId?:string;assistantMessageId?:string;eventWriter?:RecommendationEventWriter;memoryService?:MemoryService;
 }
-type Interaction={ recipe_id:string|null;recipe_reference?:{ id:string;source:string }|null;feedback?:string|null;interaction_type:string;created_at:string };
+type Interaction={ recipe_id:string|null;recipe_reference?:{ id:string;source:string }|null;feedback?:string|null;interaction_type:string;created_at:string;metadata?:{library_lifecycle?:boolean;action?:string} };
 type History={ recipe_id:string|null;cooked_at:string;adjustments?:{ recipe_reference?:{ id:string;source:string } };voided_at?:string|null };
 const fingerprint=(value:unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const recipeColumns='id,user_id,is_public,name,description,prep_time,cook_time,rest_time,servings,image_url,cuisine_category,meal_type,tags,difficulty,required_equipment,meal_style,created_at,updated_at,nutrition_info,recipe_ingredients(id,ingredient_name,quantity,unit,inventory_product_id,is_essential)';
@@ -38,6 +38,16 @@ export class RecommendationEngine {
   /** Detail uses the same ownership and personal customizations as evaluation. */
   async readRecipeForUser(ctx:RecommendationExecutionContext,reference:RecipeEvaluationInput['recipe']) {
     return this.loadRecipe(ctx,reference,true);
+  }
+  async libraryConstraintsForUser(ctx:RecommendationExecutionContext){
+    const [recipes,{profile,legacyServerPresent}]=await Promise.all([this.loadRecipes(ctx,{}),new NutritionProfileService(ctx.userClient).read(ctx.userId)]);
+    const ids=[...new Set(recipes.flatMap(r=>(r.recipe_ingredients??[]).map(i=>i.inventory_product_id).filter((id):id is string=>!!id)))];
+    const products=await this.loadProducts(ctx,ids);
+    return recipes.map(recipe=>{
+      const result=evaluateConstraints(recipe,profile.settings,products);
+      const pending=legacyServerPresent&&(profile.settings.allergies.length+profile.settings.diets.length+profile.settings.excludedIngredients.length>0);
+      return {recipe:{id:recipe.id,source:recipe.source??'recipes' as const},status:pending&&result.status==='compatible'?'verify' as const:result.status};
+    });
   }
   async evaluateForUser(ctx:RecommendationExecutionContext,input:RecipeEvaluationInput):Promise<RecipeEvaluation> {
     const [recipe,{ profile,legacyServerPresent },lots]=await Promise.all([
@@ -145,8 +155,10 @@ export class RecommendationEngine {
       if (latest?.feedback==='repeat') { feedbackScore=0.6;reasons.push({ code:'FEEDBACK',text:'Vous avez choisi « à refaire ».' }); }
       if (latest?.feedback==='dislike') { feedbackScore=-1;reasons.push({ code:'FEEDBACK',text:'Vous avez indiqué ne pas aimer cette recette.' }); }
       if (latest?.feedback==='too_long' && daysAgo<=30) { feedbackScore=effectiveTime ? -0.8 : -0.4;reasons.push({ code:'FEEDBACK',text:'Vous avez trouvé cette recette trop longue.' }); }
-      const cooked=(history ?? []).filter(item=>item.adjustments?.recipe_reference ? item.adjustments.recipe_reference.id===recipe.id && item.adjustments.recipe_reference.source===recipe.source : recipe.source==='recipes' && item.recipe_id===recipe.id);
-      const novelty=history?.length ? cooked.length ? clamp(Math.min(30,(now.getTime()-new Date(cooked[0].cooked_at).getTime())/86400000)/30) : 1 : null;
+      const declaredCooks=matching.filter(i=>i.interaction_type==='cooked'&&i.metadata?.library_lifecycle===true&&i.metadata.action==='cooked').map(i=>({cooked_at:i.created_at}));
+      const cooked=[...declaredCooks,...(history ?? []).filter(item=>item.adjustments?.recipe_reference ? item.adjustments.recipe_reference.id===recipe.id && item.adjustments.recipe_reference.source===recipe.source : recipe.source==='recipes' && item.recipe_id===recipe.id)].sort((a,b)=>b.cooked_at.localeCompare(a.cooked_at));
+      const hasHistory=!!history?.length||!!interactions?.some(i=>i.metadata?.library_lifecycle===true&&i.metadata.action==='cooked');
+      const novelty=hasHistory ? cooked.length ? clamp(Math.min(30,(now.getTime()-new Date(cooked[0].cooked_at).getTime())/86400000)/30) : 1 : null;
       if (novelty===null) unavailable.push('variety');else if (settings.goals.includes('variety') && !cooked.length) reasons.push({ code:'VARIETY',text:'Pas cuisinée dans l’historique disponible.' });
       const nutritionFit=scoreNutritionGoal(nutrition,settings,input.goal);
       if (nutritionFit===null) unavailable.push('nutrition');
@@ -166,7 +178,7 @@ export class RecommendationEngine {
       // Inactive goals remove an axis for every candidate. A missing value on an
       // active axis contributes zero, so incomplete data cannot gain a bonus.
       const nutritionActive=settings.goals.some(goal=>['protein','more_fiber'].includes(goal)) || input.goal==='high_protein' || input.goal==='light';
-      const varietyActive=settings.goals.includes('variety') && !!history?.length;
+      const varietyActive=settings.goals.includes('variety') && hasHistory;
       const expiryWeight=settings.goals.includes('anti_waste') || input.goal==='anti_waste' ? 23 : 18;
       const maxWeight=40+expiryWeight+14+10+(input.mealType ? 6 : 0)+(settings.skill ? 6 : 0)+(nutritionActive ? 10 : 0)+(varietyActive ? 7 : 0)+(settings.goals.includes('vegetables') ? 6 : 0)+(input.craving && input.craving!=='any' ? 4 : 0);
       const raw=parts.cookability*40+mealFit*6+expiry*expiryWeight+parts.preferenceMatch*14+parts.timeFit*10+effort*6+(nutritionActive ? (nutritionFit ?? 0)*10 : 0)+(varietyActive ? (novelty ?? 0)*7 : 0)+(craving ? 4 : 0)+(settings.goals.includes('vegetables') ? vegetables.score*6 : 0)-parts.missingPenalty*20;
@@ -206,6 +218,16 @@ export class RecommendationEngine {
       else if (gaps.length<=threshold) almost.push(view);else recent.push(view);
     }
     const goalRank=(view:RecommendedRecipeView)=>view.goal_evidence?.status==='documented' ? 2 : view.goal_evidence?.status==='not_met' ? 1 : 0;
+    const rotationPenalty=(view:RecommendedRecipeView)=>{
+      const shown=(interactions??[]).find(i=>i.metadata?.library_lifecycle===true&&i.metadata.action==='shown'&&i.recipe_reference?.id===view.id&&i.recipe_reference.source===view.reference.source);
+      if(!shown)return 0;
+      const days=(now.getTime()-new Date(shown.created_at).getTime())/86400000;
+      return days<2?15:days<7?7:0;
+    };
+    for(const bucket of [cookable,almost,verify,excluded,recent])for(const view of bucket){
+      const penalty=rotationPenalty(view);
+      if(penalty){view.score_total=Math.max(0,view.score_total-penalty);view.reason_codes.push({code:'VARIETY',text:'Recette déjà montrée récemment ; priorité réduite pour varier les idées.'});}
+    }
     const sort=(a:RecommendedRecipeView,b:RecommendedRecipeView)=>
       ((input.goal==='light' || input.goal==='high_protein') ? goalRank(b)-goalRank(a) : 0) ||
       (input.goal==='light' && a.goal_evidence?.status==='documented' && b.goal_evidence?.status==='documented'
@@ -295,7 +317,7 @@ export class RecommendationEngine {
     return new Map((data ?? []).map(row=>[row.id,row]));
   }
   private async loadInteractions(ctx:RecommendationExecutionContext):Promise<Interaction[]|null> {
-    const { data,error }=await ctx.userClient.from('recipe_interactions').select('recipe_id,recipe_reference,feedback,interaction_type,created_at').eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(200);
+    const { data,error }=await ctx.userClient.from('recipe_interactions').select('recipe_id,recipe_reference,feedback,interaction_type,created_at,metadata').eq('user_id',ctx.userId).order('created_at',{ ascending:false }).limit(2000);
     return error ? null : data ?? [];
   }
   private async loadHistory(ctx:RecommendationExecutionContext):Promise<History[]|null> {

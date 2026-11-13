@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react';
+import RecipeLibraryActions from '@/components/recipes/RecipeLibraryActions';
+import RecipePendingChoice from '@/components/recipes/RecipePendingChoice';
+import RecipeLifecycleProvider from '@/components/recipes/RecipeLifecycleProvider';
+import {useRecipeExposure} from '@/hooks/useRecipeLifecycle';
+import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { canAddToShoppingList, nutritionFromRecipeSnapshot, recipeDurationMinutes, RecipeReferenceSchema, type RecipeEvaluationInput } from '@smart/shared';
 import { ArrowLeft, Clock, Users, Star, Heart, Share, Trash2 } from 'lucide-react';
@@ -27,7 +31,6 @@ import { saveRecipePhoto } from '@/services/recipeDetails';
 import { fireRecipeAssistantAction } from '@/lib/recipeActions';
 import { recipeDetailPath } from '@/lib/recipeLinks';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
-import { supabase } from '@/integrations/supabase/client';
 import { ApiError } from '@/lib/api';
 
 // Reset all drafts and optimistic state when the account or exact recipe changes.
@@ -35,7 +38,7 @@ export default function RecipeDetail() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
   const user = useAuthenticatedUser();
-  return <RecipeDetailContent key={user.id + ':' + id + ':' + (params.get('source') ?? 'auto')} id={id} />;
+  return <RecipeLifecycleProvider><RecipeDetailContent key={user.id + ':' + id + ':' + (params.get('source') ?? 'auto')} id={id} /></RecipeLifecycleProvider>;
 }
 
 function RecipeDetailContent({ id }: { id?: string }) {
@@ -70,22 +73,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const [overrideImageUrl, setOverrideImageUrl] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Viewed is best-effort; only legacy IDs satisfy its foreign key.
-  useEffect(() => {
-    if (!id || recipe?.source !== 'recipes') return;
-    let active = true;
-    void (async () => {
-      try {
-        const key = 'v10-draft:' + user.id + ':viewed:' + id;
-        if (sessionStorage.getItem(key)) return;
-        const session = await supabase.auth.getSession();
-        if (!active || session.data.session?.user.id !== user.id) return;
-        const { error } = await supabase.from('recipe_interactions').insert({ user_id: user.id, recipe_id: id, interaction_type: 'viewed' });
-        if (!error && active) sessionStorage.setItem(key, '1');
-      } catch { /* Tracking never blocks a recipe or exposes database diagnostics. */ }
-    })();
-    return () => { active = false; };
-  }, [id, recipe?.source, user.id]);
+  useRecipeExposure(user.id,reference??{id:id??'',source:'recipes'},'viewed',!!reference);
 
   const showActionError = (error: unknown) => {
     const message = error instanceof Error ? error.message : 'Action non confirmée. Réessaie.';
@@ -196,6 +184,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
         {recipe.difficulty != null && <span className="flex gap-1" aria-label={'Difficulté ' + recipe.difficulty + '/5'}>{Array.from({ length: 5 }, (_, index) => <Star key={index} className={'w-4 h-4 ' + (index < recipe.difficulty! ? 'fill-warning text-warning' : '')} aria-hidden="true" />)}</span>}
       </div>
     </header>
+    <div className="mb-4 space-y-3"><RecipePendingChoice/>{reference&&<RecipeLibraryActions recipe={reference} name={recipe.name} detail/>}</div>
     {details.error && <div role="alert" className="mb-4 space-y-2 rounded-md border p-3 text-sm">
       <p>La recette déjà chargée reste consultable. Son actualisation a échoué : {details.error.message}</p>
       <Button variant="outline" onClick={()=>void details.refetch()}>Relire la recette</Button>

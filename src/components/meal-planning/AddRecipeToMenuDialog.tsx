@@ -33,6 +33,7 @@ export interface MenuSlot {
 }
 
 interface AddRecipeToMenuDialogProps {
+  initialQuery?:string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slot: MenuSlot | null;
@@ -76,6 +77,7 @@ function toSearchable(raw: unknown): SearchableRecipe | null {
 
 export default function AddRecipeToMenuDialog({
   open,
+  initialQuery='',
   onOpenChange,
   slot,
   isAdding,
@@ -92,10 +94,10 @@ export default function AddRecipeToMenuDialog({
   // Reset state every time the dialog opens / slot changes.
   useEffect(() => {
     if (!open) return;
-    setQuery('');
+    setQuery(initialQuery);
     setResults([]);
     setHasSearched(false);
-  }, [open, slot?.day_of_week, slot?.meal_type]);
+  }, [open, slot?.day_of_week, slot?.meal_type,initialQuery]);
 
   useEffect(() => {
     if (!open) return;

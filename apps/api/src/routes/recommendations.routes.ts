@@ -14,6 +14,8 @@
  *   - Explicit versioned profile; inferred preferences never override it.
  */
 import { Router } from 'express';
+import {RecipeLifecycleWriteSchema} from '@smart/shared';
+import {RecipeLifecycleService} from '../services/recommendations/RecipeLifecycleService.js';
 import { MealContextSchema,RecommendationFeedbackSchema,RecipeEvaluationInputSchema,RecipeEvaluationSchema } from '@smart/shared';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -44,6 +46,21 @@ export function createRecommendationsRouter(
     freeMax: 60,
     premiumMax: 600,
     windowMs: HOUR,
+  });
+
+  const libraryReadLimit=userRateLimit({key:'recipes.lifecycle.read',freeMax:120,premiumMax:1200,windowMs:HOUR});
+  const libraryWriteLimit=userRateLimit({key:'recipes.lifecycle.write',freeMax:600,premiumMax:2400,windowMs:HOUR});
+  router.get('/library-state',libraryReadLimit,async(req,res)=>{
+    if(!req.user?.id||!req.supabaseClient)return fail(res,'Unauthorized',401,'UNAUTHORIZED');
+    try{return ok(res,await new RecipeLifecycleService(req.supabaseClient,req.user.id).read(),'OK','LIBRARY_STATE_OK');}
+    catch{return fail(res,'Ta sélection et ton historique ne peuvent pas être relus. Réessaie.',503,'LIBRARY_HISTORY_UNAVAILABLE');}
+  });
+  router.post('/library-events',libraryWriteLimit,async(req,res)=>{
+    if(!req.user?.id||!req.supabaseClient)return fail(res,'Unauthorized',401,'UNAUTHORIZED');
+    const parsed=RecipeLifecycleWriteSchema.safeParse(req.body);
+    if(!parsed.success)return fail(res,'Action de recette invalide.',400,'INVALID_BODY');
+    try{return ok(res,await new RecipeLifecycleService(req.supabaseClient,req.user.id).write(parsed.data),'OK','LIBRARY_EVENT_SAVED');}
+    catch(error){return fail(res,'Action non confirmée. Réessaie avec le même choix.',error instanceof ProfileError?error.status:503,error instanceof ProfileError?error.code:'LIBRARY_WRITE_UNAVAILABLE');}
   });
 
   router.get('/food-guidance',limiter,async(req,res)=>{

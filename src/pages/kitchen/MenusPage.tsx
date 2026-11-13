@@ -11,6 +11,7 @@
  * `add_recipe_to_meal_plan` ; `useAgentDbInvalidation` rafraîchit
  * automatiquement.
  */
+import {useSearchParams} from 'react-router-dom';
 import { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2 } from 'lucide-react';
 import { addDays, format } from 'date-fns';
@@ -46,6 +47,8 @@ function weekLabel(weekStart: string): string {
 export default function MenusPage() {
   // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
   const user = useAuthenticatedUser();
+  const [params]=useSearchParams();
+  const recipeName=(params.get('recipe_name')??'').slice(0,200);
   void user;
   const [weekStart, setWeekStart] = useState<string>(() => isoWeekStart(new Date()));
   const [openDialog, setOpenDialog] = useState(false);
@@ -98,6 +101,7 @@ export default function MenusPage() {
   return (
     <div className="culinary-page kitchen-page kitchen-menus-page">
         <RecipesMenusSwitch />
+{recipeName&&<p className="rounded-lg border p-3 text-sm">Choisis un créneau pour « {recipeName} », puis confirme la recette.</p>}
         <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<Button
             type="button"
             variant="outline"
@@ -181,6 +185,7 @@ export default function MenusPage() {
           open={openDialog}
           onOpenChange={setOpenDialog}
           slot={slot}
+          initialQuery={recipeName}
           isAdding={menu.addEntry.isPending}
           onSelect={handleSelectRecipe}
         />

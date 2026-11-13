@@ -1,3 +1,7 @@
+jest.mock('@/components/recipes/RecipeLifecycleProvider',()=>({__esModule:true,default:({children}:{children:React.ReactNode})=><>{children}</>}));
+jest.mock('@/components/recipes/RecipePendingChoice',()=>({__esModule:true,default:()=>null}));
+jest.mock('@/components/recipes/RecipeInspiration',()=>({__esModule:true,default:()=> <div>Idées du test</div>}));
+jest.mock('@/components/recipes/RecipeSoon',()=>({__esModule:true,default:()=> <div>Envies du test</div>}));
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Recipes from '../Recipes';
@@ -23,9 +27,9 @@ beforeEach(() => { mockOwner = OWNER; jest.clearAllMocks(); });
 test('the discover URL opens the mounted discovery surface while preserving library and import navigation', async () => {
   show('/kitchen/recipes?tab=discover');
   expect(await screen.findByText('Découverte montée')).toBeVisible();
-  expect(screen.getByRole('tab', { name: 'Découvrir' })).toHaveAttribute('aria-selected', 'true');
+  expect(screen.getByRole('button', { name: 'Découvrir des sources' })).toBeVisible();
   expect(screen.getByRole('tab', { name: 'Bibliothèque' })).toBeVisible();
-  expect(screen.getByRole('tab', { name: 'Importer' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Importer' })).toBeVisible();
 });
 test('historical import verification keeps import identity and revision instead of calling legacy direct persistence', async () => {
   show('/kitchen/recipes?tab=import');
@@ -39,4 +43,10 @@ test('an import belonging to the previous account cannot open its editor under a
   fireEvent.click(await screen.findByRole('button', { name: 'Vérifier l’import du test' }));
   expect(screen.queryByText(/Éditeur canonique/)).not.toBeInTheDocument();
   expect(mockAddRecipe).not.toHaveBeenCalled();
+});
+
+test('the default opens personal inspiration while existing search links still open the full library',()=>{
+ const view=show('/kitchen/recipes');expect(screen.getByText('Idées du test')).toBeVisible();view.unmount();
+ show('/kitchen/recipes?search=soupe');expect(screen.getByText('Bibliothèque du test')).toBeVisible();
+ fireEvent.mouseDown(screen.getByRole('tab',{name:'À cuisiner bientôt'}),{button:0,ctrlKey:false});expect(screen.getByText('Envies du test')).toBeVisible();
 });
