@@ -20,3 +20,4 @@ export * from './produce-review.js';
 export * from './recipe-search.js';
 export * from './stock-conservation.js';
 export * from './food-guidance.js';
+export * from './recipe-lifecycle.js';

@@ -1,3 +1,7 @@
+jest.mock('@/components/recipes/RecipeLifecycleProvider',()=>({__esModule:true,default:({children}:{children:React.ReactNode})=><>{children}</>}));
+jest.mock('@/components/recipes/RecipePendingChoice',()=>({__esModule:true,default:()=>null}));
+jest.mock('@/components/recipes/RecipeLibraryActions',()=>({__esModule:true,default:()=>null}));
+jest.mock('@/hooks/useRecipeLifecycle',()=>({useRecipeExposure:()=>({current:null})}));
 import {recipeNutritionSignature} from '@smart/shared';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';

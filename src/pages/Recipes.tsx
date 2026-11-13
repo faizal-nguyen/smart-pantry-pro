@@ -11,7 +11,7 @@
  */
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BookOpen, Compass, Plus } from 'lucide-react';
+import { BookOpen, Compass, Plus, Bookmark, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,10 @@ import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 //   - RecipeOnboarding (494L) : flow first-time-user seulement
 // RecipeLibraryTab reste eager — c'est le default tab.
 import RoutineRecipeLibrary from '@/components/recipes/RoutineRecipeLibrary';
+import RecipeInspiration from '@/components/recipes/RecipeInspiration';
+import RecipeSoon from '@/components/recipes/RecipeSoon';
+import RecipePendingChoice from '@/components/recipes/RecipePendingChoice';
+import RecipeLifecycleProvider from '@/components/recipes/RecipeLifecycleProvider';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import RecipesMenusSwitch from '@/components/recipes/RecipesMenusSwitch';
 const RecipeImportTab = lazy(() => import('@/components/recipes/tabs/RecipeImportTab'));
@@ -45,7 +49,7 @@ import type { PreparedCanonicalImport } from '@/components/recipes/discovery/Dis
 // showed `feed` and `inbox` were quasi-empty in practice. Legacy values
 // (`feed`, `explore`, `inbox`) redirect to `library`, which now hosts
 // the Tendances and Découvrir-catalogue sections inline.
-const TAB_VALUES = ['library', 'discover', 'import'] as const;
+const TAB_VALUES = ['for-you','soon','library', 'discover', 'import'] as const;
 type RecipeTab = (typeof TAB_VALUES)[number];
 
 const LEGACY_TAB_REDIRECTS: Record<string, RecipeTab> = {
@@ -55,15 +59,16 @@ const LEGACY_TAB_REDIRECTS: Record<string, RecipeTab> = {
 };
 
 const normalizeTab = (raw: string | null): RecipeTab => {
-  if (!raw) return 'library';
+  if (!raw) return 'for-you';
   if (raw in LEGACY_TAB_REDIRECTS) return LEGACY_TAB_REDIRECTS[raw];
   return (TAB_VALUES as readonly string[]).includes(raw) ? (raw as RecipeTab) : 'library';
 };
 
-export default function Recipes() {
+export default function Recipes() {return <RecipeLifecycleProvider><RecipesContent/></RecipeLifecycleProvider>;}
+function RecipesContent() {
   const user = useAuthenticatedUser();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = useMemo(() => normalizeTab(searchParams.get('tab')), [searchParams]);
+  const activeTab = useMemo(() => normalizeTab(searchParams.get('tab')??(searchParams.get('search')||searchParams.get('filter')||searchParams.get('cuisine')||searchParams.get('ingredient')?'library':null)), [searchParams]);
   const setActiveTab = (value: string) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -103,42 +108,37 @@ export default function Recipes() {
     <div className="culinary-page kitchen-page kitchen-recipes-page">
       <div className="kitchen-recipes-content">
         <RecipesMenusSwitch />
-        <KitchenPageHeader title="Recettes" description={activeTab==='library' ? 'Les plats que tu aimes, et ceux qu’il te reste à découvrir.' : activeTab==='discover' ? 'De nouvelles inspirations, à choisir et à cuisiner.' : 'Garde une recette pour plus tard.'} actions={<Button className="min-h-11" onClick={()=>setShowAddDialog(true)}><Plus className="h-4 w-4" aria-hidden="true"/>Écrire une recette</Button>} />
+        <KitchenPageHeader title="Recettes" description={activeTab==='for-you'?'Des idées pour aujourd’hui et des recettes à redécouvrir.':activeTab==='soon'?'Garde tes envies à portée de main.':activeTab==='library' ? 'Les plats que tu aimes, et ceux qu’il te reste à découvrir.' : activeTab==='discover' ? 'De nouvelles inspirations, à choisir et à cuisiner.' : 'Garde une recette pour plus tard.'} actions={<Button className="min-h-11" onClick={()=>setShowAddDialog(true)}><Plus className="h-4 w-4" aria-hidden="true"/>Écrire une recette</Button>} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="kitchen-recipe-tabs">
+          <RecipePendingChoice/>
+          <div className="mb-4 flex flex-wrap gap-2" aria-label="Ajouter et découvrir des recettes">
+            <Button variant="ghost" className="min-h-11" onClick={()=>setActiveTab('discover')}><Compass className="mr-2 h-4 w-4" aria-hidden="true"/>Découvrir des sources</Button>
+            <Button variant="outline" className="min-h-11" onClick={()=>setActiveTab('import')}><Plus className="mr-2 h-4 w-4" aria-hidden="true"/>Importer{inboxPendingCount>0&&<Badge className="ml-2">{inboxPendingCount}</Badge>}</Button>
+          </div>
+          <TabsList className="kitchen-recipe-tabs" aria-label="Mes recettes">
+            <TabsTrigger value="for-you" className="gap-1 min-h-11 text-sm"><Sparkles className="h-4 w-4" aria-hidden="true"/>Pour toi</TabsTrigger>
+            <TabsTrigger value="soon" className="gap-1 min-h-11 text-sm"><Bookmark className="h-4 w-4" aria-hidden="true"/>À cuisiner bientôt</TabsTrigger>
             <TabsTrigger value="library" className="gap-2 min-h-11 text-sm">
               <BookOpen className="h-4 w-4" aria-hidden="true" />
               Bibliothèque
             </TabsTrigger>
 
-            <TabsTrigger value="discover" className="gap-2 min-h-11 text-sm">
-              <Compass className="h-4 w-4" aria-hidden="true" />
-              Découvrir
-            </TabsTrigger>
-
-            <TabsTrigger value="import" className="gap-2 min-h-11 text-sm">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Importer
-              {inboxPendingCount > 0 && (
-                <Badge variant="secondary" className="ml-1 font-normal">
-                  {inboxPendingCount}
-                </Badge>
-              )}
-            </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="for-you" className="space-y-6"><RecipeInspiration/></TabsContent>
+          <TabsContent value="soon" className="space-y-6"><RecipeSoon/></TabsContent>
           <TabsContent value="library" className="space-y-6">
             <RoutineRecipeLibrary library={userRecipes} onAdd={handleAddToLibrary} isAdding={isAddingFromCatalog} />
           </TabsContent>
 
-          <TabsContent value="discover" className="space-y-6">
+          {activeTab==='discover'&&<section aria-label="Découvrir des sources" className="space-y-6">
             <Suspense fallback={<p role="status" className="text-sm py-6">Chargement de la découverte…</p>}>
               <RecipeDiscovery />
             </Suspense>
-          </TabsContent>
+          </section>}
 
-          <TabsContent value="import" className="space-y-6">
+          {activeTab==='import'&&<section aria-label="Importer des recettes" className="space-y-6">
             {/* Radix Tabs ne mount TabsContent que quand activeTab match.
                 Wrap dans Suspense pour gerer le chunk fetch au premier
                 switch sur l'onglet. Fallback minimal pour eviter le flash. */}
@@ -161,7 +161,7 @@ export default function Recipes() {
                 }}
               />
             </Suspense>
-          </TabsContent>
+          </section>}
         </Tabs>
 
         {/* Dialogs/modals lazy — fetch du chunk a la 1ere ouverture

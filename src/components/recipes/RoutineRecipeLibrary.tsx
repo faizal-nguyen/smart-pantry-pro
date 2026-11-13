@@ -1,3 +1,4 @@
+import RecipeLibraryActions from './RecipeLibraryActions';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { recipeNameMatchScore,CUISINES,cuisineKey,cuisineLabel,recipeMatchesCuisine,normalizeIngredientName,recipeDurationMinutes,resolveRecipeImageUrl } from '@smart/shared';
@@ -58,6 +59,7 @@ export default function RoutineRecipeLibrary({ library,onAdd,isAdding }: { libra
         <div className="culinary-recipe-copy"><h2 className="kitchen-card-title">{row.name}</h2><p className="mt-1 text-sm text-muted-foreground">{row.duration==null ? 'Durée à vérifier' : `${row.duration} min`} · {row.servings ? `${row.servings} portions` : 'Portions à vérifier'}</p><span className="mt-1 inline-flex min-h-11 items-center text-sm underline underline-offset-4">Voir la recette</span></div>
       </Link>
       <p className="kitchen-library-origin">{row.own ? 'Mes recettes' : 'Catalogue'}</p>
+      {!row.catalog&&<div className="p-3"><RecipeLibraryActions recipe={{id:row.id,source:row.source}} name={row.name}/></div>}
       {row.catalog && <Button className="min-h-11 w-full" variant="outline" disabled={isAdding} onClick={()=>onAdd(row.id,row.name)}>Enregistrer dans mes recettes</Button>}
     </li>)}</ul>}
     {catalogQuery.hasNextPage && <Button className="min-h-11" variant="outline" disabled={catalogQuery.isFetchingNextPage} onClick={()=>void catalogQuery.fetchNextPage()}>Voir d’autres recettes du catalogue</Button>}

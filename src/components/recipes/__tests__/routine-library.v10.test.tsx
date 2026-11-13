@@ -1,3 +1,4 @@
+jest.mock('../RecipeLibraryActions',()=>({__esModule:true,default:()=>null}));
 jest.mock('../PersonalizedRecipeSuggestions',()=>({ __esModule:true,default:({ onBrowse }:{ onBrowse?:()=>void })=><button onClick={onBrowse}>Parcourir les recettes</button> }));
 import { fireEvent,render,screen,waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

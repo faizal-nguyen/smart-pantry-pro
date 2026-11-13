@@ -551,3 +551,13 @@ test('course filters use classification rather than searching for generic course
  expect(found.map(r=>r.id)).toEqual([id]);
  }
 });
+
+test('actual recent exposure rotates equally feasible meals, while a sole feasible meal remains available',async()=>{
+ const a=makeRecipe({id:'a',name:'A',ings:[{pid:'p',name:'Riz'}]}),b=makeRecipe({id:'b',name:'B',ings:[{pid:'p',name:'Riz'}]});
+ const plan={recipes:[a,b],inventory:[{id:'lot',product_id:'p',quantity:100,unit:'g',stock_version:1,products:{name:'Riz'},expiry_date:'2026-06-01',date_kind:'best_before',quantity_quality:'measured'}],interactions:[{recipe_id:'a',recipe_reference:{id:'a',source:'recipes'},interaction_type:'recommended',metadata:{library_lifecycle:true,action:'shown'},created_at:NOW.toISOString()}]};
+ const engine=new RecommendationEngine();
+ const result=await engine.suggestForUser({userId:USER,userClient:makeClient(plan) as unknown as SupabaseClient,now:NOW},{limitPerBucket:1});
+ expect(result.cookable_now[0].id).toBe('b');
+ const only=await engine.suggestForUser({userId:USER,userClient:makeClient({...plan,recipes:[a]}) as unknown as SupabaseClient,now:NOW},{limitPerBucket:1});
+ expect(only.cookable_now[0].id).toBe('a');
+});

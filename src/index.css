@@ -916,3 +916,14 @@
     .kitchen-menu-day > .kitchen-menu-slot { margin-top:16px; }
   }
 }
+
+/* Keep the three recipe destinations readable at narrow iPhone widths. */
+.kitchen-recipes-page .kitchen-recipe-tabs [role="tab"] { white-space:normal; overflow-wrap:anywhere; text-align:center; }
+
+@media (max-width: 767px) {
+  .recipe-life-card .culinary-recipe-link { display:grid; grid-template-columns:96px minmax(0,1fr); align-items:start; }
+  .recipe-life-card .culinary-recipe-photo { width:96px; height:112px; aspect-ratio:auto; }
+  .recipe-life-card .culinary-recipe-copy { padding:8px 12px; min-width:0; }
+  .recipe-life-card .kitchen-card-title { font-size:1rem; line-height:1.35; }
+  .recipe-life-card .recipe-life-actions { padding-top:4px; }
+}
