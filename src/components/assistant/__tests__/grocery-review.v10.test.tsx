@@ -109,3 +109,11 @@ test('photos the server could not keep are said, and the add stands', async () =
   expect(await screen.findByText('Les photos n’ont pas pu être gardées ; les produits, eux, sont bien dans le stock.')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Annuler cet ajout' })).toBeInTheDocument();
 });
+
+test('an uploaded image with a failed product link is reported without repeating the stock add',async()=>{
+  keep.mockResolvedValue({action:{...ADDED,result:{added:[{product_id:'p1'}],ambiguous:[],photos_linked:0}},photos_kept:1});
+  review(seenOnPhotos.slice(0,1),2);
+  fireEvent.click(await screen.findByRole('button',{name:'Ajouter 1 produit au stock'}));
+  expect(await screen.findByText('Les photos n’ont pas pu être gardées ; les produits, eux, sont bien dans le stock.')).toBeInTheDocument();
+  expect(keep).toHaveBeenCalledTimes(1);
+});

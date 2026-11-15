@@ -705,6 +705,7 @@ describe('AddInventoryItemsHandler — photo flow', () => {
     });
     expect(result.result.added).toHaveLength(1);
     expect(warn).toHaveBeenCalled();
+    expect(result.result.photos_linked).toBe(0);
     warn.mockRestore();
   });
 });

@@ -34,6 +34,14 @@ test('reads the photos and returns the products, without any write',async()=>{
   expect(admin.calls).toHaveLength(0);expect(admin.rpc).not.toHaveBeenCalled();
 });
 
+test('photo follow-ups carry the review boundary into the text orchestrator',async()=>{
+  const handle=jest.spyOn(VoiceAgentService.prototype,'handleRequest').mockResolvedValue({message:'Valide la liste.',actions_executed:[]} as never);
+  try{
+    await request(setup().app).post('/assistant/text').send({text:'Ajoute-les',client_request_id:'66666666-6666-4666-8666-666666666666',grocery_review_pending:true}).expect(200);
+    expect(handle.mock.calls[0][0]).toMatchObject({groceryReviewPending:true});
+  }finally{handle.mockRestore();}
+});
+
 test('requires an account and a configured assistant',async()=>{
   await post(setup({authenticated:false}).app).expect(401);
   await post(setup({hmacSecret:''}).app).expect(503);
@@ -97,6 +105,6 @@ test('a photo that cannot be kept never blocks the add',async()=>{
     .attach('photos',JPEG,{filename:'photo-1.jpg',contentType:'image/jpeg'})
     .expect(200);
   expect(response.body.data.photos_kept).toBe(0);
-  expect(add).toHaveBeenCalled();
+  expect(add.mock.calls[0][0].items).toEqual([{name:'Riz',quantity:1,unit:'kg'}]);
   add.mockRestore();warn.mockRestore();
 });

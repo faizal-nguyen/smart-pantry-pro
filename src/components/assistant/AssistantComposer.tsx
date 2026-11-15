@@ -43,7 +43,7 @@ import { JoinedPhotosStrip, JoinPhotosButton, SeenGroceriesCard } from './Compos
 import { MAX_JOINED_PHOTOS, useJoinedPhotos, type JoinedPhoto } from '@/hooks/useJoinedPhotos';
 import { groceriesNote } from '@/lib/groceriesNote';
 
-interface SeenGroceries { photos: Blob[]; items: RecognizedGrocery[] }
+interface SeenGroceries { photos: Blob[]; items: RecognizedGrocery[]; requestId: string }
 const NOTHING_SEEN = 'Aucune course reconnue sur ces photos. Étale les produits, étiquettes visibles, et réessaie.';
 
 interface AssistantComposerProps {
@@ -147,7 +147,7 @@ export default function AssistantComposer({
     try {
       const blobs = photos.map(photo => photo.blob);
       const { items } = await postGroceryPhotos({ photos: blobs, expectedUserId });
-      const groceries = { photos: blobs, items };
+      const groceries = { photos: blobs, items, requestId: newClientRequestId() };
       recognized.current = { photos, seen: groceries };
       return groceries;
     } finally {
@@ -167,7 +167,7 @@ export default function AssistantComposer({
         groceries = await readPhotos(photos);
         if (groceries.items.length === 0) { setError(NOTHING_SEEN); return; }
         // Photos alone: straight to the list to review, nothing asked.
-        if (!trimmed) { openReview(groceries); joined.clear(); setSeen(null); return; }
+        if (!trimmed) { openReview(groceries); joined.clear(); setSeen(groceries); return; }
         message = `${trimmed}\n\n${groceriesNote(groceries.items)}`;
       }
       if (!request.current || request.current.text !== message || request.current.conversationId !== conversationId)
@@ -178,6 +178,7 @@ export default function AssistantComposer({
         clientRequestId: request.current.id, expectedUserId,
         conversationId: conversationId ?? undefined, sessionMessages, sessionRevision,
         choice: request.current.choice,
+        groceryReviewPending: !!(groceries || seen),
       });
       if (!response.memory_results?.some(r => r.status === 'verification_required')) { setText(''); setDictated(false); request.current = null; }
       if (groceries) { setSeen(groceries); joined.clear(); }
@@ -279,7 +280,7 @@ export default function AssistantComposer({
         </div>
       </div>
     </form>
-    {review && <GroceryReviewDialog key={review.key} owner={expectedUserId} photos={review.photos} items={review.items}
+    {review && <GroceryReviewDialog key={review.key} owner={expectedUserId} clientRequestId={review.requestId} photos={review.photos} items={review.items}
       onClose={() => setReview(null)} onAdded={() => setSeen(null)} />}
     </>
   );

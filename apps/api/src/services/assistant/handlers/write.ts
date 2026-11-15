@@ -130,14 +130,15 @@ async function resolveItems(
 async function keepProductPhotos(
   ctx: ToolExecutionContext,
   resolved: ReadonlyArray<{ product_id: string; photo_path: string | null }>
-): Promise<void> {
+): Promise<number> {
   const updatedAt = new Date().toISOString();
   const rows = [...new Map(resolved.flatMap((r) => (r.photo_path
     ? [[r.product_id, { user_id: ctx.userId, product_id: r.product_id, photo_path: r.photo_path, updated_at: updatedAt }] as const]
     : []))).values()];
-  if (rows.length === 0) return;
+  if (rows.length === 0) return 0;
   const { error } = await ctx.userClient.from('user_product_photos').upsert(rows, { onConflict: 'user_id,product_id' });
   if (error) console.warn('[stock.photos] keeping the photos failed:', error.message);
+  return error ? 0 : rows.length;
 }
 
 /**
@@ -160,6 +161,8 @@ export async function invalidateRecoCache(ctx: ToolExecutionContext): Promise<vo
 // ---- LOW : add_inventory_items --------------------------------------
 
 export interface AddInventoryItemsResult {
+  /** Confirmed product-photo links; present when photos were requested. */
+  photos_linked?: number;
   added: Array<{
     inventory_id: string;
     product_id: string;
@@ -276,9 +279,9 @@ export class AddInventoryItemsHandler
       : insertedIds.length ? { tool: '_remove_inventory_items', args: { inventory_ids: insertedIds } } : null;
 
     if (added.length > 0) await invalidateRecoCache(ctx);
-    await keepProductPhotos(ctx, resolved);
+    const photosLinked = await keepProductPhotos(ctx, resolved);
 
-    return { result: { added, ambiguous }, reversibleAction };
+    return { result: { added, ambiguous, ...(resolved.some(item => item.photo_path) ? { photos_linked: photosLinked } : {}) }, reversibleAction };
   }
 }
 

@@ -222,6 +222,20 @@ beforeAll(() => { process.env.ASSISTANT_MODEL_PRESET = 'baseline'; });
 afterAll(() => { if (presetBefore === undefined) delete process.env.ASSISTANT_MODEL_PRESET; else process.env.ASSISTANT_MODEL_PRESET = presetBefore; });
 
 describe('VoiceAgentService.handleRequest (text)', () => {
+  it.each([
+    {text:'Ajoute ces produits\n\n📷 Sur mes photos (pas encore dans mon stock) : Lait.',groceryReviewPending:undefined},
+    {text:'Oui ajoute-les',groceryReviewPending:true},
+  ])('requires the single photo review even if a provider emits an inventory write ($text)',async input=>{
+    const execute=jest.fn(),requests:AICompletionRequest[]=[];
+    const fake=makeAi([{name:'add_inventory_items',arguments:{items:[{name:'Lait',quantity:1,unit:'l'}]}}],"J’ai ajouté le lait.");
+    const ai:AICompletionClient={complete:async request=>{requests.push(request);return fake.complete(request);}};
+    const {service,writer}=makeService({ai,handlers:{add_inventory_items:{execute}}});
+    const response=await service.handleRequest({source:'text',userId:USER,clientRequestId:randomUUID(),...input},makeCtx());
+    expect(requests[0].tools?.some(tool=>tool.function.name==='add_inventory_items')).toBe(false);
+    expect(execute).not.toHaveBeenCalled();expect(writer.insertCalls).toHaveLength(0);
+    expect(response.actions_executed).toHaveLength(0);
+    expect(response.message).toContain('touche « Ajouter au stock »');
+  });
   it.each([{ share:false,version:2 },{ share:true,version:2 },{ share:true,version:1 }])('synthesizes after server scoring, sharing profile evidence only with current consent (%j)',async({ share,version })=>{
     const requests:AICompletionRequest[]=[];
     const recipe={ id:'recipe',name:'Riz',profile_version:2,reference:{ id:'recipe',source:'recipes' },duration_minutes:15,availability:{ status:'available',uncertainties:[] },constraints:{ status:'compatible',findings:[{ code:'DECLARED_ALLERGY',ingredient:'Beurre',message:'allergie privée au lait' }],limitations:[] },nutrition:{ status:'unavailable' },reason_codes:[] };

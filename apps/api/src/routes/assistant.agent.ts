@@ -165,7 +165,7 @@ async function keepGroceryPhotos(
     const path = `users/${userId}/groceries/${requestId}-${index + 1}.jpg`;
     const { error } = await client.storage.from('grocery-photos').upload(path, file.buffer, { contentType: 'image/jpeg', upsert: true });
     if (error) console.warn('[assistant.photos.add] photo not kept:', error.message);
-    return { path, saved: !error };
+    return { path: error ? undefined : path, saved: !error };
   }));
   return { paths: uploads.map(upload => upload.path), saved: uploads.filter(upload => upload.saved).length };
 }
@@ -177,6 +177,7 @@ const TextRequestSchema = z.object({
   client_request_id: z.string().uuid(),
   language: z.string().regex(/^[a-z]{2}$/i).optional(),
   allowed_tools: z.array(z.string().min(1).max(64)).optional(),
+  grocery_review_pending: z.boolean().optional(),
   // PRP-223 PR3 — optional conversation handle. Unknown/cross-user ids
   // fall back to a fresh conversation in the service.
   conversation_id: z.string().uuid().optional(),
@@ -576,6 +577,7 @@ export function createAssistantAgentRouter(
           clientRequestId: parsed.data.client_request_id,
           language: parsed.data.language,
           allowedTools: parsed.data.allowed_tools as readonly any[] | undefined,
+          groceryReviewPending: parsed.data.grocery_review_pending,
           conversationId: parsed.data.conversation_id, sessionMessages: parsed.data.session_messages, sessionRevision: parsed.data.session_revision, choice: parsed.data.choice as VoiceAgentRequestInput['choice'],
         },
         ctx
