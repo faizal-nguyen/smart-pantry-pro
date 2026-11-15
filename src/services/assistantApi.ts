@@ -220,6 +220,8 @@ export function postAssistantText(input: {
   clientRequestId: string;
   language?: string;
   allowedTools?: readonly string[];
+  /** Photos remain on the device until the reviewed stock add. */
+  groceryReviewPending?: boolean;
   /** PRP-233 PR3 — sticky conversation id. Optional. */
   conversationId?: string;
   expectedUserId?: string;
@@ -232,6 +234,7 @@ export function postAssistantText(input: {
     client_request_id: input.clientRequestId,
     language: input.language,
     allowed_tools: input.allowedTools,
+    grocery_review_pending: input.groceryReviewPending,
     conversation_id: input.conversationId,
     session_messages: input.sessionMessages, session_revision: input.sessionRevision,
     choice: input.choice,

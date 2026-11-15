@@ -170,6 +170,7 @@ export interface VoiceAgentRequestInput {
    * shopping voice page only exposes add_shopping_items).
    */
   allowedTools?: readonly ToolName[];
+  groceryReviewPending?: boolean;
   /**
    * PRP-223 PR3 — optional existing conversation id to link this turn
    * to. When omitted, the service creates a new conversation via
@@ -467,12 +468,17 @@ export class VoiceAgentService {
     }
 
     // 2. LLM round 1 with tool catalog
-    const tools = this.toolRegistry.toOpenAITools(input.allowedTools);
+    // Photo additions have one writer: /photos/add after review. The chat only
+    // receives recognized labels, never the files. Gate dispatch too, including
+    // provider continuations, so a fabricated call cannot bypass the catalog.
+    const groceryReviewPending = input.groceryReviewPending === true || transcript.includes('📷 Sur mes photos (pas encore dans mon stock)');
+    const tools = this.toolRegistry.toOpenAITools(input.allowedTools)
+      .filter(tool => !groceryReviewPending || tool.function.name !== 'add_inventory_items');
     // A scope of reads only (the « Aide » window) can change nothing: the model
     // must say so and point to the conversations page, never offer the change.
     const readOnly = tools.every(tool => tool.function.name === 'ask_clarification' || this.toolRegistry.get(tool.function.name).defaultRiskTier === 'read');
     // Without today's date the model invents a week for « demain soir » (audit 2026-11-07).
-    const basePrompt = `${readOnly ? `${this.systemPrompt}\n\n${READ_ONLY_SCOPE}` : this.systemPrompt}\n\n${todayContext(this.now())}`;
+    const basePrompt = `${readOnly ? `${this.systemPrompt}\n\n${READ_ONLY_SCOPE}` : this.systemPrompt}\n\n${todayContext(this.now())}${groceryReviewPending ? '\n\nThe photographed groceries await review on this device. Do not add them via chat or claim they entered the stock. For an inventory addition, tell the user to tap « Ajouter au stock » on the photo card and validate the list; that single action keeps both quantities and private photos. Recipe questions and shopping-list requests remain available.' : ''}`;
 
     // PRP-223 PR4 — enrich the system prompt with the user's memory
     // context (top memories, last summary, recent messages, session
@@ -604,6 +610,7 @@ export class VoiceAgentService {
     for (let i = 0; i < toolCalls.length; i++) {
       try { invocation.checkWork(); } catch { toolIssue=true; break; }
       let tc = toolCalls[i];
+      if (groceryReviewPending && tc.name === 'add_inventory_items') { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
       if (input.allowedTools && !input.allowedTools.includes(tc.name as ToolName)) { outcomes.set(tc.id,{status:'forbidden_scope'}); toolIssue=true; continue; }
       try { this.toolRegistry.get(tc.name); } catch { outcomes.set(tc.id,{status:'unknown_tool'}); toolIssue=true; continue; }
       if (tc.id === CHOICE_CALL_ID) {
@@ -1052,6 +1059,8 @@ export class VoiceAgentService {
       console.warn('[assistant.claim_without_write] replaced');
       message = readOnly ? READ_ONLY_MESSAGE : NO_CHANGE_MESSAGE;
     }
+    if (groceryReviewPending && (toolCalls.some(call => call.name === 'add_inventory_items') || message === NO_CHANGE_MESSAGE))
+      message = 'Pour ajouter ces produits avec leurs photos, touche « Ajouter au stock » sur la carte des photos, puis valide la liste. Ils ne sont pas encore ajoutés.';
     // A menu add that took a slot's meal names it, and how to get it back (audit 2026-11-07).
     for (const action of executed) {
       const replaced = action.tool === 'add_recipe_to_meal_plan' ? (action.result as { replaced_recipe_name?: unknown } | null)?.replaced_recipe_name : undefined;

@@ -54,6 +54,8 @@ const products = (count: number) => `${count} produit${count > 1 ? 's' : ''}`;
 
 interface GroceryReviewDialogProps {
   owner?: string;
+  /** Stable for the photo batch, including closing and reopening the dialog. */
+  clientRequestId?: string;
   /** The photos read, resized, in the order the items number them. */
   photos: readonly Blob[];
   items: readonly RecognizedGrocery[];
@@ -62,9 +64,9 @@ interface GroceryReviewDialogProps {
   onAdded?: () => void;
 }
 
-export default function GroceryReviewDialog({ owner, photos, items, onClose, onAdded }: GroceryReviewDialogProps) {
+export default function GroceryReviewDialog({ owner, clientRequestId, photos, items, onClose, onAdded }: GroceryReviewDialogProps) {
   // One identity per reviewed list: a retried add returns its first result.
-  const [request] = useState(newClientRequestId);
+  const [request] = useState(() => clientRequestId ?? newClientRequestId());
   const [stage, setStage] = useState<Stage>({ kind: 'review' });
   const [rows, setRows] = useState<Row[]>(() => items.map(toRow));
   const [problem, setProblem] = useState<string | null>(null);
@@ -101,12 +103,12 @@ export default function GroceryReviewDialog({ owner, photos, items, onClose, onA
       const { action, photos_kept: photosKept } = await postKeptGroceries({
         clientRequestId: request, expectedUserId: owner, items, photos: toKeep.files,
       });
-      const result = action.result as { added?: unknown[]; ambiguous?: Array<{ name: string }> } | null;
+      const result = action.result as { added?: unknown[]; ambiguous?: Array<{ name: string }>; photos_linked?:number } | null;
       dispatchAgentDbChanged(['inventory']);
       onAdded?.();
       setStage({ kind: 'added', count: result?.added?.length ?? kept.length,
         ambiguous: (result?.ambiguous ?? []).map(entry => entry.name), actionId: action.reversible ? action.action_id : null,
-        photosLost: (keepPhotos && toKeep.numbers.length === 0 && kept.some(row => row.photo)) || (photosKept ?? 0) < toKeep.files.length });
+        photosLost: (keepPhotos && toKeep.numbers.length === 0 && kept.some(row => row.photo)) || (photosKept ?? 0) < toKeep.files.length || (toKeep.files.length > 0 && result?.photos_linked === 0) });
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Ajout non confirmé. Vérifie le stock avant de réessayer.');
       setStage({ kind: 'review' });

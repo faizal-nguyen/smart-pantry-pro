@@ -2,13 +2,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AssistantComposer from '../AssistantComposer';
 import { groceriesNote } from '@/lib/groceriesNote';
+import {postKeptGroceries} from '@/services/assistantApi';
 
 const mockText = jest.fn(), mockRecognize = jest.fn();
+let mockRequestSeq=0;
 jest.mock('@/services/assistantApi', () => ({
   postAssistantText: (...args: unknown[]) => mockText(...args),
   postGroceryPhotos: (...args: unknown[]) => mockRecognize(...args),
   postKeptGroceries: jest.fn(), postAssistantUndo: jest.fn(),
-  newClientRequestId: () => '99999999-9999-4999-8999-999999999999', patchAssistantConversation: jest.fn(),
+  newClientRequestId: () => `99999999-9999-4999-8999-${String(++mockRequestSeq).padStart(12,'0')}`, patchAssistantConversation: jest.fn(),
 }));
 jest.mock('@/lib/photoResize', () => ({ KEPT_PHOTO_SIDE: 1024, resizePhoto: jest.fn(async () => new Blob(['jpeg'], { type: 'image/jpeg' })) }));
 jest.mock('@/lib/agentEvents', () => ({ dispatchAgentDbChanged: jest.fn() }));
@@ -40,6 +42,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   jest.clearAllMocks();
+  mockRequestSeq=0;
   mockRecognize.mockResolvedValue({ items: [kewpie, otafuku] });
   mockText.mockResolvedValue({ message: 'Des idées…', actions_executed: [], memory_results: [] });
 });
@@ -53,6 +56,7 @@ test('a question about joined photos goes to the assistant with what the photos 
   const sent = mockText.mock.calls[0][0].text as string;
   expect(sent).toBe(`Je fais quoi avec ça ?\n\n${groceriesNote([kewpie, otafuku])}`);
   expect(sent).toContain('📷 Sur mes photos (pas encore dans mon stock) : Mayonnaise Kewpie (310 ml) ; Yakisoba Sauce Otafuku (500 g, date limite 2027-03-01).');
+  expect(mockText.mock.calls[0][0].groceryReviewPending).toBe(true);
   expect(screen.queryByRole('list', { name: 'Photos jointes' })).not.toBeInTheDocument();
   const card = screen.getByRole('region', { name: 'Produits vus sur tes photos' });
   expect(card).toHaveTextContent('Mayonnaise Kewpie, Yakisoba Sauce Otafuku');
@@ -60,6 +64,24 @@ test('a question about joined photos goes to the assistant with what the photos 
   fireEvent.click(within(card).getByRole('button', { name: 'Ajouter au stock' }));
   expect(await screen.findByLabelText('Nom du produit 1')).toHaveValue('Mayonnaise');
   expect(screen.getByLabelText('Marque du produit 2')).toHaveValue('Otafuku');
+});
+
+test('follow-up chat cannot add pending photos; reopening an uncertain review retries the same batch',async()=>{
+  jest.mocked(postKeptGroceries).mockRejectedValue(new Error('Réponse non confirmée.'));
+  composer();await join('kewpie.jpg','otafuku.jpg');ask('Ajoute ces produits');
+  await waitFor(()=>expect(onResponse).toHaveBeenCalledTimes(1));
+  ask('Oui ajoute-les');
+  await waitFor(()=>expect(mockText).toHaveBeenCalledTimes(2));
+  expect(mockText.mock.calls[1][0].groceryReviewPending).toBe(true);
+  const open=()=>fireEvent.click(within(screen.getByRole('region',{name:'Produits vus sur tes photos'})).getByRole('button',{name:'Ajouter au stock'}));
+  open();fireEvent.click(await screen.findByRole('button',{name:'Ajouter 2 produits au stock'}));
+  await screen.findByText('Réponse non confirmée.');
+  const first=jest.mocked(postKeptGroceries).mock.calls[0][0];
+  expect(first.photos).toHaveLength(2);expect(first.items.map(item=>item.photo)).toEqual([1,2]);
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button',{name:'Fermer'}));
+  open();fireEvent.click(await screen.findByRole('button',{name:'Ajouter 2 produits au stock'}));
+  await waitFor(()=>expect(postKeptGroceries).toHaveBeenCalledTimes(2));
+  expect(jest.mocked(postKeptGroceries).mock.calls[1][0].clientRequestId).toBe(first.clientRequestId);
 });
 
 test('photos sent without a question open the list to review; the assistant is not asked', async () => {
