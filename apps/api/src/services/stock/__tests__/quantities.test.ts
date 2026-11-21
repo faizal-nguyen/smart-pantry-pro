@@ -77,6 +77,7 @@ describe('recipe ingredients checked against the pantry', () => {
     ['lait','Lait de coco'], ['poulet','Bouillon de poulet'], ['huile',"Huile d'olive"], ['coriandre','Coriandre en poudre'],
     ['lait','Lait concentré sucré'], ['sauce soja','Sauce soja sucrée'], ['saumon','Saumon fumé'], ['riz','Farine de riz'], ['','Riz'],
     ['citron vert','Citron'], ['sucre glace','Sucre'], ['sucre','Sucre de coco'], ['sel','Sel de céleri'], ['poivre','Poivre de Sichuan'], ['味噌','味噌 blanc'],
+    ['ail','Ail semoule'], ['ail','ail caramélisé'], ['ail','Ail moulu'], ['ail','Ail confit'], ['oignon','Oignons frits'],
   ])('%s is not mistaken for %s', (ingredient,product) => expect(ingredientMatchRank(ingredient,product)).toBe(0));
   test('a plural or qualified product name covers the recipe ingredient', () => {
     const preview = allocateRecipeStock([need('échalotes',3), need('lait de coco',200,'ml')],[pantry('Échalote',5,'unité'),pantry('Lait de coco bio',400,'ml')],4,4);
@@ -89,6 +90,14 @@ describe('recipe ingredients checked against the pantry', () => {
   });
   test('a linked product id still accepts a pantry lot with the same name', () => {
     expect(allocateRecipeStock([{ ...need('farine',200,'g'), inventory_product_id: 'catalog-flour' }],[pantry('Farine')],4,4).missing).toEqual([]);
+  });
+  test('prepared garlic cannot be allocated to fresh garlic, but remains usable when explicitly requested', () => {
+    const lots = [pantry('Ail semoule',100,'g'),pantry('ail caramélisé',100,'g')];
+    expect(allocateRecipeStock([need('Ail',10,'g')],lots,2,2)).toMatchObject({
+      allocations: [], missing: [{ reason: 'NOT_IN_STOCK' }],
+    });
+    expect(allocateRecipeStock([need('Ail semoule',10,'g')],lots,2,2).allocations[0].inventory_id).toBe('Ail semoule');
+    expect(allocateRecipeStock([need('ail caramélisé',10,'g')],lots,2,2).allocations[0].inventory_id).toBe('ail caramélisé');
   });
   test('spoon measures are deducted from liquids stored in ml', () => {
     const preview = allocateRecipeStock([need('sauce soja',2,'c. à soupe')],[pantry('Sauce soja',500,'ml')],4,4);

@@ -25,7 +25,8 @@ const COMPLEMENT_WORDS = new Set(['de', 'd', 'du', 'des', 'a', 'au', 'aux', 'en'
 // Staples whose usual shop name carries a complement ("Sel de mer", "Sucre en poudre").
 const SAME_STAPLES = new Set(['sel de mer', 'sel de guerande', 'sucre en poudre', 'sucre de canne', 'poivre en grain']);
 // Qualifiers that turn a base ingredient into another product ("lait concentré", "saumon fumé").
-const TRANSFORMING_WORDS = new Set(['concentre', 'sucree', 'seche', 'sechee', 'deshydrate', 'deshydratee', 'fume', 'fumee']);
+const TRANSFORMING_WORDS = new Set(['concentre', 'sucree', 'seche', 'sechee', 'deshydrate', 'deshydratee', 'fume', 'fumee',
+  'semoule', 'caramelise', 'caramelisee', 'moulu', 'moulue', 'granule', 'granulee', 'confit', 'confite', 'frit', 'frite']);
 const TAP_WATER_WORDS = new Set(['chaude', 'froide', 'tiede', 'bouillante', 'glacee', 'fraiche', 'du', 'robinet']);
 // Letters without a decomposed form, so that "đường" keeps its first letter.
 const PLAIN_LETTERS: Record<string, string> = { 'œ': 'oe', 'æ': 'ae', 'đ': 'd', 'ð': 'd', 'ø': 'o', 'ł': 'l', 'ß': 'ss' };
