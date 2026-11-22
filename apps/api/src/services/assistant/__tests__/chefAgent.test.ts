@@ -21,6 +21,7 @@ import {
   emptyRecipeDiscovery,
   isRecipeTool,
   isStockMealRequest,
+  stockMealTimeLimit,
   postcheckChefOutput,
   type AssistantStreamEvent,
 } from '../chefAgent';
@@ -137,6 +138,14 @@ describe('immediate meals from pantry stock',()=>{
     expect(prompt).toContain('details_complete=false');
     expect(prompt).not.toContain("PRIORITÉ — BDD d'abord");
     expect(prompt).not.toContain('2. Recettes BDD (max 3)');
+  });
+  it('keeps the reported pantry dinner under its total time limit',()=>{
+    const question='Qu’est-ce que je peux faire ce soir en 20 minutes avec mon stock ?';
+    expect(isStockMealRequest(question)).toBe(true);
+    const prompt=chefSystemPrompt(true,stockMealTimeLimit(question));
+    expect(prompt).toContain('Maximum 20 min au total');
+    expect(prompt).toContain('1 à 2 idées');
+    expect(prompt).toContain('à cuisson rapide sans preuve');
   });
 });
 

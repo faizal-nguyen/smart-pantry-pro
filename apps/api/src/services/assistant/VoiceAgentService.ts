@@ -74,6 +74,7 @@ import { providerErrorSummary } from '../ai/OpenAITransport.js';
 import {
   isRecipeTool,
   isStockMealRequest,
+  stockMealTimeLimit,
   emptyRecipeDiscovery,
   chefSystemPrompt,
   CHEF_ROUND2_INSTRUCTION,
@@ -120,13 +121,13 @@ RECIPE SUGGESTIONS — VERY IMPORTANT:
     B. INGREDIENT-CENTRIC questions ("quelle recette avec des cuisses de poulet", "recettes au paneer", "j'ai du gochujang, que faire", "des idées avec du saumon", "recettes utilisant X"):
        → call suggest_recipes_for_context with { "ingredient": "<the ingredient phrase>" }. It applies the same explicit profile, original lots and personal adaptations as open suggestions.
        For recipe suggestions, products the user names or shows on photos (a « 📷 Sur mes photos » line, « je fais quoi avec ça ? ») are INGREDIENT-CENTRIC, never an open suggestion: call suggest_recipes_for_context once per product, with its generic ingredient and no brand (« mayonnaise » for « Mayonnaise Kewpie », « sauce yakisoba » for « Yakisoba Sauce Otafuku »). This simplification is ONLY for recipe discovery, never for adding stock or shopping items. Products on photos are not in the stock yet: never conclude that nothing can be cooked with the stock.
-    C. RECIPE-BY-NAME lookup ("la recette de Bibimbap", "tu as une carbonara"):
-       → call search_recipes with the name as query. For ingredients, exact quantities, steps or cooking guidance, then read_recipe with its id and source. Only read_recipe establishes saved instructions. Label adaptations separately from the saved recipe.
+    C. NAMED DISH ("la recette de Bibimbap", "un bon chocolat chaud"):
+       → search_recipes by name, then read_recipe for portions, quantities and steps. Without a match, read stock and give a labeled home version with quantities, duration and steps.
     D. RECIPE versus STOCK ("je veux une soupe aux oignons, qu’est-ce qui manque ?", "ai-je tout pour la blanquette ?"):
        → call suggest_recipes_for_context with { "query": "<dish name>" }. This evaluates the stored recipe ingredients against the full stock. search_recipes and read_recent_recipes only locate recipes; they do not establish availability. Use the returned missing ingredients and uncertainties.
 - For narrower asks on suggest_recipes_for_context pass context args to the same tool:
     - "rapide", "j'ai 20 minutes" → { "max_prep_time": 20, "goal": "quick" }
-    - "ce soir" → { "meal_type": "dinner", "goal": "tonight" }
+    - "ce soir" → { "meal_type": "dinner", "goal": "tonight" }; "ce midi" → { "meal_type": "lunch" }. A side, sauce or drink alone is not a meal.
     - "anti-gaspi", "à finir bientôt" → { "goal": "anti_waste" }
     - "léger" → { "goal": "light" } (no health claim in your reply). For "healthy" or a balanced meal, consider vegetables, protein, sides and portions; use only supplied nutrition values, never a blanket health label or a calorie target inferred for the user.
     - "protéiné" → { "goal": "high_protein" }
@@ -902,7 +903,7 @@ export class VoiceAgentService {
       !chosen &&
       executed.length > 0 &&
       pending.length === 0 &&
-      (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>emptyRecipeDiscovery(action.tool,action.result) || recommendationModelContext(action.result,allowedProfileVersion)!==null))
+      (!activeResponse.content || activeResponse.content.trim().length === 0 || executed.some(action=>action.tool==='search_web_recipes' || emptyRecipeDiscovery(action.tool,action.result) || recommendationModelContext(action.result,allowedProfileVersion)!==null))
     ) {
       try {
         const currentPolicy = this.memoryService ? await this.memoryService.readPolicySafe(input.userId) : null;
@@ -928,7 +929,7 @@ export class VoiceAgentService {
         const continuation = stockMealMode ? [] : continuationFor(activeResponse,synthesisRole,currentPolicy);
         const currentSystem=executed.some(action=>recommendationProfileChanged(action.result,profileSnapshotVersion)) ? basePrompt : systemContent;
         const synthesisSystem = chefMode
-          ? `${currentSystem}\n\n${chefSystemPrompt(stockMealMode)}`
+          ? `${currentSystem}\n\n${chefSystemPrompt(stockMealMode, stockMealMode ? stockMealTimeLimit(transcript) : null)}`
           : currentSystem;
         const synthesisInstruction = chefMode
           ? CHEF_ROUND2_INSTRUCTION

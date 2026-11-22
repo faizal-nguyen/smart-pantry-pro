@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRoutineMealIdeas } from '@/hooks/useRoutineMealIdeas';
 import { postRecipeFeedback,pendingRecipeFeedback,type RecommendedRecipeView,type SuggestRecommendationsInput } from '@/services/recommendationsApi';
-import type { RecommendationFeedback } from '@smart/shared';
+import { needsPurchase, type RecommendationFeedback } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
@@ -29,14 +29,13 @@ export function RecommendationEvidenceDetails({ recipe,summaryShown=false }:{ re
   const { nutrition,availability }=recipe;
   return <details className="text-sm"><summary className="min-h-11 cursor-pointer">Pourquoi cette recette ?</summary><div className="space-y-2 pb-2">
     <ul className="list-disc pl-5 space-y-1">{recipe.reason_codes.slice(summaryShown ? 1 : 0).map((reason,index)=><li key={`${reason.code}:${index}`}>{reason.text}</li>)}</ul>
-    {availability.missing.length>0 && <ul className="space-y-1">{availability.missing.map((item,index)=><li key={index}>À acheter ou vérifier : {item.ingredient_name}{item.quantity!=null ? ` · ${item.quantity} ${item.unit ?? ''}` : ''}.</li>)}</ul>}
+    {availability.missing.length>0 && <ul className="space-y-1">{availability.missing.map((item,index)=><li key={index}>{needsPurchase(item) ? 'À prévoir' : 'Quantité ou unité à vérifier'} : {item.ingredient_name}{item.quantity!=null ? ` · ${item.quantity} ${item.unit ?? ''}` : ''}.</li>)}</ul>}
     {availability.excluded_lot_reasons?.map(item=><p key={item.id}>{item.message}</p>)}
     {availability.uncertainties.map((text,index)=><p key={index}>{text}</p>)}
     {!summaryShown && recipe.constraints.findings.map((finding,index)=><p key={`constraint:${index}`}>{finding.ingredient ? `${finding.ingredient} : ` : ''}{finding.message}</p>)}
     <NutritionEstimateView nutrition={nutrition} showDetails={false} />
     {recipe.constraints.limitations.map((text,index)=><p key={`limit:${index}`} className="text-muted-foreground">{text}</p>)}
     {recipe.unavailable_criteria.length>0 && <p className="text-muted-foreground">Critères non calculés : {recipe.unavailable_criteria.map(item=>criteria[item] ?? item).join(', ')}.</p>}
-    <p className="text-xs text-muted-foreground">Profil version {recipe.profile_version} · calcul {new Date(recipe.calculated_at).toLocaleTimeString('fr-FR')}.</p>
   </div></details>;
 }
 export default function PersonalizedRecipeSuggestions({ input={ goal:'tonight' },onAddStock,onBrowse,featured=false }:{ input?:SuggestRecommendationsInput;onAddStock?:()=>void;onBrowse?:()=>void;featured?:boolean }) {

@@ -42,6 +42,7 @@ export function recommendationModelContext(value: unknown, allowedProfileVersion
     }
     return {
       id: recipe.id, name: text(recipe.name, 120), reference: { id: object(recipe.reference)?.id, source: object(recipe.reference)?.source },
+      meal_type: text(recipe.meal_type, 40),
       duration_minutes: recipe.duration_minutes,
       ...(object(recipe.goal_evidence) ? {goal_evidence:recipe.goal_evidence} : {}),
       availability: { status: stock?.status ?? object(recipe.availability)?.status }, reason_codes: reasons,

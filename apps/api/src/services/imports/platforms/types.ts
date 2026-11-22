@@ -32,6 +32,13 @@ export interface PlatformContext {
   transcript?: string;
   /** Raw page text (e.g. blog scraping) when available. */
   rawText?: string;
+  recipeIngredients?: string[];
+  recipeDetails?: {
+    servings?: string | number;
+    prepTime?: string;
+    cookTime?: string;
+    totalTime?: string;
+  };
   /** How the context above was obtained. Drives the confidence ceiling. */
   extractionMethod: ExtractionMethod;
 }
