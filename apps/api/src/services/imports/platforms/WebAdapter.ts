@@ -16,7 +16,7 @@
  * (Instagram, TikTok, YouTube) so those win for their domains.
  */
 import { canonicalizeUrl, detectPlatform } from '../canonicalUrl.js';
-import { parseJsonLdRecipe, parseOpenGraph } from './htmlParsers.js';
+import { parseJsonLdRecipe, parseMicrodataRecipe, parseOpenGraph } from './htmlParsers.js';
 import { safeFetchText } from './ssrfGuard.js';
 import type { PlatformAdapter, PlatformContext } from './types.js';
 
@@ -50,7 +50,8 @@ export class WebAdapter implements PlatformAdapter {
     });
 
     const og = html ? parseOpenGraph(html) : {};
-    const recipe = html ? parseJsonLdRecipe(html) : null;
+    const jsonLd = html ? parseJsonLdRecipe(html) : null;
+    const recipe = html && !jsonLd?.ingredients.length ? parseMicrodataRecipe(html) ?? jsonLd : jsonLd;
 
     const platform = detectPlatform(url);
     const title = recipe?.name ?? og.title;

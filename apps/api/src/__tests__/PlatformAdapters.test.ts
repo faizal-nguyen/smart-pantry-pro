@@ -291,6 +291,26 @@ describe('WebAdapter', () => {
     expect(ctx.platform).toBe('web');
   });
 
+  it('reads visible recipe microdata when JSON-LD only has a title', async () => {
+    mockFetch(() => htmlResponse(`
+      <script type="application/ld+json">{"@type":"Recipe","name":"Titre seul"}</script>
+      <span itemprop="recipeIngredient">Hors de la recette</span>
+      <article itemscope itemtype="http://schema.org/Recipe">
+        <h2 itemprop="name">Ojja merguez</h2>
+        <span itemprop="recipeYield">2</span>
+        <meta itemprop="prepTime" content="PT5M">
+        <meta itemprop="cookTime" content="PT15M">
+        <span itemprop="recipeIngredient">2 œufs</span>
+        <span itemprop="recipeIngredient">1 poivron</span>
+        <div itemprop="recipeInstructions">Fais revenir le poivron.</div>
+      </article>`));
+    const ctx = await new WebAdapter().fetchContext('https://www.example.com/ojja');
+    expect(ctx.metadata.title).toBe('Ojja merguez');
+    expect(ctx.recipeIngredients).toEqual(['2 œufs', '1 poivron']);
+    expect(ctx.recipeDetails).toMatchObject({ servings: '2', prepTime: 'PT5M', cookTime: 'PT15M' });
+    expect(ctx.rawText).toContain('Fais revenir le poivron.');
+  });
+
   it('falls back to OG metadata when no JSON-LD recipe is present', async () => {
     const html = `<!doctype html><html><head>
       <title>Page title</title>
