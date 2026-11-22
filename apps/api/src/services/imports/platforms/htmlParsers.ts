@@ -115,6 +115,31 @@ export function parseJsonLdRecipe(html: string): JsonLdRecipe | null {
   return null;
 }
 
+export function parseMicrodataRecipe(html: string): JsonLdRecipe | null {
+  const $ = cheerio.load(html);
+  const recipes = $('[itemscope][itemtype]').filter((_, node) =>
+    ($(node).attr('itemtype') ?? '').split(/\s+/).some(type => /^https?:\/\/schema\.org\/Recipe\/?$/i.test(type)),
+  );
+  for (const scope of recipes.toArray()) {
+    const fields = (property: string) => $(scope).find(`[itemprop~="${property}"]`)
+      .filter((_, field) => $(field).parents('[itemscope][itemtype]').first().get(0) === scope)
+      .map((_, field) => ($(field).attr('content') ?? $(field).attr('datetime') ?? $(field).text()).trim().replace(/\s+/g, ' '))
+      .get().filter(Boolean);
+    const ingredients = fields('recipeIngredient');
+    if (!ingredients.length) continue;
+    return shapeRecipe({
+      name: fields('name')[0],
+      recipeIngredient: ingredients,
+      recipeInstructions: fields('recipeInstructions'),
+      recipeYield: fields('recipeYield')[0],
+      prepTime: fields('prepTime')[0],
+      cookTime: fields('cookTime')[0],
+      totalTime: fields('totalTime')[0],
+    });
+  }
+  return null;
+}
+
 function pickRecipe(node: any): any | null {
   if (!node) return null;
   if (Array.isArray(node)) {
