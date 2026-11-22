@@ -69,6 +69,13 @@ export class WebAdapter implements PlatformAdapter {
         thumbnailUrl,
       },
       rawText: recipe?.rawText,
+      recipeIngredients: recipe?.ingredients,
+      recipeDetails: recipe ? {
+        servings: recipe.servings,
+        prepTime: recipe.prepTime,
+        cookTime: recipe.cookTime,
+        totalTime: recipe.totalTime,
+      } : undefined,
       extractionMethod: recipe ? 'ai_inference' : 'metadata',
     };
   }

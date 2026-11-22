@@ -28,7 +28,8 @@ const LIBRARY_POOL=1000;
 // Recipe meal types as typed or imported: lunch and dinner dishes are the same main meals.
 const MEAL_GROUPS:Record<string,'main'|'breakfast'|'snack'>={ dinner:'main',lunch:'main',main:'main',diner:'main',dejeuner:'main',plat:'main',
   breakfast:'breakfast','petit-dejeuner':'breakfast',petit_dejeuner:'breakfast',brunch:'breakfast',
-  snack:'snack',appetizer:'snack',dessert:'snack',drink:'snack',gouter:'snack',apero:'snack' };
+  snack:'snack',appetizer:'snack',starter:'snack',entree:'snack',dessert:'snack',drink:'snack',boisson:'snack',gouter:'snack',apero:'snack',
+  side:'snack',side_dish:'snack','side dish':'snack','side-dish':'snack',accompagnement:'snack',sauce:'snack' };
 const mealKey=(value:string|null|undefined) => (value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const mealGroup=(value:string|null|undefined) => MEAL_GROUPS[mealKey(value)];
 
@@ -294,7 +295,7 @@ export class RecommendationEngine {
       // Lunch, dinner and « main » dishes stand in for each other (the exact type ranks first);
       // a dessert or a drink is not a dinner. Types outside the known groups stay candidates.
       const wanted=mealGroup(input.mealType),offered=mealGroup(recipe.meal_type);
-      if (!input.course && wanted && offered && wanted!==offered) return false;
+      if (!input.course && !input.query && wanted && offered && wanted!==offered) return false;
       const ingredients=recipe.recipe_ingredients ?? [];
       if (input.ingredient && !ingredients.some(item=>normalizeIngredientName(item.ingredient_name).includes(normalizeIngredientName(input.ingredient!)))) return false;
       if (input.proteinFamily || input.proteinCut) {

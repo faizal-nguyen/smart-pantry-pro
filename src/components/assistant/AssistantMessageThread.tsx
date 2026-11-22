@@ -147,9 +147,6 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
             )}
           >
             {formatTime(msg.created_at)}
-            {msg.action_log_ids.length > 0 && (
-              <span> · {msg.action_log_ids.length} action{msg.action_log_ids.length > 1 ? 's' : ''}</span>
-            )}
           </p>
         </div>
         {isUser && (
@@ -159,7 +156,7 @@ function MessageBubble({ msg }: { msg: AssistantMessage }) {
         )}
       </div>
       {isAssistant && (
-        <div className="ml-10">
+        <div className="min-w-0 sm:ml-10">
           <AssistantRecipeProposals metadata={msg.metadata} />
         </div>
       )}

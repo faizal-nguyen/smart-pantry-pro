@@ -1267,6 +1267,7 @@ describe('Chat Completions tool follow-up after reads (baseline)',()=>{
   });
   it.each([
     ['Je veux faire une soupe aux oignons, qu’est-ce qui nous manque ?','search_recipes','{"query":"soupe aux oignons"}'],
+    ['Un bon chocolat chaud','search_recipes','{"query":"chocolat chaud"}'],
     ['Une recette tunisienne avec les ingrédients qu’on a ?','suggest_recipes_for_context','{"cuisine":"tunisienne"}'],
   ])('an empty discovery reads real stock before answering: %s',async(text,tool,args)=>{
     const {ai,requests}=scripted([{content:'Importe une recette avant de continuer.',call:{name:tool,arguments:args}},

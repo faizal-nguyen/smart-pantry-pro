@@ -21,13 +21,14 @@
  *    (mémoire + action_log + undo) comme single source of truth.
  */
 import React from 'react';
-import type { RecommendationEvidence } from '@smart/shared';
+import { canAddToShoppingList, needsPurchase, type RecommendationEvidence } from '@smart/shared';
 import { RecommendationEvidenceDetails } from '@/components/recipes/PersonalizedRecipeSuggestions';
 import type { RecommendedRecipeView } from '@/services/recommendationsApi';
 import { useNutritionProfile } from '@/hooks/useNutritionProfile';
-import { Link,useNavigate } from 'react-router-dom';
-import { ChefHat, Clock, Users, Plus, CalendarPlus, Check, Undo2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, ChefHat, Clock, Users, Plus, CalendarPlus, Check, Undo2 } from 'lucide-react';
 import { useCookRecipe } from '@/hooks/useCookRecipe';
+import { recipeDetailPath } from '@/lib/recipeLinks';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +48,7 @@ interface RecipeView extends Partial<RecommendationEvidence> {
   servings?: number | null;
   image_url?: string | null;
   cuisine_category?: string | null;
+  meal_type?: string | null;
   missing_count?: number;
   missing_ingredients?: string[];
   total_essential?: number;
@@ -154,7 +156,6 @@ interface RecipeCardProps {
 }
 
 function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCardProps) {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
   const cooking = useCookRecipe(r);
@@ -163,7 +164,7 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
   const profile=useNutritionProfile();
   const stale=r.profile_version!==undefined && (profile.error || profile.isLoading || profile.data?.profile.version!==r.profile_version);
   const evidence=!!r.reference && !!r.constraints && !!r.availability && !!r.nutrition && !!r.reason_codes;
-  const open = () => navigate(`/kitchen/recipes/${r.id}`);
+  const detailPath = recipeDetailPath(r.reference ?? { id: r.id, source: 'recipes' }, r.servings);
 
   const handleAction = async (action: RecipeAction) => {
     if (pendingAction) return;
@@ -183,95 +184,68 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
     }
   };
 
-  const score = typeof r.score_total === 'number' ? r.score_total : null;
-  const reasons = (r.reasons ?? []).slice(0, 2);
-  const missing = r.missing_count ?? 0;
-  const hasMissingIngredients = missing > 0;
+  const gaps = (r.availability?.missing ?? []).filter(item => item.is_essential !== false);
+  const purchases = [...new Set(gaps.filter(needsPurchase).map(item => item.ingredient_name))];
+  const checks = [...new Set(gaps.filter(item => !needsPurchase(item)).map(item => item.ingredient_name))];
+  const summarize = (names: string[]) => names.slice(0, 3).join(', ') + (names.length > 3 ? ` et ${names.length - 3} de plus` : '');
+  const hasMissingIngredients = gaps.some(canAddToShoppingList);
+  const label = /^(side|side[ _-]dish|accompagnement)$/i.test(r.meal_type ?? '') ? 'Accompagnement' : r.cuisine_category;
 
   return (
-    <Card className="overflow-hidden">
-      <button
-        type="button"
-        onClick={open}
-        className="w-full text-left transition-colors hover:bg-surface-muted/50 focus:bg-surface-muted/50 focus:outline-none"
+    <Card className="min-w-0 overflow-hidden">
+      <Link
+        to={detailPath}
+        className="block rounded-md text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         aria-label={`Ouvrir la recette ${r.name}`}
       >
-        <CardContent className="p-3 flex gap-3">
+        <CardContent className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-2 p-3">
           {r.image_url ? (
             <img
               src={r.image_url}
               alt=""
-              className="w-16 h-16 rounded object-cover flex-shrink-0"
+              className="h-14 w-14 rounded object-cover"
+              loading="lazy"
             />
           ) : (
-            <div className="w-16 h-16 rounded bg-surface-muted flex items-center justify-center flex-shrink-0">
+            <div className="flex h-14 w-14 items-center justify-center rounded bg-muted">
               <ChefHat className="h-6 w-6 text-saffron" aria-hidden="true" />
             </div>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start gap-2">
-              <h4 className="font-medium text-sm line-clamp-2 flex-1">{r.name}</h4>
-              {showCookabilityBadge && !stale && r.constraints?.status==='compatible' && score !== null && score >= 70 && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] bg-saffron/10 text-saffron border-saffron/40 flex-shrink-0"
-                  aria-label={`Score de pertinence ${score} sur 100`}
-                  title={`Score ${score}/100`}
-                >
-                  {score}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+          <div className="min-w-0">
+            <h4 className="text-sm font-semibold [overflow-wrap:anywhere]">{r.name}</h4>
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {totalTime > 0 && (
-                <span className="flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <Clock className="h-3 w-3" aria-hidden="true" />
                   {totalTime} min
                 </span>
               )}
               {r.servings != null && (
-                <span className="flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
                   <Users className="h-3 w-3" aria-hidden="true" />
-                  {r.servings}
+                  {r.servings} pers.
                 </span>
               )}
-              {r.cuisine_category && (
-                <Badge variant="secondary" className="text-[10px] py-0">
-                  {r.cuisine_category}
-                </Badge>
-              )}
             </div>
-            {reasons.length > 0 && (
-              <p className="text-[11px] text-muted-foreground italic mt-1 line-clamp-2">
-                {reasons.join(' · ')}
-              </p>
-            )}
-            {showCookabilityBadge && (() => {
-              const unknown = r.unlinked_count ?? 0;
-              const total = missing + unknown;
-              if (total===0 && !stale && r.availability?.status==='available' && r.constraints?.status==='compatible') {
-                return (
-                  <Badge variant="outline" className="mt-1 text-[10px] bg-green-50 text-green-700 border-green-300">
-                    Tout en stock
-                  </Badge>
-                );
-              }
-              const parts: string[] = [];
-              if (missing > 0) parts.push(`${missing} manquant${missing > 1 ? 's' : ''}`);
-              if (unknown > 0) parts.push(`${unknown} à vérifier`);
-              if (!parts.length) parts.push(stale ? 'À recalculer' : 'Disponibilité à vérifier');
-              return (
-                <Badge variant="outline" className="mt-1 text-[10px]">
-                  {parts.join(' · ')}
-                </Badge>
-              );
-            })()}
           </div>
+          {label && <Badge variant="secondary" className="col-span-2 w-fit max-w-full break-words">{label}</Badge>}
+          {showCookabilityBadge && !stale && (
+            <div className="col-span-2 space-y-1 break-words text-sm">
+              {purchases.length > 0 && <p><strong>À prévoir :</strong> {summarize(purchases)}</p>}
+              {checks.length > 0 && <p><strong>Quantité ou unité à vérifier :</strong> {summarize(checks)}</p>}
+              {r.availability?.status==='available' && r.constraints?.status==='compatible' && !gaps.length && !r.availability.uncertainties.length
+                ? <p>Tout en stock</p>
+                : !gaps.length && <p>Disponibilité à vérifier</p>}
+            </div>
+          )}
+          <span className="col-span-2 inline-flex min-h-8 items-center gap-1 text-sm font-medium text-primary">
+            Voir la recette <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </span>
         </CardContent>
-      </button>
+      </Link>
       {stale && <p className="px-3 pb-2 text-sm">Le profil a changé ou doit être relu. Recalculez ces idées avant de choisir.</p>}
       {evidence && <div className="px-3"><RecommendationEvidenceDetails recipe={r as RecommendedRecipeView}/></div>}
-      <Button className="min-h-11 mx-3 mb-2" variant="ghost" asChild><Link to="/settings?section=cooking">Corriger mon profil</Link></Button>
+      {(stale || r.constraints?.status==='verify') && <Button className="min-h-11 mx-3 mb-2" variant="ghost" asChild><Link to="/settings?section=cooking">Vérifier mon profil</Link></Button>}
       {showActions && !stale && evidence && r.constraints?.status==='compatible' && r.availability?.status!=='verify' && (
         <div
           className="flex flex-wrap gap-1 px-3 pb-3 -mt-1"
@@ -358,7 +332,7 @@ function BucketSection({ title, recipes, limit, showCookabilityBadge, showAction
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
         {title}
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2">
         {visible.map((r) => (
           <RecipeCard
             key={r.id}
@@ -417,21 +391,26 @@ export default function AssistantRecipeProposals({
   return (
     <div className="space-y-4 my-3" role="region" aria-label="Recettes suggérées">
       <BucketSection
-        title="Tout est dans ton stock"
+        title="Idées avec ton stock"
         recipes={buckets.cookable_now}
         limit={limit}
         showCookabilityBadge
         showActions
       />
       <BucketSection
-        title="Presque cuisinable"
+        title="Avec quelques ingrédients à prévoir"
         recipes={buckets.almost_cookable}
         limit={limit}
         showCookabilityBadge
         showActions
       />
       <BucketSection title="À vérifier" recipes={buckets.verify_suggestions} limit={limit} showCookabilityBadge={false} showActions={false}/>
-      <BucketSection title="Écartées : raisons" recipes={buckets.excluded_suggestions} limit={limit} showCookabilityBadge={false} showActions={false}/>
+      {buckets.excluded_suggestions.length > 0 && (
+        <details>
+          <summary className="min-h-11 cursor-pointer py-2 text-sm text-muted-foreground">Recettes écartées</summary>
+          <BucketSection title="Écartées : raisons" recipes={buckets.excluded_suggestions} limit={limit} showCookabilityBadge={false} showActions={false}/>
+        </details>
+      )}
       <BucketSection
         title="Idées de ta base"
         recipes={buckets.recent_suggestions}

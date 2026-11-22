@@ -272,12 +272,17 @@ describe('home ideas with everyday lots',()=>{
     const result=await suggest({ recipes:[recipe('r','Riz','Riz','riz')],inventory:[everyday('riz',{ expiry_date:'2026-10-11' })] });
     expect(result.cookable_now[0].reasons).toContain('Utilise riz, date renseignée dans 2 jour(s).');
   });
-  test('at dinner, lunch and « main » recipes are candidates, dinner ones first; desserts are not',async()=>{
+  test('a dinner recommendation favours main dishes and excludes desserts, sides and sauces',async()=>{
     const typed=(id:string,meal_type:string)=>({ ...recipe(id,id,'Riz','riz'),meal_type });
-    const result=await suggest({ recipes:[typed('lunch','lunch'),typed('dessert','dessert'),typed('main','main'),typed('dinner','dinner'),typed('dîner','dîner')],inventory:[lot('riz',{ quantity:10 })] },
+    const result=await suggest({ recipes:[typed('lunch','lunch'),typed('dessert','dessert'),typed('side','accompagnement'),typed('sauce','sauce'),typed('main','main'),typed('dinner','dinner'),typed('dîner','dîner')],inventory:[lot('riz',{ quantity:10 })] },
       { mealType:'dinner',limitPerBucket:5 });
     expect(result.cookable_now.map(item=>item.id).slice(0,2).sort()).toEqual(['dinner','dîner']);
     expect(result.cookable_now.map(item=>item.id).sort()).toEqual(['dinner','dîner','lunch','main']);
+  });
+  test('an explicitly named side stays searchable in a dinner context',async()=>{
+    const result=await suggest({recipes:[{ ...recipe('side','Brocolis rôtis','Riz','riz'),meal_type:'accompagnement' }],inventory:[lot('riz',{quantity:10})]},
+      {mealType:'dinner',query:'Brocolis rôtis'});
+    expect(result.cookable_now.map(item=>item.id)).toEqual(['side']);
   });
 });
 

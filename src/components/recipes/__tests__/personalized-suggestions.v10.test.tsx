@@ -33,7 +33,25 @@ test('assistant history preserves the same evidence and distinct verification/ex
   render(wrap(<AssistantRecipeProposals metadata={{ recipe_proposals:{ ...mockResult,cookable_now:[candidate('a')],verify_suggestions:[verify],excluded_suggestions:[{ ...candidate('excluded'),constraints:{ ...verify.constraints,status:'incompatible' } }] } }}/>));
   expect(screen.getByText('À vérifier')).toBeInTheDocument();expect(screen.getByText('Écartées : raisons')).toBeInTheDocument();
   expect(screen.getAllByText(/Estimation nutritionnelle : indisponible/)).toHaveLength(3);
-  expect(screen.getAllByRole('link',{ name:'Corriger mon profil' })).toHaveLength(3);
+  expect(screen.getByRole('link',{ name:'Vérifier mon profil' })).toBeVisible();
+  expect(screen.getByRole('link',{ name:'Ouvrir la recette Recette excluded',hidden:true })).not.toBeVisible();
+});
+test('assistant card separates purchases from uncertain amounts, with the right recipe source and servings',()=>{
+  const recipe=candidate('brocoli');
+  recipe.name='Brocolis rôtis chipotle, citron vert et tahini';
+  recipe.meal_type='accompagnement';
+  recipe.reference={ id:recipe.id,source:'user_recipes' };
+  recipe.availability={ ...recipe.availability,status:'missing',missing:[
+    { ingredient_index:0,ingredient_name:'Tahini',quantity:30,unit:'g',reason:'NOT_IN_STOCK',is_essential:true },
+    { ingredient_index:1,ingredient_name:'Brocoli',quantity:null,unit:'g',reason:'QUANTITY_UNKNOWN',is_essential:true },
+  ] };
+  render(wrap(<AssistantRecipeProposals metadata={{recipe_proposals:{almost_cookable:[recipe]}}}/>));
+  const link=screen.getByRole('link',{name:`Ouvrir la recette ${recipe.name}`});
+  expect(link).toHaveAttribute('href','/kitchen/recipes/brocoli?source=user_recipes&servings=2');
+  expect(within(link).getByRole('heading',{name:recipe.name})).toBeVisible();
+  expect(within(link).getByText('Accompagnement')).toBeVisible();
+  expect(link).toHaveTextContent('À prévoir : Tahini');
+  expect(link).toHaveTextContent('Quantité ou unité à vérifier : Brocoli');
 });
 test('an older profile or historical card without evidence cannot offer personalized quick actions or a stock guarantee',()=>{
   mockProfileVersion=2;
