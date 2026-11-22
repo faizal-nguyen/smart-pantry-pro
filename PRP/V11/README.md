@@ -23,10 +23,17 @@ Trois autres fonctions Edge font confiance à un identifiant de compte fourni pa
 
 La passerelle exige un JWT, mais la clé anonyme publique en est un. Si ces fonctions sont déployées, un tiers peut lire les données d'un autre compte et consommer le crédit OpenAI. Aucun appelant n'a été trouvé dans l'application.
 
-Ni l'état de la tâche (`cron.job`, historique d'exécution) ni le déploiement de ces fonctions n'ont été vérifiés sur le projet distant. Ce contrôle passe avant toute autre étape V11, indépendamment de l'ordre des lots :
+Le contrôle de la tâche (`cron.job`, historique d'exécution) et du déploiement de ces fonctions passait avant toute autre étape V11, indépendamment de l'ordre des lots :
 
 - retrait de la fonction de nettoyage et de sa tâche, sans remplacer la purge des conversations : [V11-05](PRP-V11-05-Stock-Et-Courses.md), étape E0 « Nettoyage nocturne neutralisé », section 4 (D13 et D14, validées) ;
 - dépublication immédiate des fonctions exposées si elles sont déployées, réversible par redéploiement : [V11-06](PRP-V11-06-Consolidation-Design-Mesure.md), décision D9 (validée).
+
+**Réalisé le 22 novembre 2026 sur le projet `jwoxacnflphclslpqfzs` (production).**
+
+- Constat : la tâche `cleanup-shopping-list-daily` était active et avait réussi chaque nuit jusqu'au 22 novembre à 2 h UTC. Les quatre fonctions `cleanup-shopping-list`, `recipe-assistant`, `ai-assistant-enhanced` et `indian-price-estimator` étaient déployées ; `panic-mode` ne l'était pas. Aucune réponse HTTP n'était plus conservée : le nombre d'achats effacés n'est pas connu.
+- Les quatre fonctions sont supprimées ; plus aucune fonction Edge n'est déployée.
+- La migration `20261122204021_remove_cleanup_shopping_list_cron.sql` a été exécutée seule, puis inscrite dans l'historique par `supabase migration repair`. `cron.job` ne contient plus que `process-deletion-requests`. Le code correspondant est dans la branche `fix/remove-cleanup-shopping-list`.
+- L'historique distant ne compte que huit migrations, la dernière étant `20261106154633`. `supabase db push` tenterait de rejouer toutes les autres : chaque migration se passe seule tant que l'historique n'est pas rapproché.
 
 ### Défauts du code actuel relevés en relecture
 
@@ -151,7 +158,7 @@ Une décision proposée devient définitive lorsqu'elle est validée dans le lot
 
 ## 5. Limites de ce dossier
 
-- Les constats portent sur l'arbre de travail local. Le schéma, les tâches planifiées et les fonctions déployées sur l'environnement distant n'ont pas été consultés.
+- Les constats portent sur l'arbre de travail local. Sur l'environnement distant, seuls les tâches planifiées, les fonctions déployées et l'historique des migrations ont été consultés (section 0) ; le schéma ne l'a pas été.
 - La relecture Codex était statique, sur la même copie locale. Ses preuves ont été revérifiées dans le code ; les affirmations sur des services externes (Supabase Realtime, Vercel, iOS, consentement) sont sourcées dans les PRP ou marquées « à confirmer ».
 - Aucun test, build ni parcours n'a été exécuté pour cette rédaction.
 - Des modifications locales non commitées touchent l'assistant et le moteur de recommandation ; V11-03 et V11-04 demandent de revalider leur point de départ en E0.
