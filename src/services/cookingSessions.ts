@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CookingAdjustmentsSchema, RecipeReferenceSchema, StockCommandSchema, type RecipeStockPreview, type StockCommandResult } from '@smart/shared';
 import { readOwnedValue, writeOwnedValue } from '@/lib/ownedStorage';
 import { executeStockCommand, getStockCommandResult, previewRecipeStock, pendingIntent, finishIntent } from './stockCommands';
+import { isRolledBackRefusal } from './stockCommandRefusal';
 import { supabase } from '@/integrations/supabase/client';
 import { ApiError } from '@/lib/api';
 const IngredientSchema = z.object({ ingredient_name:z.string(),quantity:z.number().nullable().optional(),unit:z.string().nullable().optional(),inventory_product_id:z.string().nullable().optional(),is_essential:z.boolean().optional() });
@@ -99,10 +100,10 @@ export async function confirmCookingSession(owner:string,id:string,preview?:Reci
     await requireOwner(owner);
     return complete(owner,session,result);
   } catch (error) {
-    // Business refusal is a complete rollback. Auth, 5xx or a lost response keep pending.
-    const refused = error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 401 && error.code !== 'IDEMPOTENCY_CONFLICT';
-    if (refused) saveCookingSession(owner,{ ...session,state:'error',command:null,error:error.message });
-    else patchCookingSession(owner,id,{ error:error instanceof Error ? error.message : 'Confirmation à vérifier.' });
+    // Business refusal is a complete rollback. Auth, rate limit, 5xx or a lost response keep pending.
+    const message = error instanceof Error ? error.message : 'Confirmation à vérifier.';
+    if (isRolledBackRefusal(error)) saveCookingSession(owner,{ ...session,state:'error',command:null,error:message });
+    else patchCookingSession(owner,id,{ error:message });
     throw error;
   }
 }

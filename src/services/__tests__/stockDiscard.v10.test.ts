@@ -56,6 +56,14 @@ test('account changes, receipt read failures and local storage refusal prevent a
   const spy=jest.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{ throw new Error('Quota'); });
   await expect(confirmDiscard(A)).rejects.toThrow('conserver');expect(debits).toBe(1);spy.mockRestore();
 });
+test('a rate-limited stock debit keeps its command; the retry reads the receipt before resending',async()=>{
+  jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('Trop de demandes',{ status:429,code:'RATE_LIMITED' }));
+  await expect(confirmDiscard(A)).rejects.toMatchObject({ status:429 });
+  expect(readDiscardDraft(A)?.command?.command_id).toBe(ID);
+  await confirmDiscard(A);
+  expect(getStockCommandResult).toHaveBeenCalledWith(ID,A);
+  expect(debits).toBe(1);expect(mockInsert).toHaveBeenCalledTimes(1);
+});
 test('another product cannot replace an unresolved declaration, and an invalid amount never consumes anything',async()=>{
   expect(()=>prepareDiscard(A,{ ...item,id:'20000000-0000-4000-8000-000000000002' })).toThrow('précédente');
   editDiscard(A,{ quantity:'',reason:'other',notes:'',cost:'' });await expect(confirmDiscard(A)).rejects.toThrow('quantité positive');
