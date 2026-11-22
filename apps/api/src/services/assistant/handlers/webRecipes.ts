@@ -35,6 +35,14 @@ function sourceKey(url: string): string {
   return parsed.href;
 }
 
+function matchesGeneralOjjaRequest(value: string): boolean {
+  const dish = value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+    .replace(/[’']/g, ' ').replace(/[-?!.,]/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^(?:trouve moi |cherche moi |donne moi )/, '')
+    .replace(/(?: sur internet| en ligne)?(?: et donne moi le lien(?: direct)?)?$/, '').trim();
+  return /^(?:(?:une |vraie |recette |tunisienne |d |de |l )+)?ojja(?: (?:tunisienne|aux? merguez|traditionnelle|authentique))*$/u.test(dish);
+}
+
 /** Discovery never imports or changes stock, and never sends private app context to the Web. */
 export class SearchWebRecipesHandler implements ToolHandler<SearchWebRecipesArgs> {
   constructor(private readonly adapter=new WebAdapter()) {}
@@ -48,8 +56,7 @@ export class SearchWebRecipesHandler implements ToolHandler<SearchWebRecipesArgs
     invocation?.checkWork();
     const searched=!!response?.webSearch?.searchCalls;
     const citations=searched ? response!.webSearch!.citations.filter(c=>trusted(c.url)).slice(0,3) : [];
-    const query=args.query.normalize('NFD').replace(/\p{M}/gu,'').toLowerCase();
-    const useReference=/^(?:(?:une |vraie |recette |d )+)?ojja(?: (?:tunisienne|aux? merguez|traditionnelle|authentique))*$/u.test(query.replace(/[’']/g,' ').replace(/\s+/g,' ').trim());
+    const useReference=matchesGeneralOjjaRequest(args.query);
     const candidates=new Map<string,{url:string;title:string;isReference:boolean}>();
     for (const citation of citations) candidates.set(sourceKey(citation.url),{...citation,isReference:false});
     if(useReference) {

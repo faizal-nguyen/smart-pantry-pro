@@ -46,7 +46,9 @@ test('one requested ojja link is selected after reading the candidates, not befo
   }));
   const handler=new SearchWebRecipesHandler({fetchContext} as unknown as WebAdapter);
   const ctx={modelInvocation:{config:benchmarkConfig('luna'),complete,checkWork:jest.fn()}} as unknown as ToolExecutionContext;
-  expect((await handler.execute(ctx,{query:'ojja tunisienne',limit:1})).result).toMatchObject({sources:[{url:fast,duration_minutes:20,ingredients_verified:true}]});
+  expect((await handler.execute(ctx,{query:'Trouve-moi une vraie recette tunisienne d’ojja sur Internet et donne-moi le lien direct.',limit:1})).result).toMatchObject({sources:[{url:fast,duration_minutes:20,ingredients_verified:true}]});
   expect(fetchContext).toHaveBeenCalledTimes(3);
   expect((await handler.execute(ctx,{query:'ojja tunisienne'})).result).toMatchObject({sources:[{url:fast,duration_minutes:20},{url:slow,duration_minutes:50}]});
+  expect((await handler.execute(ctx,{query:'recette tunisienne d’ojja aux crevettes'})).result).toMatchObject({sources:[{url:slow}]});
+  expect(fetchContext).toHaveBeenCalledTimes(8);
 });
