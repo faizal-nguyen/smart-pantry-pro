@@ -83,6 +83,9 @@ import {
 
 const DEFAULT_MAX_TOOL_CALLS = 6;
 const DEFAULT_CONFIRMATION_TTL_MS = 5 * 60_000;
+// Shown as is by the client for EXECUTION_IN_PROGRESS / EXECUTION_UNVERIFIED.
+const CONFIRMATION_IN_PROGRESS_REASON = 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.';
+const CONFIRMATION_UNVERIFIED_REASON = 'Cette action n’a pas pu être confirmée. Vérifie son résultat avant de la recommencer.';
 
 const AGENT_SYSTEM_PROMPT = `You are Smart Pantry Pro's kitchen assistant. The user speaks to you in French (default) or English.
 In French, always use « tu » (Tutoie toujours l'utilisateur), never « vous ».
@@ -1239,51 +1242,69 @@ export class VoiceAgentService {
     const executed: ExecutedActionDescriptor[] = [];
     const failed: Array<{ action_id: string; tool: string; error_code: string; reason?: string }> = [];
     // Rows another confirmation already took: report what that run did instead of « 0 exécutée ».
+    // A row still `executing` is never reported done: in progress, or settled first
+    // against its stock receipt once it is no longer awaited.
     const claimed = new Set(rows.map(row => row.id));
     const earlier = await this.writer.fetchByIds(input.userId, payload.actionLogIds.filter(id => !claimed.has(id)));
-    for (const row of earlier) {
+    for (const found of earlier) {
+      const row = await this.writer.reconcileExecuting(input.userId, found);
       if (row.status === 'executed') executed.push({ action_id: row.id, step_seq: row.step_seq, tool: row.tool, args: row.tool_args,
         result: row.result, reversible: Boolean(row.reversible_action), undo_expires_at: row.undo_expires_at, risk_tier: row.risk_tier });
-      else if (row.status === 'failed') failed.push({ action_id: row.id, tool: row.tool, error_code: row.error_code ?? 'EXECUTION_FAILED' });
+      else if (row.status === 'failed') failed.push({ action_id: row.id, tool: row.tool, error_code: row.error_code ?? 'EXECUTION_FAILED',
+        ...(row.error_code === 'EXECUTION_UNVERIFIED' ? { reason: CONFIRMATION_UNVERIFIED_REASON } : {}) });
+      else if (row.status === 'executing') failed.push({ action_id: row.id, tool: row.tool, error_code: 'EXECUTION_IN_PROGRESS', reason: CONFIRMATION_IN_PROGRESS_REASON });
+      // A status this version does not know (a later one) is not a success either.
+      else if (row.status !== 'undone' && row.status !== 'cancelled' && row.status !== 'planned') {
+        failed.push({ action_id: row.id, tool: row.tool, error_code: 'EXECUTION_UNVERIFIED', reason: CONFIRMATION_UNVERIFIED_REASON });
+      }
     }
 
     for (const row of rows) {
+      let exec: ToolExecutionResult;
       try {
         const handler = this.handlerRegistry.get(row.tool);
-        const exec = (await handler.execute(
+        exec = (await handler.execute(
           { ...ctx, commandId: row.id, sessionId: row.session_id },
           row.tool_args
         )) as ToolExecutionResult;
-        await this.writer.markExecuted(row.id, {
-          result: exec.result as Record<string, unknown>,
-          reversibleAction: row.reversible ? exec.reversibleAction ?? null : undefined,
-          undoExpiresAt:
-            row.reversible && exec.reversibleAction
-              ? new Date(Date.now() + this.undoWindowMs)
-              : null,
-        });
-        executed.push({
-          action_id: row.id,
-          step_seq: row.step_seq,
-          tool: row.tool,
-          args: row.tool_args,
-          result: exec.result,
-          reversible: Boolean(exec.reversibleAction),
-          undo_expires_at: exec.reversibleAction
-            ? new Date(Date.now() + this.undoWindowMs).toISOString()
-            : null,
-          risk_tier: row.risk_tier,
-        });
       } catch (err) {
         const code = err instanceof Error ? 'EXECUTION_FAILED' : 'UNKNOWN';
+        // If this write fails too, the row stays `executing` and is settled later.
         await this.writer.markFailed(
           row.id,
           code,
           err instanceof Error ? err.message : 'unknown'
-        );
+        ).catch(() => undefined);
         // StockCommandError messages are written for the user; anything else stays generic.
         failed.push({ action_id: row.id, tool: row.tool, error_code: code, ...(err instanceof StockCommandError ? { reason: err.message } : {}) });
+        continue;
       }
+      const undoExpiresAt = row.reversible && exec.reversibleAction ? new Date(Date.now() + this.undoWindowMs) : null;
+      try {
+        await this.writer.markExecuted(row.id, {
+          result: exec.result as Record<string, unknown>,
+          reversibleAction: row.reversible ? exec.reversibleAction ?? null : undefined,
+          undoExpiresAt,
+        });
+      } catch {
+        // The action ran but its result is not recorded: it stays `executing`,
+        // to be settled against its receipt, and is reported to verify, not failed.
+        console.error('[assistant.confirm] result not recorded:', row.tool);
+        failed.push({ action_id: row.id, tool: row.tool, error_code: 'EXECUTION_UNVERIFIED', reason: CONFIRMATION_UNVERIFIED_REASON });
+        continue;
+      }
+      executed.push({
+        action_id: row.id,
+        step_seq: row.step_seq,
+        tool: row.tool,
+        args: row.tool_args,
+        result: exec.result,
+        reversible: Boolean(exec.reversibleAction),
+        undo_expires_at: exec.reversibleAction
+          ? new Date(Date.now() + this.undoWindowMs).toISOString()
+          : null,
+        risk_tier: row.risk_tier,
+      });
     }
 
     return { actions_executed: executed, actions_failed: failed };

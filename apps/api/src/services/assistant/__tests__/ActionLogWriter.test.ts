@@ -1,4 +1,4 @@
-import { ActionLogWriter, type ActionLogRow } from '../ActionLogWriter.js';
+import { ActionLogWriter, EXECUTING_STALE_AFTER_MS, type ActionLogRow } from '../ActionLogWriter.js';
 
 const USER = '11111111-1111-1111-1111-111111111111';
 const REQ = '22222222-2222-2222-2222-222222222222';
@@ -316,5 +316,129 @@ describe('ActionLogWriter', () => {
       const result = await writer.fetchPlanned(USER, ['a', 'b']);
       expect(result.map((r) => r.id)).toEqual(['a', 'b']);
     });
+  });
+});
+
+// ---- Confirmation taken in hand (V11-04 E2, advanced fix) ------------
+// A recording fake that resolves every chain the writer builds, terminal
+// `.maybeSingle()` or an awaited chain alike.
+interface RecordedQuery {
+  table: string;
+  op: 'select' | 'update';
+  payload?: Record<string, unknown>;
+  filters: Array<[string, string, unknown]>;
+}
+
+type QueryOutcome = { data: unknown; error: unknown };
+interface FakeChain {
+  select(): FakeChain;
+  update(payload: Record<string, unknown>): FakeChain;
+  eq(col: string, val: unknown): FakeChain;
+  in(col: string, val: unknown): FakeChain;
+  maybeSingle(): Promise<QueryOutcome>;
+  then<T>(resolve: (v: QueryOutcome) => T, reject: (e: unknown) => T): Promise<T>;
+}
+
+function makeRecordingClient(respond: (q: RecordedQuery) => QueryOutcome) {
+  const queries: RecordedQuery[] = [];
+  const fake = {
+    from(table: string): FakeChain {
+      const q: RecordedQuery = { table, op: 'select', filters: [] };
+      const settle = () => {
+        queries.push(q);
+        return Promise.resolve(respond(q));
+      };
+      const chain: FakeChain = {
+        select() { return chain; },
+        update(payload) { q.op = 'update'; q.payload = payload; return chain; },
+        eq(col, val) { q.filters.push(['eq', col, val]); return chain; },
+        in(col, val) { q.filters.push(['in', col, val]); return chain; },
+        maybeSingle: settle,
+        then(resolve, reject) { return settle().then(resolve, reject); },
+      };
+      return chain;
+    },
+  };
+  const client = fake as unknown as ConstructorParameters<typeof ActionLogWriter>[0];
+  return { client, queries };
+}
+
+const filter = (q: RecordedQuery, col: string) => q.filters.find(([, c]) => c === col)?.[2];
+
+describe('ActionLogWriter confirmation states', () => {
+  const NOW = Date.parse('2026-11-22T12:00:00Z');
+  const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+  it('claimPlanned takes planned rows as executing, never as executed', async () => {
+    const { client, queries } = makeRecordingClient(() => ({ data: [makeRow({ status: 'executing' })], error: null }));
+    const rows = await new ActionLogWriter(client).claimPlanned(USER, ['44444444-4444-4444-4444-444444444444']);
+
+    expect(rows.map(r => r.status)).toEqual(['executing']);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].payload).toEqual({ status: 'executing' });
+    expect(filter(queries[0], 'status')).toBe('planned');
+    expect(filter(queries[0], 'user_id')).toBe(USER);
+  });
+
+  it('the stale delay stays below the five-minute confirmation token', () => {
+    expect(EXECUTING_STALE_AFTER_MS).toBeGreaterThanOrEqual(60_000);
+    expect(EXECUTING_STALE_AFTER_MS).toBeLessThan(5 * 60_000);
+  });
+
+  it('reconcileExecuting leaves a row that is not executing untouched', async () => {
+    const { client, queries } = makeRecordingClient(() => { throw new Error('no query expected'); });
+    const row = makeRow({ status: 'executed' });
+    expect(await new ActionLogWriter(client).reconcileExecuting(USER, row, NOW)).toBe(row);
+    expect(queries).toHaveLength(0);
+  });
+
+  it('reconcileExecuting waits for a run still within the delay', async () => {
+    const { client, queries } = makeRecordingClient(() => { throw new Error('no query expected'); });
+    const row = makeRow({ status: 'executing', updated_at: ago(EXECUTING_STALE_AFTER_MS - 1_000) });
+    expect(await new ActionLogWriter(client).reconcileExecuting(USER, row, NOW)).toBe(row);
+    expect(queries).toHaveLength(0);
+  });
+
+  it('a stale executing row with a stock receipt becomes executed, without an assistant undo', async () => {
+    const row = makeRow({ status: 'executing', updated_at: ago(EXECUTING_STALE_AFTER_MS + 1_000), reversible: true });
+    const { client, queries } = makeRecordingClient(q => q.table === 'stock_commands'
+      ? { data: { result: { command_id: row.id, status: 'confirmed' } }, error: null }
+      : { data: { ...row, ...q.payload }, error: null });
+
+    const out = await new ActionLogWriter(client).reconcileExecuting(USER, row, NOW);
+
+    expect(queries[0].table).toBe('stock_commands');
+    expect(filter(queries[0], 'user_id')).toBe(USER);
+    expect(filter(queries[0], 'command_id')).toBe(row.id);
+    const update = queries[1];
+    expect(update.table).toBe('assistant_action_log');
+    expect(update.payload).toMatchObject({ status: 'executed', reversible: false, reversible_action: null, undo_expires_at: null,
+      result: { command_id: row.id, status: 'confirmed', reconciled_from: 'stock_commands' } });
+    // Guarded: the first run's own result, written meanwhile, is never overwritten.
+    expect(filter(update, 'status')).toBe('executing');
+    expect(out.status).toBe('executed');
+  });
+
+  it('a stale executing row without a receipt is left to verify, never reported done', async () => {
+    const row = makeRow({ status: 'executing', updated_at: ago(EXECUTING_STALE_AFTER_MS + 1_000) });
+    const { client, queries } = makeRecordingClient(q => q.table === 'stock_commands'
+      ? { data: null, error: null }
+      : { data: { ...row, ...q.payload }, error: null });
+
+    const out = await new ActionLogWriter(client).reconcileExecuting(USER, row, NOW);
+
+    expect(queries[1].payload).toMatchObject({ status: 'failed', error_code: 'EXECUTION_UNVERIFIED' });
+    expect(filter(queries[1], 'status')).toBe('executing');
+    expect(out).toMatchObject({ status: 'failed', error_code: 'EXECUTION_UNVERIFIED' });
+  });
+
+  it('when the first run finished meanwhile, reconcileExecuting returns what it wrote', async () => {
+    const row = makeRow({ status: 'executing', updated_at: ago(EXECUTING_STALE_AFTER_MS + 1_000) });
+    const finished = { ...row, status: 'executed' as const, result: { consumed: 1 } };
+    const { client } = makeRecordingClient(q => q.table === 'stock_commands'
+      ? { data: null, error: null }
+      : q.op === 'update' ? { data: null, error: null } : { data: finished, error: null });
+
+    expect(await new ActionLogWriter(client).reconcileExecuting(USER, row, NOW)).toEqual(finished);
   });
 });

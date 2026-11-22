@@ -60,6 +60,8 @@ function toolLabel(tool: string): string {
 }
 // A read, or a question back, changed nothing: listing it as « exécutée » is noise.
 const NOT_A_CHANGE = new Set(['ask_clarification']);
+/** Confirmation outcomes the server could not settle yet: neither a failure nor a success. */
+const UNSETTLED_CODES = new Set(['EXECUTION_IN_PROGRESS', 'EXECUTION_UNVERIFIED']);
 const isChange = (action: ExecutedAction) => action.risk_tier !== 'read' && !NOT_A_CHANGE.has(action.tool);
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'en-cas' };
@@ -116,11 +118,14 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       const reasons = [...new Set(done.actions_failed.map(failure => failure.reason).filter((reason): reason is string => !!reason))];
       // The toast cannot be unfolded: long lists stay short there, whole in the executed row.
       const summaries = done.actions_executed.flatMap(action => summaryOf(action.result)).map(line => shortenList(line) ?? line);
+      // In progress or unverified: it may well have happened, so neither « non réalisée » nor « confirmée ».
+      const failures = done.actions_failed.filter(failure => !UNSETTLED_CODES.has(failure.error_code));
       toast({
-        title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle' : 'Action non réalisée',
+        title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle'
+          : failures.length ? 'Action non réalisée' : 'Action à vérifier',
         description: !done.actions_failed.length ? summaries.length ? summaries.join(' ') : `${done.actions_executed.length} exécutée(s).`
           : reasons.length ? reasons.join(' ') : 'Rien n’a changé. Redis ta demande pour réessayer.',
-        ...(done.actions_failed.length ? { variant: 'destructive' as const } : {}),
+        ...(failures.length ? { variant: 'destructive' as const } : {}),
       });
     } catch (err) {
       // Kept on screen: a toast can be missed on a phone, and the user may retry.
