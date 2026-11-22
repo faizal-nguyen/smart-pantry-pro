@@ -1348,7 +1348,7 @@ describe('stock-first meals (hungry-user report 2026-11-12)',()=>{
       return {content:'Idées chef hors bibliothèque\n**Nouilles au brocoli**\nFais sauter les légumes puis les nouilles.',model:request.model,usage:{prompt_tokens:100,completion_tokens:50}};
     })};
     const stock={execute:jest.fn(async()=>({result:{complete:true,items:[
-      {product_name:'Nouilles Lamian',quantity:1,unit:'sachet',expired:false},
+      {product_name:'Nouilles fraîches Lamian',quantity:1,unit:'sachet',expired:false},
       {product_name:'Brocoli',quantity:1,unit:'pièce',expired:false},
       {product_name:'Riz basmati',quantity:10,unit:'kg',expired:false},
     ]}}))};
@@ -1363,7 +1363,8 @@ describe('stock-first meals (hungry-user report 2026-11-12)',()=>{
     expect(response.model_receipt?.calls.map(c=>c.purpose)).toEqual(['synthesis']);
     expect(requests[0].continuation ?? []).toEqual([]);
     const sent=JSON.stringify(requests[0].messages);
-    expect(sent).toContain('Nouilles Lamian');
+    expect(sent).toContain('Nouilles fraîches Lamian');
+    expect(sent).toContain('ne devine ni la forme ni le poids');
     expect(sent).toContain('3 à 4 idées différentes de repas complets');
     expect(sent).not.toContain("PRIORITÉ — BDD d'abord");
   });
