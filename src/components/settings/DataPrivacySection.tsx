@@ -18,7 +18,7 @@
  * un row `data_deletion_requests` (status `pending`). Aucune
  * suppression inline — un worker backend (futur) finalise.
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Download, Loader2, Shield, ShieldCheck, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -50,7 +50,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePrivacySettings } from '@/hooks/usePrivacySettings';
-import type { PrivacyDataRetention } from '@/services/privacyApi';
+import { useDeletionRequest } from '@/hooks/useDeletionRequest';
+import type { DeletionRequestView, PrivacyDataRetention } from '@/services/privacyApi';
 
 interface ToggleRowProps {
   id: string;
@@ -87,14 +88,32 @@ const RETENTION_LABELS: Record<PrivacyDataRetention, string> = {
   full: 'Complète — pas d’effacement automatique',
 };
 
+const FRENCH_DATE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
+
+/** What the latest deletion request means for the user; never « terminée » while photos remain. */
+function deletionStatusText(request: DeletionRequestView): string {
+  if (request.status === 'completed') {
+    return request.completedAt
+      ? `Suppression terminée le ${FRENCH_DATE.format(new Date(request.completedAt))}.`
+      : 'Suppression terminée.';
+  }
+  if (request.status === 'failed') return 'La suppression n’a pas pu aboutir. Tu peux refaire une demande.';
+  if (request.filesPending) {
+    return 'Tes données sont effacées, mais certaines photos n’ont pas pu l’être. La demande reste ouverte tant qu’elles ne le sont pas.';
+  }
+  return 'Demande enregistrée, traitée dans l’heure.';
+}
+
 export default function DataPrivacySection() {
   const {
+    owner,
     settings,
     isLoading, error, isUpdating,
     updateSettings,
     exportUserData,
     requestDataDeletion,
   } = usePrivacySettings();
+  const deletion = useDeletionRequest(owner);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
@@ -121,6 +140,8 @@ export default function DataPrivacySection() {
       // Toast déjà émis par le hook.
     } finally {
       setIsRequesting(false);
+      // Recorded even when the photos failed: show the request as it stands.
+      await deletion.refresh();
     }
   };
 
@@ -278,6 +299,23 @@ export default function DataPrivacySection() {
             <Trash2 className="h-4 w-4" aria-hidden="true" />
             Demander la suppression de mes données
           </Button>
+
+          {deletion.request ? (
+            <div className="space-y-2 rounded-md border border-border p-3" role="status">
+              <p className="text-sm">{deletionStatusText(deletion.request)}</p>
+              {deletion.request.filesPending ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDelete()}
+                  disabled={isRequesting}
+                >
+                  {isRequesting ? 'Effacement…' : 'Réessayer d’effacer mes photos'}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           <p className="pt-1 text-xs text-muted-foreground">
             La suppression n’est pas immédiate : ta demande est enregistrée puis

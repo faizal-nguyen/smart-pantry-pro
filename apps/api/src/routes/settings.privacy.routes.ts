@@ -8,6 +8,7 @@
  *   PATCH /api/v1/settings/privacy        → upsert settings (partiel)
  *   POST  /api/v1/settings/export         → JSON GDPR via RPC durci
  *   POST  /api/v1/settings/delete-request → INSERT data_deletion_requests
+ *   GET   /api/v1/settings/delete-request → état de la dernière demande
  *
  * Sécurité :
  *   - `createAuthMiddleware` pose req.user.id + req.supabaseClient (RLS).
@@ -20,7 +21,10 @@
  * « Supprimer » côté UI crée un row `data_deletion_requests` (status
  * `pending`) et efface tout de suite ses fichiers Storage
  * (`deleteUserFiles`) ; le job pg_cron horaire `process-deletion-requests`
- * (migration 20261106140000) efface ensuite toutes ses lignes.
+ * (migration 20261106140000) efface ensuite toutes ses lignes. Il ne
+ * termine la demande que si ses fichiers ont disparu de Storage ; sinon
+ * elle reste `processing` (FILES_REMAINING) jusqu'à un nouvel essai réussi
+ * (migration 20261122140000).
  */
 import { Router } from 'express';
 import { z } from 'zod';
@@ -70,6 +74,27 @@ const DEFAULT_SETTINGS: PrivacySettings = {
   batterySaver: false,
   dataRetention: 'standard',
 };
+
+interface DeletionRequestRow {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  requested_at: string;
+  completed_at: string | null;
+  error: string | null;
+}
+
+/** Set by process_pending_deletion_requests while the user's files remain. */
+const FILES_REMAINING = 'FILES_REMAINING';
+
+function toDeletionRequestView(row: DeletionRequestRow) {
+  return {
+    id: row.id,
+    status: row.status,
+    requestedAt: row.requested_at,
+    completedAt: row.completed_at,
+    filesPending: row.status === 'processing' && row.error === FILES_REMAINING,
+  };
+}
 
 export function createSettingsPrivacyRouter(
   adminClient: SupabaseClient<Database>,
@@ -180,6 +205,31 @@ export function createSettingsPrivacyRouter(
     }
   });
 
+  // ---- GET /delete-request -----------------------------------------
+  // Latest request of the user. `filesPending`: rows erased, files still
+  // in Storage, so the request stays open. The SQL error itself stays internal.
+  router.get('/delete-request', readLimiter, async (req, res) => {
+    if (!req.user?.id || !req.supabaseClient) {
+      return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    }
+    try {
+      const userClient = req.supabaseClient as unknown as LooseClient;
+      const { data, error } = await userClient
+        .from('data_deletion_requests')
+        .select('id, status, requested_at, completed_at, error')
+        .eq('user_id', req.user.id)
+        .order('requested_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const row = data as DeletionRequestRow | null;
+      return ok(res, { request: row ? toDeletionRequestView(row) : null }, 'OK', 'PRIVACY_DELETE_STATUS_OK');
+    } catch (err) {
+      console.error('[settings.privacy.delete-request.GET] failed');
+      return fail(res, 'Internal error', 500, 'PRIVACY_DELETE_STATUS_FAILED');
+    }
+  });
+
   // ---- POST /delete-request ----------------------------------------
   router.post('/delete-request', deleteLimiter, async (req, res) => {
     if (!req.user?.id || !req.supabaseClient) {
@@ -217,7 +267,8 @@ export function createSettingsPrivacyRouter(
         await deleteUserFiles(adminClient as unknown as LooseClient, req.user.id);
       } catch (error) {
         console.error('[settings.privacy.delete-request] files not deleted:', error instanceof Error ? error.name : 'unknown');
-        return fail(res, 'tes photos n’ont pas pu être effacées, réessaie dans un instant.', 502, 'PRIVACY_FILES_DELETE_FAILED');
+        // The request is recorded: the hourly job will not complete it while these files remain.
+        return fail(res, 'Demande enregistrée, mais tes photos n’ont pas pu être effacées : réessaie dans un instant.', 502, 'PRIVACY_FILES_DELETE_FAILED');
       }
 
       return ok(
