@@ -1,6 +1,6 @@
 # V11 Boucle complète : du menu au rangement, à plusieurs et dans la durée
 
-> Statut : six PRP à l'état de brouillon, relues par Codex le 22 novembre 2026. Chaque constat de cette relecture a été revérifié dans le code avant d'être intégré. Cinq décisions validées par l'utilisateur le 22 novembre 2026 (section 4.1) ; les autres restent proposées. Aucune réalisation, migration ni déploiement.
+> Statut : six PRP à l'état de brouillon, relues par Codex le 22 novembre 2026. Chaque constat de cette relecture a été revérifié dans le code avant d'être intégré. Six décisions validées par l'utilisateur le 22 novembre 2026 (section 4.1) ; les autres restent proposées. Les rangs 1 et 2 de la section 1 sont réalisés (section 0) ; aucune autre étape n'est commencée.
 > Création : 2026-11-22.
 > Produit : Smart Grocery, application Smart Pantry Pro (Kitchen OS).
 > Source : audit fonctionnel du 22 novembre 2026, mené par lecture du code (référence locale `3ade8b54`, branche `main`, arbre de travail avec modifications non commitées). Il n'existe pas de document d'audit séparé : sa synthèse est en section 2 et chaque PRP revérifie ses constats.
@@ -28,20 +28,21 @@ Le contrôle de la tâche (`cron.job`, historique d'exécution) et du déploieme
 - retrait de la fonction de nettoyage et de sa tâche, sans remplacer la purge des conversations : [V11-05](PRP-V11-05-Stock-Et-Courses.md), étape E0 « Nettoyage nocturne neutralisé », section 4 (D13 et D14, validées) ;
 - dépublication immédiate des fonctions exposées si elles sont déployées, réversible par redéploiement : [V11-06](PRP-V11-06-Consolidation-Design-Mesure.md), décision D9 (validée).
 
-**Réalisé le 22 novembre 2026 sur le projet `jwoxacnflphclslpqfzs` (production).**
+**Réalisé les 22 et 23 novembre 2026 sur le projet `jwoxacnflphclslpqfzs` (production).**
 
 - Constat : la tâche `cleanup-shopping-list-daily` était active et avait réussi chaque nuit jusqu'au 22 novembre à 2 h UTC. Les quatre fonctions `cleanup-shopping-list`, `recipe-assistant`, `ai-assistant-enhanced` et `indian-price-estimator` étaient déployées ; `panic-mode` ne l'était pas. Aucune réponse HTTP n'était plus conservée : le nombre d'achats effacés n'est pas connu.
 - Les quatre fonctions sont supprimées ; plus aucune fonction Edge n'est déployée.
-- La migration `20261122204021_remove_cleanup_shopping_list_cron.sql` a été exécutée seule, puis inscrite dans l'historique par `supabase migration repair`. `cron.job` ne contient plus que `process-deletion-requests`. Le code correspondant est dans la branche `fix/remove-cleanup-shopping-list`.
-- L'historique distant ne compte que huit migrations, la dernière étant `20261106154633`. `supabase db push` tenterait de rejouer toutes les autres : chaque migration se passe seule tant que l'historique n'est pas rapproché.
+- La migration `20261122204021_remove_cleanup_shopping_list_cron.sql` a été exécutée seule, puis inscrite dans l'historique par `supabase migration repair`. `cron.job` ne contient plus que `process-deletion-requests`. Le code est fusionné dans `main` ([#130](https://github.com/faizal-nguyen/smart-pantry-pro/pull/130)).
+- L'historique distant compte onze migrations : huit jusqu'à `20261106154633`, puis `20261122140000`, `20261122150000` et `20261122204021`, chacune exécutée seule puis inscrite par `supabase migration repair`. `supabase db push` tenterait de rejouer toutes les autres : chaque migration se passe seule tant que l'historique n'est pas rapproché.
 
-### Défauts du code actuel relevés en relecture
+### Défauts du code relevés en relecture, corrigés hors série
 
-Ils existent indépendamment de V11. Chacun est corrigé dans un lot, mais sa correction peut être avancée hors série :
+Ils existaient indépendamment de V11. Leur correction a été sortie des lots (section 4.1) et fusionnée le 23 novembre 2026 ; chaque migration a été appliquée en production avant la fusion du code qui en dépend.
 
-- **Faux succès de confirmation de l'assistant.** `claimPlanned` passe l'action à `executed` avant d'appeler son gestionnaire (`ActionLogWriter.ts`). Une confirmation concurrente peut répondre « exécutée » alors que la commande n'a produit aucun reçu, et une interruption à ce moment laisse ce faux état en base. Correction : [V11-04](PRP-V11-04-Assistant-Chef.md) E2.
-- **Suppression de compte déclarée terminée trop tôt.** La demande peut être marquée terminée alors que l'effacement des fichiers a échoué (`settings.privacy.routes.ts`). Correction : [V11-02](PRP-V11-02-Retention-Foyer-Hors-Ligne.md) E5.
-- **`recipe_conversations` hors de la suppression de compte.** La table n'a pas de clé étrangère vers `auth.users` et ne figure pas dans le travailleur de suppression, à vérifier. Son sort suit celui de `recipe-assistant` (V11-06 D9, V11-05 D14).
+- **Faux succès de confirmation de l'assistant.** `claimPlanned` passait l'action à `executed` avant d'appeler son gestionnaire (`ActionLogWriter.ts`). Corrigé par [#133](https://github.com/faizal-nguyen/smart-pantry-pro/pull/133) : état `executing` (migration `20261122150000`) ; une action restée en cours plus de deux minutes est rapprochée du reçu `stock_commands`, exécutée s'il existe, « à vérifier » sinon ; l'annulation est refusée tant qu'elle est en cours. Le reste de [V11-04](PRP-V11-04-Assistant-Chef.md) E2 demeure.
+- **Intention perdue sur 429.** Le client des commandes effaçait l'intention en attente sur une réponse 429. Corrigé par [#131](https://github.com/faizal-nguyen/smart-pantry-pro/pull/131) pour les commandes de stock, la cuisson et la mise au rebut ; l'import de recettes garde sa règle actuelle. Extrait de [V11-01](PRP-V11-01-Boucle-Menus-Courses.md) E1.
+- **Suppression de compte déclarée terminée trop tôt.** La demande pouvait être marquée terminée alors que l'effacement des fichiers avait échoué (`settings.privacy.routes.ts`). Corrigé par [#132](https://github.com/faizal-nguyen/smart-pantry-pro/pull/132) : la demande reste `processing` tant que des fichiers de l'utilisateur restent dans le stockage (migration `20261122140000`), et l'écran Confidentialité affiche son état et propose de réessayer. Limites : l'effacement des photos n'est relancé que par l'utilisateur, et les demandes déjà marquées terminées n'ont pas été rouvertes. Le reste de [V11-02](PRP-V11-02-Retention-Foyer-Hors-Ligne.md) E5 demeure.
+- **`recipe_conversations` dans la suppression de compte.** Vérifié : `private.delete_user_rows` efface toutes les tables publiques qui ont une colonne `user_id`, dont celle-ci. Le sort de la table elle-même relève de V11-06 E8 (V11-06 D9, V11-05 D14).
 
 ## 1. Documents, ordre et estimations
 
@@ -54,8 +55,8 @@ Ordre de réalisation proposé, étape par étape :
 
 | Rang | Étapes | Contenu | Condition d'ouverture | Durée |
 | --- | --- | --- | --- | --- |
-| 1 | V11-05 E0 et V11-06 D9 | Constat distant ; retrait de `cleanup-shopping-list` et de sa tâche ; dépublication des fonctions exposées | Aucune | 1 à 2 jours |
-| 2 | Correctifs avancés (proposés) | Faux succès de confirmation (extrait de V11-04 E2), intention perdue sur 429 (extrait de V11-01 E1), suppression de compte terminée trop tôt (extrait de V11-02 E5) | Aucune ; à confirmer par l'utilisateur | À chiffrer, quelques jours |
+| 1 | V11-05 E0 et V11-06 D9 | Constat distant ; retrait de `cleanup-shopping-list` et de sa tâche ; dépublication des fonctions exposées | Aucune | Réalisé le 22 novembre 2026 |
+| 2 | Correctifs avancés | Faux succès de confirmation (extrait de V11-04 E2), intention perdue sur 429 (extrait de V11-01 E1), suppression de compte terminée trop tôt (extrait de V11-02 E5) | Aucune ; validés le 22 novembre 2026 | Réalisé le 23 novembre 2026 (#131 à #133) |
 | 3 | V11-05 E1 et E2 | Référence, puis commandes de la liste, primitive d'agrégation, journal annulable, raccordement du hook et de l'assistant | Rang 1 | Part de V11-05, à chiffrer en E1 |
 | 4 | [V11-01](PRP-V11-01-Boucle-Menus-Courses.md) E0 à E5 | Calcul des courses du menu, récapitulatif, menu modifiable, semaine proposée, ticket et prix | Rang 3 ; E5 après le rang 1 | 6 à 8 semaines |
 | 5 | [V11-06](PRP-V11-06-Consolidation-Design-Mesure.md) E0 à E6 | Chiffres faux retirés, analyses, une seule pile d'interface, retraits R1 à R10, accueil, paramètres | Rang 1 | 11 à 15 jours |
@@ -111,7 +112,7 @@ Pour une personne à temps plein, le total passe d'environ vingt à vingt-six se
 - **Foyer.** V11-02 reprend par palier les objets des autres lots : contributions du menu et scans de ticket (F1) ; emplacements de V11-05, lecture du stock par le moteur et caches (F2) ; menus et gestionnaires de l'assistant (F3).
 - **Fonctions Edge et tables.** Le nettoyage est retiré par V11-05 E0, les fonctions exposées sont dépubliées par V11-06 D9. Les tables orphelines sont inventoriées par V11-06 E0, déclencheurs et cascades compris, puis supprimées par V11-06 E8 après sauvegarde vérifiée et liste validée table par table (V11-05 D12).
 - **Suppressions de code.** `smartMealPlannerService.ts` est retiré par V11-01 E4 ; `streamingAIService.ts`, `nutritionalAIService.ts` et le flux `/api/assistant/stream` par V11-04. Le reste revient à V11-06, lots R1 à R10, dont `AssistantProvider` et les anciennes routes de favoris.
-- **Client des commandes.** Sur une réponse 429, le client efface aujourd'hui l'intention en attente. Le correctif est posé par V11-01 E1 et sert à tous les lots.
+- **Client des commandes.** Sur une réponse 429, le client garde l'intention en attente depuis [#131](https://github.com/faizal-nguyen/smart-pantry-pro/pull/131). La règle est centralisée dans `isRolledBackRefusal` ([stockCommandRefusal.ts](../../src/services/stockCommandRefusal.ts)) ; chaque nouveau flux de commande la réutilise.
 - **Estimateur de péremption.** `estimateExpiryDate` (service de ticket) contient des durées codées en dur. V11-01 ne le reprend pas ; V11-05 E4 le remplace par un repère sourcé, jamais écrit comme date.
 
 ## 4. Décisions à rendre en priorité
@@ -127,6 +128,7 @@ Chaque PRP contient son tableau complet de décisions proposées, avec l'alterna
 | Tables orphelines | Suppression par V11-06 E8, après l'inventaire de V11-06 E0, une sauvegarde vérifiée et une liste validée table par table | V11-05 D12, V11-06 D8 |
 | Écritures directes sur la liste | Révoquées une fois tous les écrivains passés par les commandes, après un cycle de publication | V11-05, D15 |
 | Départ d'un membre du foyer | Ses lignes partagées sont réattribuées au propriétaire du foyer | V11-02 |
+| Correctifs avancés | Sortis de leur lot et livrés hors série (#131 à #133, section 0) | V11-01, V11-02, V11-04 |
 
 ### 4.2 À rendre en priorité
 
@@ -134,7 +136,6 @@ Celles-ci conditionnent plusieurs lots ou une donnée existante :
 
 | Décision | Proposition | Alternative | PRP |
 | --- | --- | --- | --- |
-| Correctifs avancés | Sortir des lots les trois correctifs du rang 2 (section 1) | Les laisser dans leur étape d'origine | V11-01, V11-02, V11-04 |
 | Place des menus | Rester sous Recettes, avec entrées depuis Aujourd'hui et Courses | Sixième destination principale, recommandée par l'audit | V11-01, D8 |
 | Courses du menu | Contributions enregistrées par ligne de liste | Lignes dédiées au menu | V11-01, D2 |
 | Achat partiel au ticket | Le reliquat reste à acheter sur une ligne non cochée | Ligne entière déclarée achetée | V11-01, D14 |
@@ -158,8 +159,8 @@ Une décision proposée devient définitive lorsqu'elle est validée dans le lot
 
 ## 5. Limites de ce dossier
 
-- Les constats portent sur l'arbre de travail local. Sur l'environnement distant, seuls les tâches planifiées, les fonctions déployées et l'historique des migrations ont été consultés (section 0) ; le schéma ne l'a pas été.
+- Les constats portent sur l'arbre de travail local. Sur l'environnement distant, seuls les tâches planifiées, les fonctions déployées, l'historique des migrations et les objets modifiés par chaque migration appliquée ont été consultés (section 0) ; le reste du schéma ne l'a pas été.
 - La relecture Codex était statique, sur la même copie locale. Ses preuves ont été revérifiées dans le code ; les affirmations sur des services externes (Supabase Realtime, Vercel, iOS, consentement) sont sourcées dans les PRP ou marquées « à confirmer ».
-- Aucun test, build ni parcours n'a été exécuté pour cette rédaction.
+- Aucun test, build ni parcours n'a été exécuté pour la rédaction des PRP. Les correctifs de la section 0 ont été vérifiés par build, types, lint et tests avant fusion.
 - Des modifications locales non commitées touchent l'assistant et le moteur de recommandation ; V11-03 et V11-04 demandent de revalider leur point de départ en E0.
 - Les contraintes de navigateur (push web sur iPhone, maintien de l'écran allumé) restent à confirmer sur l'appareil.
