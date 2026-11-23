@@ -21,6 +21,32 @@ const command = <K extends string, T extends z.ZodTypeAny>(type: K, payload: T) 
   command_id: z.string().uuid(), command_type: z.literal(type), payload_version: z.literal(1), payload,
 }).strict();
 
+/** V11-05 E2: where a shopping_add comes from; the database refuses any other value. */
+export const ShoppingOriginSchema = z.enum(['manual', 'stock_row', 'restock', 'frequent', 'assistant']);
+export type ShoppingOrigin = z.infer<typeof ShoppingOriginSchema>;
+/** The four list commands, accepted once the database declares this capability. */
+export const SHOPPING_COMMAND_TYPES = ['shopping_add', 'shopping_check', 'shopping_update', 'shopping_remove'] as const;
+export type ShoppingCommandType = typeof SHOPPING_COMMAND_TYPES[number];
+export const SHOPPING_COMMANDS_CAPABILITY = 4;
+
+const shoppingRow = { id: z.string().uuid(), expected_version: version };
+const shoppingName = z.string().trim().min(1).max(120);
+const shoppingCategory = z.string().trim().min(1).max(60);
+const shoppingUnit = z.string().trim().min(1).max(40);
+const shoppingSection = z.string().trim().max(60).nullable();
+const UPDATABLE = ['name', 'quantity', 'unit', 'estimated_price', 'store_section'] as const;
+const shoppingAddItem = z.object({
+  product_id: z.string().uuid().optional(), name: shoppingName.optional(), category: shoppingCategory.optional(),
+  quantity: positiveQuantity, unit: shoppingUnit, store_section: shoppingSection.optional(), origin: ShoppingOriginSchema,
+  /** A row the screen designates; at another version the add is refused (D16). */
+  target: z.object(shoppingRow).strict().optional(),
+}).strict().refine(item => (item.product_id === undefined) !== (item.name === undefined), { message: 'product_id or name, not both' });
+const shoppingUpdateItem = z.object({
+  ...shoppingRow, name: shoppingName.optional(), category: shoppingCategory.optional(),
+  quantity: positiveQuantity.optional(), unit: shoppingUnit.optional(),
+  estimated_price: z.number().finite().nonnegative().max(100000).nullable().optional(), store_section: shoppingSection.optional(),
+}).strict().refine(item => UPDATABLE.some(key => key in item), { message: 'nothing to update' });
+
 export const StockCommandSchema = z.discriminatedUnion('command_type', [
   command('transfer_shopping', z.object({ items: boundedItems(z.object({
     id: z.string().uuid(), expected_version: version,
@@ -68,6 +94,10 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
     servings: positiveQuantity.int().max(100),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).default('dinner'),
   }).strict()),
+  command('shopping_add', z.object({ items: boundedItems(shoppingAddItem) }).strict()),
+  command('shopping_check', z.object({ items: boundedItems(z.object({ ...shoppingRow, purchased: z.boolean() }).strict()) }).strict()),
+  command('shopping_update', z.object({ items: boundedItems(shoppingUpdateItem) }).strict()),
+  command('shopping_remove', z.object({ items: boundedItems(z.object(shoppingRow).strict()) }).strict()),
 ]);
 export type StockCommand = z.infer<typeof StockCommandSchema>;
 
@@ -79,6 +109,16 @@ export interface RecipeStockPreview {
   recipe: ResolvedStockRecipe; servings: number; lots: StockLot[];
   allocations: StockAllocation[]; missing: StockMissing[];
 }
+export type ShoppingChangeOutcome = 'created' | 'merged' | 'checked' | 'unchecked' | 'unchanged' | 'updated' | 'removed' | 'restored';
+/** One shopping row touched by a command, as the database confirmed it. */
+export interface ShoppingChange {
+  id: string; outcome: ShoppingChangeOutcome; name?: string; quantity?: number; unit?: string; purchased?: boolean;
+  /** created or merged: the amount this command put on the row, in the row's unit. */
+  added_quantity?: number;
+  /** created: why the product was not topped up on a row it already has. */
+  note?: 'unit_incompatible' | 'purchased_pending';
+  stock_version?: number;
+}
 export interface StockCommandResult {
   command_id: string; command_type: string; status: 'confirmed';
   affected_tables: string[]; inventory_ids?: string[]; shopping_ids?: string[];
@@ -86,5 +126,7 @@ export interface StockCommandResult {
   /** plan_recipe: the meal the slot held before, which undo_stock gives back. */
   replaced_entry?: { recipe_name?: string; servings?: number };
   changes?: Array<{ id: string; before_quantity: number; after_quantity: number; unit: string; stock_version: number }>;
+  /** Shopping commands, recipe_add_missing and their undo. */
+  shopping_changes?: ShoppingChange[];
   recipe_id?: string; journal_id?: string; user_recipe_id?: string;
 }
