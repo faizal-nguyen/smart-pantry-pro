@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   allocateRecipeStock, allocateCookingStock, canAddToShoppingList, needsPurchase, StockCommandSchema,
+  SHOPPING_COMMAND_TYPES, SHOPPING_COMMANDS_CAPABILITY,
   type RecipeReference, type RecipeStockPreview, type ResolvedStockRecipe,
   type StockCommand, type StockCommandResult, type StockLot,
 } from '@smart/shared';
@@ -24,6 +25,7 @@ const MESSAGES: Record<string, string> = {
   COMMAND_NOT_FOUND: 'Cette opération n’est plus accessible.',
   MIGRATION_REQUIRED: 'Cette action n’est pas encore disponible. Tes données et ta demande sont conservées.',
   INVALID_COMMAND: 'Les données de cette action sont invalides. Vérifie les champs avant de réessayer.',
+  DUPLICATE_ITEM: 'Le même article figure deux fois dans cette action.',
 };
 
 export class StockCommandError extends Error {
@@ -101,9 +103,12 @@ export class StockCommandService {
     const requiresRoutine = command.command_type==='transfer_shopping' && command.payload.items.some(item => item.quantity !== undefined || item.unit !== undefined)
       || command.command_type==='consume_recipe' && (command.payload.adjustments?.length ?? 0)>0;
     const requiresMetadata=(command.command_type==='transfer_shopping' || command.command_type==='adjust_inventory') && command.payload.items.some(item=>item.date_kind!==undefined || item.quantity_quality!==undefined);
-    if (requiresRoutine || requiresMetadata) {
+    // V11-05 E2: an older database would refuse these types; the client keeps the request (503).
+    const requiresShopping = (SHOPPING_COMMAND_TYPES as readonly string[]).includes(command.command_type);
+    if (requiresRoutine || requiresMetadata || requiresShopping) {
+      const required = requiresShopping ? SHOPPING_COMMANDS_CAPABILITY : requiresMetadata ? 3 : 2;
       const capabilities = await this.client.rpc('stock_routine_capabilities');
-      if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<(requiresMetadata ? 3 : 2)) throw new StockCommandError('MIGRATION_REQUIRED',503);
+      if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<required) throw new StockCommandError('MIGRATION_REQUIRED',503);
     }
     let allocations: unknown[] = [];
     if (command.command_type === 'consume_recipe' || command.command_type === 'recipe_add_missing') {

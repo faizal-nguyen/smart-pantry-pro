@@ -10,6 +10,7 @@ import { useCalendarNow } from '@/hooks/useCalendarNow';
 import { useRoutinePreferences } from '@/hooks/useRoutinePreferences';
 import { useOwnedValue, removeOwnedValue } from '@/lib/ownedStorage';
 import { undoStockCommand } from '@/services/stockCommands';
+import { describeShoppingChanges } from '@/lib/shoppingChanges';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -248,7 +249,9 @@ export default function Inventory() {
   const view = localView ?? preferences.data?.stock_view ?? 'list';
   const [editing,setEditing] = useState<InventoryItem|null>(null), [quickOpen,setQuickOpen] = useState(false), [manualOpen,setManualOpen] = useState(false), [scannerOpen,setScannerOpen] = useState(false);
   const [message,setMessage] = useState(''), [actionError,setActionError] = useState<string|null>(null), [lastCommand,setLastCommand] = useState<string|null>(null);
-  const [undoing,setUndoing] = useState(false);
+  const [undoing,setUndoing] = useState(false), [lastKind,setLastKind] = useState<'stock'|'shopping'>('stock');
+  /** The last confirmed command the status line can undo: a stock correction or an add to the list. */
+  const remember = (id:string,kind:'stock'|'shopping'='stock') => { setLastCommand(id); setLastKind(kind); };
   const [discardOpen,setDiscardOpen] = useState(false);
   const [sheet,setSheet] = useState<InventoryItem|null>(null);
   const photos = useProductPhotos(stock.inventory.map(item => item.product_id));
@@ -269,11 +272,14 @@ export default function Inventory() {
   const categoryChips = CATEGORY_DEFS.filter(category => stock.inventory.some(item => categorizeProduct(item.product?.category,item.product?.name)===category.key));
   const save = async (id:string,updates:Partial<InventoryItem>) => {
     const result = await stock.updateInventoryItem(id,updates);
-    setMessage('Correction confirmée. Le stock est à jour.'); setActionError(null); setLastCommand(result.command_id);
+    setMessage('Correction confirmée. Le stock est à jour.'); setActionError(null); remember(result.command_id);
     removeOwnedValue(user.id,`correction:${id}`);
   };
   const shopping = async (item:InventoryItem) => {
-    try { await addToShoppingList({ productName:item.product?.name ?? 'Produit',quantity:1,unit:item.unit ?? item.product?.unit_type ?? '',category:item.product?.category ?? 'Autres' }); setMessage('Produit ajouté aux courses.'); }
+    try {
+      const result = await addToShoppingList({ productName:item.product?.name ?? 'Produit',quantity:1,unit:item.unit ?? item.product?.unit_type ?? '',category:item.product?.category ?? 'Autres' },'stock_row');
+      remember(result.command_id,'shopping'); setActionError(null); setMessage(describeShoppingChanges(result.shopping_changes));
+    }
     catch (failure) { fail(failure); }
   };
   const availableLots=stock.inventory.filter(item=>item.quantity>0).length;
@@ -290,10 +296,10 @@ export default function Inventory() {
     {discard && <div role="status" className="rounded-lg border p-3 space-y-2"><p>{discard.stock_confirmed ? 'Stock confirmé, déclaration de perte à reprendre' : 'Déclaration de perte à reprendre'} : {discard.product_name}.</p><Button className="min-h-11" variant="outline" onClick={()=>setDiscardOpen(true)}>Reprendre la déclaration de perte</Button></div>}
     {(discardStorageError || discardRaw && !discard) && <p role="alert">{discardStorageError || 'La déclaration de perte enregistrée doit être vérifiée.'}</p>}
     {(stock.error || actionError || storageError) && <div role="alert" className="rounded-lg border border-destructive p-3 space-y-2"><p>{actionError || storageError || 'Impossible de relire le stock. Réessaie.'}</p><Button className="min-h-11" variant="outline" onClick={() => void stock.refetch()}>Actualiser le stock</Button></div>}
-    {message && <div role="status" className="rounded-lg border p-3"><p>{message}</p>{lastCommand && <Button className="min-h-11" variant="outline" disabled={undoing} onClick={() => { const id=lastCommand; setUndoing(true); void undoStockCommand(id).then(() => { setLastCommand(current=>current===id ? null : current); setActionError(null); setMessage('Correction annulée.'); void stock.refetch(); }).catch(fail).finally(()=>setUndoing(false)); }}>{undoing ? 'Vérification de l’annulation…' : 'Annuler cette correction'}</Button>}</div>}
+    {message && <div role="status" className="rounded-lg border p-3"><p>{message}</p>{lastCommand && <Button className="min-h-11" variant="outline" disabled={undoing} onClick={() => { const id=lastCommand; setUndoing(true); void undoStockCommand(id).then(() => { setLastCommand(current=>current===id ? null : current); setActionError(null); setMessage(lastKind==='shopping' ? 'Ajout aux courses annulé.' : 'Correction annulée.'); void stock.refetch(); }).catch(fail).finally(()=>setUndoing(false)); }}>{undoing ? 'Vérification de l’annulation…' : lastKind==='shopping' ? 'Annuler l’ajout aux courses' : 'Annuler cette correction'}</Button>}</div>}
     {!stock.loading&&!stock.error&&<ProduceReviewPanel key={user.id} items={stock.inventory} now={now} disabled={stock.isSyncing||undoing}
-      onKeep={async item=>{const result=await stock.updateInventoryItem(item.id,{});setLastCommand(result.command_id);setActionError(null);setMessage('Présence confirmée. Quantité et date de péremption inchangées.');}}
-      onConsumed={async item=>{const result=await stock.consumeItem(item.id,item.quantity);setLastCommand(result.command_id);setActionError(null);setMessage('Lot déclaré entièrement consommé.');}}
+      onKeep={async item=>{const result=await stock.updateInventoryItem(item.id,{});remember(result.command_id);setActionError(null);setMessage('Présence confirmée. Quantité et date de péremption inchangées.');}}
+      onConsumed={async item=>{const result=await stock.consumeItem(item.id,item.quantity);remember(result.command_id);setActionError(null);setMessage('Lot déclaré entièrement consommé.');}}
       onCorrect={setEditing} onDiscard={item=>{try{prepareDiscard(user.id,item,'other');setDiscardOpen(true);setActionError(null);}catch(failure){fail(failure);}}}/>}
     {stock.loading ? <p role="status">Chargement du stock…</p> : stock.error && !rows.length ? null : !rows.length ? <Card><CardContent className="p-5 space-y-3"><Package aria-hidden="true" /><h2 className="font-semibold">{stock.inventory.length ? 'Aucun produit pour ces filtres' : 'Ton premier stock'}</h2><p>Ajoute tes ingrédients avec leur quantité. Les autres informations peuvent attendre.</p><Button className="min-h-11" onClick={() => stock.inventory.length ? updateFilters({ search:'',category:'all',zone:'all',status:'all' }) : setQuickOpen(true)}>{stock.inventory.length ? 'Voir tout le stock' : 'Ajouter quelques ingrédients'}</Button></CardContent></Card> : <ul className={view==='grid' ? 'kitchen-stock-grid' : 'kitchen-stock-list'} aria-label="Ingrédients en stock">
       {rows.map(item => <li id={`stock-${item.id}`} key={item.id} className={`kitchen-stock-row ${params.get('product')===item.id ? 'ring-2 ring-primary' : ''}`}><div className="kitchen-stock-main"><div className="kitchen-stock-identity"><StockAvatar key={photos.get(item.product_id) ?? 'none'} name={item.product?.name ?? 'ce produit'} photoUrl={photos.get(item.product_id)} onOpen={() => setSheet(item)} /><div className="min-w-0"><h2 className="font-semibold break-words">{item.product?.name ?? 'Produit à vérifier'}<NutriScoreBadge grade={item.product?.nutrition_json?.scores?.nutriScore} /></h2><p className="font-medium">{Number.isFinite(item.quantity) ? `${item.quantity} ${item.unit ?? item.product?.unit_type ?? 'unité à vérifier'}` : 'Quantité à vérifier'}{item.quantity===0 ? ' · épuisé' : ''}</p><p className="text-sm text-muted-foreground">{item.location || 'Zone non renseignée'}</p>{item.notes?.trim() && <p className="whitespace-pre-wrap break-words text-sm">{item.notes}</p>}<p className="kitchen-stock-date" data-soon={item.quantity>0 && (calendarDaysUntil(item.expiry_date,now) ?? Infinity)<=7}>{pantryDateLabel(item.expiry_date,now)}</p></div></div><Button variant="outline" className="min-h-11 shrink-0" aria-label={`Corriger ${item.product?.name ?? 'ce produit'}`} onClick={() => setEditing(item)}><Pencil className="h-4 w-4 mr-2" aria-hidden="true" />Corriger</Button></div>

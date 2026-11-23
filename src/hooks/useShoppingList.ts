@@ -1,11 +1,13 @@
-import type { StockCommand } from '@smart/shared';
+import type { ShoppingOrigin, StockCommand, StockCommandResult } from '@smart/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
-import { dispatchAgentDbChanged, useAgentDbInvalidation } from '@/lib/agentEvents';
-import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from '@/services/stockCommands';
-import { findOrCreateProduct } from '@/services/products';
+import { useAgentDbInvalidation } from '@/lib/agentEvents';
+import { ApiError } from '@/lib/api';
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, undoStockCommand } from '@/services/stockCommands';
+import { resumePendingShoppingCommands, sendShoppingCommand, shoppingIntent, type ResumeOutcome } from '@/services/shoppingCommands';
+import { describeShoppingChanges } from '@/lib/shoppingChanges';
 
 export interface ShoppingItem {
   id: string; product_id: string; quantity: number; unit?: string; stock_version?: number;
@@ -17,6 +19,21 @@ export interface NewShoppingItem {
   productName: string; quantity: number; category: string; unit: string;
   estimatedPrice?: number; storeSection?: string;
 }
+/** The last list command the database confirmed, which undo_stock can take back. */
+export interface ShoppingChangeNotice { commandId: string; message: string }
+
+/** Refusals after which the list is read again rather than written over. */
+const STALE_CODES: Record<string, string> = {
+  CONFLICT: 'Cet article a changé entre-temps : la liste affiche maintenant son état actuel.',
+  ITEM_NOT_FOUND: 'Cet article n’est plus sur la liste : elle a été actualisée.',
+};
+const sortedIds = (ids: string[]) => [...new Set(ids)].sort();
+const RESUME_DONE = 'Une action précédente sur la liste vient d’être confirmée : la liste est à jour, refais ton geste si besoin.';
+const RESUME_REFUSED = 'Une action précédente sur la liste n’a pas pu être appliquée : l’article avait changé. La liste est à jour.';
+const RESUME_PENDING = 'Une action précédente sur la liste n’est pas encore confirmée. Vérifie ta connexion, puis réessaie.';
+/** What the user reads after pending list writes were sent again, or null when none was pending. */
+const resumeNotice = (outcome: ResumeOutcome): string | null =>
+  outcome.failures.length ? RESUME_PENDING : outcome.refused ? RESUME_REFUSED : outcome.confirmed.length ? RESUME_DONE : null;
 
 export const useShoppingList = (options: { notify?: boolean } = {}) => {
   const { user } = useAuthSessionOptional();
@@ -25,6 +42,7 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
   const [isTransferring, setIsTransferring] = useState(false);
   const [pendingTransfer, setPendingTransfer] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastShoppingChange, setLastShoppingChange] = useState<ShoppingChangeNotice | null>(null);
   const busy = useRef(new Set<string>());
   const { toast } = useToast();
 
@@ -46,9 +64,7 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     if (busy.current.has(key)) throw new Error('Cette action est déjà en cours.');
     busy.current.add(key); setError(null);
     try {
-      const result = await write(await requireOwner());
-      dispatchAgentDbChanged(['shopping_list']);
-      return result;
+      return await write(await requireOwner());
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Écriture non confirmée. Réessayez.';
       setError(message);
@@ -57,55 +73,91 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     } finally { busy.current.delete(key); }
   };
 
-  const resolveProduct = async (item: NewShoppingItem) => {
-    if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error('Indiquez une quantité positive.');
-    if (!item.productName.trim() || !item.unit.trim()) throw new Error('Indiquez le produit et son unité.');
-    return findOrCreateProduct({ name: item.productName, category: item.category, unit: item.unit });
+  /** Applies what pending list writes became: the last confirmed one can be undone, the list is reread. */
+  const applyResume = async (outcome: ResumeOutcome): Promise<string | null> => {
+    const last = outcome.confirmed[outcome.confirmed.length - 1];
+    if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+    if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
+    return resumeNotice(outcome);
   };
 
-  const addToShoppingList = (item: NewShoppingItem) => withWrite('add', async owner => {
-    const product = await resolveProduct(item);
-    const { data, error: failure } = await supabase.from('shopping_list').insert({
-      user_id: owner, product_id: product.id, quantity: item.quantity, unit: item.unit,
-      estimated_price: item.estimatedPrice, store_section: item.storeSection, priority: 1,
-    }).select('*, product:products(*)').single();
-    if (failure || !data) throw failure ?? new Error('Ajout non confirmé.');
-    setShoppingList(prev => [data as ShoppingItem, ...prev]);
-    if (options.notify!==false) toast({ title: 'Produit ajouté', description: `${item.productName} ajouté aux courses.` });
-    return data as ShoppingItem;
+  /**
+   * V11-05 E2: every list write is a versioned, undoable command. A row changed elsewhere is
+   * read again and never written over; the user sees its current state before acting again.
+   * A write a lost reply left pending is settled first: a new gesture never runs on a state
+   * that an earlier, unconfirmed one may still change.
+   */
+  const listCommand = async (run: () => Promise<StockCommandResult>): Promise<StockCommandResult> => {
+    const notice = await applyResume(await resumePendingShoppingCommands());
+    if (notice) throw new Error(notice);
+    let result: StockCommandResult;
+    try { result = await run(); }
+    catch (failure) {
+      const stale = failure instanceof ApiError && failure.code ? STALE_CODES[failure.code] : undefined;
+      if (!stale) throw failure;
+      await fetchShoppingList().catch(() => undefined);
+      throw new Error(stale);
+    }
+    setLastShoppingChange({ commandId: result.command_id, message: describeShoppingChanges(result.shopping_changes) });
+    await fetchShoppingList().catch(() => setError('Action confirmée, mais la liste n’a pas pu être relue. Actualisez les courses.'));
+    return result;
+  };
+  const rowsAt = (ids: string[]) => {
+    if (!ids.length) throw new Error('Aucun article sélectionné.');
+    return sortedIds(ids).map(id => {
+      const row = shoppingList.find(item => item.id === id);
+      if (!row) throw new Error('Cet article n’est plus disponible. Actualisez les courses.');
+      return { id, expected_version: row.stock_version ?? 0 };
+    });
+  };
+
+  const addToShoppingList = (item: NewShoppingItem, origin: ShoppingOrigin = 'manual') => withWrite('add', async () => {
+    const name = item.productName.trim(), unit = item.unit.trim();
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error('Indiquez une quantité positive.');
+    if (!name || !unit) throw new Error('Indiquez le produit et son unité.');
+    const category = item.category.trim();
+    const intent = shoppingIntent(`add:${name.toLocaleLowerCase('fr')}`);
+    return listCommand(async () => sendShoppingCommand(intent, await commandForIntent('shopping_add', intent, { items: [{
+      name, ...(category ? { category } : {}), quantity: item.quantity, unit,
+      ...(item.storeSection?.trim() ? { store_section: item.storeSection.trim() } : {}), origin,
+    }] })));
   });
 
-  const checkedWrite = (ids: string[], purchased: boolean) => withWrite(`check:${ids.join(',')}`, async owner => {
+  const toggleMultiplePurchased = (ids: string[], purchased: boolean) => withWrite(`check:${sortedIds(ids).join(',')}`, async () => {
     if (typeof purchased !== 'boolean') throw new Error('État de cochage invalide.');
-    const { data, error: failure } = await supabase.from('shopping_list').update({ is_purchased: purchased })
-      .eq('user_id', owner).in('id', ids).select('id,is_purchased,stock_version');
-    if (failure || data?.length !== ids.length) throw failure ?? new Error('La liste a changé. Actualisez les courses.');
-    const rows = new Map(data.map(row => [row.id, row]));
-    setShoppingList(prev => prev.map(row => rows.has(row.id) ? { ...row, ...rows.get(row.id) } : row));
+    const items = rowsAt(ids).map(row => ({ ...row, purchased }));
+    const intent = shoppingIntent(`check:${items.map(row => row.id).join(',')}`);
+    return listCommand(async () => sendShoppingCommand(intent, await commandForIntent('shopping_check', intent, { items })));
   });
-  const togglePurchased = (id: string, purchased: boolean) => checkedWrite([id], purchased);
-  const toggleMultiplePurchased = checkedWrite;
+  const togglePurchased = (id: string, purchased: boolean) => toggleMultiplePurchased([id], purchased);
 
-  const removeMultipleFromShoppingList = (ids: string[]) => withWrite(`delete:${ids.join(',')}`, async owner => {
-    const { data, error: failure } = await supabase.from('shopping_list').delete().eq('user_id', owner).in('id', ids).select('id');
-    if (failure || data?.length !== ids.length) throw failure ?? new Error('Suppression non confirmée. Actualisez les courses.');
-    setShoppingList(prev => prev.filter(row => !ids.includes(row.id)));
+  const removeMultipleFromShoppingList = (ids: string[]) => withWrite(`delete:${sortedIds(ids).join(',')}`, async () => {
+    const items = rowsAt(ids);
+    const intent = shoppingIntent(`remove:${items.map(row => row.id).join(',')}`);
+    return listCommand(async () => sendShoppingCommand(intent, await commandForIntent('shopping_remove', intent, { items })));
   });
   const removeFromShoppingList = (id: string) => removeMultipleFromShoppingList([id]);
   const clearPurchased = () => removeMultipleFromShoppingList(shoppingList.filter(row => row.is_purchased).map(row => row.id));
 
-  const updateShoppingItem = (id: string, item: NewShoppingItem) => withWrite(`edit:${id}`, async owner => {
-    const previous = shoppingList.find(row => row.id === id);
-    if (!previous) throw new Error('Cet article n’est plus disponible.');
-    const product = await resolveProduct(item);
-    // Unit belongs to the shopping row, never to another user's shared product.
-    const { data, error: failure } = await supabase.from('shopping_list').update({
-      product_id: product.id, quantity: item.quantity, unit: item.unit,
-      estimated_price: item.estimatedPrice, store_section: item.storeSection,
-    }).eq('user_id', owner).eq('id', id).eq('stock_version', previous.stock_version ?? 0)
-      .select('*, product:products(*)').single();
-    if (failure || !data) throw failure ?? new Error('Cet article a changé. Actualisez avant de le modifier.');
-    setShoppingList(prev => prev.map(row => row.id === id ? data as ShoppingItem : row));
+  const updateShoppingItem = (id: string, item: NewShoppingItem) => withWrite(`edit:${id}`, async () => {
+    const [row] = rowsAt([id]);
+    const name = item.productName.trim(), unit = item.unit.trim(), category = item.category.trim();
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error('Indiquez une quantité positive.');
+    if (!name || !unit) throw new Error('Indiquez le produit et son unité.');
+    // The name resolves the catalogue product in the database; the unit stays on the shopping row.
+    const intent = shoppingIntent(`update:${id}`);
+    return listCommand(async () => sendShoppingCommand(intent, await commandForIntent('shopping_update', intent, { items: [{
+      ...row, name, ...(category ? { category } : {}), quantity: item.quantity, unit,
+      estimated_price: item.estimatedPrice ?? null, store_section: item.storeSection?.trim() || null,
+    }] })));
+  });
+
+  const undoLastShoppingChange = () => withWrite('undo', async () => {
+    const change = lastShoppingChange;
+    if (!change) throw new Error('Aucune action récente à annuler.');
+    await undoStockCommand(change.commandId);
+    setLastShoppingChange(current => current?.commandId === change.commandId ? null : current);
+    await fetchShoppingList().catch(() => setError('Annulation confirmée, mais la liste n’a pas pu être relue. Actualisez les courses.'));
   });
 
   const addAllToInventory = async (reviewItems?: Extract<StockCommand,{ command_type:'transfer_shopping' }>['payload']['items']) => {
@@ -147,13 +199,26 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
   const generateShareableList = () => `📝 Ma liste de courses:\n\n${shoppingList.filter(row => !row.is_purchased).map(row => `${row.quantity} ${row.unit ?? row.product?.unit_type ?? ''} ${row.product?.name}`).join('\n')}`;
 
   useEffect(() => {
-    setLoading(true); setShoppingList([]);
+    setLoading(true); setShoppingList([]); setLastShoppingChange(null);
     void fetchShoppingList().catch(() => undefined).finally(() => setLoading(false));
     void pendingIntent('shopping-transfer').then(saved => setPendingTransfer(Boolean(saved))).catch(() => undefined);
+    // A list write whose reply was lost is sent again under its identity: at most one effect.
+    // Its outcome is applied only while this account's list is still the one shown.
+    let active = true;
+    void resumePendingShoppingCommands().then(async outcome => {
+      if (!active) return;
+      const last = outcome.confirmed[outcome.confirmed.length - 1];
+      if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+      if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
+      const notice = resumeNotice(outcome);
+      if (active && notice && notice !== RESUME_DONE) setError(notice);
+    }).catch(() => { if (active) setError(RESUME_PENDING); });
+    return () => { active = false; };
   }, [fetchShoppingList]);
   useAgentDbInvalidation(['shopping_list','products'], () => fetchShoppingList().catch(() => undefined));
   return { shoppingList, loading, error, isTransferring, pendingTransfer, addToShoppingList, togglePurchased,
     removeFromShoppingList, updateShoppingItem, addAllToInventory, clearPurchased,
     removeMultipleFromShoppingList, toggleMultiplePurchased, addMultipleToShoppingList,
+    lastShoppingChange, undoLastShoppingChange,
     getTotalEstimatedCost, getPurchasedCount, generateShareableList, refetch: fetchShoppingList };
 };

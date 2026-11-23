@@ -168,6 +168,44 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
       if (!previous) throw new ApiError('Action introuvable.',{ status:409,code:'COMMAND_NOT_FOUND' });
       data.inventory=structuredClone(previous.inventory);data.shopping_list=structuredClone(previous.shopping);
       result.affected_tables=['inventory','shopping_list','cooking_journal'];
+    } else if (command.command_type==='shopping_add') {
+      // Visual QA only: the oldest unchecked row in a convertible unit is topped up (D16); SQL rules are tested on PostgreSQL.
+      const changes: NonNullable<StockCommandResult['shopping_changes']> = [];
+      for (const item of command.payload.items) {
+        let product=data.products.find(row=>item.product_id ? row.id===item.product_id : String(row.name).toLowerCase()===item.name?.toLowerCase());
+        if (!product) { product={ id:crypto.randomUUID(),name:item.name,category:item.category ?? 'Autres',unit_type:item.unit };data.products.push(product); }
+        const convertible=(row:Record<string,unknown>) => { try { convertQuantity(1,item.unit,String(row.unit));return true; } catch { return false; } };
+        const target=data.shopping_list.filter(row=>row.product_id===product!.id && !row.is_purchased && convertible(row)).sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)))[0];
+        if (target) {
+          const added=convertQuantity(item.quantity,item.unit,String(target.unit));
+          Object.assign(target,{ quantity:Number(target.quantity)+added,stock_version:Number(target.stock_version)+1,updated_at:new Date().toISOString() });
+          changes.push({ id:String(target.id),outcome:'merged',name:String(product.name),quantity:Number(target.quantity),unit:String(target.unit),added_quantity:added });
+        } else {
+          const now=new Date().toISOString(),row={ id:crypto.randomUUID(),user_id:OWNER,product_id:product.id,quantity:item.quantity,unit:item.unit,is_purchased:false,stock_version:0,priority:1,store_section:item.store_section ?? null,created_at:now,updated_at:now };
+          const note=data.shopping_list.some(other=>other.product_id===product!.id && !other.is_purchased) ? 'unit_incompatible' as const : data.shopping_list.some(other=>other.product_id===product!.id) ? 'purchased_pending' as const : undefined;
+          data.shopping_list.push(row);
+          changes.push({ id:row.id,outcome:'created',name:String(product.name),quantity:item.quantity,unit:item.unit,added_quantity:item.quantity,...(note ? { note } : {}) });
+        }
+      }
+      result.shopping_changes=changes;result.shopping_ids=changes.map(change=>change.id);result.affected_tables=['shopping_list','products'];
+    } else if (command.command_type==='shopping_check' || command.command_type==='shopping_update' || command.command_type==='shopping_remove') {
+      const changes: NonNullable<StockCommandResult['shopping_changes']> = [];
+      for (const item of command.payload.items) {
+        const row=data.shopping_list.find(line=>line.id===item.id);
+        if (!row || Number(row.stock_version)!==item.expected_version) throw new ApiError('Cet article a changé.',{ status:409,code:'CONFLICT' });
+        const name=()=>String(data.products.find(product=>product.id===row.product_id)?.name ?? 'Produit');
+        if (command.command_type==='shopping_remove') { data.shopping_list=data.shopping_list.filter(line=>line!==row);changes.push({ id:item.id,outcome:'removed',name:name() });continue; }
+        if ('purchased' in item) Object.assign(row,{ is_purchased:item.purchased });
+        else {
+          const edit=item as Extract<StockCommand,{ command_type:'shopping_update' }>['payload']['items'][number];
+          if (edit.name) { const product=data.products.find(line=>String(line.name).toLowerCase()===edit.name!.toLowerCase());if (product) row.product_id=product.id; }
+          Object.assign(row,{ ...(edit.quantity!==undefined ? { quantity:edit.quantity } : {}),...(edit.unit ? { unit:edit.unit } : {}),
+            ...(edit.estimated_price!==undefined ? { estimated_price:edit.estimated_price } : {}),...(edit.store_section!==undefined ? { store_section:edit.store_section || null } : {}) });
+        }
+        Object.assign(row,{ stock_version:Number(row.stock_version)+1,updated_at:new Date().toISOString() });
+        changes.push({ id:item.id,outcome:command.command_type==='shopping_update' ? 'updated' : row.is_purchased ? 'checked' : 'unchecked',name:name(),quantity:Number(row.quantity),unit:String(row.unit) });
+      }
+      result.shopping_changes=changes;result.shopping_ids=changes.map(change=>change.id);result.affected_tables=['shopping_list'];
     } else if (command.command_type === 'save_recipe') {
       result.recipe_id = crypto.randomUUID();
       data.recipes.push({ ...command.payload.recipe, id: result.recipe_id, user_id: OWNER });

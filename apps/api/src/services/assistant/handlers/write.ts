@@ -1,4 +1,4 @@
-import { StockCommandService } from '../../stock/StockCommandService.js';
+import { StockCommandError, StockCommandService } from '../../stock/StockCommandService.js';
 import { describeCookPlan, findTopUpLot, planCookFromStock, productNameWithBrand, type StockCommandResult } from '@smart/shared';
 /**
  * PRP-221 J5b — Write handlers (LOW + MEDIUM tiers).
@@ -53,6 +53,7 @@ export class WriteHandlerError extends Error {
       | 'PRODUCT_RESOLVE_FAILED'
       | 'INVENTORY_NOT_FOUND'
       | 'SHOPPING_NOT_FOUND'
+      | 'SHOPPING_TOO_MANY'
       | 'RECIPE_NOT_FOUND'
       | 'INSUFFICIENT_QUANTITY'
       | 'EMPTY_UPDATE'
@@ -290,11 +291,37 @@ export class AddInventoryItemsHandler
 export interface AddShoppingItemsResult {
   added: Array<{
     shopping_item_id: string;
-    product_id: string;
+    /** Absent when a lost reply is replayed from the receipt, without resolving again. */
+    product_id?: string;
     product_name: string;
+    /** The row's quantity once the add is applied. */
     quantity: number;
+    /** An unchecked row of the product in a convertible unit was topped up (D16). */
+    topped_up?: { added: number; total: number; unit: string };
   }>;
   ambiguous: AddInventoryItemsResult['ambiguous'];
+  /** Products named without a unit and without a catalogue unit: not added, to be asked. */
+  missing_unit?: string[];
+}
+
+/**
+ * V11-05 E2: list tools write through the shopping commands, under the action's identity
+ * (ctx.commandId), so a replay returns the receipt and undo_stock takes the write back.
+ */
+function shoppingCommandService(ctx: ToolExecutionContext): { service: StockCommandService; commandId: string } {
+  if (!ctx.commandId) throw new Error('Identité de commande manquante.');
+  return { service: new StockCommandService(ctx.userClient), commandId: ctx.commandId };
+}
+const undoShoppingCommand = (result: StockCommandResult): ReversibleAction =>
+  ({ tool: '_undo_stock_command', args: { original_command_id: result.command_id } });
+
+/** The user's rows among ids, with the version each command must expect. */
+async function ownedShoppingRows(ctx: ToolExecutionContext, ids: string[]): Promise<Array<{ id: string; expected_version: number }>> {
+  const { data, error } = await ctx.userClient.from('shopping_list').select('id, stock_version').eq('user_id', ctx.userId).in('id', ids);
+  if (error) throw error;
+  return ((data ?? []) as Array<{ id: string; stock_version: number | null }>)
+    .map(row => ({ id: row.id, expected_version: Number(row.stock_version ?? 0) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export class AddShoppingItemsHandler
@@ -304,79 +331,65 @@ export class AddShoppingItemsHandler
     ctx: ToolExecutionContext,
     args: AddShoppingItemsArgs
   ): Promise<ToolExecutionResult<AddShoppingItemsResult>> {
+    const { service, commandId } = shoppingCommandService(ctx);
+    // A replay after a lost reply returns the receipt: no second product resolution.
+    const committed = await service.getResult(ctx.userId, commandId);
+    if (committed) return { result: { added: describeShoppingAdd(committed), ambiguous: [] }, reversibleAction: undoShoppingCommand(committed) };
+
     const { resolved, ambiguous } = await resolveItems(ctx, args.items);
     if (resolved.length === 0) {
       return { result: { added: [], ambiguous }, reversibleAction: null };
     }
-
-    const payload = resolved.map((r) => ({
-      user_id: ctx.userId,
-      product_id: r.product_id,
-      quantity: r.quantity,
-      unit: r.unit,
-      is_purchased: false,
-    }));
-
-    const { data, error } = await ctx.userClient
-      .from('shopping_list')
-      .insert(payload)
-      .select('id, product_id, quantity');
-    if (error) throw error;
-
-    const inserted = ((data ?? []) as Array<{ id: string; product_id: string; quantity: number }>);
-    const added = inserted.map((row, i) => ({
-      shopping_item_id: row.id,
-      product_id: row.product_id,
-      product_name: resolved[i]?.product_name ?? '',
-      quantity: row.quantity,
-    }));
-
-    const reversibleAction: ReversibleAction | null =
-      inserted.length > 0
-        ? {
-            tool: 'remove_shopping_items',
-            args: { shopping_item_ids: inserted.map((r) => r.id) },
-          }
-        : null;
-
-    return { result: { added, ambiguous }, reversibleAction };
+    // The shopping list only holds an amount with its unit; none is invented. Items without one
+    // are named back, the others are added.
+    const addable = resolved.flatMap(item => item.unit?.trim() ? [{ ...item, unit: item.unit.trim() }] : []);
+    const missingUnit = resolved.filter(item => !item.unit?.trim()).map(item => item.product_name);
+    if (!addable.length) throw new StockCommandError('UNIT_UNKNOWN');
+    const result = await service.execute(ctx.userId, {
+      command_id: commandId, command_type: 'shopping_add', payload_version: 1,
+      payload: { items: addable.map(item => ({ product_id: item.product_id, quantity: item.quantity, unit: item.unit, origin: 'assistant' as const })) },
+    });
+    return {
+      result: { added: describeShoppingAdd(result, addable), ambiguous, ...(missingUnit.length ? { missing_unit: missingUnit } : {}) },
+      reversibleAction: undoShoppingCommand(result),
+    };
   }
+}
+
+/** One entry per added item, in order: the database confirms one change per item. */
+function describeShoppingAdd(result: StockCommandResult, resolved: Array<{ product_id: string; product_name: string }> = []): AddShoppingItemsResult['added'] {
+  return (result.shopping_changes ?? []).map((change, index) => ({
+    shopping_item_id: change.id,
+    ...(resolved[index] ? { product_id: resolved[index].product_id } : {}),
+    product_name: change.name ?? resolved[index]?.product_name ?? '',
+    quantity: change.quantity ?? 0,
+    ...(change.outcome === 'merged' ? { topped_up: { added: change.added_quantity ?? 0, total: change.quantity ?? 0, unit: change.unit ?? '' } } : {}),
+  }));
 }
 
 // ---- LOW : mark_shopping_items_bought / unmark ----------------------
 
-async function flipShoppingItemsPurchased(
+async function setShoppingItemsPurchased(
   ctx: ToolExecutionContext,
   ids: string[],
-  newValue: boolean
-) {
-  // Filter to ids that actually belong to the user (RLS would reject
-  // others anyway, but we want a reliable updated count).
-  const { data: existing, error: readErr } = await ctx.userClient
-    .from('shopping_list')
-    .select('id, is_purchased')
-    .eq('user_id', ctx.userId)
-    .in('id', ids);
-  if (readErr) throw readErr;
-
-  const validIds = ((existing ?? []) as Array<{ id: string; is_purchased: boolean }>).map(
-    (r) => r.id
-  );
-  if (validIds.length === 0) {
-    throw new WriteHandlerError(
-      'SHOPPING_NOT_FOUND',
-      `No shopping_list rows match ${ids.length} ids`
-    );
+  purchased: boolean
+): Promise<ToolExecutionResult<{ updated: number; ids: string[] }>> {
+  const { service, commandId } = shoppingCommandService(ctx);
+  let result = await service.getResult(ctx.userId, commandId);
+  if (!result) {
+    // Ids of another account are not the user's rows: only owned ones are checked.
+    const rows = await ownedShoppingRows(ctx, ids);
+    if (rows.length === 0) throw new WriteHandlerError('SHOPPING_NOT_FOUND', `No shopping_list rows match ${ids.length} ids`);
+    result = await service.execute(ctx.userId, {
+      command_id: commandId, command_type: 'shopping_check', payload_version: 1,
+      payload: { items: rows.map(row => ({ ...row, purchased })) },
+    });
   }
-
-  const { error } = await ctx.userClient
-    .from('shopping_list')
-    .update({ is_purchased: newValue })
-    .eq('user_id', ctx.userId)
-    .in('id', validIds);
-  if (error) throw error;
-
-  return validIds;
+  const changes = result.shopping_changes ?? [];
+  return {
+    result: { updated: changes.filter(change => change.outcome !== 'unchanged').length, ids: changes.map(change => change.id) },
+    reversibleAction: undoShoppingCommand(result),
+  };
 }
 
 export class MarkShoppingItemsBoughtHandler
@@ -386,14 +399,7 @@ export class MarkShoppingItemsBoughtHandler
     ctx: ToolExecutionContext,
     args: MarkShoppingItemsBoughtArgs
   ): Promise<ToolExecutionResult<{ updated: number; ids: string[] }>> {
-    const ids = await flipShoppingItemsPurchased(ctx, args.shopping_item_ids, true);
-    return {
-      result: { updated: ids.length, ids },
-      reversibleAction: {
-        tool: 'unmark_shopping_items_bought',
-        args: { shopping_item_ids: ids },
-      },
-    };
+    return setShoppingItemsPurchased(ctx, args.shopping_item_ids, true);
   }
 }
 
@@ -404,14 +410,7 @@ export class UnmarkShoppingItemsBoughtHandler
     ctx: ToolExecutionContext,
     args: UnmarkShoppingItemsBoughtArgs
   ): Promise<ToolExecutionResult<{ updated: number; ids: string[] }>> {
-    const ids = await flipShoppingItemsPurchased(ctx, args.shopping_item_ids, false);
-    return {
-      result: { updated: ids.length, ids },
-      reversibleAction: {
-        tool: 'mark_shopping_items_bought',
-        args: { shopping_item_ids: ids },
-      },
-    };
+    return setShoppingItemsPurchased(ctx, args.shopping_item_ids, false);
   }
 }
 
@@ -580,49 +579,24 @@ export class RemoveShoppingItemsHandler
     ctx: ToolExecutionContext,
     args: RemoveShoppingItemsArgs
   ): Promise<ToolExecutionResult<RemoveShoppingItemsResult>> {
-    // Snapshot the rows before deleting (for undo).
-    const { data: snapshots, error: readErr } = await ctx.userClient
-      .from('shopping_list')
-      .select(
-        'id, user_id, product_id, quantity, is_purchased, priority, estimated_price, store_section'
-      )
-      .eq('user_id', ctx.userId)
-      .in('id', args.shopping_item_ids);
-    if (readErr) throw readErr;
-
-    const rows = (snapshots ?? []) as Array<{
-      id: string;
-      user_id: string;
-      product_id: string;
-      quantity: number;
-      is_purchased: boolean;
-      priority: number | null;
-      estimated_price: number | null;
-      store_section: string | null;
-    }>;
-
-    if (rows.length === 0) {
-      return {
-        result: { removed: 0, removed_ids: [] },
-        reversibleAction: null,
-      };
-    }
-
-    const { error } = await ctx.userClient
-      .from('shopping_list')
-      .delete()
-      .eq('user_id', ctx.userId)
-      .in('id', rows.map((r) => r.id));
-    if (error) throw error;
-
-    return {
-      result: { removed: rows.length, removed_ids: rows.map((r) => r.id) },
-      reversibleAction: {
-        tool: '_restore_shopping_items',
-        args: { snapshots: rows },
-      },
-    };
+    return removeShoppingRows(ctx, args.shopping_item_ids);
   }
+}
+
+/** Removes the user's rows among ids in one shopping_remove; undo_stock puts them back as they were. */
+export async function removeShoppingRows(ctx: ToolExecutionContext, ids: string[]): Promise<ToolExecutionResult<RemoveShoppingItemsResult>> {
+  const { service, commandId } = shoppingCommandService(ctx);
+  let result = await service.getResult(ctx.userId, commandId);
+  if (!result) {
+    const rows = ids.length ? await ownedShoppingRows(ctx, ids) : [];
+    if (rows.length === 0) return { result: { removed: 0, removed_ids: [] }, reversibleAction: null };
+    if (rows.length > 100) throw new WriteHandlerError('SHOPPING_TOO_MANY', 'Plus de 100 articles : retire-les en plusieurs fois.');
+    result = await service.execute(ctx.userId, {
+      command_id: commandId, command_type: 'shopping_remove', payload_version: 1, payload: { items: rows },
+    });
+  }
+  const removed = (result.shopping_changes ?? []).map(change => change.id);
+  return { result: { removed: removed.length, removed_ids: removed }, reversibleAction: undoShoppingCommand(result) };
 }
 
 // ---- registration ---------------------------------------------------

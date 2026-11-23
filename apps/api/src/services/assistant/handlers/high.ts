@@ -4,10 +4,11 @@
  * These tools always require the confirmation_token round-trip — the
  * orchestrator never executes them inline on a /voice or /text call.
  * Per PRP-221 §9, V1 leaves them non-reversible (the user already
- * confirmed). Snapshot-and-restore for clear_* is V1.1.
+ * confirmed), except clear_shopping_list: since V11-05 E2 it is one
+ * shopping_remove command, which undo_stock takes back.
  *
  *   - delete_recipe                 DELETE recipes (FK cascade ingredients)
- *   - clear_shopping_list           DELETE shopping_list rows for the user
+ *   - clear_shopping_list           shopping_remove of the user's rows
  *   - clear_inventory_category      DELETE inventory rows by JOINed category
  *   - import_recipe_from_url        chains capture + extract + save through
  *                                   the existing SocialImportService
@@ -31,6 +32,7 @@ import type {
   ImportRecipeFromUrlArgs,
 } from '../schemas/tools.js';
 import type { SocialImportService } from '../../imports/SocialImportService.js';
+import { removeShoppingRows } from './write.js';
 
 // ---- Errors ---------------------------------------------------------
 
@@ -96,15 +98,13 @@ export class ClearShoppingListHandler
     ctx: ToolExecutionContext,
     args: ClearShoppingListArgs
   ): Promise<ToolExecutionResult<{ removed: number }>> {
-    let q = ctx.userClient
-      .from('shopping_list')
-      .delete({ count: 'exact' })
-      .eq('user_id', ctx.userId);
+    // V11-05 E2: one shopping_remove at the rows' versions, which undo_stock can take back.
+    let q = ctx.userClient.from('shopping_list').select('id').eq('user_id', ctx.userId);
     if (args.purchased_only) q = q.eq('is_purchased', true);
-
-    const { error, count } = await q;
+    const { data, error } = await q;
     if (error) throw error;
-    return { result: { removed: count ?? 0 } };
+    const removed = await removeShoppingRows(ctx, ((data ?? []) as Array<{ id: string }>).map(row => row.id));
+    return { result: { removed: removed.result.removed }, reversibleAction: removed.reversibleAction };
   }
 }
 
