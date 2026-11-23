@@ -28,14 +28,48 @@ test('adding is progressive, an error preserves the draft, and closing restores 
   fireEvent.change(screen.getByRole('textbox',{ name:'Ajouter un produit' }),{ target:{ value:'Riz' } });
   fireEvent.click(screen.getByRole('button',{ name:'Préciser la quantité' }));
   fireEvent.change(screen.getByRole('textbox',{ name:'Quantité' }),{ target:{ value:'2' } });
-  fireEvent.change(screen.getByRole('textbox',{ name:'Unité' }),{ target:{ value:'' } });fireEvent.change(screen.getByRole('textbox',{ name:'Unité' }),{ target:{ value:'kg' } });
+  fireEvent.change(screen.getByRole('combobox',{ name:'Unité' }),{ target:{ value:'kg' } });
   fireEvent.click(screen.getByRole('button',{ name:'Ajouter aux courses' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Ajout non confirmé.');
   fireEvent.click(screen.getByRole('button',{ name:'Fermer' }));
   fireEvent.click(screen.getByRole('button',{ name:'Ajouter' }));
   expect(screen.getByRole('textbox',{ name:'Ajouter un produit' })).toHaveValue('Riz');
   expect(screen.getByRole('textbox',{ name:'Quantité' })).toHaveValue('2');
+  expect(screen.getByRole('combobox',{ name:'Unité' })).toHaveValue('kg');
   expect(mockAdd).toHaveBeenCalledTimes(1);
+});
+async function openAdd(name:string) {
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter' }));
+  fireEvent.change(screen.getByRole('textbox',{ name:'Ajouter un produit' }),{ target:{ value:name } });
+  fireEvent.click(screen.getByRole('button',{ name:'Préciser la quantité' }));
+}
+test('the unit of the row already on the list is proposed so the add tops it up; an explicit choice wins',async()=>{
+  mockAdd.mockResolvedValue(undefined);
+  render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  await openAdd(' farine ');
+  expect(screen.getByRole('combobox',{ name:'Unité' })).toHaveValue('kg');
+  expect(screen.getByText('Unité de la ligne déjà prévue : la quantité s’y ajoutera.')).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{ name:'Quantité' }),{ target:{ value:'0,5' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter aux courses' }));
+  await waitFor(()=>expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({ productName:'farine',quantity:.5,unit:'kg' })));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  await openAdd('Farine');
+  fireEvent.change(screen.getByRole('combobox',{ name:'Unité' }),{ target:{ value:'paquet' } });
+  expect(screen.queryByText('Unité de la ligne déjà prévue : la quantité s’y ajoutera.')).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox',{ name:'Quantité' }),{ target:{ value:'1' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter aux courses' }));
+  await waitFor(()=>expect(mockAdd).toHaveBeenLastCalledWith(expect.objectContaining({ unit:'paquet' })));
+});
+test('a product not on the list keeps the default unit, and « Autre… » takes a typed unit',async()=>{
+  mockAdd.mockResolvedValue(undefined);
+  render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  await openAdd('Riz');
+  expect(screen.getByRole('combobox',{ name:'Unité' })).toHaveValue('pièce');
+  fireEvent.change(screen.getByRole('combobox',{ name:'Unité' }),{ target:{ value:'__other__' } });
+  fireEvent.change(screen.getByRole('textbox',{ name:'Autre unité' }),{ target:{ value:'bocal' } });
+  fireEvent.change(screen.getByRole('textbox',{ name:'Quantité' }),{ target:{ value:'2' } });
+  fireEvent.click(screen.getByRole('button',{ name:'Ajouter aux courses' }));
+  await waitFor(()=>expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({ productName:'Riz',quantity:2,unit:'bocal' })));
 });
 test('checking a purchase sends its explicit state; a pending transfer freezes edits and keeps recovery visible',async()=>{
   mockToggle.mockResolvedValue(undefined);
