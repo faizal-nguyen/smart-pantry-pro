@@ -173,15 +173,14 @@ WITH CHECK (auth.uid() = user_id);
 
 ### 2.5 Edge Functions
 
-```bash
-# Déployer les Edge Functions
-supabase functions deploy ai-assistant-enhanced
-supabase functions deploy cleanup-shopping-list
-supabase functions deploy indian-price-estimator
-supabase functions deploy recipe-assistant
+Ne pas déployer `ai-assistant-enhanced`, `indian-price-estimator`, `recipe-assistant` ni `panic-mode` : aucune n'a d'appelant dans l'application, et les trois dernières se fient à un identifiant de compte fourni par l'appelant tout en utilisant la clé de service. Si elles sont déployées, les dépublier (décision D9 de [PRP-V11-06](../PRP/V11/PRP-V11-06-Consolidation-Design-Mesure.md)). `cleanup-shopping-list` est retirée du dépôt, et sa tâche nocturne par la migration `20261122204021_remove_cleanup_shopping_list_cron.sql`.
 
-# Vérifier le déploiement
+```bash
+# Lister les fonctions déployées
 supabase functions list
+
+# Dépublier une fonction exposée
+supabase functions delete recipe-assistant
 ```
 
 ## 3. Configuration Vercel
