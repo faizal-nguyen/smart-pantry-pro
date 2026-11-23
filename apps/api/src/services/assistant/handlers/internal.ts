@@ -173,30 +173,16 @@ export interface RestoreShoppingItemsArgs {
 export class RestoreShoppingItemsInternalHandler
   implements ToolHandler<RestoreShoppingItemsArgs, { restored: number }>
 {
+  /**
+   * V11-05 E2: list removals are undone by undo_stock, from the command journal. This inverse
+   * only remains for removals recorded before that change; it no longer writes the list
+   * directly, since its snapshot lacks the row's unit and version.
+   */
   async execute(
-    ctx: ToolExecutionContext,
-    args: RestoreShoppingItemsArgs
+    _ctx: ToolExecutionContext,
+    _args: RestoreShoppingItemsArgs
   ): Promise<ToolExecutionResult<{ restored: number }>> {
-    const rows = args.snapshots.filter((s) => s.user_id === ctx.userId);
-    if (rows.length === 0) return { result: { restored: 0 } };
-
-    const payload = rows.map((s) => ({
-      // Keep the original id if available; otherwise let the DB assign one.
-      ...(s.id ? { id: s.id } : {}),
-      user_id: s.user_id,
-      product_id: s.product_id,
-      quantity: s.quantity,
-      is_purchased: s.is_purchased,
-      priority: s.priority,
-      estimated_price: s.estimated_price,
-      store_section: s.store_section,
-    }));
-
-    const { error, count } = await ctx.userClient
-      .from('shopping_list')
-      .insert(payload, { count: 'exact' });
-    if (error) throw error;
-    return { result: { restored: count ?? rows.length } };
+    throw new Error('Ce retrait date d’avant la mise à jour de la liste de courses et ne peut plus être annulé. Ajoute de nouveau les articles si besoin.');
   }
 }
 

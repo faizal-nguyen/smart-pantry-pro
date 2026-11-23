@@ -2,13 +2,23 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SmartShoppingList from '../SmartShoppingList';
 const owner='00000000-0000-4000-8000-000000000001';
-const mockAdd=jest.fn(),mockToggle=jest.fn();
-let mockPending=false;
+const mockAdd=jest.fn(),mockToggle=jest.fn(),mockUndo=jest.fn();
+let mockPending=false,mockChange:{ commandId:string;message:string }|null=null;
 jest.mock('@/hooks/useAuthenticatedUser',()=>({ useAuthenticatedUser:()=>({ id:owner }) }));
-jest.mock('@/hooks/useShoppingList',()=>({ useShoppingList:()=>({ shoppingList:[{ id:'line',product:{ name:'Farine' },quantity:1,unit:'kg',is_purchased:false }],addToShoppingList:mockAdd,togglePurchased:mockToggle,getPurchasedCount:()=>0,pendingTransfer:mockPending,refetch:jest.fn() }) }));
+jest.mock('@/hooks/useShoppingList',()=>({ useShoppingList:()=>({ shoppingList:[{ id:'line',product:{ name:'Farine' },quantity:1,unit:'kg',is_purchased:false }],addToShoppingList:mockAdd,togglePurchased:mockToggle,getPurchasedCount:()=>0,pendingTransfer:mockPending,refetch:jest.fn(),
+  lastShoppingChange:mockChange,undoLastShoppingChange:mockUndo }) }));
 jest.mock('@/components/shopping/ShoppingStorageReview',()=>({ __esModule:true,default:()=>null }));
 jest.mock('@/components/shopping/EditShoppingItemDialog',()=>({ __esModule:true,default:()=>null }));
-beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();mockPending=false; });
+beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();mockPending=false;mockChange=null; });
+test('the last confirmed list change is announced with its undo',async()=>{
+  mockChange={ commandId:'c1',message:'Lait : 1 l ajouté, 2 l au total.' };
+  mockUndo.mockResolvedValue(undefined);
+  render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  expect(screen.getByText('Lait : 1 l ajouté, 2 l au total.').closest('[role="status"]')).not.toBeNull();
+  fireEvent.click(screen.getByRole('button',{ name:'Annuler : Lait : 1 l ajouté, 2 l au total.' }));
+  expect(mockUndo).toHaveBeenCalledTimes(1);
+  expect(await screen.findByText('Action annulée.')).toBeInTheDocument();
+});
 test('adding is progressive, an error preserves the draft, and closing restores access to the list',async()=>{
   mockAdd.mockRejectedValueOnce(new Error('Ajout non confirmé.'));
   render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);

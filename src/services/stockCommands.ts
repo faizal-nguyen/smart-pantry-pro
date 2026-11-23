@@ -87,6 +87,24 @@ export async function pendingIntent(intent: string): Promise<StockCommand | null
   return saved;
 }
 
+export interface PendingIntent { intent: string; command: StockCommand }
+
+/** The signed-in account's saved intentions whose name starts with prefix, to resume after a lost reply. */
+export async function pendingIntents(prefix: string): Promise<PendingIntent[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return [];
+  const base = `v10-command:${session.user.id}:`;
+  let keys: string[];
+  try { keys = Object.keys(localStorage); }
+  catch { throw new Error('Impossible de relire les actions en attente sur cet appareil.'); }
+  return keys.filter(key => key.startsWith(base + prefix)).sort().flatMap(key => {
+    const command = readSavedCommand(key);
+    if (!command) return [];
+    owners.set(command, session.user.id);
+    return [{ intent: key.slice(base.length), command }];
+  });
+}
+
 /** Keeps online intentions across reloads and browser restarts; no offline command is executed. */
 export async function commandForIntent<T extends StockCommand['command_type']>(
   kind: T, intent: string, payload: Extract<StockCommand, { command_type: T }>['payload'],

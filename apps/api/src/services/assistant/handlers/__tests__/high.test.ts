@@ -6,6 +6,7 @@ import {
   HighHandlerError,
 } from '../high.js';
 import type { ToolExecutionContext } from '../types.js';
+import { StockCommandService } from '../../../stock/StockCommandService.js';
 
 const USER = '11111111-1111-1111-1111-111111111111';
 const RECIPE = '22222222-2222-2222-2222-222222222222';
@@ -119,27 +120,43 @@ describe('DeleteRecipeHandler', () => {
 });
 
 describe('ClearShoppingListHandler', () => {
-  it('deletes all rows for the user when no flag', async () => {
-    const { client, calls } = makeClient({
-      routes: { shopping_list: { deleteCount: 7 } },
-    });
-    const result = await new ClearShoppingListHandler().execute(makeCtx(client), {});
-    expect(result.result.removed).toBe(7);
-    const del = calls.find((c) => c.op === 'delete');
-    expect(del?.filters).toContainEqual({ kind: 'eq', col: 'user_id', val: USER });
-    expect(del?.filters.find((f) => f.col === 'is_purchased')).toBeUndefined();
+  // V11-05 E2: clearing goes through one shopping_remove, which undo_stock can take back.
+  const COMMAND = '40000000-0000-4000-8000-000000000001';
+  const withCommand = (client: any): ToolExecutionContext => ({ ...makeCtx(client), commandId: COMMAND });
+  beforeEach(() => {
+    jest.restoreAllMocks();
+    jest.spyOn(StockCommandService.prototype, 'getResult').mockResolvedValue(null);
+    jest.spyOn(StockCommandService.prototype, 'execute').mockImplementation(async (_user, command: any) => ({
+      command_id: command.command_id, command_type: 'shopping_remove', status: 'confirmed', affected_tables: ['shopping_list'],
+      shopping_changes: command.payload.items.map((item: { id: string }) => ({ id: item.id, outcome: 'removed' })),
+    }));
+  });
+
+  it('removes every row of the user in one undoable command, never by a direct delete', async () => {
+    const { client, calls } = makeClient({ routes: { shopping_list: { selectRows: [{ id: 'a', stock_version: 1 }, { id: 'b', stock_version: 0 }] } } });
+    const result = await new ClearShoppingListHandler().execute(withCommand(client), {});
+    expect(result.result.removed).toBe(2);
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, expect.objectContaining({
+      command_id: COMMAND, command_type: 'shopping_remove', payload: { items: [{ id: 'a', expected_version: 1 }, { id: 'b', expected_version: 0 }] },
+    }));
+    expect(result.reversibleAction).toEqual({ tool: '_undo_stock_command', args: { original_command_id: COMMAND } });
+    expect(calls.some((c) => c.op === 'delete')).toBe(false);
+    expect(calls[0].filters).toContainEqual({ kind: 'eq', col: 'user_id', val: USER });
+    expect(calls[0].filters.find((f) => f.col === 'is_purchased')).toBeUndefined();
   });
 
   it('restricts to is_purchased=true when purchased_only=true', async () => {
-    const { client, calls } = makeClient({
-      routes: { shopping_list: { deleteCount: 3 } },
-    });
-    const result = await new ClearShoppingListHandler().execute(makeCtx(client), {
-      purchased_only: true,
-    });
-    expect(result.result.removed).toBe(3);
-    const del = calls.find((c) => c.op === 'delete');
-    expect(del?.filters).toContainEqual({ kind: 'eq', col: 'is_purchased', val: true });
+    const { client, calls } = makeClient({ routes: { shopping_list: { selectRows: [{ id: 'a', stock_version: 2 }] } } });
+    const result = await new ClearShoppingListHandler().execute(withCommand(client), { purchased_only: true });
+    expect(result.result.removed).toBe(1);
+    expect(calls[0].filters).toContainEqual({ kind: 'eq', col: 'is_purchased', val: true });
+  });
+
+  it('an empty list sends no command', async () => {
+    const { client } = makeClient({ routes: { shopping_list: { selectRows: [] } } });
+    const result = await new ClearShoppingListHandler().execute(withCommand(client), {});
+    expect(result.result.removed).toBe(0);
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
   });
 });
 

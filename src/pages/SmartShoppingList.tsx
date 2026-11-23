@@ -29,8 +29,11 @@ export default function SmartShoppingList() {
     const quantity = Number(form.quantity.replace(',','.'));
     if (!form.name.trim() || !form.quantity.trim() || !Number.isFinite(quantity) || quantity<=0 || !form.unit.trim()) throw new Error('Indique le nom, une quantité positive et l’unité.');
     await shopping.addToShoppingList({ productName:form.name.trim(),quantity,unit:form.unit,category:'Autres' });
-    setForm(defaults); setMessage('Produit ajouté aux courses.');setAdding(false);setQuantityOpen(false);
+    // The confirmation (row created or topped up) is the hook's last change, with its undo.
+    setForm(defaults); setMessage('');setAdding(false);setQuantityOpen(false);
   };
+  const undo = async () => { await shopping.undoLastShoppingChange(); setMessage('Action annulée.'); };
+  const change = shopping.lastShoppingChange;
   const matches = (item:ShoppingItem) => (item.product?.name ?? '').toLowerCase().includes(search.toLowerCase());
   const groups = [ { title:'À acheter',items:shopping.shoppingList.filter(item => !item.is_purchased && matches(item)) },{ title:'Achetés, à ranger',items:shopping.shoppingList.filter(item => item.is_purchased && matches(item)) } ];
   const bought = shopping.getPurchasedCount();
@@ -44,6 +47,7 @@ export default function SmartShoppingList() {
         </form>
       </DialogContent></Dialog>}/>
     {(error || shopping.error || storageError) && <div role="alert" className="rounded-lg border border-destructive p-3 space-y-2"><p>{error || shopping.error || storageError}</p><Button variant="outline" className="min-h-11" onClick={() => void run('reload',shopping.refetch)}>Actualiser les courses</Button></div>}
+    {change && <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border p-3"><p className="min-w-0 flex-1">{change.message}</p><Button className="min-h-11" variant="outline" disabled={!!busy} aria-label={`Annuler : ${change.message}`} onClick={() => void run('undo',undo)}>{busy==='undo' ? 'Annulation en cours…' : 'Annuler'}</Button></div>}
     {message && <p role="status">{message} <Link className="inline-flex min-h-11 items-center underline" to="/pantry/inventory">Voir le stock</Link></p>}
 
     <div className="kitchen-shopping-layout"><div className="kitchen-shopping-work">

@@ -235,47 +235,12 @@ describe('RestoreInventoryItemSnapshotInternalHandler', () => {
 });
 
 describe('RestoreShoppingItemsInternalHandler', () => {
-  it('re-inserts only snapshots for the current user', async () => {
+  // V11-05 E2: removals are undone by undo_stock; a removal recorded before is refused, never written directly.
+  it('refuses an undo recorded before the list commands, with no write', async () => {
     const { client, calls } = makeClient({});
-    const handler = new RestoreShoppingItemsInternalHandler();
-    const r = await handler.execute(makeCtx(client), {
-      snapshots: [
-        {
-          id: 's1',
-          user_id: USER,
-          product_id: 'p1',
-          quantity: 1,
-          is_purchased: false,
-          priority: null,
-          estimated_price: null,
-          store_section: null,
-        },
-        {
-          id: 's2',
-          user_id: 'other-user',
-          product_id: 'p2',
-          quantity: 1,
-          is_purchased: false,
-          priority: null,
-          estimated_price: null,
-          store_section: null,
-        },
-      ],
-    });
-    expect(r.result.restored).toBe(1);
-    const insert = calls.find((c) => c.op === 'insert');
-    expect((insert?.payload as any[])[0]).toEqual(
-      expect.objectContaining({ id: 's1', user_id: USER, product_id: 'p1' })
-    );
-    expect(insert?.payload).toHaveLength(1);
-  });
-
-  it('returns 0 with no DB call when snapshots is empty', async () => {
-    const { client, calls } = makeClient({});
-    const r = await new RestoreShoppingItemsInternalHandler().execute(makeCtx(client), {
-      snapshots: [],
-    });
-    expect(r.result.restored).toBe(0);
+    await expect(new RestoreShoppingItemsInternalHandler().execute(makeCtx(client), {
+      snapshots: [{ id: 's1', user_id: USER, product_id: 'p1', quantity: 1, is_purchased: false, priority: null, estimated_price: null, store_section: null }],
+    })).rejects.toThrow('ne peut plus être annulé');
     expect(calls).toHaveLength(0);
   });
 });

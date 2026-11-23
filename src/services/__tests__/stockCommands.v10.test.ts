@@ -1,6 +1,6 @@
 import { ApiError, apiPost } from '@/lib/api';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
-import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, previewRecipeStock } from '../stockCommands';
+import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, pendingIntents, previewRecipeStock } from '../stockCommands';
 
 let mockOwner: string | null = '00000000-0000-4000-8000-000000000001';
 jest.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { getSession: jest.fn(async () => ({ data: { session: mockOwner ? { user: { id: mockOwner } } : null } })) } } }));
@@ -84,6 +84,14 @@ describe('recoverable online stock intentions', () => {
     post.mockImplementationOnce(async () => { mockOwner = 'B'; return { command_id: first.command_id, status: 'confirmed', affected_tables: ['inventory'] }; });
     await expect(executeStockCommand(first)).rejects.toMatchObject({ code: 'AUTH_CHANGED' });
     expect(dispatchAgentDbChanged).not.toHaveBeenCalled();
+  });
+  test('pending intentions are listed by prefix for the signed-in account only', async () => {
+    const first = await commandForIntent('transfer_shopping','shopping-list:check:a',payload);
+    await commandForIntent('transfer_shopping','shopping-transfer',payload);
+    localStorage.setItem('v10-command:00000000-0000-4000-8000-000000000002:shopping-list:check:b',JSON.stringify(first));
+    expect(await pendingIntents('shopping-list:')).toEqual([{ intent: 'shopping-list:check:a', command: first }]);
+    mockOwner = null;
+    expect(await pendingIntents('shopping-list:')).toEqual([]);
   });
   test('preview uses the account guard and preserves server default servings', async () => {
     post.mockResolvedValueOnce({ servings: 4 });

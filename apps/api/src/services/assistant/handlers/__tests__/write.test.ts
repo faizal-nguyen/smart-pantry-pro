@@ -349,77 +349,83 @@ describe('AddInventoryItemsHandler', () => {
 
 // ---- LOW : add_shopping_items ---------------------------------------
 
+// V11-05 E2: list tools write through the shopping commands, undone by undo_stock.
+const listReceipt = (command_type: string, shopping_changes: unknown[]) => ({
+  command_id: '40000000-0000-4000-8000-000000000001', command_type, status: 'confirmed' as const,
+  affected_tables: ['shopping_list'], shopping_ids: (shopping_changes as Array<{ id: string }>).map(change => change.id),
+  shopping_changes: shopping_changes as never,
+});
+const undoAction = { tool: '_undo_stock_command', args: { original_command_id: '40000000-0000-4000-8000-000000000001' } };
+const writesList = (calls: QueryCall[]) => calls.some((c) => c.table === 'shopping_list' && c.op !== 'select');
+
 describe('AddShoppingItemsHandler', () => {
-  it('inserts items and reverses via the catalog tool remove_shopping_items', async () => {
-    const lait = fakeProduct('p-lait', 'Lait');
-    const { client } = makeClient({
-      routes: {
-        shopping_list: {
-          insertReturning: [{ id: 's-1', product_id: 'p-lait', quantity: 1 }],
-        },
-      },
-    });
-    const result = await new AddShoppingItemsHandler().execute(
-      makeCtx(client, { matched: [lait] }),
-      { items: [{ name: 'Lait', quantity: 1 }] }
-    );
-    expect(result.result.added[0]).toMatchObject({
-      shopping_item_id: 's-1',
-      product_name: 'Lait',
-    });
-    expect(result.reversibleAction).toEqual({
-      tool: 'remove_shopping_items',
-      args: { shopping_item_ids: ['s-1'] },
-    });
+  const lait = fakeProduct('p-lait', 'Lait');
+  it('adds the resolved product through one shopping_add, undone by undo_stock', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce(listReceipt('shopping_add',
+      [{ id: 's-1', outcome: 'merged', name: 'Lait', quantity: 3, unit: 'l', added_quantity: 1 }]));
+    const { client, calls } = makeClient({ routes: {} });
+    const result = await new AddShoppingItemsHandler().execute(makeCtx(client, { matched: [lait] }), { items: [{ name: 'Lait', quantity: 1, unit: 'l' }] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, expect.objectContaining({
+      command_id: '40000000-0000-4000-8000-000000000001', command_type: 'shopping_add',
+      payload: { items: [{ product_id: 'p-lait', quantity: 1, unit: 'l', origin: 'assistant' }] },
+    }));
+    expect(result.result.added).toEqual([{ shopping_item_id: 's-1', product_id: 'p-lait', product_name: 'Lait', quantity: 3,
+      topped_up: { added: 1, total: 3, unit: 'l' } }]);
+    expect(result.reversibleAction).toEqual(undoAction);
+    expect(writesList(calls)).toBe(false);
+  });
+  it('a replay returns the committed receipt without resolving the products again', async () => {
+    jest.mocked(StockCommandService.prototype.getResult).mockResolvedValueOnce(listReceipt('shopping_add',
+      [{ id: 's-1', outcome: 'created', name: 'Lait', quantity: 1, unit: 'l', added_quantity: 1 }]));
+    const ctx = makeCtx(makeClient({ routes: {} }).client, { matched: [lait] });
+    const resolve = jest.spyOn(ctx.productResolver, 'resolveBatch');
+    const result = await new AddShoppingItemsHandler().execute(ctx, { items: [{ name: 'Lait', quantity: 1 }] });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
+    expect(result.result.added[0]).toMatchObject({ shopping_item_id: 's-1', product_name: 'Lait', quantity: 1 });
+  });
+  it('an item whose unit is unknown is refused rather than given one', async () => {
+    const salt = { ...fakeProduct('p-sel', 'Sel'), unit_type: null as unknown as string };
+    await expect(new AddShoppingItemsHandler().execute(makeCtx(makeClient({ routes: {} }).client, { matched: [salt] }), { items: [{ name: 'Sel', quantity: 1 }] }))
+      .rejects.toMatchObject({ code: 'UNIT_UNKNOWN' });
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
   });
 });
 
 // ---- LOW : mark / unmark --------------------------------------------
 
 describe('MarkShoppingItemsBoughtHandler', () => {
-  it('marks bought, reversible via unmark', async () => {
-    const { client, calls } = makeClient({
-      routes: {
-        shopping_list: { selectRows: [{ id: 'a', is_purchased: false }] },
-      },
-    });
-    const result = await new MarkShoppingItemsBoughtHandler().execute(
-      makeCtx(client),
-      { shopping_item_ids: ['a'] }
-    );
-    expect(result.result.updated).toBe(1);
-    expect(result.reversibleAction).toEqual({
-      tool: 'unmark_shopping_items_bought',
-      args: { shopping_item_ids: ['a'] },
-    });
-    expect(calls.find((c) => c.op === 'update')?.payload).toEqual({ is_purchased: true });
+  it('checks the owned rows at their version through shopping_check, undone by undo_stock', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce(listReceipt('shopping_check', [{ id: 'a', outcome: 'checked' }]));
+    const { client, calls } = makeClient({ routes: { shopping_list: { selectRows: [{ id: 'a', stock_version: 4 }] } } });
+    const result = await new MarkShoppingItemsBoughtHandler().execute(makeCtx(client), { shopping_item_ids: ['a', 'not-mine'] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, expect.objectContaining({
+      command_type: 'shopping_check', payload: { items: [{ id: 'a', expected_version: 4, purchased: true }] },
+    }));
+    expect(result.result).toEqual({ updated: 1, ids: ['a'] });
+    expect(result.reversibleAction).toEqual(undoAction);
+    expect(writesList(calls)).toBe(false);
   });
 
   it('throws SHOPPING_NOT_FOUND when no ids match', async () => {
-    const { client } = makeClient({
-      routes: { shopping_list: { selectRows: [] } },
-    });
-    await expect(
-      new MarkShoppingItemsBoughtHandler().execute(makeCtx(client), {
-        shopping_item_ids: ['no-such'],
-      })
-    ).rejects.toMatchObject({ code: 'SHOPPING_NOT_FOUND' });
+    const { client } = makeClient({ routes: { shopping_list: { selectRows: [] } } });
+    await expect(new MarkShoppingItemsBoughtHandler().execute(makeCtx(client), { shopping_item_ids: ['no-such'] }))
+      .rejects.toMatchObject({ code: 'SHOPPING_NOT_FOUND' });
+    expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
   });
 });
 
 describe('UnmarkShoppingItemsBoughtHandler', () => {
-  it('reverses via mark', async () => {
-    const { client } = makeClient({
-      routes: { shopping_list: { selectRows: [{ id: 'b', is_purchased: true }] } },
+  it('unchecks through shopping_check; a row already unchecked is not counted', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce(listReceipt('shopping_check',
+      [{ id: 'b', outcome: 'unchecked' }, { id: 'c', outcome: 'unchanged' }]));
+    const { client } = makeClient({ routes: { shopping_list: { selectRows: [{ id: 'b', stock_version: 1 }, { id: 'c', stock_version: 0 }] } } });
+    const result = await new UnmarkShoppingItemsBoughtHandler().execute(makeCtx(client), { shopping_item_ids: ['b', 'c'] });
+    expect(jest.mocked(StockCommandService.prototype.execute).mock.calls[0][1]).toMatchObject({
+      payload: { items: [{ id: 'b', expected_version: 1, purchased: false }, { id: 'c', expected_version: 0, purchased: false }] },
     });
-    const result = await new UnmarkShoppingItemsBoughtHandler().execute(
-      makeCtx(client),
-      { shopping_item_ids: ['b'] }
-    );
-    expect(result.reversibleAction).toEqual({
-      tool: 'mark_shopping_items_bought',
-      args: { shopping_item_ids: ['b'] },
-    });
+    expect(result.result).toEqual({ updated: 1, ids: ['b', 'c'] });
+    expect(result.reversibleAction).toEqual(undoAction);
   });
 });
 
@@ -522,33 +528,16 @@ describe('UpdateInventoryItemHandler', () => {
 // ---- MEDIUM : remove_shopping_items ---------------------------------
 
 describe('RemoveShoppingItemsHandler', () => {
-  it('snapshots rows before delete and reverses via _restore_shopping_items', async () => {
-    const snap = {
-      id: 's1',
-      user_id: USER,
-      product_id: 'p1',
-      quantity: 2,
-      is_purchased: false,
-      priority: 1,
-      estimated_price: null,
-      store_section: null,
-    };
-    const { client, calls } = makeClient({
-      routes: {
-        shopping_list: {
-          selectRows: [snap],
-        },
-      },
-    });
-    const result = await new RemoveShoppingItemsHandler().execute(makeCtx(client), {
-      shopping_item_ids: ['s1'],
-    });
+  it('removes the owned rows at their version through shopping_remove, undone by undo_stock', async () => {
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce(listReceipt('shopping_remove', [{ id: 's1', outcome: 'removed' }]));
+    const { client, calls } = makeClient({ routes: { shopping_list: { selectRows: [{ id: 's1', stock_version: 3 }] } } });
+    const result = await new RemoveShoppingItemsHandler().execute(makeCtx(client), { shopping_item_ids: ['s1'] });
+    expect(StockCommandService.prototype.execute).toHaveBeenCalledWith(USER, expect.objectContaining({
+      command_type: 'shopping_remove', payload: { items: [{ id: 's1', expected_version: 3 }] },
+    }));
     expect(result.result).toEqual({ removed: 1, removed_ids: ['s1'] });
-    expect(result.reversibleAction).toEqual({
-      tool: '_restore_shopping_items',
-      args: { snapshots: [snap] },
-    });
-    expect(calls.find((c) => c.op === 'delete')).toBeDefined();
+    expect(result.reversibleAction).toEqual(undoAction);
+    expect(writesList(calls)).toBe(false);
   });
 
   it('returns no-op when no rows match the ids', async () => {
