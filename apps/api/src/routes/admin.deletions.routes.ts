@@ -20,7 +20,8 @@
  *
  * Body shape attendu (optionnel) : `{maxBatch: number}` (1..50).
  *
- * Réponse : `{processed, failed, errors}` du RPC, wrapped dans le
+ * Réponse : `{processed, waiting_for_files, failed, errors}` du RPC
+ * (`waiting_for_files` : lignes effacées, fichiers encore présents), wrapped dans le
  * `ok()` envelope.
  */
 import { Router } from 'express';

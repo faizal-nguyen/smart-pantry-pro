@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthSessionOptional } from './useAuthenticatedUser';
+import { ApiError } from '@/lib/apiError';
 
 import {
   getPrivacySettings,
@@ -145,15 +146,23 @@ export function usePrivacySettings() {
     try {
       if (!owner) throw new Error("Connectez-vous pour demander un effacement.");
       const res = await postPrivacyDeleteRequest(owner);
-      if (res.alreadyPending) {
+      if (res.alreadyPending && res.status === 'processing') {
+        // Rows already erased: the call has just removed the remaining photos.
+        toast.success('Photos effacées : la demande sera terminée dans l’heure.');
+      } else if (res.alreadyPending) {
         toast.info('Une demande de suppression est déjà en attente.');
       } else {
         toast.success('Demande enregistrée, en attente de traitement. Vos données ne sont pas encore effacées.');
       }
       return res;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erreur inconnue';
-      toast.error(`Demande impossible : ${message}`);
+      if (err instanceof ApiError && err.code === 'PRIVACY_FILES_DELETE_FAILED') {
+        // The request is recorded; only the photos are to be retried.
+        toast.error(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : 'Erreur inconnue';
+        toast.error(`Demande impossible : ${message}`);
+      }
       throw err;
     }
   }, [owner]);

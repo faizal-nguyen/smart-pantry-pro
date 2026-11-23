@@ -51,7 +51,32 @@ describe('delete-request erases the user files through the Storage API',()=>{
       const s=deletion(null,{removeError:{name:'StorageApiError',message:`Object users/${USER}/image/a.webp`}});
       const res=await request(s.app).post('/settings/delete-request').expect(502);
       expect(res.body.code ?? res.body.error?.code).toBe('PRIVACY_FILES_DELETE_FAILED');expect(s.chain.insert).toHaveBeenCalled();
+      expect(res.body.error).toBe('Demande enregistrée, mais tes photos n’ont pas pu être effacées : réessaie dans un instant.');
       expect(JSON.stringify([res.body,log.mock.calls])).not.toContain(USER);
     } finally { log.mockRestore(); }
+  });
+});
+
+describe('delete-request status is readable, without the internal error',()=>{
+  function reading(data:unknown,error:unknown=null) {
+    const chain:Record<string,jest.Mock>={};for(const m of ['select','eq','order','limit']) chain[m]=jest.fn(()=>chain);
+    chain.maybeSingle=jest.fn(async()=>({data,error}));const from=jest.fn(()=>chain);
+    const app=express();app.use(express.json());app.use((req,_res,next)=>{req.user={id:USER};req.supabaseClient={from} as never;next();});
+    app.use('/settings',createSettingsPrivacyRouter({} as never));return {app,chain,from};
+  }
+  test('a request whose files remain reads as files pending, never completed',async()=>{
+    const s=reading({id:'request-1',status:'processing',requested_at:'2026-11-22T10:00:00Z',completed_at:null,error:'FILES_REMAINING'});
+    const res=await request(s.app).get('/settings/delete-request').expect(200);
+    expect(res.body.data.request).toEqual({id:'request-1',status:'processing',requestedAt:'2026-11-22T10:00:00Z',completedAt:null,filesPending:true});
+    expect(s.from).toHaveBeenCalledWith('data_deletion_requests');expect(s.chain.eq).toHaveBeenCalledWith('user_id',USER);
+    expect(s.chain.order).toHaveBeenCalledWith('requested_at',{ascending:false});expect(s.chain.limit).toHaveBeenCalledWith(1);
+  });
+  test('no request reads as null; a blocked request hides its SQL error; a read failure is not an empty state',async()=>{
+    expect((await request(reading(null).app).get('/settings/delete-request').expect(200)).body.data.request).toBeNull();
+    const blocked=await request(reading({id:'r',status:'failed',requested_at:'2026-11-22T10:00:00Z',completed_at:'2026-11-22T10:17:00Z',
+      error:'DELETION_BLOCKED: update or delete on table "recipes"'}).app).get('/settings/delete-request').expect(200);
+    expect(blocked.body.data.request).toMatchObject({status:'failed',filesPending:false});expect(JSON.stringify(blocked.body)).not.toContain('DELETION_BLOCKED');
+    const log=jest.spyOn(console,'error').mockImplementation(()=>undefined);
+    try { await request(reading(null,{message:'boom'}).app).get('/settings/delete-request').expect(500); } finally { log.mockRestore(); }
   });
 });

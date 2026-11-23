@@ -68,3 +68,17 @@ export function postPrivacyExport(owner?:string): Promise<ExportedUserData> {
 export function postPrivacyDeleteRequest(owner?:string): Promise<DeleteRequestResponse> {
   return apiPost<DeleteRequestResponse>('/v1/settings/delete-request',undefined,{ expectedUserId:owner });
 }
+
+/** Dernière demande de suppression du compte. */
+export interface DeletionRequestView {
+  id: string;
+  status: DeleteRequestResponse['status'];
+  requestedAt: string;
+  completedAt: string | null;
+  /** Lignes effacées, photos encore présentes : la demande reste ouverte. */
+  filesPending: boolean;
+}
+
+export function getPrivacyDeleteRequest(owner?:string): Promise<{ request: DeletionRequestView | null }> {
+  return apiGet<{ request: DeletionRequestView | null }>('/v1/settings/delete-request',undefined,{ expectedUserId:owner });
+}
