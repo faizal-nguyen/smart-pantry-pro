@@ -10,7 +10,8 @@
  *   - Caller has already authenticated and scoped `userId` to the
  *     current request.
  *   - The action_log row must be `status='executed'` AND `reversible=true`
- *     AND `undo_expires_at > now()`.
+ *     AND `undo_expires_at > now()`. A row still `executing` is reconciled
+ *     first (ActionLogWriter.reconcileExecuting) and refused meanwhile.
  *   - The inverse handler must exist in the registry (LLM-public or
  *     internal, doesn't matter for the lookup).
  *
@@ -52,8 +53,14 @@ export async function performUndo(
   writer: ActionLogWriter,
   handlerRegistry: ToolHandlerRegistry
 ): Promise<UndoOutcome> {
-  const row = await writer.fetchById(ctx.userId, actionId);
-  if (!row) throw new UndoFailedError('NOT_FOUND', `action ${actionId} not found`, actionId);
+  const found = await writer.fetchById(ctx.userId, actionId);
+  if (!found) throw new UndoFailedError('NOT_FOUND', `action ${actionId} not found`, actionId);
+  // A row still `executing` is settled first; while its run is awaited, or once
+  // settled without a known inverse, it cannot be undone.
+  const row = await writer.reconcileExecuting(ctx.userId, found);
+  if (row.status === 'executing') {
+    throw new UndoFailedError('NOT_REVERSIBLE', `action ${actionId} is still being verified`, actionId);
+  }
   if (row.status !== 'executed' || !row.reversible || !row.reversible_action) {
     throw new UndoFailedError('NOT_REVERSIBLE', `action ${actionId} is not reversible`, actionId);
   }

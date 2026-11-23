@@ -142,6 +142,24 @@ describe('pending and executed actions of a reply', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
     await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Action non réalisée', description: 'Cette recette n’est plus accessible.' })));
   });
+  test('an action still in progress or to verify is not announced as failed nor as done', async () => {
+    for (const error_code of ['EXECUTION_IN_PROGRESS', 'EXECUTION_UNVERIFIED']) {
+      mockToast.mockReset();
+      mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [{ action_id: 'p1', tool: 'consume_inventory_items', error_code, reason: 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.' }] });
+      const { unmount } = render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+      await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'Action à vérifier', description: 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.' }));
+      unmount();
+    }
+  });
+  test('a failure next to an action to verify keeps the failure title', async () => {
+    mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [
+      { action_id: 'p1', tool: 'cook_recipe', error_code: 'EXECUTION_FAILED', reason: 'Cette recette n’est plus accessible.' },
+      { action_id: 'p2', tool: 'consume_inventory_items', error_code: 'EXECUTION_UNVERIFIED', reason: 'Vérifie son résultat.' }] });
+    render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Action non réalisée', variant: 'destructive' })));
+  });
   test('a reply whose only action was a read renders nothing', () => {
     const read = { ...executed, tool: 'read_inventory', reversible: false, risk_tier: 'read' as const };
     const { container } = render(<AssistantActionsPanel onResultPatched={jest.fn()} result={reply({ actions_pending: [], confirmation_token: null, actions_executed: [read] })} />);

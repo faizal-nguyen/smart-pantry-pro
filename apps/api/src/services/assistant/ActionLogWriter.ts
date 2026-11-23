@@ -6,8 +6,11 @@
  *
  * Methods :
  *   - insertPlanned          new row with status='planned'
- *   - markExecuted           planned → executed (+ result + reversibility)
- *   - markFailed             planned/running → failed (+ error_code/msg)
+ *   - claimPlanned           planned → executing (a confirmation takes the row)
+ *   - markExecuted           planned/executing → executed (+ result + reversibility)
+ *   - markFailed             planned/executing → failed (+ error_code/msg)
+ *   - reconcileExecuting     executing past EXECUTING_STALE_AFTER_MS → executed
+ *                            if a stock receipt proves it, else failed (to verify)
  *   - markUndone             executed → undone (set undone_at)
  *   - findByAudioSha         10-min lookup for /voice replay protection
  *
@@ -23,6 +26,19 @@ import type { RiskTier } from './schemas/tools.js';
 
 const TEN_MINUTES_AGO_SQL = "now() - interval '10 minutes'";
 
+/**
+ * How long a row stays `executing` before it is no longer awaited and gets
+ * reconciled. A confirmation can only come back while its token is valid
+ * (five minutes), so the delay must stay below that for a retry to settle
+ * the row; and well above a handler run (database commands and provider
+ * calls bounded by their own timeouts, a few seconds). Settling too early is
+ * never a false success: without a receipt the row is only « à vérifier »,
+ * and the first run's own result still overwrites it.
+ */
+export const EXECUTING_STALE_AFTER_MS = 2 * 60_000;
+
+export type ActionLogStatus = 'planned' | 'executing' | 'executed' | 'failed' | 'undone' | 'cancelled';
+
 export interface ActionLogRow {
   id: string;
   user_id: string;
@@ -33,7 +49,7 @@ export interface ActionLogRow {
   tool: string;
   tool_args: Record<string, unknown>;
   risk_tier: RiskTier;
-  status: 'planned' | 'executed' | 'failed' | 'undone' | 'cancelled';
+  status: ActionLogStatus;
   result: Record<string, unknown> | null;
   error_code: string | null;
   error_message: string | null;
@@ -207,19 +223,70 @@ export class ActionLogWriter {
   /**
    * Takes planned rows for execution in one UPDATE … WHERE status='planned':
    * a second confirmation sent at the same time (double tap, retry after a
-   * lost reply) gets none of them, so an action never runs twice.
+   * lost reply) gets none of them, so an action never runs twice. The rows
+   * become `executing`, not `executed`: only the handler's outcome
+   * (markExecuted / markFailed) says whether the action happened.
    */
   async claimPlanned(userId: string, ids: readonly string[]): Promise<ActionLogRow[]> {
     if (ids.length === 0) return [];
     const { data, error } = await this.adminClient
       .from('assistant_action_log')
-      .update({ status: 'executed', executed_at: new Date().toISOString() })
+      .update({ status: 'executing' })
       .eq('user_id', userId)
       .eq('status', 'planned')
       .in('id', ids)
       .select('*');
     if (error) throw error;
     return (data ?? []) as ActionLogRow[];
+  }
+
+  /**
+   * Settles a row left `executing` past EXECUTING_STALE_AFTER_MS (interrupted
+   * run, or its result could not be recorded). A stock command takes the row
+   * id as `command_id`, so its receipt proves the action happened: the row
+   * becomes executed, without an assistant undo since the full effect of the
+   * tool is unknown here. Without a receipt it becomes failed with
+   * EXECUTION_UNVERIFIED (« à vérifier »). Both writes only apply to a row
+   * still `executing`: a run that finished meanwhile keeps its own result.
+   * Any other row is returned unchanged, without a query.
+   */
+  async reconcileExecuting(userId: string, row: ActionLogRow, now: number = Date.now()): Promise<ActionLogRow> {
+    if (row.status !== 'executing') return row;
+    if (now - Date.parse(row.updated_at) < EXECUTING_STALE_AFTER_MS) return row;
+
+    const { data: receipt, error: receiptError } = await this.adminClient
+      .from('stock_commands')
+      .select('result')
+      .eq('user_id', userId)
+      .eq('command_id', row.id)
+      .maybeSingle();
+    if (receiptError) throw receiptError;
+
+    const update: Record<string, unknown> = receipt
+      ? {
+          status: 'executed',
+          executed_at: new Date(now).toISOString(),
+          result: { ...((receipt as { result?: Record<string, unknown> | null }).result ?? {}), reconciled_from: 'stock_commands' },
+          reversible: false,
+          reversible_action: null,
+          undo_expires_at: null,
+        }
+      : {
+          status: 'failed',
+          error_code: 'EXECUTION_UNVERIFIED',
+          error_message: 'Résultat à vérifier : aucune trace de la commande après le délai.',
+        };
+    const { data, error } = await this.adminClient
+      .from('assistant_action_log')
+      .update(update)
+      .eq('user_id', userId)
+      .eq('id', row.id)
+      .eq('status', 'executing')
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (data) return data as ActionLogRow;
+    return (await this.fetchById(userId, row.id)) ?? row;
   }
 
   async fetchByIds(userId: string, ids: readonly string[]): Promise<ActionLogRow[]> {

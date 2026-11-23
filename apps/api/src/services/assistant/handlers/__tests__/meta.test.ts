@@ -89,6 +89,9 @@ class MockWriter {
   async fetchById(_userId: string, id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
   }
+  async reconcileExecuting(_userId: string, row: ActionLogRow) {
+    return row;
+  }
   async markUndone(id: string) {
     this.undoneIds.push(id);
     const row = this.rows.find((r) => r.id === id);

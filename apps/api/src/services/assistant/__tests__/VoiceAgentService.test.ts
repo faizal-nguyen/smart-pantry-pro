@@ -79,10 +79,24 @@ class MockWriter {
     this.rows.push(row);
     return row;
   }
+  /** Set by a test to make markExecuted fail once the handler has run. */
+  failMarkExecuted = false;
+  /** Set by a test to replace the stale-row reconciliation; default: still running. */
+  reconcile?: (row: ActionLogRow) => ActionLogRow;
+  reconcileCalls: ActionLogRow[] = [];
   async markExecuted(id: string, params: any) {
+    if (this.failMarkExecuted) throw new Error('database unavailable');
     this.updateCalls.push({ id, kind: 'executed', payload: params });
     const row = this.rows.find((r) => r.id === id);
-    if (row) row.status = 'executed';
+    if (row) { row.status = 'executed'; row.result = params.result ?? null; }
+  }
+  async reconcileExecuting(_userId: string, row: ActionLogRow) {
+    this.reconcileCalls.push({ ...row });
+    if (row.status !== 'executing' || !this.reconcile) return row;
+    const next = this.reconcile(row);
+    const stored = this.rows.find((r) => r.id === row.id);
+    if (stored) Object.assign(stored, next);
+    return next;
   }
   async markFailed(id: string, code: string, msg: string) {
     this.updateCalls.push({ id, kind: 'failed', payload: { code, msg } });
@@ -102,7 +116,7 @@ class MockWriter {
   }
   async claimPlanned(_userId: string, ids: readonly string[]) {
     const taken = this.rows.filter((r) => ids.includes(r.id) && r.status === 'planned');
-    for (const row of taken) row.status = 'executed';
+    for (const row of taken) row.status = 'executing';
     return taken.map((r) => ({ ...r }));
   }
   async fetchByIds(_userId: string, ids: readonly string[]) {
@@ -1516,18 +1530,89 @@ describe('assistant reliability (audit 2026-11-07)',()=>{
     expect(seen).toContain('Produit numéro 39');
     expect(seen).not.toContain('example.test');
   });
-  it('a second Confirmer, even at the same time, does not run the action again and reports the first run',async()=>{
+  it('a second Confirmer during the first run says it is in progress, never done, and does not run the action again',async()=>{
     const writer=new MockWriter();
     const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',tool_args:{items:[]},risk_tier:'medium',status:'planned',reversible:false});
     writer.rows.push(row);
-    const consume={execute:jest.fn(async()=>({result:{consumed:1}}))};
+    let release!:()=>void;
+    const gate=new Promise<void>(resolve=>{release=resolve;});
+    const consume={execute:jest.fn(async()=>{await gate;return {result:{consumed:1}};})};
     const service=serviceAt(new Date(),makeAi([]),{consume_inventory_items:consume},writer);
     const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
-    const [first,second]=await Promise.all([service.handleConfirm({userId:USER,confirmationToken:token},makeCtx()),
-      service.handleConfirm({userId:USER,confirmationToken:token},makeCtx())]);
-    const again=await service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    const first=service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    await new Promise(resolve=>setImmediate(resolve));
     expect(consume.execute).toHaveBeenCalledTimes(1);
-    for (const res of [first,second,again]) expect(res.actions_executed.map(a=>a.action_id)).toEqual([row.id]);
+    const second=await service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(second.actions_executed).toEqual([]);
+    expect(second.actions_failed).toEqual([{action_id:row.id,tool:row.tool,error_code:'EXECUTION_IN_PROGRESS',reason:expect.stringMatching(/en cours/)}]);
+    release();
+    expect((await first).actions_executed.map(a=>a.action_id)).toEqual([row.id]);
+    const again=await service.handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(again.actions_executed).toEqual([expect.objectContaining({action_id:row.id,result:{consumed:1}})]);
+    expect(consume.execute).toHaveBeenCalledTimes(1);
+  });
+  it('a confirmed action is executing, not executed, while its handler runs',async()=>{
+    const writer=new MockWriter();
+    const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',tool_args:{items:[]},risk_tier:'medium',status:'planned',reversible:false});
+    writer.rows.push(row);
+    const seen:string[]=[];
+    const consume={execute:jest.fn(async()=>{seen.push(writer.rows[0].status);return {result:{consumed:1}};})};
+    const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+    await serviceAt(new Date(),makeAi([]),{consume_inventory_items:consume},writer).handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(seen).toEqual(['executing']);
+    expect(writer.rows[0].status).toBe('executed');
+  });
+  it('an applied action whose result could not be recorded stays executing and is reported to verify, not failed',async()=>{
+    const writer=new MockWriter();
+    writer.failMarkExecuted=true;
+    const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',tool_args:{items:[]},risk_tier:'medium',status:'planned',reversible:false});
+    writer.rows.push(row);
+    const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+    const res=await serviceAt(new Date(),makeAi([]),{consume_inventory_items:{execute:async()=>({result:{consumed:1}})}},writer)
+      .handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(res.actions_executed).toEqual([]);
+    expect(res.actions_failed).toEqual([{action_id:row.id,tool:row.tool,error_code:'EXECUTION_UNVERIFIED',reason:expect.stringMatching(/vérifie/i)}]);
+    expect(writer.rows[0].status).toBe('executing');
+    expect(writer.updateCalls.filter(c=>c.kind==='failed')).toEqual([]);
+  });
+  it('an action left executing is reconciled before being reported: receipt found → done, none → to verify',async()=>{
+    for (const [reconciled,expected] of [
+      [{status:'executed',result:{reconciled_from:'stock_commands'},reversible_action:null},{executed:1,failed:[]}],
+      [{status:'failed',error_code:'EXECUTION_UNVERIFIED'},{executed:0,failed:['EXECUTION_UNVERIFIED']}],
+    ] as const) {
+      const writer=new MockWriter();
+      const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',risk_tier:'medium',status:'executing'});
+      writer.rows.push(row);
+      writer.reconcile=r=>({...r,...reconciled} as ActionLogRow);
+      const consume={execute:jest.fn()};
+      const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+      const res=await serviceAt(new Date(),makeAi([]),{consume_inventory_items:consume},writer).handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+      expect(writer.reconcileCalls.map(r=>r.id)).toEqual([row.id]);
+      expect(consume.execute).not.toHaveBeenCalled();
+      expect(res.actions_executed).toHaveLength(expected.executed);
+      if (expected.executed) expect(res.actions_executed[0]).toMatchObject({reversible:false,undo_expires_at:null});
+      expect(res.actions_failed.map(f=>f.error_code)).toEqual(expected.failed);
+      if (expected.failed.length) expect(res.actions_failed[0].reason).toMatch(/vérifie/i);
+    }
+  });
+  it('a status this version does not know is reported to verify, not silently dropped',async()=>{
+    const writer=new MockWriter();
+    const row=makeRow({id:randomUUID(),tool:'consume_inventory_items',risk_tier:'medium',status:'reserved' as ActionLogRow['status']});
+    writer.rows.push(row);
+    const token=new ConfirmationTokenSigner(SECRET).sign({userId:USER,sessionId:row.session_id,actionLogIds:[row.id]});
+    const res=await serviceAt(new Date(),makeAi([]),{},writer).handleConfirm({userId:USER,confirmationToken:token},makeCtx());
+    expect(res.actions_executed).toEqual([]);
+    expect(res.actions_failed.map(f=>f.error_code)).toEqual(['EXECUTION_UNVERIFIED']);
+  });
+  it('an action still executing cannot be undone and its inverse never runs',async()=>{
+    const writer=new MockWriter();
+    writer.rows.push(makeRow({id:'running-row',status:'executing',reversible:true,
+      reversible_action:{tool:'_undo_stock_command',args:{original_command_id:'running-row'}},undo_expires_at:new Date(Date.now()+60_000).toISOString()}));
+    const inverse={execute:jest.fn()};
+    await expect(serviceAt(new Date(),makeAi([]),{_undo_stock_command:inverse},writer).handleUndo({userId:USER,actionId:'running-row'},makeCtx()))
+      .rejects.toMatchObject({code:'UNDO_NOT_REVERSIBLE'});
+    expect(writer.reconcileCalls.map(r=>r.id)).toEqual(['running-row']);
+    expect(inverse.execute).not.toHaveBeenCalled();
   });
   it('an expired confirmation says so in French',async()=>{
     const signer=new ConfirmationTokenSigner(SECRET);
