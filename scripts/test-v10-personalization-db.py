@@ -178,7 +178,8 @@ def tests():
         bad=stock.command('adjust_inventory',{'items':[{'id':stock.LOT,'expected_version':stock.version(),'quantity':.7,'unit':'kg','date_kind':'unverified_magic'}]})
         stock.execute(bad,error='check constraint')
         equal(stock.qty(),1)
-        equal(run('SELECT stock_routine_capabilities();',owner=A),'3')
+        # Lot metadata needs capability 3; later migrations may declare more (V11-05 E2: 4).
+        equal(int(run('SELECT stock_routine_capabilities();',owner=A))>=3,True)
     check("lot metadata participates in atomic correction, receipt replay and inverse", metadata)
 
     def adapted_ingredients():
