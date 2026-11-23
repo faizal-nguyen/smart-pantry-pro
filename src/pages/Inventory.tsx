@@ -10,7 +10,7 @@ import { useCalendarNow } from '@/hooks/useCalendarNow';
 import { useRoutinePreferences } from '@/hooks/useRoutinePreferences';
 import { useOwnedValue, removeOwnedValue } from '@/lib/ownedStorage';
 import { undoStockCommand } from '@/services/stockCommands';
-import { describeShoppingChanges } from '@/services/shoppingCommands';
+import { describeShoppingChanges } from '@/lib/shoppingChanges';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';

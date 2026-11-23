@@ -122,14 +122,15 @@ describe('DeleteRecipeHandler', () => {
 describe('ClearShoppingListHandler', () => {
   // V11-05 E2: clearing goes through one shopping_remove, which undo_stock can take back.
   const COMMAND = '40000000-0000-4000-8000-000000000001';
-  const withCommand = (client: any): ToolExecutionContext => ({ ...makeCtx(client), commandId: COMMAND });
+  const withCommand = (client: Parameters<typeof makeCtx>[0]): ToolExecutionContext => ({ ...makeCtx(client), commandId: COMMAND });
   beforeEach(() => {
     jest.restoreAllMocks();
     jest.spyOn(StockCommandService.prototype, 'getResult').mockResolvedValue(null);
-    jest.spyOn(StockCommandService.prototype, 'execute').mockImplementation(async (_user, command: any) => ({
-      command_id: command.command_id, command_type: 'shopping_remove', status: 'confirmed', affected_tables: ['shopping_list'],
-      shopping_changes: command.payload.items.map((item: { id: string }) => ({ id: item.id, outcome: 'removed' })),
-    }));
+    jest.spyOn(StockCommandService.prototype, 'execute').mockImplementation(async (_user: string, input: unknown) => {
+      const command = input as { command_id: string; payload: { items: Array<{ id: string }> } };
+      return { command_id: command.command_id, command_type: 'shopping_remove', status: 'confirmed', affected_tables: ['shopping_list'],
+        shopping_changes: command.payload.items.map(item => ({ id: item.id, outcome: 'removed' as const })) };
+    });
   });
 
   it('removes every row of the user in one undoable command, never by a direct delete', async () => {

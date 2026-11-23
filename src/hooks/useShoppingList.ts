@@ -6,7 +6,8 @@ import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { useAgentDbInvalidation } from '@/lib/agentEvents';
 import { ApiError } from '@/lib/api';
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, undoStockCommand } from '@/services/stockCommands';
-import { describeShoppingChanges, resumePendingShoppingCommands, sendShoppingCommand, shoppingIntent } from '@/services/shoppingCommands';
+import { resumePendingShoppingCommands, sendShoppingCommand, shoppingIntent } from '@/services/shoppingCommands';
+import { describeShoppingChanges } from '@/lib/shoppingChanges';
 
 export interface ShoppingItem {
   id: string; product_id: string; quantity: number; unit?: string; stock_version?: number;
