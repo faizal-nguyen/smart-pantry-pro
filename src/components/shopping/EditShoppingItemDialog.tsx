@@ -22,6 +22,7 @@ import { useInventory } from "@/hooks/useInventory";
 import { Autocomplete, AutocompleteSuggestion } from "@/components/ui/Autocomplete";
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useOwnedValue,removeOwnedValue } from '@/lib/ownedStorage';
+import UnitSelect from './UnitSelect';
 
 interface EditShoppingItemDialogProps {
   item: ShoppingItem | null;
@@ -48,16 +49,6 @@ const CATEGORIES = [
   "Autres"
 ];
 
-const UNITS = [
-  "kg",
-  "g", 
-  "L",
-  "mL",
-  "pièce(s)",
-  "paquet(s)",
-  "boîte(s)",
-  "bouteille(s)"
-];
 
 const STORE_SECTIONS = [
   "Entrée",
@@ -86,7 +77,7 @@ const EditShoppingItemDialog = ({
   const [formData,saveFormData,storageError] = useOwnedValue(user.id,`shopping-edit:${item?.id}`,{
     productName:item?.product?.name ?? '',
     quantity:String(item?.quantity ?? 1),
-    unit:item?.unit ?? item?.product?.unit_type ?? 'pièce(s)',
+    unit:item?.unit ?? item?.product?.unit_type ?? 'pièce',
     category:item?.product?.category ?? 'Autres',
     estimatedPrice:item?.estimated_price ?? 0,
     storeSection:item?.store_section ?? '',
@@ -161,24 +152,9 @@ const EditShoppingItemDialog = ({
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="unit">Unité</Label>
-                <Select 
-                  value={formData.unit} 
-                  onValueChange={(value) => setFormData({ ...formData, unit: value })}
-                >
-                  <SelectTrigger id="unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[...new Set([formData.unit,...UNITS])].map((unit) => (
-                      <SelectItem key={unit} value={unit}>
-                        {unit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* The shared units (V11-05); a row's unit outside the list stays selectable. */}
+              <UnitSelect id="unit" label="Unité" value={formData.unit} onChange={(unit) => setFormData({ ...formData, unit })} />
+
             </div>
 
             <div className="grid gap-2">

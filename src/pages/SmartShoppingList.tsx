@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { Plus, Pencil, MoreHorizontal } from 'lucide-react';
 import { useShoppingList, type ShoppingItem } from '@/hooks/useShoppingList';
 import { formatShoppingQuantity } from '@/lib/shoppingChanges';
+import { normalizeIngredientName } from '@smart/shared';
+import UnitSelect from '@/components/shopping/UnitSelect';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useOwnedValue } from '@/lib/ownedStorage';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,15 @@ import ShoppingStorageReview from '@/components/shopping/ShoppingStorageReview';
 import EditShoppingItemDialog from '@/components/shopping/EditShoppingItemDialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-const defaults = { name:'',quantity:'',unit:'pièce' };
+const defaults = { name:'',quantity:'',unit:'pièce',unitChosen:false };
+/** The unit of the oldest unchecked row of this product: an add in it tops that row up (V11-05 D16). */
+function listedUnit(items:ShoppingItem[],name:string) {
+  const key = normalizeIngredientName(name);
+  if (!key) return null;
+  const row = items.filter(item => !item.is_purchased && normalizeIngredientName(item.product?.name ?? '')===key && (item.unit ?? item.product?.unit_type))
+    .sort((a,b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')) || a.id.localeCompare(b.id))[0];
+  return row ? row.unit ?? row.product?.unit_type ?? null : null;
+}
 export default function SmartShoppingList() {
   const user = useAuthenticatedUser(), shopping = useShoppingList({ notify:false });
   const [form,setForm,storageError] = useOwnedValue(user.id,'shopping-add',defaults);
@@ -26,10 +36,13 @@ export default function SmartShoppingList() {
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Action non confirmée.'); }
     finally { setBusy(null); }
   };
+  // Until the user picks a unit, the one of the row already listed is proposed.
+  const proposedUnit = form.unitChosen===true ? null : listedUnit(shopping.shoppingList,form.name);
+  const unit = proposedUnit ?? form.unit;
   const add = async () => {
     const quantity = Number(form.quantity.replace(',','.'));
-    if (!form.name.trim() || !form.quantity.trim() || !Number.isFinite(quantity) || quantity<=0 || !form.unit.trim()) throw new Error('Indique le nom, une quantité positive et l’unité.');
-    await shopping.addToShoppingList({ productName:form.name.trim(),quantity,unit:form.unit,category:'Autres' });
+    if (!form.name.trim() || !form.quantity.trim() || !Number.isFinite(quantity) || quantity<=0 || !unit.trim()) throw new Error('Indique le nom, une quantité positive et l’unité.');
+    await shopping.addToShoppingList({ productName:form.name.trim(),quantity,unit:unit.trim(),category:'Autres' });
     // The confirmation (row created or topped up) is the hook's last change, with its undo.
     setForm(defaults); setMessage('');setAdding(false);setQuantityOpen(false);
   };
@@ -42,7 +55,7 @@ export default function SmartShoppingList() {
     <KitchenPageHeader title="Mes courses" description="Ta liste, du premier achat jusqu’au rangement." actions={<Dialog open={adding} onOpenChange={value=>{ if (!busy) setAdding(value); }}><DialogTrigger asChild><Button className="min-h-11 shrink-0"><Plus aria-hidden="true" className="h-4 w-4 mr-1" />Ajouter</Button></DialogTrigger><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Ajouter aux courses</DialogTitle><DialogDescription>Commence par le nom. La quantité et l’unité seront confirmées avant l’ajout.</DialogDescription></DialogHeader>
         <form className="space-y-4" onSubmit={e=>{ e.preventDefault(); if (!quantityOpen) { setQuantityOpen(true);return; } void run('add',add); }}>
           <label className="block text-sm space-y-1">Ajouter un produit<Input className="h-11" value={form.name} onChange={e=>patch({ name:e.target.value })} placeholder="Nom du produit" disabled={!!busy} /></label>
-          {quantityOpen ? <div className="grid grid-cols-2 gap-3"><label className="text-sm space-y-1">Quantité<Input autoFocus className="h-11" inputMode="decimal" value={form.quantity} onChange={e=>patch({ quantity:e.target.value })} placeholder="Quantité" disabled={!!busy} /></label><label className="text-sm space-y-1">Unité<Input className="h-11" value={form.unit} onChange={e=>patch({ unit:e.target.value })} disabled={!!busy} /></label></div> : form.quantity && <p className="text-sm">Saisie conservée : {form.quantity} {form.unit}.</p>}
+          {quantityOpen ? <div className="grid grid-cols-2 items-start gap-3"><label className="text-sm space-y-1">Quantité<Input autoFocus className="h-11" inputMode="decimal" value={form.quantity} onChange={e=>patch({ quantity:e.target.value })} placeholder="Quantité" disabled={!!busy} /></label><UnitSelect id="shopping-add-unit" label="Unité" value={unit} disabled={!!busy} onChange={value=>patch({ unit:value,unitChosen:true })} hint={proposedUnit ? 'Unité de la ligne déjà prévue : la quantité s’y ajoutera.' : undefined} /></div> : form.quantity && <p className="text-sm">Saisie conservée : {form.quantity} {unit}.</p>}
           {(error || storageError) && <p role="alert" className="text-sm text-destructive">{error || storageError}</p>}
           <div className="routine-dialog-footer"><Button type="submit" disabled={!!busy || !!storageError || !form.name.trim()} className="min-h-11 w-full">{busy==='add' ? 'Ajout en cours…' : quantityOpen ? 'Ajouter aux courses' : 'Préciser la quantité'}</Button></div>
         </form>

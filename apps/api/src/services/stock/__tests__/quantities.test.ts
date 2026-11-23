@@ -1,4 +1,30 @@
-import { allocateRecipeStock, convertQuantity, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, productNameWithBrand, normalizeRecipeIngredients, StockCommandSchema, type StockLot } from '@smart/shared';
+import { allocateRecipeStock, convertQuantity, describeUnit, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, productNameWithBrand, normalizeRecipeIngredients, SHOPPING_UNIT_GROUPS, shoppingUnitOptions, StockCommandSchema, type StockLot } from '@smart/shared';
+
+describe('shopping unit choices', () => {
+  const group = (id: string) => SHOPPING_UNIT_GROUPS.find(entry => entry.id === id)?.units ?? [];
+  test('count, mass and volume choices are known by the conversion table, as by SQL stock_unit', () => {
+    expect(group('count').map(unit => describeUnit(unit)?.dimension)).toEqual(['count']);
+    expect(group('mass').map(unit => describeUnit(unit)?.dimension)).toEqual(['mass', 'mass']);
+    expect(group('volume').map(unit => describeUnit(unit)?.dimension)).toEqual(['volume', 'volume', 'volume']);
+    // The rows written before the list (« unité(s) ») still top up a « pièce » row.
+    expect(convertQuantity(2, 'unité(s)', 'pièce')).toBe(2);
+    expect(convertQuantity(500, 'g', 'kg')).toBe(.5);
+  });
+  test('a packaging adds up only with itself, never converted', () => {
+    expect(group('packaging').length).toBeGreaterThan(0);
+    for (const unit of group('packaging')) {
+      expect(describeUnit(unit)).toBeNull();
+      expect(convertQuantity(2, unit, `${unit}s`)).toBe(2);
+      expect(() => convertQuantity(1, unit, 'g')).toThrow();
+    }
+  });
+  test('a current unit outside the list is kept once, a listed one is not repeated', () => {
+    const listed = SHOPPING_UNIT_GROUPS.flatMap(entry => entry.units);
+    expect(shoppingUnitOptions()).toEqual(listed);
+    expect(shoppingUnitOptions('unité(s)')).toEqual([...listed, 'unité(s)']);
+    expect(shoppingUnitOptions(' kg ')).toEqual(listed);
+  });
+});
 
 const lot = (quantity = 1, unit = 'kg'): StockLot => ({ id: 'lot', product_id: 'p', product_name: 'Farine', quantity, unit, stock_version: 2 });
 const ingredient = (quantity = 200, unit = 'g') => ({ ingredient_name: 'Farine', quantity, unit, inventory_product_id: 'p', is_essential: true });
