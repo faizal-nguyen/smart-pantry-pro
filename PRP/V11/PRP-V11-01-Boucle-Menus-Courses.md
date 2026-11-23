@@ -1,6 +1,6 @@
 # PRP V11-01 — Fermer la boucle menus → courses → rangement
 
-> Statut : Brouillon — décisions proposées, non validées par l'utilisateur.
+> Statut : décisions D1 à D14 validées le 23 novembre 2026 (D3, D8, D10 et D14 choisies explicitement par l'utilisateur) ; E0 réalisée ([référence](../../docs/implementations/V11-01-E0.md)).
 > Date : 2026-11-22.
 > Relecture : Codex, 22 novembre 2026 ; constats vérifiés dans le code et intégrés.
 > Priorité : P0 pour les courses de la semaine (E1–E2) ; P1 pour l'édition du menu, la semaine proposée et le ticket de caisse.
@@ -9,9 +9,9 @@
 > Source : audit fonctionnel du 22 novembre 2026, constats revérifiés dans le code le même jour (arbre de travail local, modifications non commitées préservées).
 > Estimation indicative : 6 à 8 semaines pour une personne à temps plein — E0 2 à 3 jours, E1 7 à 9 jours, E2 3 à 4 jours, E3 5 à 7 jours, E4 4 à 6 jours, E5 9 à 12 jours. La première version annonçait 4 à 5 semaines ; la relecture a ajouté l'identité des repas cuisinés, les contributions par ligne, l'alignement de `plan_recipe`, l'achat partiel et la provenance des scans. À recalibrer après E0. Hypothèses : schéma distant conforme aux migrations locales, base PostgreSQL de test disponible, accès au modèle de vision, aucun essai iPhone compté.
 
-## 0. Décisions proposées
+## 0. Décisions
 
-Rien n'est validé. Chaque ligne doit être tranchée avant l'étape qui en dépend.
+**Validées le 23 novembre 2026.** D3, D8, D10 et D14 ont été choisies explicitement par l'utilisateur ; les autres sont retenues telles que proposées ci-dessous. Les constats de E0 qui précisent leur mise en œuvre sont dans la [référence E0](../../docs/implementations/V11-01-E0.md), section 4.
 
 | # | Sujet | Proposition | Alternative écartée | Étape |
 | --- | --- | --- | --- | --- |
