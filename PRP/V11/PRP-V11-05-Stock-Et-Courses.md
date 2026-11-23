@@ -109,7 +109,7 @@ Aucune de ces décisions n'est validée. Chacune est à trancher avant l'étape 
 | D13 | Nettoyage nocturne | **Validée le 22 novembre 2026.** Retrait de la fonction et de la tâche | Authentifier l'appelant et garder la purge | E0 |
 | D14 | Purge des conversations | **Validée le 22 novembre 2026.** Non remplacée | La réécrire ailleurs | E0 |
 | D15 | Écritures directes sur `shopping_list` | **Validée le 22 novembre 2026.** Droits `INSERT`, `UPDATE`, `DELETE` de `authenticated` révoqués après migration de tous les écrivains et un cycle de publication | Les laisser ouvertes durablement | Fin E2 |
-| D16 | Cible d'une fusion | Cible explicite à sa version, sinon ligne non cochée convertible de plus petit `id` ; jamais une ligne cochée | Ligne la plus récente ; fusion avec un achat à ranger | E2 |
+| D16 | Cible d'une fusion | **Validée le 23 novembre 2026.** Cible explicite à sa version, sinon ligne non cochée convertible la plus ancienne (`created_at`, puis `id`, les identifiants étant des UUID aléatoires) ; jamais une ligne cochée | Ligne la plus récente ; fusion avec un achat à ranger | E2 |
 | D17 | Réglages et emplacements | Écriture directe sous RLS, tous les invariants en base | Routes API dédiées | E3 |
 
 ## 6. Contrats de données
@@ -148,7 +148,7 @@ Aujourd'hui, seuls `transfer_shopping` et `recipe_add_missing` écrivent la list
 **Primitive d'agrégation.** Une seule fonction SQL privée, utilisée par `shopping_add`, `recipe_add_missing` et `menu_add_missing`, en deux modes : `increment` (ajouter une quantité) et `complete_to` (compléter un besoin après déduction de ce que la liste contient déjà, comportement actuel de `recipe_add_missing`). Chaque commande appelante définit sa quantité et sa provenance.
 
 - Candidates : lignes du compte, même produit, non cochées, unité convertible. Une ligne cochée « à ranger » n'est jamais complétée ; l'interface signale « déjà acheté, à ranger ».
-- Cible (D16) : la cible explicite si elle est toujours à sa version, sinon la candidate de plus petit `id`. Cible explicite périmée : `CONFLICT`, rien n'est écrit.
+- Cible (D16) : la cible explicite si elle est toujours à sa version, sinon la candidate la plus ancienne (`created_at`, puis `id`). Cible explicite périmée : `CONFLICT`, rien n'est écrit.
 - La fusion garde le produit et l'unité de la cible ; un rayon explicite de la cible n'est jamais remplacé ; un rayon fourni ne s'applique qu'à une ligne créée ou sans rayon. Unité incompatible : nouvelle ligne, et le message le dit.
 - Lignes verrouillées par ordre d'`id` sous le verrou de compte existant.
 
