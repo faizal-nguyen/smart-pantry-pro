@@ -152,7 +152,8 @@ BEGIN
     RETURN v_changes;
   END IF;
 
-  IF (SELECT count(DISTINCT value->>'id') FROM jsonb_array_elements(v_items))<>jsonb_array_length(v_items) THEN RAISE EXCEPTION 'DUPLICATE_ITEM'; END IF;
+  -- Compared as uuids: the same row written in another case is still a duplicate.
+  IF (SELECT count(DISTINCT (value->>'id')::uuid) FROM jsonb_array_elements(v_items))<>jsonb_array_length(v_items) THEN RAISE EXCEPTION 'DUPLICATE_ITEM'; END IF;
   FOR v_item IN SELECT value FROM jsonb_array_elements(v_items) ORDER BY value->>'id' LOOP
     IF NOT v_item ? 'expected_version' THEN RAISE EXCEPTION 'INVALID_COMMAND'; END IF;
     SELECT * INTO v_row FROM public.shopping_list WHERE id=(v_item->>'id')::uuid AND user_id=p_user FOR UPDATE;

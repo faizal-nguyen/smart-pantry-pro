@@ -119,6 +119,40 @@ describe('shopping list writes go through commands', () => {
     await waitFor(() => expect(finishIntent).toHaveBeenCalledWith('shopping-list:add:riz'));
   });
 
+  test('a pending write is settled before a new gesture, which then stops on the reread list', async () => {
+    const saved = { command_id: 'saved', command_type: 'shopping_check', payload_version: 1, payload: { items: [{ id: OTHER, expected_version: 5, purchased: true }] } };
+    jest.mocked(pendingIntents).mockResolvedValueOnce([]).mockResolvedValueOnce([{ intent: 'shopping-list:check:x', command: saved }] as never);
+    jest.mocked(executeStockCommand).mockImplementationOnce(answer([{ id: OTHER, outcome: 'checked', name: 'Lait' }]));
+    const { result } = await loaded();
+    await act(async () => { await expect(result.current.togglePurchased(OTHER, false)).rejects.toThrow('Une action précédente sur la liste vient d’être confirmée'); });
+    expect(executeStockCommand).toHaveBeenCalledTimes(1);
+    expect(executeStockCommand).toHaveBeenCalledWith(saved);
+    expect(result.current.lastShoppingChange).toEqual({ commandId: 'saved', message: 'Lait coché.' });
+  });
+
+  test('a pending write that still cannot be confirmed holds the next gesture with a clear reason', async () => {
+    const saved = { command_id: 'saved', command_type: 'shopping_check', payload_version: 1, payload: { items: [{ id: OTHER, expected_version: 5, purchased: true }] } };
+    jest.mocked(pendingIntents).mockResolvedValueOnce([]).mockResolvedValueOnce([{ intent: 'shopping-list:check:x', command: saved }] as never);
+    jest.mocked(executeStockCommand).mockRejectedValueOnce(new Error('Network lost'));
+    const { result } = await loaded();
+    await act(async () => { await expect(result.current.togglePurchased(OTHER, false)).rejects.toThrow('pas encore confirmée'); });
+    expect(executeStockCommand).toHaveBeenCalledTimes(1);
+  });
+
+  test('a resumed write refused by the server is announced, not dropped silently', async () => {
+    const saved = { command_id: 'saved', command_type: 'shopping_remove', payload_version: 1, payload: { items: [{ id: OTHER, expected_version: 4 }] } };
+    jest.mocked(pendingIntents).mockResolvedValueOnce([{ intent: 'shopping-list:remove:x', command: saved }] as never);
+    jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('Le stock ou l’achat a changé.', { status: 409, code: 'CONFLICT' }));
+    const { result } = await loaded();
+    await waitFor(() => expect(result.current.error).toBe('Une action précédente sur la liste n’a pas pu être appliquée : l’article avait changé. La liste est à jour.'));
+  });
+
+  test('an empty selection is explained instead of failing validation', async () => {
+    const { result } = await loaded();
+    await act(async () => { await expect(result.current.removeMultipleFromShoppingList([])).rejects.toThrow('Aucun article sélectionné.'); });
+    expect(executeStockCommand).not.toHaveBeenCalled();
+  });
+
   test('a refused transfer keeps the purchased selection and never deletes it directly', async () => {
     jest.mocked(executeStockCommand).mockRejectedValueOnce(new Error('Transaction refusée'));
     const { result } = await loaded();

@@ -6,7 +6,7 @@ import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { useAgentDbInvalidation } from '@/lib/agentEvents';
 import { ApiError } from '@/lib/api';
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, undoStockCommand } from '@/services/stockCommands';
-import { resumePendingShoppingCommands, sendShoppingCommand, shoppingIntent } from '@/services/shoppingCommands';
+import { resumePendingShoppingCommands, sendShoppingCommand, shoppingIntent, type ResumeOutcome } from '@/services/shoppingCommands';
 import { describeShoppingChanges } from '@/lib/shoppingChanges';
 
 export interface ShoppingItem {
@@ -28,6 +28,12 @@ const STALE_CODES: Record<string, string> = {
   ITEM_NOT_FOUND: 'Cet article n’est plus sur la liste : elle a été actualisée.',
 };
 const sortedIds = (ids: string[]) => [...new Set(ids)].sort();
+const RESUME_DONE = 'Une action précédente sur la liste vient d’être confirmée : la liste est à jour, refais ton geste si besoin.';
+const RESUME_REFUSED = 'Une action précédente sur la liste n’a pas pu être appliquée : l’article avait changé. La liste est à jour.';
+const RESUME_PENDING = 'Une action précédente sur la liste n’est pas encore confirmée. Vérifie ta connexion, puis réessaie.';
+/** What the user reads after pending list writes were sent again, or null when none was pending. */
+const resumeNotice = (outcome: ResumeOutcome): string | null =>
+  outcome.failures.length ? RESUME_PENDING : outcome.refused ? RESUME_REFUSED : outcome.confirmed.length ? RESUME_DONE : null;
 
 export const useShoppingList = (options: { notify?: boolean } = {}) => {
   const { user } = useAuthSessionOptional();
@@ -67,11 +73,23 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     } finally { busy.current.delete(key); }
   };
 
+  /** Applies what pending list writes became: the last confirmed one can be undone, the list is reread. */
+  const applyResume = async (outcome: ResumeOutcome): Promise<string | null> => {
+    const last = outcome.confirmed[outcome.confirmed.length - 1];
+    if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+    if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
+    return resumeNotice(outcome);
+  };
+
   /**
    * V11-05 E2: every list write is a versioned, undoable command. A row changed elsewhere is
    * read again and never written over; the user sees its current state before acting again.
+   * A write a lost reply left pending is settled first: a new gesture never runs on a state
+   * that an earlier, unconfirmed one may still change.
    */
   const listCommand = async (run: () => Promise<StockCommandResult>): Promise<StockCommandResult> => {
+    const notice = await applyResume(await resumePendingShoppingCommands());
+    if (notice) throw new Error(notice);
     let result: StockCommandResult;
     try { result = await run(); }
     catch (failure) {
@@ -84,11 +102,14 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     await fetchShoppingList().catch(() => setError('Action confirmée, mais la liste n’a pas pu être relue. Actualisez les courses.'));
     return result;
   };
-  const rowsAt = (ids: string[]) => sortedIds(ids).map(id => {
-    const row = shoppingList.find(item => item.id === id);
-    if (!row) throw new Error('Cet article n’est plus disponible. Actualisez les courses.');
-    return { id, expected_version: row.stock_version ?? 0 };
-  });
+  const rowsAt = (ids: string[]) => {
+    if (!ids.length) throw new Error('Aucun article sélectionné.');
+    return sortedIds(ids).map(id => {
+      const row = shoppingList.find(item => item.id === id);
+      if (!row) throw new Error('Cet article n’est plus disponible. Actualisez les courses.');
+      return { id, expected_version: row.stock_version ?? 0 };
+    });
+  };
 
   const addToShoppingList = (item: NewShoppingItem, origin: ShoppingOrigin = 'manual') => withWrite('add', async () => {
     const name = item.productName.trim(), unit = item.unit.trim();
@@ -182,10 +203,17 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     void fetchShoppingList().catch(() => undefined).finally(() => setLoading(false));
     void pendingIntent('shopping-transfer').then(saved => setPendingTransfer(Boolean(saved))).catch(() => undefined);
     // A list write whose reply was lost is sent again under its identity: at most one effect.
-    void resumePendingShoppingCommands().then(({ resumed, failures }) => {
-      if (failures.length) setError('Une action sur la liste reste à confirmer. Actualisez les courses pour la reprendre.');
-      if (resumed) return fetchShoppingList();
-    }).catch(() => setError('Une action sur la liste reste à confirmer. Actualisez les courses pour la reprendre.'));
+    // Its outcome is applied only while this account's list is still the one shown.
+    let active = true;
+    void resumePendingShoppingCommands().then(async outcome => {
+      if (!active) return;
+      const last = outcome.confirmed[outcome.confirmed.length - 1];
+      if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+      if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
+      const notice = resumeNotice(outcome);
+      if (active && notice && notice !== RESUME_DONE) setError(notice);
+    }).catch(() => { if (active) setError(RESUME_PENDING); });
+    return () => { active = false; };
   }, [fetchShoppingList]);
   useAgentDbInvalidation(['shopping_list','products'], () => fetchShoppingList().catch(() => undefined));
   return { shoppingList, loading, error, isTransferring, pendingTransfer, addToShoppingList, togglePurchased,

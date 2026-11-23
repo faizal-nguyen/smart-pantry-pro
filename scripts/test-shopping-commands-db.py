@@ -205,6 +205,7 @@ def tests():
         execute("shopping_remove", [at(bread), {"id": butter, "expected_version": version(butter) + 1}], error="CONFLICT")
         equal([row(bread) is None, row(butter) is None], [False, False])
         execute("shopping_remove", [at(bread), at(bread)], error="DUPLICATE_ITEM")
+        execute("shopping_remove", [at(bread), {**at(bread), "id": bread.upper()}], error="DUPLICATE_ITEM")
         removed = execute("shopping_remove", [at(bread), at(butter)])
         equal([row(bread), row(butter), sorted(c["outcome"] for c in removed["shopping_changes"])], [None, None, ["removed", "removed"]])
     check("check, update and remove apply at the displayed version, all or nothing", check_update_remove)

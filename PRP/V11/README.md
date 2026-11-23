@@ -1,6 +1,6 @@
 # V11 Boucle complète : du menu au rangement, à plusieurs et dans la durée
 
-> Statut : six PRP à l'état de brouillon, relues par Codex le 22 novembre 2026. Chaque constat de cette relecture a été revérifié dans le code avant d'être intégré. Six décisions validées par l'utilisateur le 22 novembre 2026 (section 4.1) ; les autres restent proposées. Les rangs 1 et 2 de la section 1 sont réalisés (section 0) ; aucune autre étape n'est commencée.
+> Statut : six PRP à l'état de brouillon, relues par Codex le 22 novembre 2026. Chaque constat de cette relecture a été revérifié dans le code avant d'être intégré. Sept décisions validées par l'utilisateur les 22 et 23 novembre 2026 (section 4.1) ; les autres restent proposées. Les rangs 1 et 2 de la section 1 sont réalisés (section 0) ; le rang 3 (V11-05 E1 et E2) est réalisé, son déploiement se fait base d'abord ([compte rendu](../../docs/implementations/V11-05-E2.md)).
 > Création : 2026-11-22.
 > Produit : Smart Grocery, application Smart Pantry Pro (Kitchen OS).
 > Source : audit fonctionnel du 22 novembre 2026, mené par lecture du code (référence locale `3ade8b54`, branche `main`, arbre de travail avec modifications non commitées). Il n'existe pas de document d'audit séparé : sa synthèse est en section 2 et chaque PRP revérifie ses constats.
@@ -57,7 +57,7 @@ Ordre de réalisation proposé, étape par étape :
 | --- | --- | --- | --- | --- |
 | 1 | V11-05 E0 et V11-06 D9 | Constat distant ; retrait de `cleanup-shopping-list` et de sa tâche ; dépublication des fonctions exposées | Aucune | Réalisé le 22 novembre 2026 |
 | 2 | Correctifs avancés | Faux succès de confirmation (extrait de V11-04 E2), intention perdue sur 429 (extrait de V11-01 E1), suppression de compte terminée trop tôt (extrait de V11-02 E5) | Aucune ; validés le 22 novembre 2026 | Réalisé le 23 novembre 2026 (#131 à #133) |
-| 3 | V11-05 E1 et E2 | Référence, puis commandes de la liste, primitive d'agrégation, journal annulable, raccordement du hook et de l'assistant | Rang 1 | Part de V11-05, à chiffrer en E1 |
+| 3 | V11-05 E1 et E2 | Référence, puis commandes de la liste, primitive d'agrégation, journal annulable, raccordement du hook et de l'assistant | Rang 1 | Réalisé le 23 novembre 2026 ([E1](../../docs/implementations/V11-05-E1.md), [E2](../../docs/implementations/V11-05-E2.md)) |
 | 4 | [V11-01](PRP-V11-01-Boucle-Menus-Courses.md) E0 à E5 | Calcul des courses du menu, récapitulatif, menu modifiable, semaine proposée, ticket et prix | Rang 3 ; E5 après le rang 1 | 6 à 8 semaines |
 | 5 | [V11-06](PRP-V11-06-Consolidation-Design-Mesure.md) E0 à E6 | Chiffres faux retirés, analyses, une seule pile d'interface, retraits R1 à R10, accueil, paramètres | Rang 1 | 11 à 15 jours |
 | 6 | Jalon D15 | Révocation des écritures directes de `authenticated` sur `shopping_list` | Tous les écrivains migrés (hook, assistant, `menu_add_missing`, `recipe_add_missing`, route historique retirée par R9) et un cycle de publication depuis le rang 3 | Une migration |
@@ -129,6 +129,7 @@ Chaque PRP contient son tableau complet de décisions proposées, avec l'alterna
 | Écritures directes sur la liste | Révoquées une fois tous les écrivains passés par les commandes, après un cycle de publication | V11-05, D15 |
 | Départ d'un membre du foyer | Ses lignes partagées sont réattribuées au propriétaire du foyer | V11-02 |
 | Correctifs avancés | Sortis de leur lot et livrés hors série (#131 à #133, section 0) | V11-01, V11-02, V11-04 |
+| Cible d'une fusion (23 novembre 2026) | La ligne non cochée la plus ancienne dans une unité convertible ; jamais une ligne cochée | V11-05, D16 |
 
 ### 4.2 À rendre en priorité
 

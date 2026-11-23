@@ -16,21 +16,30 @@ export async function sendShoppingCommand(intent: string, command: StockCommand)
   return result;
 }
 
+/** What became of the list commands a lost reply had left pending. */
+export interface ResumeOutcome {
+  /** Ran now, or had already run: their receipts. */
+  confirmed: StockCommandResult[];
+  /** Refused without effect (row changed or gone); their intention is dropped. */
+  refused: number;
+  /** Still unconfirmed (network, server, session): their intention is kept. */
+  failures: unknown[];
+}
+
 /**
  * Sends again the list commands a lost reply left pending, under their identity: the server
- * returns the receipt of one that ran, or runs it now. A refused one is dropped with its intent.
+ * returns the receipt of one that ran, or runs it now. Nothing is dropped without being counted.
  */
-export async function resumePendingShoppingCommands(): Promise<{ resumed: number; failures: unknown[] }> {
-  let resumed = 0;
-  const failures: unknown[] = [];
+export async function resumePendingShoppingCommands(): Promise<ResumeOutcome> {
+  const outcome: ResumeOutcome = { confirmed: [], refused: 0, failures: [] };
   for (const { intent, command } of await pendingIntents(INTENT_PREFIX)) {
     try {
-      await executeStockCommand(command);
+      outcome.confirmed.push(await executeStockCommand(command));
       await finishIntent(intent);
-      resumed++;
     } catch (failure) {
-      if (!isRolledBackRefusal(failure)) failures.push(failure);
+      if (isRolledBackRefusal(failure)) outcome.refused++;
+      else outcome.failures.push(failure);
     }
   }
-  return { resumed, failures };
+  return outcome;
 }

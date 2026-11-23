@@ -384,8 +384,16 @@ describe('AddShoppingItemsHandler', () => {
     expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();
     expect(result.result.added[0]).toMatchObject({ shopping_item_id: 's-1', product_name: 'Lait', quantity: 1 });
   });
-  it('an item whose unit is unknown is refused rather than given one', async () => {
+  it('an item whose unit is unknown is set aside, never given one; the others are added', async () => {
     const salt = { ...fakeProduct('p-sel', 'Sel'), unit_type: null as unknown as string };
+    jest.mocked(StockCommandService.prototype.execute).mockResolvedValueOnce(listReceipt('shopping_add',
+      [{ id: 's-2', outcome: 'created', name: 'Lait', quantity: 1, unit: 'l', added_quantity: 1 }]));
+    const result = await new AddShoppingItemsHandler().execute(makeCtx(makeClient({ routes: {} }).client, { matched: [salt, lait] }),
+      { items: [{ name: 'Sel', quantity: 1 }, { name: 'Lait', quantity: 1, unit: 'l' }] });
+    expect(jest.mocked(StockCommandService.prototype.execute).mock.calls[0][1]).toMatchObject({ payload: { items: [{ product_id: 'p-lait' }] } });
+    expect(result.result.missing_unit).toEqual(['Sel']);
+    expect(result.result.added).toHaveLength(1);
+    jest.mocked(StockCommandService.prototype.execute).mockClear();
     await expect(new AddShoppingItemsHandler().execute(makeCtx(makeClient({ routes: {} }).client, { matched: [salt] }), { items: [{ name: 'Sel', quantity: 1 }] }))
       .rejects.toMatchObject({ code: 'UNIT_UNKNOWN' });
     expect(StockCommandService.prototype.execute).not.toHaveBeenCalled();

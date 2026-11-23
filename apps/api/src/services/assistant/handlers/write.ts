@@ -300,6 +300,8 @@ export interface AddShoppingItemsResult {
     topped_up?: { added: number; total: number; unit: string };
   }>;
   ambiguous: AddInventoryItemsResult['ambiguous'];
+  /** Products named without a unit and without a catalogue unit: not added, to be asked. */
+  missing_unit?: string[];
 }
 
 /**
@@ -338,13 +340,19 @@ export class AddShoppingItemsHandler
     if (resolved.length === 0) {
       return { result: { added: [], ambiguous }, reversibleAction: null };
     }
-    // The shopping list only holds an amount with its unit; none is invented.
-    if (resolved.some(item => !item.unit?.trim())) throw new StockCommandError('UNIT_UNKNOWN');
+    // The shopping list only holds an amount with its unit; none is invented. Items without one
+    // are named back, the others are added.
+    const addable = resolved.flatMap(item => item.unit?.trim() ? [{ ...item, unit: item.unit.trim() }] : []);
+    const missingUnit = resolved.filter(item => !item.unit?.trim()).map(item => item.product_name);
+    if (!addable.length) throw new StockCommandError('UNIT_UNKNOWN');
     const result = await service.execute(ctx.userId, {
       command_id: commandId, command_type: 'shopping_add', payload_version: 1,
-      payload: { items: resolved.map(item => ({ product_id: item.product_id, quantity: item.quantity, unit: item.unit!.trim(), origin: 'assistant' as const })) },
+      payload: { items: addable.map(item => ({ product_id: item.product_id, quantity: item.quantity, unit: item.unit, origin: 'assistant' as const })) },
     });
-    return { result: { added: describeShoppingAdd(result, resolved), ambiguous }, reversibleAction: undoShoppingCommand(result) };
+    return {
+      result: { added: describeShoppingAdd(result, addable), ambiguous, ...(missingUnit.length ? { missing_unit: missingUnit } : {}) },
+      reversibleAction: undoShoppingCommand(result),
+    };
   }
 }
 
