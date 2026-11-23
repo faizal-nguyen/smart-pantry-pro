@@ -69,6 +69,15 @@ test('a rolled-back conflict unlocks corrections; auth expiry keeps the original
   await expect(confirmCookingSession(A,session.id)).rejects.toThrow('Reconnectez');
   expect(readCookingSessions(B)).toEqual([]);
 });
+test('a rate-limited confirmation stays pending and is checked by its receipt before any resend',async()=>{
+  jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('Trop de demandes',{ status:429,code:'RATE_LIMITED' }));
+  await expect(confirmCookingSession(A,session.id,preview)).rejects.toMatchObject({ status:429 });
+  expect(readCookingSessions(A)[0]).toMatchObject({ state:'pending',command:{ command_id:ID } });
+  jest.mocked(getStockCommandResult).mockResolvedValueOnce(confirmed);
+  await expect(confirmCookingSession(A,session.id)).resolves.toMatchObject({ state:'done',journal_id:'journal' });
+  expect(getStockCommandResult).toHaveBeenCalledWith(ID,A);
+  expect(executeStockCommand).toHaveBeenCalledTimes(1);
+});
 test('no confirmation is sent when durable storage refuses the command',async()=>{
   const spy=jest.spyOn(Storage.prototype,'setItem').mockImplementation(()=>{ throw new Error('Quota'); });
   await expect(confirmCookingSession(A,session.id,preview)).rejects.toThrow('conserver');

@@ -2,6 +2,7 @@ import { StockCommandSchema, type RecipeReference, type RecipeStockPreview, type
 import { ApiError, apiGet, apiPost } from '@/lib/api';
 import { dispatchAgentDbChanged, type AgentAffectedTable } from '@/lib/agentEvents';
 import { supabase } from '@/integrations/supabase/client';
+import { isRolledBackRefusal } from './stockCommandRefusal';
 
 const owners = new WeakMap<object,string>();
 function readSavedCommand(key: string): StockCommand | null {
@@ -36,10 +37,8 @@ export async function executeStockCommand(input: StockCommand, expectedOwner?: s
   try {
     result = await apiPost('/v1/stock/commands', command, { expectedUserId: owner });
   } catch (error) {
-    // Business rejections guarantee rollback. Network/5xx and auth failures keep the identity.
-    if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 401 && error.code !== 'IDEMPOTENCY_CONFLICT') {
-      removeCommandIdentity(owner,command.command_id);
-    }
+    // Business rejections guarantee rollback. Network/5xx, auth and rate-limit failures keep the identity.
+    if (isRolledBackRefusal(error)) removeCommandIdentity(owner,command.command_id);
     throw error;
   }
   if (result.status !== 'confirmed' || result.command_id !== command.command_id) throw new Error('Le résultat de cette action reste à vérifier.');

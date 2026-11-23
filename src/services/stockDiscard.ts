@@ -6,6 +6,7 @@ import { readOwnedValue, writeOwnedValue } from '@/lib/ownedStorage';
 import { ApiError } from '@/lib/api';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { executeStockCommand, getStockCommandResult } from './stockCommands';
+import { isRolledBackRefusal } from './stockCommandRefusal';
 
 export const DiscardDraftSchema = z.object({
   owner:z.string().uuid(), event_id:z.string().uuid(), inventory_id:z.string().uuid(), product_id:z.string().uuid(),
@@ -77,7 +78,7 @@ export async function confirmDiscard(owner:string): Promise<void> {
     // A receipt-only replay also checks that a concurrent tab did not submit different amounts.
     await executeStockCommand(draft.command!,owner);
   } catch (failure) {
-    if (!draft.stock_confirmed && failure instanceof ApiError && failure.status>=400 && failure.status<500 && failure.status!==401 && failure.code!=='IDEMPOTENCY_CONFLICT') writeOwnedValue(owner,key,{ ...draft,command:null });
+    if (!draft.stock_confirmed && isRolledBackRefusal(failure)) writeOwnedValue(owner,key,{ ...draft,command:null });
     throw failure;
   }
   await requireOwner(owner);

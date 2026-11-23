@@ -39,6 +39,17 @@ describe('recoverable online stock intentions', () => {
     await expect(executeStockCommand(second)).rejects.toThrow();
     expect(await pendingIntent('transfer')).toEqual(second);
   });
+  test('a rate-limited command keeps its identity, so the retry replays the same receipt', async () => {
+    const first = await commandForIntent('transfer_shopping','transfer',payload);
+    post.mockRejectedValueOnce(new ApiError('Trop de demandes',{ status: 429, code: 'RATE_LIMITED' }));
+    await expect(executeStockCommand(first)).rejects.toMatchObject({ status: 429 });
+    expect(await pendingIntent('transfer')).toEqual(first);
+    const retry = await commandForIntent('transfer_shopping','transfer',payload);
+    expect(retry.command_id).toBe(first.command_id);
+    post.mockResolvedValueOnce({ command_id: first.command_id, command_type: first.command_type, status: 'confirmed', affected_tables: ['inventory'] });
+    await executeStockCommand(retry); await finishIntent('transfer');
+    expect(await pendingIntent('transfer')).toBeNull();
+  });
   test('changed input cannot silently replace an unresolved intention', async () => {
     await commandForIntent('transfer_shopping','transfer',payload);
     await expect(commandForIntent('transfer_shopping','transfer',{ items: [{ ...payload.items[0], expected_version: 1 }] })).rejects.toThrow('précédente');
