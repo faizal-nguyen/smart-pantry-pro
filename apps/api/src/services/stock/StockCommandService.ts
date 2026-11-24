@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   allocateRecipeStock, allocateCookingStock, canAddToShoppingList, needsPurchase, StockCommandSchema,
-  SHOPPING_COMMAND_TYPES, SHOPPING_COMMANDS_CAPABILITY, MENU_COMMANDS_CAPABILITY,
+  SHOPPING_COMMAND_TYPES, SHOPPING_COMMANDS_CAPABILITY, MENU_COMMANDS_CAPABILITY, MENU_EDIT_CAPABILITY,
   type RecipeReference, type RecipeStockPreview, type ResolvedStockRecipe,
   type StockCommand, type StockCommandResult, type StockLot,
 } from '@smart/shared';
@@ -29,6 +29,8 @@ const MESSAGES: Record<string, string> = {
   STOCK_CHANGED: 'Le stock ou la liste a changé depuis le calcul des courses. Recalcule avant de confirmer.',
   ALREADY_COOKED: 'Ce repas est déjà marqué cuisiné.',
   MEAL_COOKED: 'Ce repas a déjà été cuisiné : annule d’abord sa cuisson.',
+  LEFTOVER_CAPACITY: 'Les restes dépasseraient les portions du repas d’origine.',
+  LEFTOVER_ORDER: 'Un reste doit rester après son repas d’origine.',
 };
 
 export class StockCommandError extends Error {
@@ -42,7 +44,7 @@ export class StockCommandError extends Error {
 export function databaseError(error: { message: string; code?: string }): never {
   const code = Object.keys(MESSAGES).find(key => error.message === key || error.message.startsWith(`${key}:`));
   if (code) throw new StockCommandError(code, code === 'UNAUTHORIZED' ? 401 : ['CONFLICT','RECIPE_CHANGED','UNDO_CONFLICT','MENU_CHANGED','IDEMPOTENCY_CONFLICT','ALREADY_UNDONE',
-    'STOCK_CHANGED','ALREADY_COOKED','MEAL_COOKED'].includes(code) ? 409 : 400);
+    'STOCK_CHANGED','ALREADY_COOKED','MEAL_COOKED','LEFTOVER_CAPACITY','LEFTOVER_ORDER'].includes(code) ? 409 : 400);
   if (error.code === 'PGRST202' || error.code === '42P01' || error.code === '42703') throw new StockCommandError('MIGRATION_REQUIRED', 503);
   throw new StockCommandError('STOCK_WRITE_FAILED', 500);
 }
@@ -113,8 +115,11 @@ export class StockCommandService {
     // V11-01 E1: a week's shopping, and cooking linked to a planned meal.
     const requiresMenu = command.command_type==='menu_add_missing'
       || command.command_type==='consume_recipe' && command.payload.meal_plan_entry_id!==undefined;
-    if (requiresRoutine || requiresMetadata || requiresShopping || requiresMenu) {
-      const required = requiresMenu ? MENU_COMMANDS_CAPABILITY : requiresShopping ? SHOPPING_COMMANDS_CAPABILITY : requiresMetadata ? 3 : 2;
+    // V11-01 E3: the editable menu.
+    const requiresMenuEdit = command.command_type==='update_menu';
+    if (requiresRoutine || requiresMetadata || requiresShopping || requiresMenu || requiresMenuEdit) {
+      const required = requiresMenuEdit ? MENU_EDIT_CAPABILITY : requiresMenu ? MENU_COMMANDS_CAPABILITY
+        : requiresShopping ? SHOPPING_COMMANDS_CAPABILITY : requiresMetadata ? 3 : 2;
       const capabilities = await this.client.rpc('stock_routine_capabilities');
       if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<required) throw new StockCommandError('MIGRATION_REQUIRED',503);
     }

@@ -31,8 +31,22 @@ export type ShoppingCommandType = typeof SHOPPING_COMMAND_TYPES[number];
 export const SHOPPING_COMMANDS_CAPABILITY = 4;
 /** V11-01 E1: menu_add_missing and cooking linked to a planned meal. */
 export const MENU_COMMANDS_CAPABILITY = 5;
+/** V11-01 E3: update_menu (servings, move, remove, leftovers, copy). */
+export const MENU_EDIT_CAPABILITY = 6;
 
 const shoppingRow = { id: z.string().uuid(), expected_version: version };
+/** V11-01 E3: an operation of update_menu, against the version of the meals it touches (null: an empty slot). */
+const menuMealType = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
+const menuServings = z.number().int().min(1).max(100);
+const menuEntry = { entry_id: z.string().uuid(), expected_version: version };
+const menuOperation = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('set'), date: isoDate, meal_type: menuMealType, recipe: RecipeReferenceSchema, servings: menuServings, expected_version: version.nullable() }).strict(),
+  z.object({ op: z.literal('servings'), ...menuEntry, servings: menuServings }).strict(),
+  z.object({ op: z.literal('move'), ...menuEntry, date: isoDate, meal_type: menuMealType, target_version: version.nullable() }).strict(),
+  z.object({ op: z.literal('remove'), ...menuEntry }).strict(),
+  z.object({ op: z.literal('leftover'), ...menuEntry, date: isoDate, meal_type: menuMealType, servings: menuServings }).strict(),
+]);
+export type MenuOperation = z.infer<typeof menuOperation>;
 /** The longest product name and unit a list command accepts. */
 export const SHOPPING_NAME_MAX_LENGTH = 120;
 export const SHOPPING_UNIT_MAX_LENGTH = 40;
@@ -107,6 +121,7 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
   command('shopping_check', z.object({ items: boundedItems(z.object({ ...shoppingRow, purchased: z.boolean() }).strict()) }).strict()),
   command('shopping_update', z.object({ items: boundedItems(shoppingUpdateItem) }).strict()),
   command('shopping_remove', z.object({ items: boundedItems(z.object(shoppingRow).strict()) }).strict()),
+  command('update_menu', z.object({ operations: z.array(menuOperation).min(1).max(30) }).strict()),
   command('menu_add_missing', z.object({
     week_start: isoDate, as_of: isoDate,
     menu_version: z.string().regex(/^[0-9a-f]{32}$/), context_revision: z.number().int().nonnegative(),
@@ -143,6 +158,10 @@ export interface StockCommandResult {
   meal_plan_id?: string; meal_plan_entry_id?: string;
   /** plan_recipe: the meal the slot held before, which undo_stock gives back. */
   replaced_entry?: { recipe_name?: string; servings?: number };
+  /** plan_recipe (V11-01 E3): the leftovers of the replaced meal, removed with it. */
+  replaced_leftovers?: Array<{ id: string; recipe_name?: string }>;
+  /** update_menu (V11-01 E3): the meals it removed, leftovers included, and what stands after. */
+  menu_edit?: { removed: Array<{ id: string; recipe_name?: string; leftover_of?: string }>; after: Array<{ id: string; version: number }> };
   changes?: Array<{ id: string; before_quantity: number; after_quantity: number; unit: string; stock_version: number }>;
   /** Shopping commands, recipe_add_missing and their undo. */
   shopping_changes?: ShoppingChange[];
