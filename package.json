@@ -79,6 +79,7 @@
     "test:menu:shopping:db": "python3 scripts/test-menu-shopping-db.py",
     "test:shopping:commands:db": "python3 scripts/test-shopping-commands-db.py",
     "test:menu:week:db": "python3 scripts/test-menu-week-db.py",
+    "test:ingredient:links:db": "python3 scripts/test-ingredient-links-db.py",
     "test:assistant:memory:db": "python3 scripts/test-assistant-memory-thread-db.py",
     "test:assistant:actions:db": "python3 scripts/test-assistant-action-log-db.py",
     "audit:v10:memory": "node --import tsx scripts/audit-v10-memory.ts",
