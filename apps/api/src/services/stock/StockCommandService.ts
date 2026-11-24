@@ -5,6 +5,7 @@ import {
   type RecipeReference, type RecipeStockPreview, type ResolvedStockRecipe,
   type StockCommand, type StockCommandResult, type StockLot,
 } from '@smart/shared';
+import { NutritionProfileService, ProfileError } from '../recommendations/NutritionProfileService.js';
 
 const MESSAGES: Record<string, string> = {
   UNAUTHORIZED: 'Reconnecte-toi pour reprendre cette action.',
@@ -31,6 +32,11 @@ const MESSAGES: Record<string, string> = {
   MEAL_COOKED: 'Ce repas a déjà été cuisiné : annule d’abord sa cuisson.',
   LEFTOVER_CAPACITY: 'Les restes dépasseraient les portions du repas d’origine.',
   LEFTOVER_ORDER: 'Un reste doit rester après son repas d’origine.',
+  // V11-01 E4a: a proposed week, validated or previewed.
+  PROPOSAL_EXPIRED: 'Cette proposition a expiré : recalcule-la avant de la valider.',
+  PROFILE_CHANGED: 'Ton profil a changé depuis la proposition : recalcule-la avant de la valider.',
+  INVALID_PROPOSAL: 'Cette proposition porte sur un jour déjà passé : recalcule-la.',
+  PROFILE_UNAVAILABLE: 'Ton profil ne peut pas être lu pour le moment : réessaie dans un instant.',
 };
 
 export class StockCommandError extends Error {
@@ -70,6 +76,17 @@ export class StockCommandService {
 
   async getResult(userId: string, commandId: string): Promise<StockCommandResult | null> {
     return (await this.receipt(userId, commandId))?.result ?? null;
+  }
+
+  private async checkProposal(userId: string, proposal: { profile_version?: number; expires_at?: string }): Promise<void> {
+    if (!(Date.parse(String(proposal.expires_at)) > Date.now())) throw new StockCommandError('PROPOSAL_EXPIRED', 409);
+    // A profile that cannot be read is answered as unavailable (nothing written), never as a failed write.
+    const { profile } = await new NutritionProfileService(this.client).read(userId).catch((error: unknown) => {
+      if (error instanceof ProfileError) throw new StockCommandError(error.code === 'MIGRATION_REQUIRED' ? 'MIGRATION_REQUIRED' : 'PROFILE_UNAVAILABLE', 503);
+      throw error;
+    });
+    // A legacy profile (user_meal_preferences) stays at version 0: its edits are not seen here, nor by the engine.
+    if (profile.version !== proposal.profile_version) throw new StockCommandError('PROFILE_CHANGED', 409);
   }
 
   private async receipt(userId: string, commandId: string): Promise<Receipt | null> {
@@ -123,6 +140,10 @@ export class StockCommandService {
       const capabilities = await this.client.rpc('stock_routine_capabilities');
       if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<required) throw new StockCommandError('MIGRATION_REQUIRED',503);
     }
+    // V11-01 E4a: after the receipt (a command sent again returns what it did), a proposed week is
+    // written only while it is valid and on the profile it was computed with; its slots' versions
+    // guard the menu itself (MENU_CHANGED).
+    if (command.command_type==='update_menu' && command.payload.proposal) await this.checkProposal(userId, command.payload.proposal);
     let allocations: unknown[] = [];
     if (command.command_type === 'consume_recipe' || command.command_type === 'recipe_add_missing') {
       const preview = await this.preview(userId, command.payload.recipe, command.payload.servings);

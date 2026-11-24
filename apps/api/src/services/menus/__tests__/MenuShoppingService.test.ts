@@ -16,14 +16,20 @@ const crepes = { id: 'r1', source: 'recipes', canonicalId: 'r1', name: 'Crêpes'
   ingredients: [{ ingredient_name: 'farine', quantity: 200, unit: 'g', is_essential: true }] };
 const farine = { id: 's1', product_id: 'p', quantity: 100, unit: 'g', is_purchased: false, stock_version: 2, created_at: '2026-11-01', product: { name: 'farine', unit_type: 'g' } };
 
-interface Options { shopping?: unknown[]; basisData?: unknown; recipeError?: { message: string; code?: string } }
+interface Options { shopping?: unknown[]; basisData?: unknown; recipeError?: { message: string; code?: string }; planned?: unknown[] }
 
-function client({ shopping = [farine], basisData = basis, recipeError }: Options = {}) {
+/** The week's plan as weekly_meal_plans returns it (all its meals, cooked and leftovers included). */
+const week = [{ id: 'plan', meal_plan_entries: [
+  { id: 'm1', version: 0, day_of_week: 1, meal_type: 'dinner', recipe_reference: { id: 'r1', source: 'recipes' }, recipe_id: null, cooked_command_id: null, leftover_of: null },
+] }];
+
+function client({ shopping = [farine], basisData = basis, recipeError, planned = week }: Options = {}) {
   const filters: Array<[string, string, unknown]> = [];
   const rows: Record<string, unknown[]> = {
     inventory: [{ id: 'l1', product_id: 'p', quantity: 50, unit: 'g', stock_version: 1, expiry_date: null, date_kind: 'unknown', quantity_quality: 'measured', location: null, notes: null, product: { name: 'farine', unit_type: 'g' } }],
     shopping_list: shopping,
     menu_shopping_contributions: [],
+    weekly_meal_plans: planned,
   };
   const from = jest.fn((table: string) => {
     let range = [0, Number.MAX_SAFE_INTEGER];
@@ -35,6 +41,7 @@ function client({ shopping = [farine], basisData = basis, recipeError }: Options
       select: () => query, order: () => query,
       eq: (field: string, value: unknown) => { filters.push([table, field, value]); return query; },
       range: (start: number, end: number) => { range = [start, end]; return query; },
+      limit: () => query,
       then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => Promise.resolve(respond()).then(resolve, reject),
     };
     return query;
@@ -87,5 +94,24 @@ describe('MenuShoppingService.preview', () => {
     expect(MenuShoppingPreviewSchema.safeParse(preview).success).toBe(true);
     expect(MenuShoppingPreviewSchema.safeParse({ ...preview, menu_version: 'not-a-hash' }).success).toBe(false);
     expect(MenuShoppingPreviewSchema.safeParse({ ...preview, lines: [{ ...preview.lines[0], state: 'unknown' }] }).success).toBe(false);
+  });
+});
+
+// V11-01 E4a: the shopping of a proposed week, before it is validated: nothing is saved.
+describe('MenuShoppingService.preview with a proposal', () => {
+  const proposed = { date: '2026-12-04', meal_type: 'dinner' as const, recipe: { id: 'r1', source: 'recipes' as const }, servings: 4 };
+  test('the proposed meals count as meals to shop for, named apart from the saved ones', async () => {
+    const preview = await new MenuShoppingService(client().supabase).preview(USER, '2026-11-30', [proposed]);
+    // 2 × 200 g needed, 50 g in stock, 100 g listed: 250 g to add on the listed row.
+    expect(preview.lines).toEqual([expect.objectContaining({ state: 'to_add', name: 'farine', quantity: 250, target: { id: 's1', expected_version: 2 } })]);
+    expect(preview.meals.map(meal => meal.id)).toEqual(['m1', 'm2', 'm3', 'proposal:2026-12-04:dinner']);
+    expect(preview.menu_version).toBe('a'.repeat(32));
+    expect(MenuShoppingPreviewSchema.safeParse(preview).success).toBe(true);
+  });
+  test('a proposed meal into a slot taken since, or a day already passed, is refused', async () => {
+    await expect(new MenuShoppingService(client().supabase).preview(USER, '2026-11-30', [{ ...proposed, date: '2026-12-01' }]))
+      .rejects.toMatchObject({ code: 'MENU_CHANGED', status: 409 });
+    await expect(new MenuShoppingService(client({ basisData: { ...basis, as_of: '2026-12-05' } }).supabase).preview(USER, '2026-11-30', [proposed]))
+      .rejects.toMatchObject({ code: 'INVALID_PROPOSAL', status: 400 });
   });
 });

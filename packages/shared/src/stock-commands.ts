@@ -121,7 +121,10 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
   command('shopping_check', z.object({ items: boundedItems(z.object({ ...shoppingRow, purchased: z.boolean() }).strict()) }).strict()),
   command('shopping_update', z.object({ items: boundedItems(shoppingUpdateItem) }).strict()),
   command('shopping_remove', z.object({ items: boundedItems(z.object(shoppingRow).strict()) }).strict()),
-  command('update_menu', z.object({ operations: z.array(menuOperation).min(1).max(30) }).strict()),
+  // V11-01 E4a: a proposed week, validated, names the profile and expiry it was computed with: the API
+  // refuses it once expired or once the profile changed (PROPOSAL_EXPIRED, PROFILE_CHANGED).
+  command('update_menu', z.object({ operations: z.array(menuOperation).min(1).max(30),
+    proposal: z.object({ profile_version: z.number().int().nonnegative(), expires_at: z.string().datetime() }).strict().optional() }).strict()),
   command('menu_add_missing', z.object({
     week_start: isoDate, as_of: isoDate,
     menu_version: z.string().regex(/^[0-9a-f]{32}$/), context_revision: z.number().int().nonnegative(),

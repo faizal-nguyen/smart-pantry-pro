@@ -282,7 +282,10 @@ export class RecommendationEngine {
     for (const row of [own,library,catalog]) if (row.error) throw new Error('RECIPE_DATA_UNAVAILABLE');
     const libraryRows=(library.data ?? []) as LibraryRecipeRow[],catalogOwned=new Set(libraryRows.map(row=>row.recipe_id));
     const rows=[...(own.data ?? []).map(row=>({ ...row,source:'recipes',image_url:resolveRecipeImageUrl(row.image_url) })),...libraryRows.map(row=>this.libraryRecipe(row)),...(catalog.data ?? []).filter(row=>!catalogOwned.has(row.id)).map(row=>this.catalogRecipe(row as RecipeCatalogRow & { ingredients_json?:unknown }))] as RecipeWithIngredients[];
+    const left=new Set(input.excludeRecipeIds ?? []);
     return rows.filter(recipe=>{
+      // V11-01 E4a: out of the pool before any ranking or limit, under its id or its catalogue identity.
+      if (left.has(recipe.id) || (recipe.canonicalId && left.has(recipe.canonicalId))) return false;
       if (input.query && !recipeNameMatchScore(recipe.name,input.query)) return false;
       if (input.cuisine && !recipeMatchesCuisine(recipe.cuisine_category,recipe.tags,input.cuisine)) return false;
       if (input.course) {

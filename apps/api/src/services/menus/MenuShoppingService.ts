@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
-  allocateMenuStock, menuShoppingLines,
-  type MenuContribution, type MenuMealInput, type MenuShoppingPreview, type MenuShoppingRow, type QualifiedLot, type ResolvedStockRecipe,
+  allocateMenuStock, menuShoppingLines, menuSlotKey,
+  type MenuContribution, type MenuMealInput, type MenuShoppingPreview, type MenuShoppingRow, type ProposedMeal, type QualifiedLot, type ResolvedStockRecipe,
 } from '@smart/shared';
 import { databaseError } from '../stock/StockCommandService.js';
+import { assertFreeSlots, readWeekMenu } from './weekMenu.js';
 
 /** Rows per read: PostgREST's default max-rows; a read follows the pages it is given. */
 const PAGE = 1000;
@@ -20,6 +21,10 @@ const BasisSchema = z.object({
   })),
 });
 type Basis = z.infer<typeof BasisSchema>;
+/** The week's saved meals with their recipes, and the stock they are judged against. */
+export interface WeekStock { basis: Basis; meals: MenuMealInput[]; lots: QualifiedLot[] }
+/** A proposed meal's identity in a preview: its slot, never a saved meal's id. */
+export const proposedMealId = (meal: { date?: string; meal_type?: string }) => `proposal:${menuSlotKey(meal)}`;
 interface PlannedRecipe { id: string; source: string }
 type ProductJoin = { name: string; unit_type: string } | Array<{ name: string; unit_type: string }> | null;
 type Row = Record<string, unknown> & { product?: ProductJoin };
@@ -53,15 +58,34 @@ async function readAll(page: (from: number, to: number) => Page): Promise<Row[]>
 export class MenuShoppingService {
   constructor(private readonly client: SupabaseClient) {}
 
-  async preview(userId: string, weekStart: string): Promise<MenuShoppingPreview> {
+  /**
+   * V11-01 E4a: with a proposal, its meals count as meals to shop for (named `proposal:<slot>`), into
+   * slots still free today or later; nothing is saved, and the tokens stay those of the saved menu,
+   * so menu_add_missing never confirms a proposal's lines.
+   */
+  async preview(userId: string, weekStart: string, proposal?: ProposedMeal[]): Promise<MenuShoppingPreview> {
+    const [week, rows, contributions] = await Promise.all([this.weekStock(userId, weekStart), this.rows(userId), this.contributions(userId, weekStart)]);
+    const proposed = proposal?.length ? await this.proposedMeals(userId, weekStart, week.basis.as_of, proposal) : [];
+    const allocation = allocateMenuStock([...week.meals, ...proposed], week.lots);
+    const { basis } = week;
+    return {
+      week_start: basis.week_start, as_of: basis.as_of, menu_version: basis.menu_version, context_revision: basis.context_revision,
+      lines: menuShoppingLines(allocation.needs, rows, contributions),
+      meals: [...basis.meals, ...proposed].map(({ id, date, meal_type, recipe_name, role }) => ({ id, date, meal_type, recipe_name, role })),
+      uncomputable: allocation.uncomputable,
+    };
+  }
+
+  /** The saved meals of the week (from today) with their recipes, and the account's stock. */
+  async weekStock(userId: string, weekStart: string): Promise<WeekStock> {
     const basis = await this.basis(weekStart);
     const planned = [...new Map(basis.meals.flatMap(meal => {
       const recipe = plannedRecipe(meal.recipe_reference);
       return recipe ? [[recipeKey(recipe), recipe] as const] : [];
     })).values()];
-    const [recipes, lots, rows, contributions] = await Promise.all([
+    const [recipes, lots] = await Promise.all([
       Promise.all(planned.map(async recipe => [recipeKey(recipe), await this.recipe(recipe)] as const)).then(entries => new Map(entries)),
-      this.lots(userId), this.rows(userId), this.contributions(userId, weekStart),
+      this.lots(userId),
     ]);
     const meals: MenuMealInput[] = basis.meals.map(meal => {
       const recipe = plannedRecipe(meal.recipe_reference);
@@ -69,13 +93,26 @@ export class MenuShoppingService {
       return { id: meal.id, version: meal.version, date: meal.date, meal_type: meal.meal_type, role: meal.role, recipe_name: meal.recipe_name,
         servings: meal.servings, recipe: resolved, recipe_unavailable: meal.recipe_reference != null && !resolved };
     });
-    const allocation = allocateMenuStock(meals, lots);
-    return {
-      week_start: basis.week_start, as_of: basis.as_of, menu_version: basis.menu_version, context_revision: basis.context_revision,
-      lines: menuShoppingLines(allocation.needs, rows, contributions),
-      meals: basis.meals.map(({ id, date, meal_type, recipe_name, role }) => ({ id, date, meal_type, recipe_name, role })),
-      uncomputable: allocation.uncomputable,
-    };
+    return { basis, meals, lots };
+  }
+
+  /** Proposed meals as meals to shop for, once their slots are known free (today or later, empty). */
+  async proposedMeals(userId: string, weekStart: string, today: string, proposal: ProposedMeal[]): Promise<MenuMealInput[]> {
+    assertFreeSlots(await readWeekMenu(this.client, userId, weekStart), today, proposal);
+    return this.resolveMeals(proposal);
+  }
+
+  /** Meals not saved (proposed or kept): their recipes resolved, as target meals of their slot. */
+  async resolveMeals(meals: ProposedMeal[]): Promise<MenuMealInput[]> {
+    // One read per recipe, however many meals name it.
+    const reads = new Map<string, Promise<ResolvedStockRecipe | null>>();
+    return Promise.all(meals.map(async meal => {
+      const recipe = { id: String(meal.recipe?.id), source: meal.recipe?.source ?? 'auto' };
+      if (!reads.has(recipeKey(recipe))) reads.set(recipeKey(recipe), this.recipe(recipe));
+      const resolved = await reads.get(recipeKey(recipe))!;
+      return { id: proposedMealId(meal), version: 0, date: String(meal.date), meal_type: String(meal.meal_type), role: 'target' as const,
+        recipe_name: resolved?.name ?? 'Recette', servings: Number(meal.servings), recipe: resolved, recipe_unavailable: !resolved };
+    }));
   }
 
   private async basis(weekStart: string): Promise<Basis> {

@@ -5,6 +5,7 @@ export * from './quantities.js';
 export * from './shopping-units.js';
 export * from './lot-qualification.js';
 export * from './menu-shopping.js';
+export * from './menu-week-proposal.js';
 export * from './stock-commands.js';
 export * from './recipe-model.js';
 

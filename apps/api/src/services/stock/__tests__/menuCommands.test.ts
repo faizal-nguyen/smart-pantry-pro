@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { StockCommandSchema } from '@smart/shared';
-import { StockCommandService } from '../StockCommandService.js';
+import { emptyNutritionProfile, StockCommandSchema } from '@smart/shared';
+import { StockCommandError, StockCommandService } from '../StockCommandService.js';
 
 const USER = '00000000-0000-4000-8000-000000000001';
 const ID = '40000000-0000-4000-8000-000000000001';
@@ -93,4 +93,70 @@ describe('update_menu', () => {
     await expect(new StockCommandService(client(6, { message: code }).supabase).execute(USER, edit(set)))
       .rejects.toMatchObject({ code, status: 409, message });
   });
+});
+
+// V11-01 E4a: a proposed week is validated as one update_menu naming the profile and expiry it was computed with.
+describe('update_menu from a proposed week', () => {
+  const RECIPE = { id: '30000000-0000-4000-8000-000000000001', source: 'auto' as const };
+  const set = { op: 'set', date: '2026-12-01', meal_type: 'dinner', recipe: RECIPE, servings: 4, expected_version: null };
+  const later = () => new Date(Date.now() + 10 * 60_000).toISOString();
+  const validate = (proposal: { profile_version: number; expires_at: string }) =>
+    ({ command_id: ID, command_type: 'update_menu', payload_version: 1, payload: { operations: [set], proposal } });
+
+  /** A user-scoped client: an optional receipt, the account's nutrition profile version (none: version 0). */
+  function proposalClient({ receipt = null, profileVersion = null }: { receipt?: unknown; profileVersion?: number | null } = {}) {
+    const from = jest.fn((table: string) => {
+      const row = table === 'stock_commands' ? receipt
+        : table === 'nutrition_profiles' && profileVersion != null ? { user_id: USER, version: profileVersion, schema_version: 1,
+          settings: emptyNutritionProfile(), updated_at: null, origin: 'explicit' } : null;
+      const query = { select: () => query, eq: () => query, maybeSingle: () => Promise.resolve({ data: row, error: null }) };
+      return query;
+    });
+    const rpc = jest.fn(async (name: string) => name === 'stock_routine_capabilities' ? { data: 6, error: null }
+      : { data: { command_id: ID, command_type: 'update_menu', status: 'confirmed', affected_tables: ['meal_plan_entries'] }, error: null });
+    return { supabase: { from, rpc } as unknown as SupabaseClient, rpc };
+  }
+
+  test('an expired proposal is refused before any write, with a reason to compute it again', async () => {
+    const mocked = proposalClient();
+    await expect(new StockCommandService(mocked.supabase).execute(USER, validate({ profile_version: 0, expires_at: new Date(Date.now() - 1000).toISOString() })))
+      .rejects.toMatchObject({ code: 'PROPOSAL_EXPIRED', status: 409, message: 'Cette proposition a expiré : recalcule-la avant de la valider.' });
+    expect(mocked.rpc).not.toHaveBeenCalledWith('execute_stock_command', expect.anything());
+  });
+
+  test('a proposal computed on another profile is refused; on the same one it is written', async () => {
+    const changed = proposalClient({ profileVersion: 4 });
+    await expect(new StockCommandService(changed.supabase).execute(USER, validate({ profile_version: 3, expires_at: later() })))
+      .rejects.toMatchObject({ code: 'PROFILE_CHANGED', status: 409, message: 'Ton profil a changé depuis la proposition : recalcule-la avant de la valider.' });
+    expect(changed.rpc).not.toHaveBeenCalledWith('execute_stock_command', expect.anything());
+    const same = proposalClient({ profileVersion: 4 });
+    await new StockCommandService(same.supabase).execute(USER, validate({ profile_version: 4, expires_at: later() }));
+    expect(same.rpc).toHaveBeenLastCalledWith('execute_stock_command', expect.anything());
+  });
+
+  test('a command sent again after a lost reply returns its receipt, even once the proposal expired', async () => {
+    const command = validate({ profile_version: 0, expires_at: new Date(Date.now() - 1000).toISOString() });
+    const result = { command_id: ID, command_type: 'update_menu', status: 'confirmed', affected_tables: ['meal_plan_entries'] };
+    const mocked = proposalClient({ receipt: { command_type: 'update_menu', payload: command.payload, result } });
+    await expect(new StockCommandService(mocked.supabase).execute(USER, command)).resolves.toEqual(result);
+    expect(mocked.rpc).not.toHaveBeenCalledWith('execute_stock_command', expect.anything());
+  });
+});
+
+test('a profile that cannot be read is a temporary unavailability, never a failed write', async () => {
+  const RECIPE = { id: '30000000-0000-4000-8000-000000000001', source: 'auto' as const };
+  const command = { command_id: ID, command_type: 'update_menu', payload_version: 1, payload: {
+    operations: [{ op: 'set', date: '2026-12-01', meal_type: 'dinner', recipe: RECIPE, servings: 4, expected_version: null }],
+    proposal: { profile_version: 1, expires_at: new Date(Date.now() + 600_000).toISOString() } } };
+  const from = jest.fn((table: string) => {
+    const query = { select: () => query, eq: () => query, maybeSingle: () => Promise.resolve(table === 'nutrition_profiles'
+      ? { data: null, error: { message: 'connection reset', code: '08006' } } : { data: null, error: null }) };
+    return query;
+  });
+  const rpc = jest.fn(async (name: string) => name === 'stock_routine_capabilities' ? { data: 6, error: null } : { data: null, error: null });
+  // The stock commands route answers only a StockCommandError with its own code: anything else is a failed write.
+  const failure = await new StockCommandService({ from, rpc } as unknown as SupabaseClient).execute(USER, command).catch(error => error);
+  expect(failure).toBeInstanceOf(StockCommandError);
+  expect(failure).toMatchObject({ code: 'PROFILE_UNAVAILABLE', status: 503, message: 'Ton profil ne peut pas être lu pour le moment : réessaie dans un instant.' });
+  expect(rpc).not.toHaveBeenCalledWith('execute_stock_command', expect.anything());
 });

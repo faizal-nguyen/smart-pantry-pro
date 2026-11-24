@@ -561,3 +561,25 @@ test('actual recent exposure rotates equally feasible meals, while a sole feasib
  const only=await engine.suggestForUser({userId:USER,userClient:makeClient({...plan,recipes:[a]}) as unknown as SupabaseClient,now:NOW},{limitPerBucket:1});
  expect(only.cookable_now[0].id).toBe('a');
 });
+
+// V11-01 E4a: the week proposal leaves out the recipes already on the week's menu, before the
+// per-bucket limit; a catalogue recipe held through a personal one is left out under both identities.
+describe('RecommendationEngine — excludeRecipeIds', () => {
+  const library = [{
+    id: 'wrapper', user_id: USER, is_from_catalog: true, created_at: '', updated_at: '',
+    catalog_recipe: { id: 'canonical', title: 'Base', servings: 2, created_at: '', updated_at: '' },
+    custom_modifications: { title: 'Mon pain', ingredients_override: [{ name: 'Farine', amount: '1', unit: 'g', inventory_product_id: 'p' }] },
+  }];
+  const recipes = Array.from({ length: 4 }, (_, index) => makeRecipe({ id: `r${index}`, name: `Recette ${index}`, ings: [{ pid: 'p', qty: 1 }] }));
+  const proposed = (result: Awaited<ReturnType<RecommendationEngine['suggestForUser']>>) => [...result.cookable_now, ...result.almost_cookable].map(recipe => recipe.id);
+
+  it('frees the places of the recipes it leaves out, by their id or their catalogue identity', async () => {
+    const { engine, ctx } = buildEngine({ recipes, inventory: [makeInvRow('p', 1000)], library });
+    const all = proposed(await engine.suggestForUser(ctx, { limitPerBucket: 20 }));
+    expect(all).toEqual(expect.arrayContaining(['wrapper', 'r0', 'r1', 'r2', 'r3']));
+    const excluded = [all.find(id => id !== 'wrapper')!, 'canonical'];
+    const next = all.filter(id => id !== excluded[0] && id !== 'wrapper').slice(0, 2);
+    const result = await engine.suggestForUser(ctx, { limitPerBucket: 2, excludeRecipeIds: excluded });
+    expect(proposed(result)).toEqual(next);
+  });
+});

@@ -453,19 +453,6 @@
       "count": 6
     }
   },
-  "src/services/planning/smartMealPlannerService.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 3
-    },
-    "prefer-const": {
-      "count": 1
-    }
-  },
-  "src/services/planning/types.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    }
-  },
   "src/setupTests.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
