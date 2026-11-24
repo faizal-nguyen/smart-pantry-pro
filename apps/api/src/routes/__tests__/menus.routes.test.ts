@@ -6,6 +6,9 @@ import { StockCommandError } from '../../services/stock/StockCommandService.js';
 import { createMenusRouter } from '../menus.routes.js';
 
 jest.mock('../../middleware/userRateLimit.js', () => ({ userRateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next() }));
+jest.mock('../../config/logger.js', () => ({ logError: jest.fn() }));
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- the mocked module, after jest.mock.
+const { logError } = require('../../config/logger.js') as { logError: jest.Mock };
 
 const USER = '00000000-0000-4000-8000-000000000001';
 const preview = { week_start: '2026-11-30', as_of: '2026-11-24', menu_version: 'a'.repeat(32), context_revision: 7, lines: [], meals: [], uncomputable: [] };
@@ -39,5 +42,14 @@ describe('week shopping preview route', () => {
     jest.spyOn(MenuShoppingService.prototype, 'preview').mockRejectedValue(new StockCommandError('MIGRATION_REQUIRED', 503));
     const response = await request(application()).post('/api/v1/menus/shopping-preview').send({ week_start: '2026-11-30' }).expect(503);
     expect(response.body).toMatchObject({ success: false, code: 'MIGRATION_REQUIRED' });
+  });
+  test('an unexpected failure is logged and answered as unavailable, never as a refused write', async () => {
+    for (const failure of [new Error('MENU_BASIS_INVALID'), new StockCommandError('STOCK_WRITE_FAILED', 500)]) {
+      logError.mockClear();
+      jest.spyOn(MenuShoppingService.prototype, 'preview').mockRejectedValue(failure);
+      const response = await request(application()).post('/api/v1/menus/shopping-preview').send({ week_start: '2026-11-30' }).expect(503);
+      expect(response.body).toMatchObject({ success: false, code: 'MENU_SHOPPING_UNAVAILABLE' });
+      expect(logError).toHaveBeenCalledWith(failure, expect.objectContaining({ context: 'menus.shopping-preview', week_start: '2026-11-30' }));
+    }
   });
 });

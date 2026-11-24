@@ -8,10 +8,13 @@ its tokens, menu_add_missing (bounded adds, contributions, reductions, undo), pl
 versions, and consume_recipe linked to a meal. Dates follow the current day in Europe/Paris.
 """
 import concurrent.futures
+import contextlib
 import datetime
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import time
 import uuid
 
 spec = importlib.util.spec_from_file_location("shopping_tests", Path(__file__).with_name("test-shopping-commands-db.py"))
@@ -76,6 +79,28 @@ def contributions(command_id=None, owner=A):
     return run("SELECT coalesce(string_agg(trim_scale(quantity)::text||' '||unit,', ' ORDER BY id),'') FROM menu_shopping_contributions WHERE " + where + ";")
 
 
+def wait_until(sql: str, seconds: float = 10) -> None:
+    """Polls a count until it is not zero."""
+    deadline = time.monotonic() + seconds
+    while run(sql) == "0":
+        assert time.monotonic() < deadline, "timed out: " + sql
+        time.sleep(0.05)
+
+
+@contextlib.contextmanager
+def row_lock(table: str, identity: str):
+    """Holds a row lock in another session, as a direct write in progress does, until the block ends."""
+    holder = subprocess.Popen([stock.PSQL, "-X", "-q", "-h", stock.SOCKET, "-p", stock.PORT, "-d", stock.DATABASE],
+                              stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        holder.stdin.write("BEGIN; SELECT 1 FROM " + table + " WHERE id=" + literal(identity) + " FOR UPDATE;\n")
+        holder.stdin.flush()
+        wait_until("SELECT count(*) FROM pg_stat_activity WHERE state='idle in transaction' AND datname=current_database();")
+        yield
+    finally:
+        holder.communicate("COMMIT;\n", timeout=10)
+
+
 def tests():
     day = today()
     this_week, next_week = monday(day), monday(day) + datetime.timedelta(days=7)
@@ -125,9 +150,53 @@ def tests():
         equal(stock.execute(stock.command("menu_add_missing", json.loads(run("SELECT payload FROM stock_commands WHERE command_id=" + literal(identity) + ";")), identity)), added)
         equal(shop.lines("lentilles corail E1"), "1.3 kg")
         add_missing(next_week, [{"name": "lentilles corail E1", "quantity": 600, "unit": "g"}], error="INVALID_QUANTITY")
+        # The bound holds over the whole command: two adds of one product together stay within the need.
+        add_missing(next_week, [{"name": "lentilles corail E1", "quantity": 300, "unit": "g"},
+                                {"name": "lentilles corail E1", "quantity": 0.3, "unit": "kg"}], error="INVALID_QUANTITY")
+        equal(shop.lines("lentilles corail E1"), "1.3 kg")
         add_missing(next_week, [{"name": "produit absent E1", "quantity": 1, "unit": "kg"}], error="INVALID_QUANTITY")
         add_missing(next_week, [{"name": "lentilles corail E1", "quantity": 1, "unit": "g", "user_id": B}], error="INVALID_COMMAND")
+        # A meal without servings counts the recipe's own, as the preview does.
+        cashews = units.recipe(4, [("noix de cajou E1", 100, "g")])
+        unsized = plan(cashews, next_week + datetime.timedelta(days=2), meal="breakfast")
+        run("UPDATE meal_plan_entries SET servings=NULL WHERE id=" + literal(unsized["meal_plan_entry_id"]) + ";")
+        add_missing(next_week, [{"name": "noix de cajou E1", "quantity": 100, "unit": "g"}])
+        equal(shop.lines("noix de cajou E1"), "100 g")
     check("an add is bounded by what the week's meals need, tops up the oldest row and is recorded", bounded_adds_and_contributions)
+
+    def duplicate_plans_count_once():
+        # Several plans for one week (production, E0): only the oldest one, which plan_recipe writes, counts.
+        week = next_week + datetime.timedelta(days=21)
+        older, newer, copy = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        run("INSERT INTO weekly_meal_plans(id,user_id,week_start_date,created_at) VALUES(" + literal(older) + "," + literal(A) + ","
+            + literal(week.isoformat()) + ",'2025-01-01'),(" + literal(newer) + "," + literal(A) + "," + literal(week.isoformat()) + ",'2025-06-01');")
+        parsnips = units.recipe(4, [("panais E1", 300, "g")])
+        kept = plan(parsnips, week + datetime.timedelta(days=1))
+        run("INSERT INTO meal_plan_entries(id,meal_plan_id,day_of_week,meal_type,recipe_reference,recipe_name,servings) VALUES("
+            + literal(copy) + "," + literal(newer) + ",1,'dinner'," + literal(json.dumps({"id": parsnips, "source": "auto"})) + "::jsonb,'Panais',4);")
+        meals = {meal["id"] for meal in basis(week)["meals"]}
+        equal([kept["meal_plan_entry_id"] in meals, copy in meals], [True, False])
+        add_missing(week, [{"name": "panais E1", "quantity": 400, "unit": "g"}], error="INVALID_QUANTITY")
+        add_missing(week, [{"name": "panais E1", "quantity": 300, "unit": "g"}])
+        equal(shop.lines("panais E1"), "300 g")
+    check("the meals of a week's duplicate plans are counted once", duplicate_plans_count_once)
+
+    def direct_writes_wait_for_the_command():
+        # A direct write locks its row, then the stock revision: the command locks the rows first, so
+        # waiting on a row it does not hold the revision a direct write would need (no deadlock).
+        chickpeas = units.recipe(4, [("pois chiches E1", 400, "g")])
+        plan(chickpeas, next_week + datetime.timedelta(days=5), meal="lunch")
+        row = shop.seed("pois chiches E1", 100, "g")
+        current = basis(next_week)
+        line = [{"name": "pois chiches E1", "quantity": 300, "unit": "g"}]
+        with concurrent.futures.ThreadPoolExecutor(1) as pool:
+            with row_lock("shopping_list", row):
+                pending = pool.submit(add_missing, next_week, line, tokens=current)
+                wait_until("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%menu_add_missing%';")
+                run("SELECT 1 FROM stock_context_versions WHERE user_id=" + literal(A) + " FOR UPDATE NOWAIT;")
+            pending.result(timeout=30)
+        equal(shop.lines("pois chiches E1"), "400 g")
+    check("a direct write in progress makes the command wait without holding the stock revision", direct_writes_wait_for_the_command)
 
     def reductions_follow_contributions():
         beans = units.recipe(4, [("haricots blancs E1", 800, "g")])
@@ -222,6 +291,16 @@ def tests():
         foreign = stock.command("consume_recipe", {"recipe": {"id": own, "source": "auto"}, "servings": 4, "recipe_version": version,
                                                    "outside_inventory": [0], "meal_plan_entry_id": meal["meal_plan_entry_id"], "entry_version": entry(meal)["version"]})
         stock.execute(foreign, owner=B, error="ITEM_NOT_FOUND")
+        # Cooking leaves the version (and an update never sets it): cooked then uncooked, the planning
+        # is still undoable; a cooked meal is not unplanned.
+        equal(entry(meal)["version"], meal["entry_version"])
+        run("UPDATE meal_plan_entries SET version=42 WHERE id=" + literal(meal["meal_plan_entry_id"]) + ";")
+        equal(entry(meal)["version"], meal["entry_version"])
+        again = stock.execute(cook(entry(meal)["version"]), take())
+        undo(meal, error="MEAL_COOKED")
+        undo(again)
+        undo(meal)
+        equal(run("SELECT count(*) FROM meal_plan_entries WHERE id=" + literal(meal["meal_plan_entry_id"]) + ";"), "0")
     check("cooking a planned meal links it once; undo unlinks it", cooking_links_the_meal)
 
 

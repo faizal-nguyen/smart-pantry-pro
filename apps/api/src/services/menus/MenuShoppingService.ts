@@ -1,18 +1,49 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
 import {
   allocateMenuStock, menuShoppingLines,
   type MenuContribution, type MenuMealInput, type MenuShoppingPreview, type MenuShoppingRow, type QualifiedLot, type ResolvedStockRecipe,
 } from '@smart/shared';
 import { databaseError } from '../stock/StockCommandService.js';
 
-interface BasisMeal {
-  id: string; version: number; date: string; meal_type: string; role: 'reserve' | 'target';
-  recipe_reference: { id: string; source?: string } | null; servings: number | null; recipe_name: string;
-}
-interface Basis { week_start: string; as_of: string; menu_version: string; context_revision: number; meals: BasisMeal[] }
+/** Rows per read: PostgREST's default max-rows; a read follows the pages it is given. */
+const PAGE = 1000;
+/** A planned recipe the resolver refuses: deleted, no longer shared, or a reference naming none. */
+const UNRESOLVED = ['RECIPE_NOT_FOUND', 'INVALID_RECIPE_SOURCE'];
+const INVALID_TEXT = '22P02';
+
+const BasisSchema = z.object({
+  week_start: z.string(), as_of: z.string(), menu_version: z.string(), context_revision: z.coerce.number(),
+  meals: z.array(z.object({
+    id: z.string(), version: z.coerce.number(), date: z.string(), meal_type: z.string(), role: z.enum(['reserve', 'target']),
+    recipe_reference: z.unknown(), servings: z.number().nullable(), recipe_name: z.string(),
+  })),
+});
+type Basis = z.infer<typeof BasisSchema>;
+interface PlannedRecipe { id: string; source: string }
 type ProductJoin = { name: string; unit_type: string } | Array<{ name: string; unit_type: string }> | null;
-const productOf = (join: ProductJoin) => (Array.isArray(join) ? join[0] : join) ?? null;
-const referenceKey = (reference: NonNullable<BasisMeal['recipe_reference']>) => `${reference.id}|${reference.source ?? 'auto'}`;
+type Row = Record<string, unknown> & { product?: ProductJoin };
+type Page = PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null; count?: number | null }>;
+
+const productOf = (join: ProductJoin | undefined) => (Array.isArray(join) ? join[0] : join) ?? null;
+/** The recipe a meal plans, when its reference names one. */
+const plannedRecipe = (reference: unknown): PlannedRecipe | null => {
+  if (!reference || typeof reference !== 'object') return null;
+  const { id, source } = reference as { id?: unknown; source?: unknown };
+  return typeof id === 'string' && id ? { id, source: typeof source === 'string' ? source : 'auto' } : null;
+};
+const recipeKey = (recipe: PlannedRecipe) => `${recipe.id}|${recipe.source}`;
+
+/** Every row of a read, a page at a time: one PostgREST response holds at most max-rows. */
+async function readAll(page: (from: number, to: number) => Page): Promise<Row[]> {
+  const rows: Row[] = [];
+  for (;;) {
+    const { data, error, count } = await page(rows.length, rows.length + PAGE - 1);
+    if (error) databaseError(error);
+    rows.push(...((data ?? []) as Row[]));
+    if (!data?.length || (count != null && rows.length >= count)) return rows;
+  }
+}
 
 /**
  * V11-01 E1: the review of a week's shopping. The basis (meals and tokens) comes from the database
@@ -23,18 +54,21 @@ export class MenuShoppingService {
   constructor(private readonly client: SupabaseClient) {}
 
   async preview(userId: string, weekStart: string): Promise<MenuShoppingPreview> {
-    const { data, error } = await this.client.rpc('menu_shopping_basis', { p_week_start: weekStart });
-    if (error) databaseError(error);
-    const basis = data as Basis;
-    const references = [...new Map(basis.meals.flatMap(meal => meal.recipe_reference ? [[referenceKey(meal.recipe_reference), meal.recipe_reference] as const] : [])).values()];
+    const basis = await this.basis(weekStart);
+    const planned = [...new Map(basis.meals.flatMap(meal => {
+      const recipe = plannedRecipe(meal.recipe_reference);
+      return recipe ? [[recipeKey(recipe), recipe] as const] : [];
+    })).values()];
     const [recipes, lots, rows, contributions] = await Promise.all([
-      Promise.all(references.map(async reference => [referenceKey(reference), await this.recipe(reference)] as const)).then(entries => new Map(entries)),
+      Promise.all(planned.map(async recipe => [recipeKey(recipe), await this.recipe(recipe)] as const)).then(entries => new Map(entries)),
       this.lots(userId), this.rows(userId), this.contributions(userId, weekStart),
     ]);
-    const meals: MenuMealInput[] = basis.meals.map(meal => ({
-      id: meal.id, version: meal.version, date: meal.date, meal_type: meal.meal_type, role: meal.role, recipe_name: meal.recipe_name, servings: meal.servings,
-      recipe: meal.recipe_reference ? recipes.get(referenceKey(meal.recipe_reference)) ?? null : null,
-    }));
+    const meals: MenuMealInput[] = basis.meals.map(meal => {
+      const recipe = plannedRecipe(meal.recipe_reference);
+      const resolved = recipe ? recipes.get(recipeKey(recipe)) ?? null : null;
+      return { id: meal.id, version: meal.version, date: meal.date, meal_type: meal.meal_type, role: meal.role, recipe_name: meal.recipe_name,
+        servings: meal.servings, recipe: resolved, recipe_unavailable: meal.recipe_reference != null && !resolved };
+    });
     const allocation = allocateMenuStock(meals, lots);
     return {
       week_start: basis.week_start, as_of: basis.as_of, menu_version: basis.menu_version, context_revision: basis.context_revision,
@@ -44,18 +78,27 @@ export class MenuShoppingService {
     };
   }
 
-  /** A recipe deleted or no longer shared since it was planned is named, not counted. */
-  private async recipe(reference: NonNullable<BasisMeal['recipe_reference']>): Promise<ResolvedStockRecipe | null> {
-    const { data, error } = await this.client.rpc('resolve_stock_recipe', { p_recipe_id: reference.id, p_source: reference.source ?? 'auto' });
-    return error || !data ? null : data as ResolvedStockRecipe;
+  private async basis(weekStart: string): Promise<Basis> {
+    const { data, error } = await this.client.rpc('menu_shopping_basis', { p_week_start: weekStart });
+    if (error) databaseError(error);
+    const parsed = BasisSchema.safeParse(data);
+    if (!parsed.success) throw new Error('MENU_BASIS_INVALID');
+    return parsed.data;
+  }
+
+  /** null when the planned recipe no longer resolves; any other failure fails the preview. */
+  private async recipe(recipe: PlannedRecipe): Promise<ResolvedStockRecipe | null> {
+    const { data, error } = await this.client.rpc('resolve_stock_recipe', { p_recipe_id: recipe.id, p_source: recipe.source });
+    if (error && (UNRESOLVED.some(code => error.message?.startsWith(code)) || error.code === INVALID_TEXT)) return null;
+    if (error) databaseError(error);
+    return data && Array.isArray((data as ResolvedStockRecipe).ingredients) ? data as ResolvedStockRecipe : null;
   }
 
   private async lots(userId: string): Promise<QualifiedLot[]> {
-    const { data, error } = await this.client.from('inventory')
-      .select('id,product_id,quantity,unit,stock_version,expiry_date,date_kind,quantity_quality,location,notes,product:products(name,unit_type)')
-      .eq('user_id', userId);
-    if (error) databaseError(error);
-    return ((data ?? []) as Array<Record<string, unknown> & { product: ProductJoin }>).map(row => {
+    const data = await readAll((from, to) => this.client.from('inventory')
+      .select('id,product_id,quantity,unit,stock_version,expiry_date,date_kind,quantity_quality,location,notes,product:products(name,unit_type)', { count: 'exact' })
+      .eq('user_id', userId).order('id').range(from, to));
+    return data.map(row => {
       const product = productOf(row.product);
       return { id: String(row.id), product_id: String(row.product_id), product_name: product?.name ?? '', quantity: Number(row.quantity),
         unit: (row.unit as string | null) ?? product?.unit_type ?? null, stock_version: Number(row.stock_version), expiry_date: (row.expiry_date as string | null) ?? null,
@@ -65,11 +108,10 @@ export class MenuShoppingService {
   }
 
   private async rows(userId: string): Promise<MenuShoppingRow[]> {
-    const { data, error } = await this.client.from('shopping_list')
-      .select('id,product_id,quantity,unit,is_purchased,stock_version,created_at,product:products(name,unit_type)')
-      .eq('user_id', userId);
-    if (error) databaseError(error);
-    return ((data ?? []) as Array<Record<string, unknown> & { product: ProductJoin }>).map(row => {
+    const data = await readAll((from, to) => this.client.from('shopping_list')
+      .select('id,product_id,quantity,unit,is_purchased,stock_version,created_at,product:products(name,unit_type)', { count: 'exact' })
+      .eq('user_id', userId).order('id').range(from, to));
+    return data.map(row => {
       const product = productOf(row.product);
       return { id: String(row.id), product_id: String(row.product_id), product_name: product?.name ?? '', quantity: Number(row.quantity),
         unit: (row.unit as string | null) ?? product?.unit_type ?? null, is_purchased: Boolean(row.is_purchased),
@@ -78,11 +120,10 @@ export class MenuShoppingService {
   }
 
   private async contributions(userId: string, weekStart: string): Promise<MenuContribution[]> {
-    const { data, error } = await this.client.from('menu_shopping_contributions')
-      .select('id,shopping_id,quantity,unit,line_version_after')
-      .eq('user_id', userId).eq('week_start_date', weekStart);
-    if (error) databaseError(error);
-    return ((data ?? []) as MenuContribution[]).map(item => ({ ...item, quantity: Number(item.quantity),
-      line_version_after: item.line_version_after == null ? null : Number(item.line_version_after) }));
+    const data = await readAll((from, to) => this.client.from('menu_shopping_contributions')
+      .select('id,shopping_id,quantity,unit,line_version_after', { count: 'exact' })
+      .eq('user_id', userId).eq('week_start_date', weekStart).order('id').range(from, to));
+    return data.map(item => ({ id: Number(item.id), shopping_id: String(item.shopping_id), quantity: Number(item.quantity),
+      unit: (item.unit as string | null) ?? null, line_version_after: item.line_version_after == null ? null : Number(item.line_version_after) }));
   }
 }

@@ -8,6 +8,7 @@
 import { Router } from 'express';
 import { MenuShoppingPreviewRequestSchema } from '@smart/shared';
 import { ok, fail } from '../utils/responses.js';
+import { logError } from '../config/logger.js';
 import { userRateLimit } from '../middleware/userRateLimit.js';
 import { MenuShoppingService } from '../services/menus/MenuShoppingService.js';
 import { StockCommandError } from '../services/stock/StockCommandService.js';
@@ -24,7 +25,9 @@ export function createMenusRouter(): Router {
       const preview = await new MenuShoppingService(req.supabaseClient).preview(req.user.id, parsed.data.week_start);
       return ok(res, preview, 'OK', 'MENU_SHOPPING_PREVIEW_OK');
     } catch (error) {
-      if (error instanceof StockCommandError) return fail(res, error.message, error.status, error.code);
+      // A known refusal (stale week, migration missing) is answered as is; a read that failed is not a refused write.
+      if (error instanceof StockCommandError && error.code !== 'STOCK_WRITE_FAILED') return fail(res, error.message, error.status, error.code);
+      logError(error, { context: 'menus.shopping-preview', week_start: parsed.data.week_start });
       return fail(res, 'Les courses de la semaine ne peuvent pas être calculées. Réessaie dans un instant.', 503, 'MENU_SHOPPING_UNAVAILABLE');
     }
   });

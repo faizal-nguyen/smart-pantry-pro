@@ -1,6 +1,6 @@
 -- V11-01 E1: the week's shopping from the menu (PRP V11-01, sections 4 and 5).
--- * meal_plan_entries.version (bumped on every update) and cooked_command_id (a planned meal is
---   cooked once, by consume_recipe linked to it);
+-- * meal_plan_entries.version (bumped when what the meal plans changes) and cooked_command_id (a
+--   planned meal is cooked once, by consume_recipe linked to it);
 -- * private.menu_basis: the meals a week's shopping counts (today to Sunday, uncooked; earlier
 --   uncooked meals reserve the stock first, D3) and their version, shared by the preview
 --   (public.menu_shopping_basis) and the command, so both compute the same tokens;
@@ -16,10 +16,14 @@ BEGIN;
 ALTER TABLE public.meal_plan_entries ADD COLUMN IF NOT EXISTS version bigint NOT NULL DEFAULT 0;
 ALTER TABLE public.meal_plan_entries ADD COLUMN IF NOT EXISTS cooked_command_id uuid;
 
+-- The version follows what the meal plans (recipe, servings, day, meal) and is never written by an
+-- update. Cooking it, which only sets cooked_command_id, leaves it: cooked then uncooked, the meal is
+-- back as planned and its planning stays undoable.
 CREATE OR REPLACE FUNCTION private.meal_entry_bump_version() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path='' AS $$
 BEGIN
-  NEW.version:=OLD.version+1;
+  NEW.version:=OLD.version+CASE WHEN to_jsonb(NEW)-'version'-'cooked_command_id'-'updated_at'
+    IS DISTINCT FROM to_jsonb(OLD)-'version'-'cooked_command_id'-'updated_at' THEN 1 ELSE 0 END;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS v11_meal_entry_version ON public.meal_plan_entries;
@@ -70,17 +74,22 @@ END $$;
 
 -- The meals a week's shopping counts (D3): uncooked meals from today to the week's Sunday. Those of
 -- the target week (from Monday, or today) are 'target'; earlier ones, from today, 'reserve' the stock
--- first. menu_version covers each meal's identity, version, recipe, servings, day and type.
+-- first. menu_version covers each meal's identity, version, recipe, servings, day and type. Only the
+-- plan menu_plan_id writes counts for a week: the meals of its duplicates are never counted twice.
 CREATE OR REPLACE FUNCTION private.menu_basis(p_user uuid,p_week_start date,p_as_of date) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path='' AS $$
 DECLARE v_meals jsonb;
 BEGIN
   IF p_week_start IS NULL OR extract(isodow FROM p_week_start)<>1 OR p_as_of IS NULL THEN RAISE EXCEPTION 'INVALID_COMMAND'; END IF;
-  WITH meals AS (
+  WITH plans AS (
+    SELECT DISTINCT ON (week_start_date) id,week_start_date FROM public.weekly_meal_plans
+    WHERE user_id=p_user AND week_start_date BETWEEN p_as_of-6 AND p_week_start+6
+    ORDER BY week_start_date,created_at NULLS LAST,id
+  ), meals AS (
     SELECT e.id,e.version,w.week_start_date+e.day_of_week AS day,e.meal_type,e.recipe_reference,e.servings,e.recipe_name,
       CASE e.meal_type WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END AS meal_order
-    FROM public.meal_plan_entries e JOIN public.weekly_meal_plans w ON w.id=e.meal_plan_id
-    WHERE w.user_id=p_user AND e.cooked_command_id IS NULL
+    FROM public.meal_plan_entries e JOIN plans w ON w.id=e.meal_plan_id
+    WHERE e.cooked_command_id IS NULL
   )
   SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'version',version,'date',day,'meal_type',meal_type,
       'recipe_reference',recipe_reference,'servings',servings,'recipe_name',recipe_name,
@@ -102,7 +111,8 @@ REVOKE ALL ON FUNCTION public.menu_shopping_basis(date) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.menu_shopping_basis(date) TO authenticated;
 
 -- What the target meals of a basis need of a product, in a unit (Rule C bound of an add): each
--- recipe at the meal's servings, matched like consume_recipe (linked product or same name).
+-- recipe at the meal's servings (the recipe's own when the meal has none, as the preview counts),
+-- matched like consume_recipe (linked product or same name).
 CREATE OR REPLACE FUNCTION private.menu_gross_need(p_meals jsonb,p_product uuid,p_unit text) RETURNS numeric
 LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path='' AS $$
 DECLARE v_meal jsonb; v_recipe jsonb; v_ing jsonb; v_name text; v_total numeric:=0; v_multiplier numeric; v_amount numeric;
@@ -112,9 +122,10 @@ BEGIN
     WHERE value->>'role'='target' AND jsonb_typeof(value->'recipe_reference')='object' LOOP
     BEGIN
       v_recipe:=public.resolve_stock_recipe((v_meal#>>'{recipe_reference,id}')::uuid,coalesce(v_meal#>>'{recipe_reference,source}','auto'));
-    EXCEPTION WHEN raise_exception THEN CONTINUE; -- A recipe deleted since: it needs nothing.
+    -- A recipe deleted since, or a reference that names none: it needs nothing.
+    EXCEPTION WHEN raise_exception OR invalid_text_representation THEN CONTINUE;
     END;
-    v_multiplier:=(v_meal->>'servings')::numeric/nullif((v_recipe->>'servings')::numeric,0);
+    v_multiplier:=coalesce((v_meal->>'servings')::numeric,(v_recipe->>'servings')::numeric)/nullif((v_recipe->>'servings')::numeric,0);
     IF v_multiplier IS NULL OR v_multiplier<=0 THEN CONTINUE; END IF;
     FOR v_ing IN SELECT value FROM jsonb_array_elements(v_recipe->'ingredients') LOOP
       IF (v_ing->>'quantity')::numeric IS NULL THEN CONTINUE; END IF;
@@ -152,13 +163,16 @@ DECLARE
   v_adds jsonb:=p_payload->'adds'; v_reductions jsonb:=p_payload->'reductions';
   v_week date; v_basis jsonb; v_revision bigint; v_item jsonb; v_change jsonb; v_changes jsonb:='[]';
   v_product uuid; v_quantity numeric; v_unit text; v_row public.shopping_list%ROWTYPE;
-  v_last public.menu_shopping_contributions%ROWTYPE; v_share numeric;
+  v_last public.menu_shopping_contributions%ROWTYPE; v_share numeric; v_added jsonb:='[]'; v_prior numeric;
 BEGIN
   IF jsonb_typeof(v_adds) IS DISTINCT FROM 'array' OR jsonb_typeof(v_reductions) IS DISTINCT FROM 'array'
     OR jsonb_array_length(v_adds)>100 OR jsonb_array_length(v_reductions)>100
     OR jsonb_array_length(v_adds)+jsonb_array_length(v_reductions)=0 THEN RAISE EXCEPTION 'INVALID_COMMAND'; END IF;
   IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_adds||v_reductions) i WHERE jsonb_typeof(i)<>'object' OR i ? 'user_id') THEN RAISE EXCEPTION 'INVALID_COMMAND'; END IF;
   v_week:=(p_payload->>'week_start')::date;
+  -- A direct write locks its row, then the stock revision through the cache trigger: the account's
+  -- rows are locked first, in that same order, so such a write waits instead of deadlocking.
+  PERFORM 1 FROM public.shopping_list WHERE user_id=p_user ORDER BY id FOR UPDATE;
   -- The three tokens of the preview, checked before any write.
   IF (p_payload->>'as_of')::date IS DISTINCT FROM private.menu_today() THEN RAISE EXCEPTION 'MENU_CHANGED'; END IF;
   SELECT revision INTO v_revision FROM public.stock_context_versions WHERE user_id=p_user FOR UPDATE;
@@ -180,8 +194,11 @@ BEGIN
     ELSE
       v_product:=private.shopping_resolve_product(v_item->>'name',NULL,v_unit);
     END IF;
-    -- Rule C: never more than the week's meals need of this product.
-    IF v_quantity>private.menu_gross_need(v_basis->'meals',v_product,v_unit)+0.000000001 THEN RAISE EXCEPTION 'INVALID_QUANTITY'; END IF;
+    -- Rule C: never more than the week's meals need of this product, all the command's adds together.
+    SELECT coalesce(sum(private.stock_quantity_in_unit_or_null((a->>'quantity')::numeric,a->>'unit',v_unit)),0) INTO v_prior
+    FROM jsonb_array_elements(v_added) a WHERE (a->>'product_id')::uuid=v_product;
+    IF v_prior+v_quantity>private.menu_gross_need(v_basis->'meals',v_product,v_unit)+0.000000001 THEN RAISE EXCEPTION 'INVALID_QUANTITY'; END IF;
+    v_added:=v_added||jsonb_build_array(jsonb_build_object('product_id',v_product,'quantity',v_quantity,'unit',v_unit));
     v_change:=private.shopping_aggregate(p_user,p_command,v_product,v_quantity,v_unit,'increment',NULL,
       (v_item#>>'{target,id}')::uuid,(v_item#>>'{target,expected_version}')::bigint);
     INSERT INTO public.menu_shopping_contributions(user_id,command_id,week_start_date,shopping_id,product_id,quantity,unit,line_version_after)
@@ -417,10 +434,12 @@ BEGIN
     WHERE e.id=(v_previous.result->>'meal_plan_entry_id')::uuid AND w.user_id=v_user FOR UPDATE OF e;
     IF NOT FOUND OR v_entry.recipe_reference IS DISTINCT FROM v_previous.result->'planned_reference'
       OR v_entry.servings IS DISTINCT FROM (v_previous.payload->>'servings')::integer THEN RAISE EXCEPTION 'MENU_CHANGED'; END IF;
+    -- V11-01 E1: a cooked meal stays; its cooking is undone first.
+    IF v_entry.cooked_command_id IS NOT NULL THEN RAISE EXCEPTION 'MEAL_COOKED'; END IF;
     IF v_previous.result ? 'entry_version' THEN
-      -- V11-01 E1: the meal must still be the one planned (moved, cooked or edited: refused); the
-      -- meal it replaced comes back exactly as it was, identity and version included, so that its
-      -- own planning can be undone in turn.
+      -- V11-01 E1: the meal must still be the one planned (moved or edited: refused); the meal it
+      -- replaced comes back exactly as it was, identity and version included, so that its own
+      -- planning can be undone in turn.
       IF v_entry.version IS DISTINCT FROM (v_previous.result->>'entry_version')::bigint THEN RAISE EXCEPTION 'MENU_CHANGED'; END IF;
       DELETE FROM public.meal_plan_entries WHERE id=v_entry.id;
       IF v_previous.result ? 'replaced_entry' THEN

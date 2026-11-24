@@ -48,7 +48,21 @@ describe('week shopping from the menu', () => {
     const result = allocateMenuStock([meal('m1', '2026-11-30', herbs), meal('m2', '2026-12-01', null)], [lot('l1', 'sel', 1, 'kg')]);
     expect(need(result, 'persil')).toEqual([expect.objectContaining({ status: 'manual' })]);
     expect(need(result, 'sel')).toEqual([expect.objectContaining({ status: 'verify' })]);
-    expect(result.uncomputable).toEqual([expect.objectContaining({ id: 'm2' })]);
+    expect(result.uncomputable).toEqual([expect.objectContaining({ id: 'm2', role: 'target', reason: 'NO_RECIPE' })]);
+  });
+
+  test('a meal without servings counts the recipe’s own', () => {
+    const rice = recipe('Riz', [['riz', 200, 'g']]);
+    const result = allocateMenuStock([meal('m1', '2026-11-30', rice, 'target', null)], []);
+    expect(need(result, 'riz')).toEqual([expect.objectContaining({ quantity: 200 })]);
+    expect(result.uncomputable).toEqual([]);
+  });
+
+  test('a recipe that no longer resolves is named, also on an earlier meal whose stock it could not reserve', () => {
+    const gone = (id: string, role: 'reserve' | 'target') => ({ ...meal(id, '2026-11-30', null, role), recipe_unavailable: true });
+    const result = allocateMenuStock([gone('before', 'reserve'), gone('target', 'target'), meal('plain', '2026-11-29', null, 'reserve')], []);
+    expect(result.uncomputable.map(item => [item.id, item.role, item.reason]))
+      .toEqual([['before', 'reserve', 'RECIPE_UNAVAILABLE'], ['target', 'target', 'RECIPE_UNAVAILABLE']]);
   });
 
   test('qualifyLotsOn judges each lot at the meal day', () => {
@@ -86,5 +100,36 @@ describe('lines of the weekly shopping review', () => {
     const lines = menuShoppingLines(allocateMenuStock([meal('m1', '2026-11-30', recipe('Salade', [['persil', null, 'botte']]))], []).needs, [], []);
     expect(lines).toEqual([expect.objectContaining({ state: 'manual', name: 'persil' })]);
     expect(lines[0]).not.toHaveProperty('target');
+  });
+
+  // A recipe linked to the product and another naming it make two needs of one product.
+  const linkedAndNamed = (quantity: number) => {
+    const linked = { ...recipe('Sauce', []), ingredients: [{ ingredient_name: 'Tomates', quantity, unit: 'g', is_essential: true, inventory_product_id: 'p-tomate' }] };
+    return allocateMenuStock([meal('m1', '2026-11-30', linked), meal('m2', '2026-12-01', recipe('Salade', [['tomate', quantity, 'g']]))], []).needs;
+  };
+
+  test('a row covers the needs once: two needs of one product never both count it', () => {
+    const lines = menuShoppingLines(linkedAndNamed(500), [row('s1', 'tomate', 500, 'g')], []);
+    expect(lines.map(line => [line.state, line.quantity])).toEqual([['listed', 500], ['to_add', 500]]);
+  });
+
+  test('two needs topping up one row make one add, so the confirmation never conflicts with itself', () => {
+    const lines = menuShoppingLines(linkedAndNamed(500), [row('s1', 'tomate', 100, 'g')], []);
+    expect(lines).toEqual([expect.objectContaining({ state: 'to_add', quantity: 900, unit: 'g', target: { id: 's1', expected_version: 2 } })]);
+    expect(lines[0].meals.map(item => item.id)).toEqual(['m1', 'm2']);
+  });
+
+  test('a longer name is covered after the closest match, and never topped up for another product', () => {
+    const needs = allocateMenuStock([meal('m1', '2026-11-30', recipe('Salade', [['tomate', 300, 'g'], ['tomate cerise', 200, 'g']]))], []).needs;
+    const lines = menuShoppingLines(needs, [row('s1', 'tomate cerise', 200, 'g')], []);
+    expect(lines.map(line => [line.name, line.state, line.quantity])).toEqual([['tomate', 'to_add', 300], ['tomate cerise', 'listed', 200]]);
+    expect(lines[0]).not.toHaveProperty('target');
+  });
+
+  test('a row a meal still names without an amount, or without a unit, is never proposed back', () => {
+    const share = [{ id: 1, shopping_id: 's1', quantity: 1, unit: 'botte', line_version_after: 2 }];
+    const herbs = allocateMenuStock([meal('m1', '2026-11-30', recipe('Salade', [['persil', null, 'botte']]))], []).needs;
+    expect(menuShoppingLines(herbs, [row('s1', 'persil', 1, 'botte')], share).some(line => line.state === 'excess')).toBe(false);
+    expect(menuShoppingLines([], [row('s1', 'persil', 1, null as unknown as string)], share).some(line => line.state === 'excess')).toBe(false);
   });
 });

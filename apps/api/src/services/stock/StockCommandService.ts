@@ -28,7 +28,7 @@ const MESSAGES: Record<string, string> = {
   DUPLICATE_ITEM: 'Le même article figure deux fois dans cette action.',
   STOCK_CHANGED: 'Le stock ou la liste a changé depuis le calcul des courses. Recalcule avant de confirmer.',
   ALREADY_COOKED: 'Ce repas est déjà marqué cuisiné.',
-  MEAL_COOKED: 'Ce repas a déjà été cuisiné : annule d’abord sa cuisson pour le remplacer.',
+  MEAL_COOKED: 'Ce repas a déjà été cuisiné : annule d’abord sa cuisson.',
 };
 
 export class StockCommandError extends Error {
