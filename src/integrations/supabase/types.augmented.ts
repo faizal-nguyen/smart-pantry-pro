@@ -136,6 +136,8 @@ interface MealPlanEntriesRow {
   version: number;
   /** The consume_recipe command that cooked this meal; written and cleared by the stock commands only. */
   cooked_command_id: string | null;
+  /** V11-01 E3 (20261126090000): the meal a leftover comes from; written by update_menu only. */
+  leftover_of: string | null;
 }
 
 type MealPlanEntriesInsert = {

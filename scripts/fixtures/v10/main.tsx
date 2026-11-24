@@ -35,6 +35,8 @@ if(carnetScene) document.title='Kitchen OS — Démo · données fictives';
 localStorage.setItem('skipOnboarding','1');
 
 // A fixture must never contact external services, including nutrition providers.
+// The carnet scene hides the controls: its refusals stay reachable from a QA script.
+(window as unknown as { v10Failures?: typeof failures }).v10Failures = failures;
 const originalFetch = window.fetch.bind(window);
 window.fetch = (input,options) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url,location.origin);
@@ -87,7 +89,7 @@ function Fixture() {
       <button onClick={()=>scenario('normal')}>Stock de référence</button><button onClick={()=>scenario('empty')}>Stock vide</button><button onClick={()=>scenario('hundred')}>Cent ingrédients</button><button onClick={()=>scenario('urgent')}>Date proche</button>
       <button onClick={() => { failures.nextCommand = true; setFailure(true); }}>{failure ? 'Prochain refus activé' : 'Simuler une coupure'}</button>
       <button onClick={() => { failures.nextReplyLost=true;setFailure(true); }}>Perdre la prochaine réponse après écriture</button>
-      <button onClick={() => { failures.menuChanged=true; }}>Refuser la prochaine confirmation des courses (menu changé)</button>
+      <button onClick={() => { failures.menuChanged=true; }}>Refuser la prochaine modification du menu ou des courses (menu changé)</button>
       <button onClick={()=>{ failures.evaluationOffline=!evaluationOffline;setEvaluationOffline(!evaluationOffline);if (!evaluationOffline) dispatchAgentDbChanged(['inventory']); }}>{evaluationOffline ? 'Rétablir la vérification' : 'Refuser la vérification'}</button>
     </div></details>;
   return <CulinaryDesignContext.Provider value={design}>

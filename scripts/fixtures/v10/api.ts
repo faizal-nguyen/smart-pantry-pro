@@ -4,6 +4,7 @@ import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutr
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
 import { applyMenuAddMissing, weekShoppingPreview } from './weekShopping';
+import { applyUpdateMenu } from './menuEdit';
 import {buildFoodGuidance} from '@smart/shared';
 
 // Only for the isolated visual fixture; never supplies a real access token.
@@ -48,7 +49,7 @@ const results = new Map<string,StockCommandResult>(JSON.parse(localStorage.getIt
 let memoryRevision=4;
 let privacy={ hasConsent:false,allowAnalytics:false,saveHistory:true,assistantMemoryEnabled:true,allowImageProcessing:false,shareAnonymizedData:false,batterySaver:false,dataRetention:'standard' };
 const memoryReceipts=new Map<string,MemoryWriteResult>();
-const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
+const snapshots = new Map<string,{ inventory:typeof data.inventory;shopping:typeof data.shopping_list;meals?:typeof data.inventory }>(JSON.parse(localStorage.getItem('v10-fixture-snapshots') ?? '[]'));
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   if(path==='/v1/recommendations/library-events'){
     const {commands}=RecipeLifecycleWriteSchema.parse(body);
@@ -137,7 +138,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     if (results.has(command.command_id)) return results.get(command.command_id) as T;
     if (failures.nextCommand) { failures.nextCommand = false; throw new ApiError('Connexion interrompue : résultat à vérifier. Réessaie la même action.',{ status: 503, code: 'STOCK_WRITE_FAILED' }); }
     const result: StockCommandResult = { command_id: command.command_id, command_type: command.command_type, status: 'confirmed', affected_tables: [] };
-    snapshots.set(command.command_id,structuredClone({ inventory:data.inventory,shopping:data.shopping_list }));
+    snapshots.set(command.command_id,structuredClone({ inventory:data.inventory,shopping:data.shopping_list,meals:data.meal_plan_entries ?? [] }));
     if (command.command_type === 'transfer_shopping') {
       const selected = data.shopping_list.filter(row => command.payload.items.some(item => item.id === row.id));
       const inserted = selected.map(row => { const edited=command.payload.items.find(item=>item.id===row.id)!;return { ...row,id:crypto.randomUUID(),stock_version:0,quantity:edited.quantity ?? row.quantity,unit:edited.unit ?? row.unit,location:edited.location ?? null,expiry_date:edited.expiry_date ?? null }; });
@@ -172,14 +173,20 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
         result.changes.push({ id:item.id,before_quantity:before,after_quantity:Number(lot.quantity),unit:String(lot.unit),stock_version:Number(lot.stock_version) });
       }
       result.affected_tables=['inventory'];
+    } else if (command.command_type==='update_menu') {
+      applyUpdateMenu(command,result,(code,message)=>{ throw new ApiError(message,{ status:409,code }); });
     } else if (command.command_type==='menu_add_missing') {
       applyMenuAddMissing(command,result,(code,message)=>{ throw new ApiError(message,{ status:409,code }); });
     } else if (command.command_type==='undo_stock') {
       const previous=snapshots.get(command.payload.original_command_id);
       if (!previous) throw new ApiError('Action introuvable.',{ status:409,code:'COMMAND_NOT_FOUND' });
-      data.inventory=structuredClone(previous.inventory);data.shopping_list=structuredClone(previous.shopping);
-      (data.meal_plan_entries ?? []).filter(row=>row.cooked_command_id===command.payload.original_command_id).forEach(row=>{ row.cooked_command_id=null; });
-      result.affected_tables=['inventory','shopping_list','cooking_journal'];
+      // An edit of the menu goes back to the meals it had (the receipt's « before » in SQL), and only them.
+      if (results.get(command.payload.original_command_id)?.command_type==='update_menu') { data.meal_plan_entries=structuredClone(previous.meals ?? []);result.affected_tables=['meal_plan_entries']; }
+      else {
+        data.inventory=structuredClone(previous.inventory);data.shopping_list=structuredClone(previous.shopping);
+        (data.meal_plan_entries ?? []).filter(row=>row.cooked_command_id===command.payload.original_command_id).forEach(row=>{ row.cooked_command_id=null; });
+        result.affected_tables=['inventory','shopping_list','cooking_journal'];
+      }
     } else if (command.command_type==='shopping_add') {
       // Visual QA only: the oldest unchecked row in a convertible unit is topped up (D16); SQL rules are tested on PostgreSQL.
       const changes: NonNullable<StockCommandResult['shopping_changes']> = [];

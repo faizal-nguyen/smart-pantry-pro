@@ -17,7 +17,12 @@ export function seedCarnetScene(data: Record<string, Record<string, unknown>[]>,
   data.mobile_routine_preferences=[{user_id:owner,introduction:'done',stock_view:'list',updated_at:today.toISOString()}];
   const dayIndex=(today.getUTCDay()+6)%7;
   data.weekly_meal_plans=[{id:id(8,1),user_id:owner,week_start_date:date(-dayIndex)}];
-  data.meal_plan_entries=[{id:id(9,1),meal_plan_id:id(8,1),day_of_week:dayIndex,meal_type:'dinner',recipe_id:recipe,recipe_reference:{id:recipe,source:'recipes'},recipe_name:'Couscous de légumes',servings:2,prep_time:10,cook_time:15,version:0,cooked_command_id:null}];
+  // V11-01 E3b: a meal with its leftover the next slot, and another meal to swap with.
+  const meal=(n:number,day:number,meal_type:string,recipe_name:string,servings:number,leftover_of:string|null=null)=>({id:id(9,n),meal_plan_id:id(8,1),day_of_week:day,meal_type,
+    recipe_id:leftover_of ? null:recipe,recipe_reference:leftover_of ? null:{id:recipe,source:'recipes'},recipe_name,servings,prep_time:leftover_of ? 0:10,cook_time:leftover_of ? 0:15,version:0,cooked_command_id:null,leftover_of});
+  data.meal_plan_entries=[meal(1,dayIndex,'dinner','Couscous de légumes',4),
+    dayIndex<6 ? meal(2,dayIndex+1,'lunch','Reste : Couscous de légumes',2,id(9,1)) : meal(2,6,'snack','Reste : Couscous de légumes',2,id(9,1)),
+    meal(3,(dayIndex+2)%7,'dinner','Soupe de saison',2)];
 }
 
 export function seedRecipeLifeScene(data:Record<string,Record<string,unknown>[]>,owner:string){
