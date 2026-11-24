@@ -1,4 +1,4 @@
-import { allocateRecipeStock, convertQuantity, describeUnit, findTopUpLot, ingredientMatchRank, mapLibraryRecipe, productNameWithBrand, normalizeRecipeIngredients, SHOPPING_UNIT_GROUPS, shoppingUnitOptions, StockCommandSchema, type StockLot } from '@smart/shared';
+import { allocateRecipeStock, convertQuantity, describeUnit, findTopUpLot, ingredientMatchRank, ingredientResembles, mapLibraryRecipe, productNameWithBrand, normalizeRecipeIngredients, SHOPPING_UNIT_GROUPS, shoppingUnitOptions, StockCommandSchema, type StockLot } from '@smart/shared';
 
 describe('shopping unit choices', () => {
   const group = (id: string) => SHOPPING_UNIT_GROUPS.find(entry => entry.id === id)?.units ?? [];
@@ -197,5 +197,34 @@ describe('productNameWithBrand', () => {
     expect(productNameWithBrand('Pommes', null)).toBe('Pommes');
     expect(productNameWithBrand('Pommes', '  ')).toBe('Pommes');
     expect(productNameWithBrand('Nutella', 'Nutella')).toBe('Nutella');
+  });
+});
+
+// 24 Nov 2026: the week's review proposed to buy what was in stock under a close name. A close
+// product is only named to check (never counted); a link makes it count (V11-01).
+describe('ingredientResembles: a stock product close to an ingredient, without being it', () => {
+  test.each([
+    ['pâte de curry jaune thaï', 'Pâte de Curry Jaune'],
+    ['Riz jasmin cru', 'Riz jasmin thaï extra parfumé (Hom Mali)'],
+    ['tomates cerises crues', 'Tomate cerise'],
+    ['sauce tomate basilic', 'Sauce tomate'],
+  ])('« %s » is close to « %s »', (ingredient, product) => {
+    expect(ingredientResembles(ingredient, product)).toBe(true);
+  });
+  test.each([
+    ['lait de coco', 'Lait'],
+    ['sauce poisson', 'Sauce soja'],
+    ['vinaigre de riz', 'Vinaigre de table blanc Walma'],
+    ['huile neutre', 'Huile de tournesol'],
+    ['lait de coco', 'Organic Coconut Milk AROY-D'],
+    ['saumon', 'Saumon fumé'],
+    ['riz jasmin cru', 'Riz basmati'],
+    ['farine', 'farine'],
+    ['tomate', 'Tomate cerise'],
+    // Review 2026-11-24: a one-word product is the generic noun; it would hide a real purchase.
+    ['sauce soja', 'Sauce'], ['crème fraîche', 'Crème'], ['citron vert', 'Citron'], ['sucre glace', 'Sucre'],
+    ['lait sucré', 'Lait'], ['riz jasmin', 'Riz'], ['tomates crues', 'Tomate cerise'], ['cru', 'Riz'],
+  ])('« %s » is not merely close to « %s »', (ingredient, product) => {
+    expect(ingredientResembles(ingredient, product)).toBe(false);
   });
 });

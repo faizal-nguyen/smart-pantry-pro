@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { qualifyLotsOn, type QualifiedLot } from './lot-qualification.js';
 import {
-  allocateRecipeStock, canAddToShoppingList, convertQuantity, describeUnit, ingredientMatchRank, needsPurchase,
+  allocateRecipeStock, canAddToShoppingList, convertQuantity, describeUnit, ingredientMatchRank, ingredientResembles, needsPurchase,
   normalizeIngredientName, type StockIngredient, type StockMissing,
 } from './quantities.js';
 import type { ResolvedStockRecipe } from './stock-commands.js';
@@ -29,6 +29,8 @@ export interface MenuNeed {
   quantity: number | null; unit: string | null; meals: MenuNeedMeal[];
   /** Lots of this ingredient whose date is passed at the meal: not counted, named to check. */
   verify_lots?: string[];
+  /** Products in stock only close to the ingredient (ingredientResembles): not counted, named to check. */
+  similar_lots?: string[];
 }
 /**
  * NO_RECIPE: the meal names no recipe; RECIPE_UNAVAILABLE: its recipe no longer resolves; NO_SERVINGS:
@@ -58,15 +60,19 @@ function uncountable(meal: MenuMealInput): MenuUncomputable['reason'] | null {
 }
 
 /** What one meal lacks of one ingredient, keyed by product (or name) and dimension. */
-function gapNeed(meal: MenuMealInput, ingredient: StockIngredient, gap: StockMissing, verify: QualifiedLot[]): MenuNeed {
+function gapNeed(meal: MenuMealInput, ingredient: StockIngredient, gap: StockMissing, verify: QualifiedLot[], inStock: QualifiedLot[]): MenuNeed {
   const doubtful = [...new Set(verify.filter(lot => sameIngredient(ingredient, lot)).map(lot => lot.product_name))];
+  // A close product may be the same one under another name: it is checked, never bought blindly.
+  const similar = [...new Set(inStock.filter(lot => !sameIngredient(ingredient, lot) && ingredientResembles(ingredient.ingredient_name, lot.product_name))
+    .map(lot => lot.product_name))];
   const dimension = describeUnit(gap.unit)?.dimension;
-  const status: MenuNeedStatus = !needsPurchase(gap) || doubtful.length ? 'verify' : canAddToShoppingList(gap) && dimension ? 'to_buy' : 'manual';
+  const status: MenuNeedStatus = !needsPurchase(gap) || doubtful.length || similar.length ? 'verify'
+    : canAddToShoppingList(gap) && dimension ? 'to_buy' : 'manual';
   const identity = ingredient.inventory_product_id || normalizeIngredientName(gap.ingredient_name);
   const key = `${status}|${identity}|${status === 'to_buy' ? dimension : normalizeIngredientName(gap.unit ?? '')}`;
   const entry: MenuNeedMeal = { id: meal.id, date: meal.date, meal_type: meal.meal_type, recipe_name: meal.recipe_name, quantity: gap.quantity, unit: gap.unit };
   return { key, status, name: gap.ingredient_name, product_id: ingredient.inventory_product_id ?? null, quantity: gap.quantity, unit: gap.unit,
-    meals: [entry], ...(doubtful.length ? { verify_lots: doubtful } : {}) };
+    meals: [entry], ...(doubtful.length ? { verify_lots: doubtful } : {}), ...(similar.length ? { similar_lots: similar } : {}) };
 }
 
 /** Two needs of one key add up, in the unit of the first one met. */
@@ -74,8 +80,9 @@ function mergeNeed(known: MenuNeed | undefined, next: MenuNeed): MenuNeed {
   if (!known) return next;
   const added = known.quantity == null || next.quantity == null ? null : inUnit(next.quantity, next.unit, known.unit);
   const verifyLots = [...new Set([...(known.verify_lots ?? []), ...(next.verify_lots ?? [])])];
+  const similarLots = [...new Set([...(known.similar_lots ?? []), ...(next.similar_lots ?? [])])];
   return { ...known, quantity: added == null ? null : round9((known.quantity ?? 0) + added), meals: [...known.meals, ...next.meals],
-    ...(verifyLots.length ? { verify_lots: verifyLots } : {}) };
+    ...(verifyLots.length ? { verify_lots: verifyLots } : {}), ...(similarLots.length ? { similar_lots: similarLots } : {}) };
 }
 
 /**
@@ -104,9 +111,11 @@ export function allocateMenuStock(meals: MenuMealInput[], lots: QualifiedLot[]):
     for (const taken of result.allocations) {
       remaining.set(taken.inventory_id, Math.max(0, round9((remaining.get(taken.inventory_id) ?? 0) - taken.quantity)));
     }
+    // What this meal leaves in stock, usable or to check: where a close product is looked for.
+    const inStock = [...eligible, ...verify].filter(lot => (remaining.get(lot.id) ?? 0) > 0);
     if (meal.role !== 'target') continue;
     for (const gap of result.missing) {
-      const next = gapNeed(meal, recipe.ingredients[gap.ingredient_index], gap, verify);
+      const next = gapNeed(meal, recipe.ingredients[gap.ingredient_index], gap, verify, inStock);
       needs.set(next.key, mergeNeed(needs.get(next.key), next));
     }
   }
@@ -130,7 +139,7 @@ export interface MenuShoppingLine {
   target?: { id: string; expected_version: number };
   /** excess: the menu's share to take back from a row nobody changed since (D2). */
   reduction?: { id: string; expected_version: number; quantity: number; unit: string };
-  meals: MenuNeedMeal[]; verify_lots?: string[];
+  meals: MenuNeedMeal[]; verify_lots?: string[]; similar_lots?: string[];
 }
 
 const byAge = (a: MenuShoppingRow, b: MenuShoppingRow) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')) || a.id.localeCompare(b.id);
@@ -176,7 +185,8 @@ function coverNeeds(needs: MenuNeed[], rows: MenuShoppingRow[]) {
 
 /** The line of one need: covered by the list, or what remains to add on the oldest row of the product. */
 function needLine(need: MenuNeed, rows: MenuShoppingRow[], coverage: Coverage | undefined): MenuShoppingLine {
-  const base = { key: need.key, name: need.name, product_id: need.product_id, unit: need.unit, meals: need.meals, ...(need.verify_lots ? { verify_lots: need.verify_lots } : {}) };
+  const base = { key: need.key, name: need.name, product_id: need.product_id, unit: need.unit, meals: need.meals,
+    ...(need.verify_lots ? { verify_lots: need.verify_lots } : {}), ...(need.similar_lots ? { similar_lots: need.similar_lots } : {}) };
   const quantity = amountToBuy(need);
   if (quantity == null) return { ...base, state: need.status === 'to_buy' ? 'manual' : need.status, quantity: need.quantity };
   const { listed, purchased } = coverage ?? { listed: 0, purchased: 0 };
@@ -266,7 +276,7 @@ const MenuShoppingLineSchema = z.object({
   name: z.string(), product_id: z.string().nullable(), quantity: amount.nullable(), unit: z.string().nullable(),
   listed_quantity: amount.optional(), purchased_quantity: amount.optional(),
   target: rowAt.optional(), reduction: rowAt.extend({ quantity: amount.positive(), unit: z.string().min(1) }).optional(),
-  meals: z.array(NeedMealSchema), verify_lots: z.array(z.string()).optional(),
+  meals: z.array(NeedMealSchema), verify_lots: z.array(z.string()).optional(), similar_lots: z.array(z.string()).optional(),
 });
 /**
  * V11-01 E2: what the review screen accepts from the API before showing it (the identifiers it

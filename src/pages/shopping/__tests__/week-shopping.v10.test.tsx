@@ -219,3 +219,12 @@ test('a list the server refuses to write as such is explained, not shown as raw 
   fireEvent.click(confirmButton());
   expect(await screen.findByRole('alert')).toHaveTextContent('Une ligne ne peut pas être écrite sur la liste telle quelle. Décoche-la et ajoute-la depuis tes courses.');
 });
+
+// 24 Nov 2026: a close product in stock is named to check, not proposed to buy.
+test('a line to check names the close product in stock', async () => {
+  mockPreview = { ...mockPreview, data: week({ lines: [line('pâte de curry', 'verify', { quantity: 45, similar_lots: ['Pâte de Curry Jaune'] })] }) };
+  show();
+  expect(screen.getByText('Produit proche dans ton stock : Pâte de Curry Jaune. Vérifie que c’est le même avant d’en acheter.')).toBeVisible();
+  expect(screen.queryByText(/Date, quantité ou unité à vérifier|Quantité, unité ou date à vérifier/)).not.toBeInTheDocument();
+  await act(async () => {});
+});

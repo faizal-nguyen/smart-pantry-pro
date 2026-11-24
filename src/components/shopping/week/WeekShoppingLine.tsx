@@ -24,9 +24,14 @@ function LineDetail({ line }: { line: MenuShoppingLine }) {
     case 'manual':
       return <p className="kitchen-week-line-amount">{amount(line.quantity, line.unit)}</p>;
     case 'verify':
-      return <p className="kitchen-week-line-note">{line.verify_lots?.length
-        ? `En stock : ${line.verify_lots.join(', ')}. Date, quantité ou unité à vérifier : rien n’est compté ni ajouté.`
-        : 'Quantité, unité ou date à vérifier dans ton stock : rien n’est compté ni ajouté.'}</p>;
+      return <>
+        {/* A close product may be the same one under another name: never counted, never bought blindly. */}
+        {!!line.similar_lots?.length && <p className="kitchen-week-line-note">
+          Produit proche dans ton stock : {line.similar_lots.join(', ')}. Vérifie que c’est le même avant d’en acheter.</p>}
+        {(!!line.verify_lots?.length || !line.similar_lots?.length) && <p className="kitchen-week-line-note">{line.verify_lots?.length
+          ? `En stock : ${line.verify_lots.join(', ')}. Date, quantité ou unité à vérifier : rien n’est compté ni ajouté.`
+          : 'Quantité, unité ou date à vérifier dans ton stock : rien n’est compté ni ajouté.'}</p>}
+      </>;
     case 'listed':
       return <p className="kitchen-week-line-note">{amount(line.listed_quantity ?? line.quantity, line.unit)} déjà sur ta liste (la semaine en demande {amount(line.quantity, line.unit)}).</p>;
     case 'purchased_pending':

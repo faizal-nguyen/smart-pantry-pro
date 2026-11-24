@@ -65,6 +65,37 @@ describe('week shopping from the menu', () => {
       .toEqual([['before', 'reserve', 'RECIPE_UNAVAILABLE'], ['target', 'target', 'RECIPE_UNAVAILABLE']]);
   });
 
+  // 24 Nov 2026: « Pâte de curry jaune thaï » was proposed to buy with « Pâte de Curry Jaune » in stock.
+  test('a stock product only close to the ingredient is named to check, never counted nor bought', () => {
+    const curry = recipe('Curry', [['Pâte de curry jaune thaï', 45, 'g'], ['Sauce poisson', 20, 'ml']]);
+    const result = allocateMenuStock([meal('m1', '2026-12-02', curry)], [lot('l1', 'Pâte de Curry Jaune', 400, 'g'), lot('l2', 'Sauce soja', 1, 'l')]);
+    expect(need(result, 'Pâte de curry jaune thaï')).toEqual([expect.objectContaining({ status: 'verify', quantity: 45, unit: 'g', similar_lots: ['Pâte de Curry Jaune'] })]);
+    expect(need(result, 'Sauce poisson')).toEqual([expect.objectContaining({ status: 'to_buy', quantity: 20 })]);
+    expect(need(result, 'Sauce poisson')[0]).not.toHaveProperty('similar_lots');
+  });
+
+  test('an exact product is counted first; a close one is not named once the need is covered', () => {
+    const curry = recipe('Curry', [['pâte de curry jaune thaï', 45, 'g']]);
+    const lots = [lot('l1', 'Pâte de Curry Jaune', 400, 'g'), lot('l2', 'Pâte de curry jaune thaï', 50, 'g')];
+    expect(need(allocateMenuStock([meal('m1', '2026-12-02', curry)], lots), 'pâte de curry jaune thaï')).toEqual([]);
+    const short = need(allocateMenuStock([meal('m1', '2026-12-02', curry)], [lots[0], { ...lots[1], quantity: 20 }]), 'pâte de curry jaune thaï');
+    expect(short).toEqual([expect.objectContaining({ status: 'verify', quantity: 25, similar_lots: ['Pâte de Curry Jaune'] })]);
+  });
+
+  // Review 2026-11-24: a lot the same meal used up is no longer in stock to check.
+  test('a close product already taken by the same meal is not named, and the need is bought', () => {
+    const curry = recipe('Curry', [['Pâte de Curry Jaune', 400, 'g'], ['pâte de curry jaune thaï', 45, 'g']]);
+    const result = allocateMenuStock([meal('m1', '2026-12-02', curry)], [lot('l1', 'Pâte de Curry Jaune', 400, 'g')]);
+    expect(need(result, 'pâte de curry jaune thaï')).toEqual([expect.objectContaining({ status: 'to_buy', quantity: 45 })]);
+    expect(need(result, 'pâte de curry jaune thaï')[0]).not.toHaveProperty('similar_lots');
+  });
+
+  test('a close product reaches the review line, and the line is never written', () => {
+    const curry = recipe('Curry', [['pâte de curry jaune thaï', 45, 'g']]);
+    const { needs } = allocateMenuStock([meal('m1', '2026-12-02', curry)], [lot('l1', 'Pâte de Curry Jaune', 400, 'g')]);
+    expect(menuShoppingLines(needs, [], [])).toEqual([expect.objectContaining({ state: 'verify', similar_lots: ['Pâte de Curry Jaune'] })]);
+  });
+
   test('qualifyLotsOn judges each lot at the meal day', () => {
     const lots = [lot('a', 'x', 1, 'g', { expiry_date: '2026-12-01', date_kind: 'use_by' }), lot('b', 'y', 1, 'g', { expiry_date: '2026-12-01' }),
       lot('c', 'z', 1, 'g', { expiry_date: '2026-12-01', date_kind: 'use_by' }), lot('d', 'w', 0, 'g')];

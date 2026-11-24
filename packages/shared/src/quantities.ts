@@ -77,6 +77,27 @@ export function ingredientMatchRank(ingredientName: string, productName: string)
   return extra.some(token => TRANSFORMING_WORDS.has(token)) ? 0 : 2;
 }
 
+// Words a recipe adds to say how an ingredient is used, not which product it is ("riz jasmin cru").
+const PREPARATION_WORDS = new Set(['cru', 'crue']);
+
+/**
+ * A stock product close to an ingredient without being it for ingredientMatchRank: once the
+ * preparation words are set aside, one name starts with the other ("Pâte de Curry Jaune" for
+ * "pâte de curry jaune thaï", "Riz jasmin thaï" for "riz jasmin cru"). It is named for the user
+ * to check, never counted (V11-01, 24 Nov 2026). The shorter name needs two words at least: a
+ * single word is the generic noun ("Sauce" for "sauce soja"), and naming it would hide a purchase.
+ */
+export function ingredientResembles(ingredientName: string, productName: string): boolean {
+  if (ingredientMatchRank(ingredientName, productName) > 0) return false;
+  const ingredient = ingredientNameTokens(ingredientName).filter(token => !PREPARATION_WORDS.has(token));
+  const product = ingredientNameTokens(productName);
+  if (!ingredient.length || !product.length) return false;
+  const [shorter, longer] = ingredient.length <= product.length ? [ingredient, product] : [product, ingredient];
+  if (shorter.length < 2 || !shorter.every((token, index) => longer[index] === token)) return false;
+  const extra = longer.slice(shorter.length);
+  return !COMPLEMENT_WORDS.has(extra[0] ?? '') && !extra.some(token => TRANSFORMING_WORDS.has(token));
+}
+
 /** Tap water ("eau", "eau chaude", "eau du robinet") is never tracked as stock. */
 export function isAlwaysAvailableIngredient(ingredientName: string): boolean {
   const [head, ...rest] = ingredientNameTokens(ingredientName);
