@@ -28,5 +28,6 @@ export function describeShoppingChanges(changes: ShoppingChange[] = []): string 
     case 'updated': return `${name} modifié.`;
     case 'removed': return `${name} retiré des courses.`;
     case 'restored': return `${name} rétabli.`;
+    case 'reduced': return `${name} : ${amount(change.added_quantity, change.unit)} retiré, ${amount(change.quantity, change.unit)} restant.`;
   }
 }

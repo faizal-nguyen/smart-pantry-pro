@@ -11,6 +11,7 @@ export type RecipeReference = z.infer<typeof RecipeReferenceSchema>;
 
 const positiveQuantity = z.number().finite().positive().max(1e9);
 const version = z.number().int().nonnegative();
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const recipePayload = z.object({ recipe: RecipeReferenceSchema, servings: positiveQuantity.max(100) });
 const inventoryItem = z.object({
   id: z.string().uuid(), quantity: positiveQuantity, unit: z.string().trim().min(1).max(40),
@@ -28,6 +29,8 @@ export type ShoppingOrigin = z.infer<typeof ShoppingOriginSchema>;
 export const SHOPPING_COMMAND_TYPES = ['shopping_add', 'shopping_check', 'shopping_update', 'shopping_remove'] as const;
 export type ShoppingCommandType = typeof SHOPPING_COMMAND_TYPES[number];
 export const SHOPPING_COMMANDS_CAPABILITY = 4;
+/** V11-01 E1: menu_add_missing and cooking linked to a planned meal. */
+export const MENU_COMMANDS_CAPABILITY = 5;
 
 const shoppingRow = { id: z.string().uuid(), expected_version: version };
 const shoppingName = z.string().trim().min(1).max(120);
@@ -59,7 +62,10 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
     recipe_version: z.string().min(1).max(64),
     outside_inventory: z.array(z.number().int().nonnegative()).max(100).default([]),
     adjustments: CookingAdjustmentsSchema.optional(),
-  }).strict()),
+    /** V11-01 E1: the planned meal cooked, at the version shown; it is then cooked once. */
+    meal_plan_entry_id: z.string().uuid().optional(),
+    entry_version: version.optional(),
+  }).strict().refine(payload => (payload.meal_plan_entry_id === undefined) === (payload.entry_version === undefined), { message: 'meal and version together' })),
   command('consume_inventory', z.object({ items: boundedItems(inventoryItem) }).strict()),
   command('adjust_inventory', z.object({ items: boundedItems(inventoryItem.extend({
     quantity: z.number().finite().nonnegative().max(1e9), expected_version: version,
@@ -98,6 +104,15 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
   command('shopping_check', z.object({ items: boundedItems(z.object({ ...shoppingRow, purchased: z.boolean() }).strict()) }).strict()),
   command('shopping_update', z.object({ items: boundedItems(shoppingUpdateItem) }).strict()),
   command('shopping_remove', z.object({ items: boundedItems(z.object(shoppingRow).strict()) }).strict()),
+  command('menu_add_missing', z.object({
+    week_start: isoDate, as_of: isoDate,
+    menu_version: z.string().regex(/^[0-9a-f]{32}$/), context_revision: z.number().int().nonnegative(),
+    adds: z.array(z.object({
+      product_id: z.string().uuid().optional(), name: shoppingName.optional(),
+      quantity: positiveQuantity, unit: shoppingUnit, target: z.object(shoppingRow).strict().optional(),
+    }).strict().refine(item => (item.product_id === undefined) !== (item.name === undefined), { message: 'product_id or name, not both' })).max(100),
+    reductions: z.array(z.object({ ...shoppingRow, quantity: positiveQuantity, unit: shoppingUnit }).strict()).max(100),
+  }).strict().refine(payload => payload.adds.length + payload.reductions.length > 0, { message: 'nothing to write' })),
 ]);
 export type StockCommand = z.infer<typeof StockCommandSchema>;
 
@@ -109,7 +124,7 @@ export interface RecipeStockPreview {
   recipe: ResolvedStockRecipe; servings: number; lots: StockLot[];
   allocations: StockAllocation[]; missing: StockMissing[];
 }
-export type ShoppingChangeOutcome = 'created' | 'merged' | 'checked' | 'unchecked' | 'unchanged' | 'updated' | 'removed' | 'restored';
+export type ShoppingChangeOutcome = 'created' | 'merged' | 'checked' | 'unchecked' | 'unchanged' | 'updated' | 'removed' | 'restored' | 'reduced';
 /** One shopping row touched by a command, as the database confirmed it. */
 export interface ShoppingChange {
   id: string; outcome: ShoppingChangeOutcome; name?: string; quantity?: number; unit?: string; purchased?: boolean;

@@ -193,10 +193,14 @@ export function canAddToShoppingList(missing: StockMissing): boolean {
   return needsPurchase(missing) && missing.quantity != null && missing.quantity > 0 && !!describeUnit(missing.unit);
 }
 
-/** Reserve lots once across the whole recipe, including repeated ingredients. */
+/**
+ * Reserve lots once across the whole recipe, including repeated ingredients. With reservePartial
+ * (a week's menu), the stock found for a partly covered ingredient stays reserved and only the
+ * shortfall is missing; cooking keeps the default, which takes nothing unless all is there.
+ */
 export function allocateRecipeStock(
   ingredients: StockIngredient[], lots: StockLot[], baseServings: number, requestedServings: number,
-  options: { skip?: number[]; selectedLots?: Record<number,string> } = {},
+  options: { skip?: number[]; selectedLots?: Record<number,string>; reservePartial?: boolean } = {},
 ): { allocations: StockAllocation[]; missing: StockMissing[] } {
   if (!Number.isFinite(baseServings) || baseServings <= 0 || !Number.isFinite(requestedServings) || requestedServings <= 0) {
     throw new QuantityError('INVALID_QUANTITY', 'Nombre de portions invalide.');
@@ -242,11 +246,16 @@ export function allocateRecipeStock(
         incompatible = error.code === 'UNIT_INCOMPATIBLE' ? 'UNIT_INCOMPATIBLE' : 'UNIT_UNKNOWN';
       }
     }
-    if (needed > 1e-9) { absent(incompatible ?? 'INSUFFICIENT_QUANTITY', needed); return; }
-    for (const allocation of proposed) {
+    const reserve = () => proposed.forEach(allocation => {
       remaining.set(allocation.inventory_id, (remaining.get(allocation.inventory_id) ?? 0) - allocation.quantity);
       allocations.push(allocation);
+    });
+    if (needed > 1e-9) {
+      if (options.reservePartial) reserve();
+      absent(incompatible ?? 'INSUFFICIENT_QUANTITY', needed);
+      return;
     }
+    reserve();
   });
   return { allocations, missing };
 }
