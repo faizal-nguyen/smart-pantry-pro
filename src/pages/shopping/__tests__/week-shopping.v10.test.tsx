@@ -6,6 +6,7 @@ import WeekShoppingPage from '../WeekShoppingPage';
 import { useMenuShoppingPreview } from '@/hooks/useMenuShoppingPreview';
 import { confirmMenuShopping, pendingMenuShopping, resendMenuShopping } from '@/services/menuShopping';
 import { undoStockCommand } from '@/services/stockCommands';
+import { unlinkIngredient } from '@/services/ingredientLinks';
 
 jest.mock('@/lib/api', () => ({ ApiError: class extends Error {
   status: number; code?: string;
@@ -18,6 +19,10 @@ const mockRefetch = jest.fn();
 jest.mock('@/hooks/useMenuShoppingPreview', () => ({ useMenuShoppingPreview: jest.fn(() => ({ ...mockPreview, refetch: mockRefetch })) }));
 jest.mock('@/services/menuShopping', () => ({ confirmMenuShopping: jest.fn(), resendMenuShopping: jest.fn(), pendingMenuShopping: jest.fn(async () => null) }));
 jest.mock('@/services/stockCommands', () => ({ undoStockCommand: jest.fn() }));
+jest.mock('@/services/ingredientLinks', () => ({ unlinkIngredient: jest.fn() }));
+jest.mock('@/components/shopping/week/IngredientLinkDialog', () => ({ __esModule: true,
+  default: ({ open, ingredientName, onLinked }: { open: boolean; ingredientName: string; onLinked: (product: string, key: string) => void }) =>
+    open ? <button onClick={() => onLinked('Huile de tournesol', ingredientName.toLowerCase())}>Relier {ingredientName}</button> : null }));
 
 const TARGET = '50000000-0000-4000-8000-000000000001', LISTED = '50000000-0000-4000-8000-000000000002';
 const meal = { id: 'm1', date: '2026-12-01', meal_type: 'lunch', recipe_name: 'Curry', quantity: 250, unit: 'g' };
@@ -227,4 +232,48 @@ test('a line to check names the close product in stock', async () => {
   expect(screen.getByText('Produit proche dans ton stock : Pâte de Curry Jaune. Vérifie que c’est le même avant d’en acheter.')).toBeVisible();
   expect(screen.queryByText(/Date, quantité ou unité à vérifier|Quantité, unité ou date à vérifier/)).not.toBeInTheDocument();
   await act(async () => {});
+});
+
+// « Je l'ai déjà »: a line's ingredient linked once to a product of the stock.
+test('« Je l’ai déjà » links a line’s ingredient to a stock product, and the link can be taken back', async () => {
+  jest.mocked(unlinkIngredient).mockResolvedValue(undefined);
+  show();
+  expect(screen.getByRole('button', { name: 'J’ai déjà Coriandre' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'J’ai déjà Sucre' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'J’ai déjà Farine' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'J’ai déjà Riz' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Relier Riz' }));
+  expect(await screen.findByText('« Riz » sera compté avec « Huile de tournesol » dans tes recettes.')).toBeVisible();
+  // Focus goes to the link, since the line may leave once the week is read again.
+  expect(screen.getByText('« Riz » sera compté avec « Huile de tournesol » dans tes recettes.').closest('[role="status"]')).toHaveFocus();
+  // Review 2026-11-24: a second link keeps the first one's undo.
+  fireEvent.click(screen.getByRole('button', { name: 'J’ai déjà Coco' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Relier Coco' }));
+  expect(await screen.findByText('« Coco » sera compté avec « Huile de tournesol » dans tes recettes.')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Retirer le lien de Riz' }));
+  await waitFor(() => expect(unlinkIngredient).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000001', 'riz'));
+  expect(await screen.findByText('Lien retiré : « Riz » n’est plus compté avec « Huile de tournesol ».')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Retirer le lien de Coco' })).toBeEnabled();
+});
+
+test('a failed removal of a link is said, and the link can be removed again', async () => {
+  jest.mocked(unlinkIngredient).mockRejectedValueOnce(new Error('Ce lien n’existe plus.'));
+  show();
+  fireEvent.click(screen.getByRole('button', { name: 'J’ai déjà Riz' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Relier Riz' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Retirer le lien de Riz' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Ce lien n’existe plus.');
+  expect(screen.getByRole('button', { name: 'Retirer le lien de Riz' })).toBeEnabled();
+});
+
+test('a line whose product is already known offers no link, nor one while a confirmation is to check', async () => {
+  mockPreview = { ...mockPreview, data: week({ lines: [line('riz', 'to_add', { quantity: 250, product_id: '10000000-0000-4000-8000-000000000001' })] }) };
+  const view = show();
+  expect(screen.queryByRole('button', { name: 'J’ai déjà Riz' })).not.toBeInTheDocument();
+  view.unmount();
+  mockPreview = { ...mockPreview, data: week() };
+  jest.mocked(pendingMenuShopping).mockResolvedValue(saved as never);
+  show();
+  await screen.findByRole('button', { name: 'Vérifier la confirmation envoyée' });
+  expect(screen.getByRole('button', { name: 'J’ai déjà Coco' })).toBeDisabled();
 });

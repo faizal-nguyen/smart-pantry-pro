@@ -21,15 +21,16 @@ interface WeekShoppingSectionsProps {
   errors: Record<string, string>;
   locked: boolean;
   onChange: (key: string, patch: Partial<LineChoice>) => void;
+  onLink: (line: MenuShoppingLine) => void;
 }
 
-export default function WeekShoppingSections({ lines, choices, errors, locked, onChange }: WeekShoppingSectionsProps) {
+export default function WeekShoppingSections({ lines, choices, errors, locked, onChange, onLink }: WeekShoppingSectionsProps) {
   const sections = reviewSections(lines);
   const open = sections.filter(section => !PLANNED.includes(section.state));
   const planned = sections.filter(section => PLANNED.includes(section.state));
   const plannedCount = planned.reduce((total, section) => total + section.lines.length, 0);
   const list = (items: MenuShoppingLine[]) => <ul>{items.map(line => <WeekShoppingLine key={line.key} line={line} choice={choices[line.key]}
-    error={errors[line.key]} locked={locked} onChange={patch => onChange(line.key, patch)} />)}</ul>;
+    error={errors[line.key]} locked={locked} onChange={patch => onChange(line.key, patch)} onLink={() => onLink(line)} />)}</ul>;
   return <>
     {open.map(section => <section key={section.state} className="kitchen-shopping-group kitchen-week-group" data-state={section.state} aria-labelledby={`week-${section.state}`}>
       <h2 id={`week-${section.state}`}>{TITLES[section.state]} ({section.lines.length})</h2>

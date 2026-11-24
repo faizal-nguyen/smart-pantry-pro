@@ -11,7 +11,12 @@ interface WeekShoppingLineProps {
   error?: string;
   locked: boolean;
   onChange: (patch: Partial<LineChoice>) => void;
+  /** « Je l'ai déjà »: offered on a line whose ingredient names no product of the stock yet. */
+  onLink?: () => void;
 }
+
+/** Lines the stock might already hold under another name: a link makes them count. */
+const LINKABLE = new Set<MenuShoppingLine['state']>(['to_add', 'verify', 'manual']);
 
 const amount = (quantity: number | null | undefined, unit: string | null) =>
   quantity == null ? 'quantité à préciser' : `${formatShoppingQuantity(quantity)} ${unit ?? ''}`.trim();
@@ -41,8 +46,9 @@ function LineDetail({ line }: { line: MenuShoppingLine }) {
   }
 }
 
-export default function WeekShoppingLine({ line, choice, error, locked, onChange }: WeekShoppingLineProps) {
+export default function WeekShoppingLine({ line, choice, error, locked, onChange, onLink }: WeekShoppingLineProps) {
   const errorId = `week-line-error-${line.key}`;
+  const linkable = !!onLink && !line.product_id && LINKABLE.has(line.state);
   return <li className="kitchen-shopping-item kitchen-week-line" data-state={line.state}>
     <div className="kitchen-week-line-main">
       {choice ? <label className="kitchen-week-line-check">
@@ -62,5 +68,7 @@ export default function WeekShoppingLine({ line, choice, error, locked, onChange
     <LineDetail line={line} />
     {line.meals.length > 0 && <p className="kitchen-week-meals">{mealsLabel(line.meals)}</p>}
     {error && <p id={errorId} className="text-sm text-destructive">{error}</p>}
+    {linkable && <button type="button" className="kitchen-week-link" disabled={locked} aria-label={`J’ai déjà ${line.name}`} onClick={onLink}>
+      Je l’ai déjà</button>}
   </li>;
 }
