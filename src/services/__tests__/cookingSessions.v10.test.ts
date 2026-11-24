@@ -109,3 +109,59 @@ test('a session whose confirmation was sent is reopened as it is',async()=>{
   patchCookingSession(A,session.id,{ state:'pending' });
   expect(await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'],2)).toMatchObject({ id:session.id,servings:4,state:'pending' });
 });
+// V11-01 E1: opened from a planned meal, the confirmation marks it as cooked.
+const MEAL='60000000-0000-4000-8000-000000000001',OTHER_MEAL='60000000-0000-4000-8000-000000000002';
+test('a session opened from a planned meal confirms the meal with the version read',async()=>{
+  patchCookingSession(A,session.id,{ state:'abandoned' });
+  const linked=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger'],undefined,{ id:MEAL,version:2 });
+  expect(readCookingSessions(A)[0]).toMatchObject({ meal:{ id:MEAL,version:2 } });
+  jest.mocked(executeStockCommand).mockResolvedValueOnce(confirmed);
+  await confirmCookingSession(A,linked.id,preview);
+  expect(executeStockCommand).toHaveBeenCalledWith(expect.objectContaining({ command_type:'consume_recipe',
+    payload:expect.objectContaining({ meal_plan_entry_id:MEAL,entry_version:2 }) }),A);
+});
+test('a session started without a meal sends no meal fields',async()=>{
+  jest.mocked(executeStockCommand).mockResolvedValueOnce(confirmed);
+  await confirmCookingSession(A,session.id,preview);
+  const sent=jest.mocked(executeStockCommand).mock.calls[0][0];
+  expect(sent.payload).not.toHaveProperty('meal_plan_entry_id');
+});
+test('reopened from the menu, an unfinished session takes the meal as read now; reopened without one, it keeps it',async()=>{
+  patchCookingSession(A,session.id,{ state:'in_progress',step:1 });
+  await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'],undefined,{ id:MEAL,version:1 });
+  const reread=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'],undefined,{ id:OTHER_MEAL,version:4 });
+  expect(reread).toMatchObject({ id:session.id,step:1,meal:{ id:OTHER_MEAL,version:4 } });
+  expect(await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger','Cuire'])).toMatchObject({ meal:{ id:OTHER_MEAL,version:4 } });
+});
+test('a sent confirmation keeps its meal and command when reopened from the menu',async()=>{
+  patchCookingSession(A,session.id,{ state:'pending' });
+  expect(await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger'],undefined,{ id:MEAL,version:7 })).not.toHaveProperty('meal');
+});
+test('sessions saved before the meal link are read as they are',()=>{
+  const saved=readCookingSessions(A)[0];
+  expect(saved).not.toHaveProperty('meal');
+  expect(()=>patchCookingSession(A,saved.id,{ step:1 })).not.toThrow();
+});
+// Review 2026-11-24: a meal cooked elsewhere during the session refused every confirmation, and
+// reopening the recipe did not drop the link.
+test('a meal refused at confirmation says how to reread it; reopened as no longer linkable, the session confirms without it',async()=>{
+  patchCookingSession(A,session.id,{ state:'abandoned' });
+  const linked=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger'],undefined,{ id:MEAL,version:2 });
+  jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('Ce repas est déjà marqué cuisiné.',{ status:409,code:'ALREADY_COOKED' }));
+  await expect(confirmCookingSession(A,linked.id,preview)).rejects.toThrow();
+  expect(readCookingSessions(A)[0]).toMatchObject({ state:'error',command:null,meal:{ id:MEAL,version:2 },
+    error:'Ce repas est déjà marqué cuisiné. Ouvre « Voir la recette » pour relire le repas du menu, puis reprends la cuisine.' });
+  const reopened=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger'],undefined,null);
+  expect(reopened.meal).toBeUndefined();
+  expect(readCookingSessions(A)[0].meal).toBeUndefined();
+  jest.mocked(executeStockCommand).mockResolvedValueOnce(confirmed);
+  await confirmCookingSession(A,reopened.id,preview);
+  expect(jest.mocked(executeStockCommand).mock.calls[1][0].payload).not.toHaveProperty('meal_plan_entry_id');
+});
+test('an unrelated refusal keeps its own message',async()=>{
+  patchCookingSession(A,session.id,{ state:'abandoned' });
+  const linked=await startCookingSession(A,{ id:RECIPE,source:'recipes' },['Mélanger'],undefined,{ id:MEAL,version:2 });
+  jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('Stock modifié',{ status:409,code:'CONFLICT' }));
+  await expect(confirmCookingSession(A,linked.id,preview)).rejects.toThrow();
+  expect(readCookingSessions(A)[0]).toMatchObject({ error:'Stock modifié' });
+});

@@ -16,6 +16,7 @@ import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } fr
 import { fetchUnifiedRecipe } from '@/lib/recipeSource';
 import type { RecipeReference } from '@smart/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +34,10 @@ export interface MenuEntryView {
   servings: number;
   prep_time: number;
   cook_time: number;
+  /** V11-01 E1: what the meal plans; a command on the meal sends it back to be checked. */
+  version: number;
+  /** The cooking that counted this meal, read from the base (null: not cooked). */
+  cooked_command_id: string | null;
 }
 
 export interface WeeklyMenuView {
@@ -47,7 +52,8 @@ export interface AddEntryInput {
   meal_type: MenuMealType;
 }
 
-const QUERY_KEY = ['weekly-menu'] as const;
+export const WEEKLY_MENU_QUERY_KEY = ['weekly-menu'] as const;
+const QUERY_KEY = WEEKLY_MENU_QUERY_KEY;
 
 interface RawEntry {
   id: string;
@@ -59,6 +65,8 @@ interface RawEntry {
   servings: number | null;
   prep_time: number | null;
   cook_time: number | null;
+  version?: number | null;
+  cooked_command_id?: string | null;
 }
 
 interface RawPlanRow {
@@ -87,11 +95,19 @@ function normaliseEntries(rows: RawEntry[] | null | undefined): MenuEntryView[] 
       servings: r.servings ?? 1,
       prep_time: r.prep_time ?? 0,
       cook_time: r.cook_time ?? 0,
+      version: r.version ?? 0,
+      cooked_command_id: r.cooked_command_id ?? null,
     }));
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Erreur inconnue';
+}
+
+/** Rereads the menus on screen; resolves once they are read again. */
+export function useRefreshWeeklyMenu(): () => Promise<void> {
+  const queryClient = useQueryClient();
+  return useCallback(() => queryClient.refetchQueries({ queryKey: QUERY_KEY }), [queryClient]);
 }
 
 export function useWeeklyMenu(weekStart: string) {
@@ -108,13 +124,17 @@ export function useWeeklyMenu(weekStart: string) {
       const { data, error } = await supabase
         .from('weekly_meal_plans')
         .select(
-          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings, prep_time, cook_time)',
+          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings, prep_time, cook_time, version, cooked_command_id)',
         )
         .eq('user_id', userId!)
         .eq('week_start_date', weekStart)
-        .maybeSingle();
+        // A week may hold several plans (E0: 5 for one week). The commands write to the oldest
+        // (private.menu_plan_id: created_at NULLS LAST, id), so the screen reads that one.
+        .order('created_at', { ascending: true, nullsFirst: false })
+        .order('id', { ascending: true })
+        .limit(1);
       if (error) throw error;
-      const plan = data as RawPlanRow | null;
+      const plan = ((data ?? []) as unknown as RawPlanRow[])[0] ?? null;
       return {
         meal_plan_id: plan?.id ?? null,
         week_start_date: weekStart,
@@ -137,8 +157,10 @@ export function useWeeklyMenu(weekStart: string) {
       if (pending && pending.command_type !== 'plan_recipe') throw new Error('La planification précédente reste à vérifier.');
       const recipe = pending ? null : await fetchUnifiedRecipe(input.recipe_id);
       if (!pending && !recipe) throw new Error('Recette introuvable.');
+      // Without base portions, the command would be refused by its schema with a raw message.
+      if (!pending && recipe!.servings == null) throw new Error('Renseigne les portions de cette recette avant de la planifier.');
       const command = pending ?? await commandForIntent('plan_recipe', intent, {
-        recipe: { id: recipe!.id, source: recipe!.source }, servings: recipe!.servings, date, meal_type: input.meal_type,
+        recipe: { id: recipe!.id, source: recipe!.source }, servings: recipe!.servings!, date, meal_type: input.meal_type,
       });
       const result = await executeStockCommand(command);
       await finishIntent(intent);

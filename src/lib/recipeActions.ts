@@ -3,7 +3,8 @@
  * The assistant's handlers invoke the same atomic stock service.
  * buildRecipeActionPrompt remains for old read-only prompt previews.
  */
-import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
+import { commandForIntent, executeStockCommand, finishIntent, getStockCommandResult, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
+import { ApiError } from '@/lib/apiError';
 import { calendarDate, calendarWeekStart, canAddToShoppingList, describeCookPlan, needsPurchase, planCookFromStock, type RecipeReference } from '@smart/shared';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -62,15 +63,30 @@ export function recipeActionToastTitle(action: RecipeAction): string {
 
 export interface CookOutcome { title: string; details: string[]; commandId: string }
 
+/** A planned meal as the menu read it: the cooking is refused if it changed since (MENU_CHANGED). */
+export interface PlannedMealRef { id: string; version: number }
+
+/** One saved intention per planned meal: cooking it twice is refused by the server (ALREADY_COOKED). */
+export function mealCookingIntent(mealId: string): string {
+  return `menu-entry:${mealId}:cooked`;
+}
+
 /**
  * « Cuisinée »: the stock gives what it holds (all of it when it holds less than the
  * recipe) and the rest was cooked outside it. One missing ingredient used to refuse the
  * whole meal (iPhone 2026-11-08). The command id lets the caller offer to undo it.
+ * With `meal`, the same command marks that planned meal as cooked (V11-01 E1).
  */
-export async function cookRecipeWithStock(recipe: ActionableRecipe): Promise<CookOutcome> {
+export async function cookRecipeWithStock(recipe: ActionableRecipe, meal?: PlannedMealRef | null): Promise<CookOutcome> {
   const reference: RecipeReference = { id: recipe.id, source: recipe.source ?? 'auto' };
-  const intent = `recipe:${recipe.id}:cooked`;
+  const intent = meal ? mealCookingIntent(meal.id) : `recipe:${recipe.id}:cooked`;
   let command = await pendingIntent(intent);
+  // A meal is cooked from its card only when the menu shows it uncooked. A saved cooking the server
+  // already confirmed was undone since (elsewhere): replaying it would only return the old receipt.
+  if (command && meal && await wasConfirmed(command.command_id)) {
+    await finishIntent(intent);
+    command = null;
+  }
   let details: string[] = [];
   if (!command) {
     const preview = await previewRecipeStock(reference,recipe.servings ?? undefined);
@@ -79,11 +95,32 @@ export async function cookRecipeWithStock(recipe: ActionableRecipe): Promise<Coo
     command = await commandForIntent('consume_recipe', intent, {
       recipe: reference, servings: preview.servings, recipe_version: preview.recipe.version, outside_inventory: plan.outside_inventory,
       ...(plan.adjustments.length ? { adjustments: plan.adjustments } : {}),
+      ...(meal ? { meal_plan_entry_id: meal.id, entry_version: meal.version } : {}),
     });
   }
   await executeStockCommand(command);
   await finishIntent(intent);
   return { title: recipeActionToastTitle('cooked'), details, commandId: command.command_id };
+}
+
+/** True when the server holds this command's receipt; false when it never received it. */
+async function wasConfirmed(commandId: string): Promise<boolean> {
+  try {
+    await getStockCommandResult(commandId);
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return false;
+    throw error;
+  }
+}
+
+/**
+ * After a meal's cooking is undone, an intention a lost reply left saved for it must not be
+ * replayed by the next « Cuisinée »: the server would answer with the old, undone receipt.
+ */
+export async function forgetMealCooking(mealId: string, commandId: string): Promise<void> {
+  const owner = (await supabase.auth.getSession()).data.session?.user.id;
+  if (owner) await finishIntent(mealCookingIntent(mealId), { owner, commandId });
 }
 
 const PLAN_HORIZON_DAYS = 14;

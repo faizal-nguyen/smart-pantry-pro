@@ -42,6 +42,10 @@ jest.mock('@/services/cookingSessions', () => ({ startCookingSession: jest.fn(as
 jest.mock('@/lib/recipeActions', () => ({ fireRecipeAssistantAction: jest.fn() }));
 jest.mock('@/lib/api', () => ({ ApiError: class extends Error { status:number; constructor(message:string,options:{ status:number }){ super(message);this.status=options.status; } } }));
 jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
+let mockMeal: { data?: unknown; isLoading: boolean; isError: boolean } = { isLoading: false, isError: false };
+const mockMealRefetch = jest.fn();
+jest.mock('@/hooks/usePlannedMeal', () => ({ ...jest.requireActual('@/hooks/usePlannedMeal'),
+  usePlannedMeal: (_owner: string, id: string | null) => ({ ...(id ? mockMeal : { isLoading: false, isError: false }), refetch: mockMealRefetch }) }));
 jest.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: mockOwner } } } }) },
   from: () => ({ insert: async () => ({ error: null }) }) } }));
 
@@ -49,7 +53,7 @@ function NextLink() { const navigate = useNavigate(); return <button onClick={()
 function show() { return render(<MemoryRouter initialEntries={[`/kitchen/recipes/${ID}?source=user_recipes&servings=2`]}><NextLink /><Routes>
   <Route path="/kitchen/recipes/:id" element={<RecipeDetail />} /><Route path="/kitchen/cooking/:id" element={<p>Session ouverte</p>} />
 </Routes></MemoryRouter>); }
-beforeEach(() => { jest.clearAllMocks(); mockOwner = OWNER; mockBase = 4; mockFailure = null; mockDetailFailure = null; mockSavedNutrition=undefined; });
+beforeEach(() => { jest.clearAllMocks(); mockOwner = OWNER; mockBase = 4; mockFailure = null; mockDetailFailure = null; mockSavedNutrition=undefined; mockMeal = { isLoading: false, isError: false }; });
 
 test('the common evidence, selected portions and typed cooking reference appear together; no heuristic badge', async () => {
   show();
@@ -68,7 +72,7 @@ test('the common evidence, selected portions and typed cooking reference appear 
   expect(useRecipeEvaluation).toHaveBeenLastCalledWith({ id: ID, source: 'user_recipes' }, 8, expect.any(String), ID);
   expect(screen.getByText(/200 g Riz/)).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Commencer cette recette' }));
-  await waitFor(() => expect(startCookingSession).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 8));
+  await waitFor(() => expect(startCookingSession).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 8, undefined));
 });
 test('a failed verification hides previous promises and offers retry while keeping ingredients and instructions', () => {
   mockFailure = new Error('Connexion interrompue.'); show();
@@ -113,4 +117,56 @@ test('a validated recipe snapshot stays visible when stock/profile evaluation is
  show();expect(screen.getByText('240 kcal')).toBeVisible();
  expect(screen.queryByText('L’estimation nutritionnelle n’a pas pu être relue.')).not.toBeInTheDocument();
  expect(screen.getByText('Profil indisponible.')).toBeVisible();
+});
+
+// V11-01 E1: opened from a planned meal (`?meal=`), confirming the cooking marks the meal as cooked.
+const MEAL = '60000000-0000-4000-8000-000000000001';
+function showFromMeal(meal = MEAL) { return render(<MemoryRouter initialEntries={[`/kitchen/recipes/${ID}?source=user_recipes&servings=2&meal=${meal}`]}><Routes>
+  <Route path="/kitchen/recipes/:id" element={<RecipeDetail />} /><Route path="/kitchen/cooking/:id" element={<p>Session ouverte</p>} />
+</Routes></MemoryRouter>); }
+const cook = () => fireEvent.click(screen.getByRole('button', { name: 'Commencer cette recette' }));
+
+test('opened from a planned meal, the cooking session carries the meal as the menu reads it', async () => {
+  mockMeal = { data: { id: MEAL, version: 3, cooked: false, recipe_id: ID }, isLoading: false, isError: false };
+  showFromMeal();
+  expect(screen.getByText('Repas du menu : il sera marqué cuisiné quand tu confirmeras la fin de la cuisine.')).toBeVisible();
+  cook();
+  await waitFor(() => expect(startCookingSession).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 2, { id: MEAL, version: 3 }));
+});
+// null, not undefined: a session still linked to that meal drops the link the server keeps refusing.
+test('a meal already cooked, or now planning another recipe, is not linked and says so', async () => {
+  mockMeal = { data: { id: MEAL, version: 3, cooked: true, recipe_id: ID }, isLoading: false, isError: false };
+  const view = showFromMeal();
+  expect(screen.getByText('Ce repas du menu est déjà marqué cuisiné. Cuisiner à nouveau retirera le stock sans changer le menu.')).toBeVisible();
+  cook();
+  await waitFor(() => expect(startCookingSession).toHaveBeenLastCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 2, null));
+  view.unmount();
+  mockMeal = { data: { id: MEAL, version: 4, cooked: false, recipe_id: NEXT }, isLoading: false, isError: false };
+  showFromMeal();
+  expect(screen.getByText('Ce repas n’est plus au menu avec cette recette : la cuisine ne changera pas le menu.')).toBeVisible();
+  cook();
+  await waitFor(() => expect(startCookingSession).toHaveBeenLastCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 2, null));
+});
+test('until the meal is read, cooking waits; a failed read offers to read it again', () => {
+  mockMeal = { isLoading: true, isError: false };
+  const view = showFromMeal();
+  expect(screen.getByRole('button', { name: 'Commencer cette recette' })).toBeDisabled();
+  view.unmount();
+  // A cached meal being read again may have been cooked since: not trusted until read.
+  mockMeal = { data: { id: MEAL, version: 3, cooked: false, recipe_id: ID }, isLoading: false, isFetching: true, isError: false } as typeof mockMeal;
+  const cached = showFromMeal();
+  expect(screen.getByRole('button', { name: 'Commencer cette recette' })).toBeDisabled();
+  cached.unmount();
+  mockMeal = { isLoading: false, isError: true };
+  showFromMeal();
+  expect(screen.getByRole('button', { name: 'Commencer cette recette' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Relire le repas' }));
+  expect(mockMealRefetch).toHaveBeenCalled();
+  expect(startCookingSession).not.toHaveBeenCalled();
+});
+test('a malformed meal parameter is ignored, as when the recipe is opened from the library', async () => {
+  showFromMeal('pas-un-repas');
+  expect(screen.queryByText(/Repas du menu|repas du menu|plus au menu/)).not.toBeInTheDocument();
+  cook();
+  await waitFor(() => expect(startCookingSession).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 2, undefined));
 });

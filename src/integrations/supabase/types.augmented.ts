@@ -132,6 +132,10 @@ interface MealPlanEntriesRow {
   preparation_tips: Json;
   confidence: number;
   created_at: string;
+  /** V11-01 E1 (20261124090000): what the meal plans changed this many times; written by its trigger. */
+  version: number;
+  /** The consume_recipe command that cooked this meal; written and cleared by the stock commands only. */
+  cooked_command_id: string | null;
 }
 
 type MealPlanEntriesInsert = {

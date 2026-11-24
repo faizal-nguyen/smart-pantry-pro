@@ -7,7 +7,7 @@ jest.mock('../MenuEntryCard', () => ({ __esModule: true, default: ({ entry }: { 
 
 const entry = (day_of_week: number, recipe_name: string): MenuEntryView => ({
   id: `entry-${day_of_week}`, day_of_week, meal_type: 'dinner', recipe_id: null,
-  recipe_name, servings: 2, prep_time: 10, cook_time: 20,
+  recipe_name, servings: 2, prep_time: 10, cook_time: 20, version: 0, cooked_command_id: null,
 });
 
 const renderGrid = (entries: MenuEntryView[], onAddSlot = jest.fn()) => {
