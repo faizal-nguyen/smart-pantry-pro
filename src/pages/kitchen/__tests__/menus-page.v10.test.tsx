@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import MenusPage from '../MenusPage';
 import { useWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 import type { MenuCardActions } from '@/components/meal-planning/MenuEntryCard';
+import { downloadTextFile } from '@/lib/downloadFile';
 
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthenticatedUser: () => ({ id: 'owner' }) }));
 jest.mock('@/hooks/useCalendarNow', () => ({ useCalendarNow: () => new Date('2026-11-24T12:00:00Z') }));
@@ -13,8 +14,9 @@ let weekEntries: Record<string, MenuEntryView[]> = {};
 jest.mock('@/hooks/useWeeklyMenu', () => ({ useWeeklyMenu: jest.fn((week: string) => ({ data: { meal_plan_id: 'plan', week_start_date: week, entries: weekEntries[week] ?? [meal] }, isLoading: false, isError: false,
   refetch: jest.fn(), addEntry: { mutateAsync: jest.fn(), isPending: false } })) }));
 const edit = { busyId: null as string | null, lastChange: null as null | { commandId: string; message: string; undone: boolean }, error: null as string | null,
-  setServings: jest.fn(async () => true), move: jest.fn(async () => true), addLeftover: jest.fn(async () => true), remove: jest.fn(async () => true), undoLast: jest.fn(async () => true), dismiss: jest.fn(), clearError: jest.fn() };
+  setServings: jest.fn(async () => true), move: jest.fn(async () => true), addLeftover: jest.fn(async () => true), remove: jest.fn(async () => true), copyWeek: jest.fn(async () => true), undoLast: jest.fn(async () => true), dismiss: jest.fn(), clearError: jest.fn() };
 jest.mock('@/hooks/useMenuEdit', () => ({ useMenuEdit: jest.fn(() => edit) }));
+jest.mock('@/lib/downloadFile', () => ({ downloadTextFile: jest.fn() }));
 let gridActions: MenuCardActions | null = null;
 jest.mock('@/components/meal-planning/MenuWeekGrid', () => ({ __esModule: true, default: (props: { actions: MenuCardActions }) => { gridActions = props.actions; return null; } }));
 jest.mock('@/components/meal-planning/AddRecipeToMenuDialog', () => ({ __esModule: true, default: () => null }));
@@ -158,4 +160,56 @@ test('after « Annuler », focus goes to « Fermer » rather than being lost', a
   await waitFor(() => expect(edit.undoLast).toHaveBeenCalled());
   rerender(page());
   await waitFor(() => expect(screen.getByRole('button', { name: 'Fermer le message' })).toHaveFocus());
+});
+
+// V11-01 E3c: copy the week and add it to a calendar.
+test('the week’s tools appear only when the week has meals', () => {
+  weekEntries = { '2026-11-30': [] };
+  show('/kitchen/meal-planning?week=2026-11-30');
+  expect(screen.queryByRole('button', { name: 'Copier vers…' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Ajouter au calendrier' })).not.toBeInTheDocument();
+});
+
+test('a confirmed copy opens the week it went to, where « Annuler » can take it back', async () => {
+  weekEntries = { '2026-11-30': [meal], '2026-12-07': [] };
+  show('/kitchen/meal-planning?week=2026-11-30');
+  fireEvent.click(screen.getByRole('button', { name: 'Copier vers…' }));
+  expect(edit.clearError).toHaveBeenCalled();
+  fireEvent.click(await screen.findByRole('button', { name: 'Copier 1 repas' }));
+  await waitFor(() => expect(edit.copyWeek).toHaveBeenCalledWith('2026-12-07', expect.objectContaining({ copied: 1 })));
+  await waitFor(() => expect(screen.getByLabelText('Adresse')).toHaveTextContent('week=2026-12-07'));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+});
+
+test('a refused copy stays on the week shown, its dialog open with the reason', async () => {
+  weekEntries = { '2026-11-30': [meal], '2026-12-07': [] };
+  edit.copyWeek.mockImplementationOnce(async () => { edit.error = 'La semaine choisie a changé entre-temps : la copie a été recalculée. Vérifie-la, puis recommence.'; return false; });
+  const { rerender } = render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'Copier vers…' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Copier 1 repas' }));
+  await waitFor(() => expect(edit.copyWeek).toHaveBeenCalled());
+  rerender(page());
+  expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('La semaine choisie a changé');
+  expect(useWeeklyMenu).toHaveBeenCalledWith('2026-11-30');
+});
+
+test('« Ajouter au calendrier » hands the week to the browser as an .ics file, and says what to do with it', async () => {
+  weekEntries = { '2026-11-30': [meal] };
+  show('/kitchen/meal-planning?week=2026-11-30');
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter au calendrier' }));
+  expect(downloadTextFile).toHaveBeenCalledWith('menus-semaine-2026-11-30.ics', expect.stringContaining('SUMMARY:Dîner : Repas du mercredi'), 'text/calendar');
+  expect(await screen.findByText('Fichier « menus-semaine-2026-11-30.ics » prêt : ouvre-le pour ajouter 1 repas à ton calendrier.')).toBeInTheDocument();
+});
+
+test('a second export is announced again: the note is emptied, then written', async () => {
+  jest.useFakeTimers();
+  weekEntries = { '2026-11-30': [meal] };
+  show('/kitchen/meal-planning?week=2026-11-30');
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter au calendrier' }));
+  act(() => { jest.runAllTimers(); });
+  fireEvent.click(screen.getByRole('button', { name: 'Ajouter au calendrier' }));
+  expect(screen.queryByText(/^Fichier « menus-semaine/)).not.toBeInTheDocument();
+  act(() => { jest.runAllTimers(); });
+  expect(screen.getByText(/^Fichier « menus-semaine/)).toBeInTheDocument();
+  jest.useRealTimers();
 });

@@ -13,7 +13,7 @@
  */
 import { Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2, ShoppingBasket, X } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Copy, MessageSquarePlus, Loader2, ShoppingBasket, X } from 'lucide-react';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
 import { currentMenuWeek, menuWeekFromParam, menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
@@ -26,6 +26,10 @@ import { useMenuEdit } from '@/hooks/useMenuEdit';
 import MenuWeekGrid from '@/components/meal-planning/MenuWeekGrid';
 import MoveMealDialog from '@/components/meal-planning/MoveMealDialog';
 import LeftoverDialog from '@/components/meal-planning/LeftoverDialog';
+import CopyWeekDialog from '@/components/meal-planning/CopyWeekDialog';
+import { menuCalendar, menuCalendarFileName } from '@/lib/menuCalendar';
+import type { WeekCopyPlan } from '@/lib/menuCopy';
+import { downloadTextFile } from '@/lib/downloadFile';
 import type { MenuCardActions } from '@/components/meal-planning/MenuEntryCard';
 import AddRecipeToMenuDialog, {
   type MenuSlot,
@@ -60,9 +64,12 @@ export default function MenusPage() {
   const focusUndoOnClose = useRef(false);
   const dialogOpener = useRef<HTMLElement | null>(null);
   useEffect(() => { if (focusUndo) undoButton.current?.focus(); }, [focusUndo]);
-  const fromCard = (open: (entry: MenuEntryView) => void) => (entry: MenuEntryView) => {
+  const beforeDialog = () => {
     dialogOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     edit.clearError();
+  };
+  const fromCard = (open: (entry: MenuEntryView) => void) => (entry: MenuEntryView) => {
+    beforeDialog();
     open(entry);
   };
   const afterDialog = (event: Event) => {
@@ -115,6 +122,35 @@ export default function MenusPage() {
   const leftoverEntry = leftoverOf ? entries.find(item => item.id === leftoverOf.id) ?? null : null;
   useEffect(() => { if (moving && !movingEntry) setMoving(null); }, [moving, movingEntry]);
   useEffect(() => { if (leftoverOf && !leftoverEntry) setLeftoverOf(null); }, [leftoverOf, leftoverEntry]);
+  // V11-01 E3c: the shown week copied to another; the dialog belongs to the week it was opened on.
+  const [copyFrom, setCopyFrom] = useState<string | null>(null);
+  useEffect(() => { if (copyFrom && copyFrom !== weekStart) setCopyFrom(null); }, [copyFrom, weekStart]);
+  const copyTo = async (targetWeek: string, plan: WeekCopyPlan) => {
+    const done = await edit.copyWeek(targetWeek, plan);
+    focusUndoOnClose.current = done;
+    // The copy is shown where it went, with « Annuler ».
+    if (done) setWeekStart(targetWeek);
+    return done;
+  };
+  // V11-01 E3c (D9): the week as an .ics file, made here; the note says what to do with it.
+  const [calendarNote, setCalendarNote] = useState<{ week: string; text: string } | null>(null);
+  const exportCalendar = () => {
+    const fileName = menuCalendarFileName(weekStart);
+    let text: string;
+    try {
+      downloadTextFile(fileName, menuCalendar(weekStart, entries, new Date()), 'text/calendar');
+      text = `Fichier « ${fileName} » prêt : ouvre-le pour ajouter ${entries.length} repas à ton calendrier.`;
+    } catch {
+      text = 'Le fichier du calendrier n’a pas pu être préparé sur cet appareil.';
+    }
+    // Emptied, then written: the same words twice are announced twice.
+    setCalendarNote(null);
+    window.setTimeout(() => setCalendarNote({ week: weekStart, text }), 0);
+  };
+  const note = calendarNote?.week === weekStart ? calendarNote.text : '';
+  // On a phone the note can fall behind the fixed notice: brought into view, above it (scroll-margin).
+  const noteRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (calendarNote) noteRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [calendarNote]);
   // V11-01 E3b: the card's edits, confirmed by update_menu and offered for undo.
   const actions: MenuCardActions = {
     entries, busyId: edit.busyId,
@@ -180,6 +216,18 @@ export default function MenusPage() {
           </Button>
         </div>
 
+        {entries.length > 0 && <div className="kitchen-week-tools">
+          <Button type="button" variant="outline" className="min-h-11 gap-2" aria-disabled={!!edit.busyId}
+            onClick={() => { if (!edit.busyId) { beforeDialog(); setCopyFrom(weekStart); } }}>
+            <Copy className="h-4 w-4" aria-hidden="true" />Copier vers…
+          </Button>
+          <Button type="button" variant="outline" className="min-h-11 gap-2" onClick={exportCalendar}>
+            <CalendarPlus className="h-4 w-4" aria-hidden="true" />Ajouter au calendrier
+          </Button>
+          {/* Always mounted, so that the file's note is announced. */}
+          <p ref={noteRef} role="status" className={note ? 'kitchen-week-tools-note' : 'sr-only'}>{note}</p>
+        </div>}
+
         {/* Grid + empty / loading / error states */}
         {menu.isLoading ? (
           <Card>
@@ -216,6 +264,8 @@ export default function MenusPage() {
 
         {movingEntry && <MoveMealDialog key={movingEntry.id} entry={movingEntry} entries={entries} busy={!!edit.busyId} error={edit.error}
           onClose={() => setMoving(null)} onCloseAutoFocus={afterDialog} onConfirm={(target, occupant) => confirmed(edit.move(movingEntry, weekStart, target, occupant))} />}
+        {copyFrom === weekStart && <CopyWeekDialog key={weekStart} sourceWeek={weekStart} entries={entries} busy={!!edit.busyId} error={edit.error}
+          onClose={() => setCopyFrom(null)} onCloseAutoFocus={afterDialog} onConfirm={copyTo} />}
         {leftoverEntry && <LeftoverDialog key={leftoverEntry.id} entry={leftoverEntry} entries={entries} busy={!!edit.busyId} error={edit.error}
           onClose={() => setLeftoverOf(null)} onCloseAutoFocus={afterDialog} onConfirm={(target, servings) => confirmed(edit.addLeftover(leftoverEntry, weekStart, target, servings))} />}
 

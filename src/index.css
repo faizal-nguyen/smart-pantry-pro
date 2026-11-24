@@ -891,6 +891,10 @@
   .kitchen-menu-notice-close { position:absolute; right:4px; bottom:4px; }
   @keyframes kitchen-notice-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
   @media (prefers-reduced-motion:reduce) { .kitchen-menu-notice { animation:none; } }
+  /* V11-01 E3c: the week's tools under its navigator, and the copy's conflicts. */
+  .kitchen-week-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+  .kitchen-week-tools-note { @apply text-muted-foreground; flex-basis:100%; font-size:.875rem; scroll-margin-block:80px calc(var(--mobile-nav-total-height,72px) + 140px); }
+  .kitchen-copy-conflicts { display:grid; gap:6px; padding-left:1.1rem; list-style:disc; font-size:.875rem; overflow-wrap:anywhere; }
   .kitchen-move-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr)); gap:8px; min-width:0; }
   .kitchen-move-choices > legend { margin-bottom:8px; }
   .kitchen-move-choice { @apply bg-card; display:flex; align-items:center; gap:10px; min-height:44px; padding:8px 12px; border:1px solid oklch(var(--border)); border-radius:10px; font-size:.9rem; cursor:pointer; transition:border-color var(--duration-fast,150ms) ease, background-color var(--duration-fast,150ms) ease; }

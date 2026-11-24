@@ -223,6 +223,33 @@ def tests() -> None:
         assert at(rest_day, "dinner")["recipe_name"].startswith("Reste : R")
     check("a leftover stays within its account and names a meal; malformed operations are refused", leftovers_stay_within_the_account_and_input_is_checked)
 
+    def a_week_copy_is_one_command_and_one_undo():
+        # V11-01 E3c: the screen copies a week as several set in one update_menu, with one undo.
+        copy = base + datetime.timedelta(days=63)  # a week no other scenario uses
+        cmon, ctue, cwed = (copy + datetime.timedelta(days=offset) for offset in range(3))
+        planned = put(cmon)
+        edit({"op": "leftover", "entry_id": planned["id"], "expected_version": planned["version"], "date": ctue.isoformat(),
+              "meal_type": "lunch", "servings": 2})
+        planned, rest = at(cmon, "dinner"), at(ctue, "lunch")
+        def setting(day: datetime.date, meal: str, servings: int, expected: int | None) -> dict:
+            return {"op": "set", "date": day.isoformat(), "meal_type": meal, "recipe": {"id": RECIPE, "source": "auto"},
+                    "servings": servings, "expected_version": expected}
+        # The replaced meal takes its leftover first, so the copy finds the leftover's slot empty.
+        copied = edit(setting(cmon, "dinner", 2, planned["version"]), setting(ctue, "lunch", 3, None), setting(cwed, "dinner", 4, None))
+        equal(sorted(row["id"] for row in copied["menu_edit"]["removed"]), sorted([planned["id"], rest["id"]]))
+        equal([at(cmon, "dinner")["servings"], at(ctue, "lunch")["leftover_of"], at(cwed, "dinner")["servings"]], [2, None, 4])
+        assert at(cmon, "dinner")["id"] != planned["id"]
+        undo(copied)
+        meal, leftover = at(cmon, "dinner"), at(ctue, "lunch")
+        equal([meal["id"], leftover["id"], leftover["leftover_of"]], [planned["id"], rest["id"], planned["id"]])
+        assert at(cwed, "dinner") is None, "the undo takes the copies back"
+        # A meal cooked in the target refuses the whole copy: nothing is written.
+        run("UPDATE meal_plan_entries SET cooked_command_id=gen_random_uuid() WHERE id=" + literal(planned["id"]) + ";")
+        edit(setting(cwed, "dinner", 4, None), setting(cmon, "dinner", 2, at(cmon, "dinner")["version"]), error="MEAL_COOKED")
+        assert at(cwed, "dinner") is None and at(cmon, "dinner")["id"] == planned["id"]
+        run("UPDATE meal_plan_entries SET cooked_command_id=NULL WHERE id=" + literal(planned["id"]) + ";")
+    check("a week copy is several set in one command: a replaced meal's leftover goes, one undo restores all", a_week_copy_is_one_command_and_one_undo)
+
     def duplicate_plans_are_resumed_once():
         # The migration found duplicates once; drop the index and recreate some to replay it.
         run("DROP INDEX IF EXISTS weekly_meal_plans_user_week_key;")
