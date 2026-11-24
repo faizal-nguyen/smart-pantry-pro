@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { Link } from 'react-router-dom';
-import { Plus, Pencil, MoreHorizontal } from 'lucide-react';
+import { Plus, Pencil, MoreHorizontal, CalendarDays } from 'lucide-react';
 import { useShoppingList, type ShoppingItem } from '@/hooks/useShoppingList';
 import { formatShoppingQuantity } from '@/lib/shoppingChanges';
 import { normalizeIngredientName } from '@smart/shared';
@@ -52,14 +52,14 @@ export default function SmartShoppingList() {
   const groups = [ { title:'À acheter',items:shopping.shoppingList.filter(item => !item.is_purchased && matches(item)) },{ title:'Achetés, à ranger',items:shopping.shoppingList.filter(item => item.is_purchased && matches(item)) } ];
   const bought = shopping.getPurchasedCount();
   return <div className={`culinary-page kitchen-page kitchen-shopping-page ${bought>0 || shopping.pendingTransfer ? 'has-purchases':''}`}>
-    <KitchenPageHeader title="Mes courses" description="Ta liste, du premier achat jusqu’au rangement." actions={<Dialog open={adding} onOpenChange={value=>{ if (!busy) setAdding(value); }}><DialogTrigger asChild><Button className="min-h-11 shrink-0"><Plus aria-hidden="true" className="h-4 w-4 mr-1" />Ajouter</Button></DialogTrigger><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Ajouter aux courses</DialogTitle><DialogDescription>Commence par le nom. La quantité et l’unité seront confirmées avant l’ajout.</DialogDescription></DialogHeader>
+    <KitchenPageHeader title="Mes courses" description="Ta liste, du premier achat jusqu’au rangement." actions={<><Button asChild variant="outline" className="min-h-11 shrink-0"><Link to="/shopping/week"><CalendarDays aria-hidden="true" className="h-4 w-4 mr-1" />Courses du menu</Link></Button><Dialog open={adding} onOpenChange={value=>{ if (!busy) setAdding(value); }}><DialogTrigger asChild><Button className="min-h-11 shrink-0"><Plus aria-hidden="true" className="h-4 w-4 mr-1" />Ajouter</Button></DialogTrigger><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>Ajouter aux courses</DialogTitle><DialogDescription>Commence par le nom. La quantité et l’unité seront confirmées avant l’ajout.</DialogDescription></DialogHeader>
         <form className="space-y-4" onSubmit={e=>{ e.preventDefault(); if (!quantityOpen) { setQuantityOpen(true);return; } void run('add',add); }}>
           <label className="block text-sm space-y-1">Ajouter un produit<Input className="h-11" value={form.name} onChange={e=>patch({ name:e.target.value })} placeholder="Nom du produit" disabled={!!busy} /></label>
           {quantityOpen ? <div className="grid grid-cols-2 items-start gap-3"><label className="text-sm space-y-1">Quantité<Input autoFocus className="h-11" inputMode="decimal" value={form.quantity} onChange={e=>patch({ quantity:e.target.value })} placeholder="Quantité" disabled={!!busy} /></label><UnitSelect id="shopping-add-unit" label="Unité" value={unit} disabled={!!busy} onChange={value=>patch({ unit:value,unitChosen:true })} hint={proposedUnit ? 'Unité de la ligne déjà prévue : la quantité s’y ajoutera.' : undefined} /></div> : form.quantity && <p className="text-sm">Saisie conservée : {form.quantity} {unit}.</p>}
           {(error || storageError) && <p role="alert" className="text-sm text-destructive">{error || storageError}</p>}
           <div className="routine-dialog-footer"><Button type="submit" disabled={!!busy || !!storageError || !form.name.trim()} className="min-h-11 w-full">{busy==='add' ? 'Ajout en cours…' : quantityOpen ? 'Ajouter aux courses' : 'Préciser la quantité'}</Button></div>
         </form>
-      </DialogContent></Dialog>}/>
+      </DialogContent></Dialog></>}/>
     {(error || shopping.error || storageError) && <div role="alert" className="rounded-lg border border-destructive p-3 space-y-2"><p>{error || shopping.error || storageError}</p><Button variant="outline" className="min-h-11" onClick={() => void run('reload',shopping.refetch)}>Actualiser les courses</Button></div>}
     {change && <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border p-3"><p className="min-w-0 flex-1">{change.message}</p><Button className="min-h-11" variant="outline" disabled={!!busy} aria-label={`Annuler : ${change.message}`} onClick={() => void run('undo',undo)}>{busy==='undo' ? 'Annulation en cours…' : 'Annuler'}</Button></div>}
     {message && <p role="status">{message} <Link className="inline-flex min-h-11 items-center underline" to="/pantry/inventory">Voir le stock</Link></p>}

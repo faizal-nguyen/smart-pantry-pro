@@ -80,3 +80,8 @@ test('checking a purchase sends its explicit state; a pending transfer freezes e
   expect(screen.getByRole('checkbox',{ name:'Marquer acheté : Farine' })).toBeDisabled();
   await waitFor(()=>expect(screen.getByRole('button',{ name:'Vérifier le rangement' })).toBeEnabled());
 });
+// V11-01 E2: the list leads to what the week's menu needs.
+test('the list leads to the week’s shopping from the menu',()=>{
+  render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
+  expect(screen.getByRole('link',{ name:'Courses du menu' })).toHaveAttribute('href','/shopping/week');
+});

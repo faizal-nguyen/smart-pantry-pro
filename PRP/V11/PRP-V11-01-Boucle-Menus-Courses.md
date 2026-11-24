@@ -1,6 +1,6 @@
 # PRP V11-01 — Fermer la boucle menus → courses → rangement
 
-> Statut : décisions D1 à D14 validées le 23 novembre 2026 (D3, D8, D10 et D14 choisies explicitement par l'utilisateur) ; E0 réalisée ([référence](../../docs/implementations/V11-01-E0.md)) ; E1a, soit la base, le contrat partagé et l'aperçu, réalisée et en production le 24 novembre 2026 ([compte rendu](../../docs/implementations/V11-01-E1.md)) ; E1b, la cuisson rattachée au repas côté client, réalisée le 24 novembre 2026 ([compte rendu](../../docs/implementations/V11-01-E1b.md)).
+> Statut : décisions D1 à D14 validées le 23 novembre 2026 (D3, D8, D10 et D14 choisies explicitement par l'utilisateur) ; E0 réalisée ([référence](../../docs/implementations/V11-01-E0.md)) ; E1a, soit la base, le contrat partagé et l'aperçu, réalisée et en production le 24 novembre 2026 ([compte rendu](../../docs/implementations/V11-01-E1.md)) ; E1b, la cuisson rattachée au repas côté client, réalisée le 24 novembre 2026 ([compte rendu](../../docs/implementations/V11-01-E1b.md)) ; E2, l'écran « Courses de la semaine », réalisée le 24 novembre 2026 ([compte rendu](../../docs/implementations/V11-01-E2.md)).
 > Date : 2026-11-22.
 > Relecture : Codex, 22 novembre 2026 ; constats vérifiés dans le code et intégrés.
 > Priorité : P0 pour les courses de la semaine (E1–E2) ; P1 pour l'édition du menu, la semaine proposée et le ticket de caisse.

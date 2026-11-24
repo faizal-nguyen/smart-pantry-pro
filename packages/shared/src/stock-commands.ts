@@ -33,9 +33,12 @@ export const SHOPPING_COMMANDS_CAPABILITY = 4;
 export const MENU_COMMANDS_CAPABILITY = 5;
 
 const shoppingRow = { id: z.string().uuid(), expected_version: version };
-const shoppingName = z.string().trim().min(1).max(120);
+/** The longest product name and unit a list command accepts. */
+export const SHOPPING_NAME_MAX_LENGTH = 120;
+export const SHOPPING_UNIT_MAX_LENGTH = 40;
+const shoppingName = z.string().trim().min(1).max(SHOPPING_NAME_MAX_LENGTH);
 const shoppingCategory = z.string().trim().min(1).max(60);
-const shoppingUnit = z.string().trim().min(1).max(40);
+const shoppingUnit = z.string().trim().min(1).max(SHOPPING_UNIT_MAX_LENGTH);
 const shoppingSection = z.string().trim().max(60).nullable();
 const UPDATABLE = ['name', 'quantity', 'unit', 'estimated_price', 'store_section'] as const;
 const shoppingAddItem = z.object({
