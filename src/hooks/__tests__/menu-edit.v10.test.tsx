@@ -13,6 +13,7 @@ jest.mock('../useWeeklyMenu', () => ({ useRefreshWeeklyMenu: () => refresh }));
 jest.mock('@/services/stockCommands', () => ({ undoStockCommand: jest.fn(async () => ({ status: 'undone' })) }));
 jest.mock('@/services/menuCommands', () => ({
   menuEditIntent: (operation: { op: string; entry_id: string; expected_version: number }) => `menu-edit:${operation.entry_id}:${operation.op}:${operation.expected_version}`,
+  menuCopyIntent: (week: string, operations: unknown[]) => `menu-edit:copy:${week}:${operations.length}`,
   updateMenu: jest.fn(),
   resumePendingMenuEdits: jest.fn(async () => ({ confirmed: [], refused: 0, failures: [] })),
 }));
@@ -162,4 +163,35 @@ test('opening a dialog clears an old refusal, and keeps the notice', async () =>
   act(() => result.current.clearError());
   expect(result.current.error).toBeNull();
   expect(result.current.lastChange).not.toBeNull();
+});
+
+// V11-01 E3c: a week copy, one command, offered for undo like the other edits.
+const copyPlan = { operations: [{ op: 'set' as const, date: '2026-12-07', meal_type: 'dinner' as const, recipe: { id: 'dish', source: 'auto' as const }, servings: 4, expected_version: null }],
+  copied: 1, conflicts: [], kept: 0, skippedLeftovers: 0, skippedWithoutRecipe: 0 };
+
+test('a week copy sends its operations in one command and says where the meals went', async () => {
+  // Into empty slots: the receipt removes nothing.
+  jest.mocked(updateMenu).mockResolvedValueOnce(confirmed(0) as never);
+  const { result } = await mounted();
+  await act(async () => { await expect(result.current.copyWeek('2026-12-07', copyPlan)).resolves.toBe(true); });
+  expect(updateMenu).toHaveBeenCalledWith('menu-edit:copy:2026-12-07:1', copyPlan.operations);
+  expect(result.current.lastChange).toEqual({ commandId: 'command-1', message: '1 repas copié vers la semaine du 7 → 13 déc.', undone: false });
+  // What the replacing removed is said from the receipt, a leftover in another week included.
+  jest.mocked(updateMenu).mockResolvedValueOnce({ ...confirmed(), menu_edit: { before: [], after: [], removed: [{ id: 'old' }, { id: 'rest', leftover_of: 'old' }] } } as never);
+  await act(async () => { await result.current.copyWeek('2026-12-07', copyPlan); });
+  expect(result.current.lastChange?.message).toBe('1 repas copié vers la semaine du 7 → 13 déc. 1 repas remplacé, 1 reste retiré.');
+  expect(refresh).toHaveBeenCalled();
+  // Nothing to copy: nothing is sent.
+  await act(async () => { await expect(result.current.copyWeek('2026-12-07', { ...copyPlan, operations: [], copied: 0 })).resolves.toBe(false); });
+  expect(updateMenu).toHaveBeenCalledTimes(2);
+});
+
+test('a copy refused because the target week changed says so, once the week is reread', async () => {
+  const { result } = await mounted();
+  for (const code of ['MENU_CHANGED', 'MEAL_COOKED']) {
+    jest.mocked(updateMenu).mockRejectedValueOnce(new ApiError('changé', { status: 409, code }));
+    await act(async () => { await expect(result.current.copyWeek('2026-12-07', copyPlan)).resolves.toBe(false); });
+    expect(result.current.error).toBe('La semaine choisie a changé entre-temps : la copie a été recalculée. Vérifie-la, puis recommence.');
+  }
+  expect(refresh).toHaveBeenCalledTimes(2);
 });

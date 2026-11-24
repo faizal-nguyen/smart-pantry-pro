@@ -1,5 +1,5 @@
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntents } from '../stockCommands';
-import { menuEditIntent, resumePendingMenuEdits, updateMenu } from '../menuCommands';
+import { menuCopyIntent, menuEditIntent, resumePendingMenuEdits, updateMenu } from '../menuCommands';
 
 jest.mock('@/lib/api', () => ({ ApiError: class extends Error {
   status: number; code?: string;
@@ -47,4 +47,15 @@ test('a resumed edit the menu no longer allows is counted as refused, and its ge
   jest.mocked(pendingIntents).mockResolvedValueOnce([{ intent: 'menu-edit:x', command: { command_id: 'c', command_type: 'update_menu', payload_version: 1, payload: { operations: remove } } as never }]);
   jest.mocked(executeStockCommand).mockRejectedValueOnce(new ApiError('changé', { status: 409, code: 'MENU_CHANGED' }));
   await expect(resumePendingMenuEdits()).resolves.toMatchObject({ confirmed: [], refused: 1, failures: [] });
+});
+
+// V11-01 E3c: a copy is one gesture per target week and per operations (their versions included).
+test('a week copy is the same gesture for the same operations, another one otherwise', () => {
+  const operations = [{ op: 'set' as const, date: '2026-12-07', meal_type: 'dinner' as const, recipe: { id: MEAL, source: 'auto' as const }, servings: 4, expected_version: null }];
+  const intent = menuCopyIntent('2026-12-07', operations);
+  expect(intent).toMatch(/^menu-edit:copy:2026-12-07:[0-9a-f]{8}$/);
+  expect(menuCopyIntent('2026-12-07', JSON.parse(JSON.stringify(operations)))).toBe(intent);
+  expect(menuCopyIntent('2026-12-07', [{ ...operations[0], servings: 2 }])).not.toBe(intent);
+  expect(menuCopyIntent('2026-12-07', [{ ...operations[0], expected_version: 3 }])).not.toBe(intent);
+  expect(menuCopyIntent('2026-12-14', operations)).not.toBe(intent);
 });

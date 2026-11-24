@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRefreshWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
-import { changeMessage, menuRefusal, slotDate, undoRefusal, type MenuChange, type MenuSlotRef } from '@/lib/menuEdit';
-import { menuEditIntent, resumePendingMenuEdits, updateMenu, type MenuEntryOperation } from '@/services/menuCommands';
+import { changeMessage, copyRefusal, menuRefusal, slotDate, undoRefusal, type MenuChange, type MenuSlotRef } from '@/lib/menuEdit';
+import { copyMessage, type WeekCopyPlan } from '@/lib/menuCopy';
+import { menuCopyIntent, menuEditIntent, resumePendingMenuEdits, updateMenu, type MenuEntryOperation } from '@/services/menuCommands';
 import { isRolledBackRefusal } from '@/services/stockCommandRefusal';
 import { undoStockCommand } from '@/services/stockCommands';
 
@@ -12,6 +13,8 @@ const RESUME_DONE = 'Une modification précédente du menu vient d’être confi
 const RESUME_REFUSED = 'Une modification précédente du menu n’a pas pu être appliquée : le menu avait changé. Il est à jour.';
 const RESUME_PENDING = 'Une modification précédente du menu n’est pas encore confirmée. Vérifie ta connexion, puis rouvre Menus.';
 const UNDONE = 'Modification annulée : le menu est revenu comme avant.';
+/** The busy mark of a week copy: no meal of the shown week is the one edited, all of them wait. */
+export const COPY_ID = 'copy-week';
 
 /**
  * V11-01 E3b — the menu's edits from the page: one at a time, each confirmed by update_menu with the
@@ -79,6 +82,15 @@ export function useMenuEdit() {
   const remove = useCallback((entry: MenuEntryView) =>
     send(entry, { op: 'remove', entry_id: entry.id, expected_version: entry.version }, removed => ({ kind: 'remove', entry, removed })), [send]);
 
+  /** V11-01 E3c: the week's copy, in one command; nothing to copy sends nothing. */
+  const copyWeek = useCallback((targetWeek: string, plan: WeekCopyPlan) => {
+    if (!plan.operations.length) return Promise.resolve(false);
+    return exclusive(COPY_ID, async () => {
+      const result = await updateMenu(menuCopyIntent(targetWeek, plan.operations), plan.operations);
+      setLastChange({ commandId: result.command_id, message: copyMessage(plan.operations.length, targetWeek, result.menu_edit?.removed), undone: false });
+    }, copyRefusal);
+  }, [exclusive]);
+
   const undoLast = useCallback(() => {
     const change = lastChange;
     if (!change || change.undone) return Promise.resolve(false);
@@ -101,5 +113,5 @@ export function useMenuEdit() {
   /** A dialog opens on a clean slate: an older refusal is not about it. The notice stays. */
   const clearError = useCallback(() => setError(null), []);
 
-  return { busyId, lastChange, error, setServings, move, addLeftover, remove, undoLast, dismiss, clearError };
+  return { busyId, lastChange, error, setServings, move, addLeftover, remove, copyWeek, undoLast, dismiss, clearError };
 }

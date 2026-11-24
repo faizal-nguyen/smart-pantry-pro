@@ -19,6 +19,28 @@ export function menuEditIntent(operation: MenuEntryOperation): string {
   return `${INTENT_PREFIX}${entry_id}:${expected_version}:${JSON.stringify(values)}`;
 }
 
+const FNV_OFFSET = 0x811c9dc5;
+const FNV_PRIME = 0x01000193;
+
+/** FNV-1a, 32 bits: a short, stable name for a long payload (not a security measure). */
+function digest(value: string): string {
+  let hash = FNV_OFFSET;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, FNV_PRIME) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+/**
+ * V11-01 E3c — a week copy: one gesture per target week and operations (versions included). Under the
+ * same prefix, a copy left pending is sent again when Menus opens. A different copy, should two digests
+ * meet, is refused by commandForIntent (payload mismatch), never sent under the other's identity.
+ */
+export function menuCopyIntent(targetWeek: string, operations: MenuOperation[]): string {
+  return `${INTENT_PREFIX}copy:${targetWeek}:${digest(JSON.stringify(operations))}`;
+}
+
 /** Sends the edit; a lost reply keeps it saved under its gesture. */
 export async function updateMenu(intent: string, operations: MenuOperation[]): Promise<StockCommandResult> {
   const command = await commandForIntent('update_menu', intent, { operations });

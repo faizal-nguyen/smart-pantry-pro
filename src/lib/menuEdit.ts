@@ -127,6 +127,13 @@ export function menuRefusal(error: unknown): string {
   return REFUSALS[errorCode(error)] ?? (error instanceof Error ? error.message : 'Action non confirmée.');
 }
 
+/** A copy refused because the target week moved on since it was read: it is reread, the copy recomputed. */
+export function copyRefusal(error: unknown): string {
+  const code = errorCode(error);
+  if (code === 'MENU_CHANGED' || code === 'MEAL_COOKED') return 'La semaine choisie a changé entre-temps : la copie a été recalculée. Vérifie-la, puis recommence.';
+  return menuRefusal(error);
+}
+
 /** An undo refused because the menu moved on since the edit. */
 export function undoRefusal(error: unknown): string {
   const code = errorCode(error);

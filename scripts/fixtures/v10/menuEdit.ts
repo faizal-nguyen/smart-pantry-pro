@@ -34,11 +34,21 @@ function entryFor(operation: Extract<MenuOperation, { entry_id: string }>, refus
 
 function apply(operation: MenuOperation, removed: Row[], refuse: Refuse) {
   if (operation.op === 'set') {
+    // As the database: the slot's version, a cooked meal never replaced, a replaced meal's leftovers gone with it.
     const target = slot(operation.date, operation.meal_type);
-    if (target.occupant) entries().splice(entries().indexOf(target.occupant), 1);
-    const recipe = data.recipes.find(row => row.id === operation.recipe.id);
+    const occupant = target.occupant;
+    if ((occupant ? Number(occupant.version ?? 0) : null) !== operation.expected_version) refuse('MENU_CHANGED', 'Ce créneau a changé entre-temps.');
+    if (occupant?.cooked_command_id) refuse('MEAL_COOKED', 'Ce repas a déjà été cuisiné.');
+    if (occupant) {
+      const gone = entries().filter(item => item === occupant || item.leftover_of === occupant.id);
+      removed.push(...gone);
+      data.meal_plan_entries = entries().filter(item => !gone.includes(item));
+    }
+    const recipe = [...data.recipes, ...data.recipes_catalog].find(row => row.id === operation.recipe.id);
+    if (!recipe) refuse('RECIPE_NOT_FOUND', 'Recette introuvable.');
     entries().push({ id: crypto.randomUUID(), meal_plan_id: target.plan, day_of_week: target.day, meal_type: operation.meal_type, recipe_id: null,
-      recipe_reference: operation.recipe, recipe_name: String(recipe?.name ?? 'Recette'), servings: operation.servings, prep_time: 0, cook_time: 0, version: 0, cooked_command_id: null, leftover_of: null });
+      recipe_reference: { id: String(recipe!.id), source: data.recipes.includes(recipe!) ? 'recipes' : 'recipes_catalog' }, recipe_name: String(recipe!.name ?? recipe!.title),
+      servings: operation.servings, prep_time: Number(recipe!.prep_time ?? 0), cook_time: Number(recipe!.cook_time ?? 0), version: 0, cooked_command_id: null, leftover_of: null });
     return;
   }
   const row = entryFor(operation, refuse);
