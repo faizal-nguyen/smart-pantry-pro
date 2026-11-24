@@ -14,6 +14,7 @@ jest.mock('@/services/stockCommands', () => ({ undoStockCommand: jest.fn(async (
 jest.mock('@/services/menuCommands', () => ({
   menuEditIntent: (operation: { op: string; entry_id: string; expected_version: number }) => `menu-edit:${operation.entry_id}:${operation.op}:${operation.expected_version}`,
   menuCopyIntent: (week: string, operations: unknown[]) => `menu-edit:copy:${week}:${operations.length}`,
+  menuProposalIntent: (week: string, _proposal: string, operations: unknown[]) => `menu-edit:proposal:${week}:${operations.length}`,
   updateMenu: jest.fn(),
   resumePendingMenuEdits: jest.fn(async () => ({ confirmed: [], refused: 0, failures: [] })),
 }));
@@ -194,4 +195,45 @@ test('a copy refused because the target week changed says so, once the week is r
     expect(result.current.error).toBe('La semaine choisie a changé entre-temps : la copie a été recalculée. Vérifie-la, puis recommence.');
   }
   expect(refresh).toHaveBeenCalledTimes(2);
+});
+
+// V11-01 E4b: a proposal validated as one update_menu, then announced on Menus with « Annuler ».
+const setOne = { op: 'set' as const, date: '2026-12-01', meal_type: 'dinner' as const, recipe: { id: 'dish', source: 'auto' as const }, servings: 2, expected_version: null };
+const check = { profile_version: 3, expires_at: '2026-11-30T09:30:00.000Z' };
+
+test('a proposal is added in one command with what it was computed on, and its notice returned for Menus', async () => {
+  jest.mocked(updateMenu).mockResolvedValueOnce(confirmed(0) as never);
+  const { result } = await mounted();
+  let outcome: unknown;
+  await act(async () => { outcome = await result.current.addProposal('2026-11-30', 'b'.repeat(32), [setOne, { ...setOne, date: '2026-12-02' }], check); });
+  expect(updateMenu).toHaveBeenCalledWith('menu-edit:proposal:2026-11-30:2', [setOne, { ...setOne, date: '2026-12-02' }], check);
+  expect(outcome).toEqual({ notice: { commandId: 'command-1', message: '2 repas ajoutés au menu de la semaine du 30 nov. → 6 déc.', undone: false }, failure: null });
+  await act(async () => { await expect(result.current.addProposal('2026-11-30', 'b'.repeat(32), [], check)).resolves.toEqual({ notice: null, failure: null }); });
+  expect(updateMenu).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+  ['PROPOSAL_EXPIRED', 'Cette proposition a expiré : recalcule-la, tes choix sont gardés.'],
+  ['PROFILE_CHANGED', 'Ton profil a changé depuis la proposition : recalcule-la, tes choix sont gardés.'],
+  ['MENU_CHANGED', 'Un créneau a été pris entre-temps : recalcule la proposition, tes autres choix sont gardés.'],
+])('a proposal refused with %s says what to do', async (code, message) => {
+  jest.mocked(updateMenu).mockRejectedValueOnce(new ApiError('refusé', { status: 409, code }));
+  const { result } = await mounted();
+  await act(async () => { await expect(result.current.addProposal('2026-11-30', 'b'.repeat(32), [setOne], check)).resolves.toEqual({ notice: null, failure: 'refused' }); });
+  expect(result.current.error).toBe(message);
+});
+
+test('a notice given by the page that added a proposal is shown, with « Annuler »', async () => {
+  const initial = { commandId: 'command-9', message: '2 repas ajoutés au menu de la semaine du 30 nov. → 6 déc.', undone: false };
+  const view = renderHook(() => useMenuEdit(initial));
+  await waitFor(() => expect(resumePendingMenuEdits).toHaveBeenCalled());
+  expect(view.result.current.lastChange).toEqual(initial);
+  await act(async () => { await view.result.current.undoLast(); });
+  expect(undoStockCommand).toHaveBeenCalledWith('command-9');
+});
+
+test('a proposal whose reply was lost is unconfirmed, not refused: the same addition can be sent again', async () => {
+  jest.mocked(updateMenu).mockRejectedValueOnce(new ApiError('Connexion impossible.', { status: 0, code: 'NETWORK_ERROR' }));
+  const { result } = await mounted();
+  await act(async () => { await expect(result.current.addProposal('2026-11-30', 'b'.repeat(32), [setOne], check)).resolves.toEqual({ notice: null, failure: 'unconfirmed' }); });
 });

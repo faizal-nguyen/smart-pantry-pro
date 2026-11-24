@@ -53,3 +53,14 @@ test('expiry preserves the same account draft; reconnecting with B after reload 
   await screen.findByText('B');
   expect(localStorage.getItem('v10-draft:A:manual-recipe')).toBeNull();
 });
+
+// V11-01 E4b: a week proposal holds what the user typed (« Sans ces aliments », possibly allergies):
+// it never outlives the session, not even a plain sign-out.
+test('signing out forgets the proposed weeks of the tab', async () => {
+  render(<QueryClientProvider client={new QueryClient()}><AuthSessionProvider><Probe /></AuthSessionProvider></QueryClientProvider>);
+  await screen.findByText('A');
+  sessionStorage.setItem('v11-week-proposal:A:2026-11-30', '{"settings":{"excluded":"arachide"}}');
+  act(() => mockListener('SIGNED_OUT', null));
+  await screen.findByText('signed-out');
+  expect(sessionStorage.getItem('v11-week-proposal:A:2026-11-30')).toBeNull();
+});

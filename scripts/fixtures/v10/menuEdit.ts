@@ -90,6 +90,9 @@ export function applyUpdateMenu(command: Extract<StockCommand, { command_type: '
   const plans = structuredClone(data.weekly_meal_plans);
   const removed: Row[] = [];
   if (failures.menuChanged) { failures.menuChanged = false; refuse('MENU_CHANGED', 'Ce repas a changé dans le menu entre-temps.'); }
+  // E4b: a proposal validated once expired is refused, as the API does.
+  const proposal = (command.payload as { proposal?: { expires_at?: string } }).proposal;
+  if (proposal && !(Date.parse(String(proposal.expires_at)) > Date.now())) refuse('PROPOSAL_EXPIRED', 'Cette proposition a expiré : recalcule-la avant de la valider.');
   try {
     for (const operation of command.payload.operations) apply(operation, removed, refuse);
   } catch (failure) {

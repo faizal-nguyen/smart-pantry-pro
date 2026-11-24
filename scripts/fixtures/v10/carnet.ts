@@ -17,6 +17,9 @@ export function seedCarnetScene(data: Record<string, Record<string, unknown>[]>,
   data.mobile_routine_preferences=[{user_id:owner,introduction:'done',stock_view:'list',updated_at:today.toISOString()}];
   const dayIndex=(today.getUTCDay()+6)%7;
   data.weekly_meal_plans=[{id:id(8,1),user_id:owner,week_start_date:date(-dayIndex)}];
+  // V11-01 E4b: a few fictional catalogue recipes for a proposed week.
+  data.recipes_catalog=[...data.recipes_catalog,...['Curry de légumes','Soupe de saison','Gratin de pâtes','Salade de lentilles'].map((title,index)=>({id:id(7,index+1),title,
+    prep_time:10,cook_time:15+index*5,servings:2,instructions:'Préparer.\nCuire.',ingredients_json:[{ name:'Oignons',amount:'1',unit:'pièce' }],tags:[],created_at:today.toISOString(),updated_at:today.toISOString()}))];
   // V11-01 E3b: a meal with its leftover the next slot, and another meal to swap with.
   const meal=(n:number,day:number,meal_type:string,recipe_name:string,servings:number,leftover_of:string|null=null)=>({id:id(9,n),meal_plan_id:id(8,1),day_of_week:day,meal_type,
     recipe_id:leftover_of ? null:recipe,recipe_reference:leftover_of ? null:{id:recipe,source:'recipes'},recipe_name,servings,prep_time:leftover_of ? 0:10,cook_time:leftover_of ? 0:15,version:0,cooked_command_id:null,leftover_of});

@@ -4,6 +4,7 @@ import MenusPage from '../MenusPage';
 import { useWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 import type { MenuCardActions } from '@/components/meal-planning/MenuEntryCard';
 import { downloadTextFile } from '@/lib/downloadFile';
+import { useMenuEdit } from '@/hooks/useMenuEdit';
 
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthenticatedUser: () => ({ id: 'owner' }) }));
 jest.mock('@/hooks/useCalendarNow', () => ({ useCalendarNow: () => new Date('2026-11-24T12:00:00Z') }));
@@ -212,4 +213,31 @@ test('a second export is announced again: the note is emptied, then written', as
   act(() => { jest.runAllTimers(); });
   expect(screen.getByText(/^Fichier « menus-semaine/)).toBeInTheDocument();
   jest.useRealTimers();
+});
+
+// V11-01 E4b: « Proposer la semaine » from Menus, and the notice of the meals it added.
+test('« Proposer la semaine » is offered while the week has empty slots to come, even with no meal yet', () => {
+  weekEntries = { '2026-11-30': [], '2026-11-16': [] };
+  show('/kitchen/meal-planning?week=2026-11-30');
+  const links = screen.getAllByRole('link', { name: 'Proposer la semaine' });
+  expect(links[0]).toHaveAttribute('href', '/kitchen/meal-planning/proposition?week=2026-11-30');
+  fireEvent.click(screen.getByRole('button', { name: 'Semaine précédente' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Semaine précédente' }));
+  // A week already over: nothing to propose.
+  expect(screen.queryByRole('link', { name: 'Proposer la semaine' })).not.toBeInTheDocument();
+});
+
+test('the meals a proposal added are announced on Menus with « Annuler », once', async () => {
+  const notice = { commandId: 'command-7', message: '2 repas ajoutés au menu de la semaine du 30 nov. → 6 déc.', undone: false };
+  render(<MemoryRouter initialEntries={[{ pathname: '/kitchen/meal-planning', search: '?week=2026-11-30', state: { menuNotice: notice } }]}>
+    <Routes><Route path="/kitchen/meal-planning" element={<MenusPage />} /></Routes><Location /></MemoryRouter>);
+  expect(useMenuEdit).toHaveBeenCalledWith(notice);
+  // Read once: a reload does not announce it again.
+  await waitFor(() => expect(screen.getByLabelText('Adresse')).toHaveTextContent('/kitchen/meal-planning?week=2026-11-30'));
+});
+
+test('a menu that could not be read offers no proposal', () => {
+  jest.mocked(useWeeklyMenu).mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: jest.fn(), addEntry: { mutateAsync: jest.fn(), isPending: false } } as never);
+  show('/kitchen/meal-planning?week=2026-11-30');
+  expect(screen.queryByRole('link', { name: 'Proposer la semaine' })).not.toBeInTheDocument();
 });

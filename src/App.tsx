@@ -26,6 +26,7 @@ const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RecipesPage = lazy(() => import("./pages/RecipesPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const WeekShoppingPage = lazy(() => import("./pages/shopping/WeekShoppingPage"));
+const WeekProposalPage = lazy(() => import("./pages/kitchen/WeekProposalPage"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 // PRP-233 PR1: AssistantAI no longer routed (/assistant/chat redirects to
 // /assistant). Source file preserved for PRP-224 reference; the lazy import
@@ -100,6 +101,7 @@ const protectedRoutes: RouteObject[] = [
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
+  { path: "/kitchen/meal-planning/proposition", element: withSuspense(WeekProposalPage) },
   // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
   { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
 
