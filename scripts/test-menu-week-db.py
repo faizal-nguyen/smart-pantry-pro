@@ -166,6 +166,9 @@ def tests():
 
     def duplicate_plans_count_once():
         # Several plans for one week (production, E0): only the oldest one, which plan_recipe writes, counts.
+        # V11-01 E3 resumes them and makes a plan unique per week (test-update-menu-db.py checks it).
+        if run("SELECT to_regclass('public.weekly_meal_plans_user_week_key') IS NOT NULL;") == "t":
+            return
         week = next_week + datetime.timedelta(days=21)
         older, newer, copy = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
         run("INSERT INTO weekly_meal_plans(id,user_id,week_start_date,created_at) VALUES(" + literal(older) + "," + literal(A) + ","
@@ -260,12 +263,14 @@ def tests():
         run("UPDATE meal_plan_entries SET cooked_command_id=" + literal(str(uuid.uuid4())) + " WHERE id=" + literal(cooked["meal_plan_entry_id"]) + ";")
         plan(dhal, slot, meal="dinner", error="MEAL_COOKED")
         # Duplicate plans of one week (production, E0): the oldest one is written, every time.
-        week = next_week + datetime.timedelta(days=14)
-        older = str(uuid.uuid4())
-        run("INSERT INTO weekly_meal_plans(id,user_id,week_start_date,created_at) VALUES(" + literal(older) + "," + literal(A) + ","
-            + literal(week.isoformat()) + ",'2025-01-01'),(gen_random_uuid()," + literal(A) + "," + literal(week.isoformat()) + ",'2025-06-01');")
-        equal(plan(curry, week, meal="lunch")["meal_plan_id"], older)
-        equal(plan(dhal, week + datetime.timedelta(days=1), meal="lunch")["meal_plan_id"], older)
+        # V11-01 E3 resumes them and makes a plan unique per week (test-update-menu-db.py checks it).
+        if run("SELECT to_regclass('public.weekly_meal_plans_user_week_key') IS NULL;") == "t":
+            week = next_week + datetime.timedelta(days=14)
+            older = str(uuid.uuid4())
+            run("INSERT INTO weekly_meal_plans(id,user_id,week_start_date,created_at) VALUES(" + literal(older) + "," + literal(A) + ","
+                + literal(week.isoformat()) + ",'2025-01-01'),(gen_random_uuid()," + literal(A) + "," + literal(week.isoformat()) + ",'2025-06-01');")
+            equal(plan(curry, week, meal="lunch")["meal_plan_id"], older)
+            equal(plan(dhal, week + datetime.timedelta(days=1), meal="lunch")["meal_plan_id"], older)
     check("plan_recipe replaces a meal by a new row, refuses a cooked one and writes the oldest plan", plan_recipe_replaces_by_identity)
 
     def cooking_links_the_meal():

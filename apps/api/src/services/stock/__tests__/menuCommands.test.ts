@@ -55,3 +55,42 @@ describe('week shopping and planned-meal commands', () => {
       .rejects.toMatchObject({ code, status: 409 });
   });
 });
+
+// V11-01 E3: the editable menu.
+describe('update_menu', () => {
+  const RECIPE = { id: '30000000-0000-4000-8000-000000000001', source: 'auto' as const };
+  const edit = (...operations: unknown[]) => ({ command_id: ID, command_type: 'update_menu', payload_version: 1, payload: { operations } });
+  const set = { op: 'set', date: '2026-12-01', meal_type: 'dinner', recipe: RECIPE, servings: 4, expected_version: null };
+  const move = { op: 'move', entry_id: MEAL, expected_version: 2, date: '2026-12-02', meal_type: 'lunch', target_version: 5 };
+
+  test('each operation names the version of the meals it touches; servings are whole, from 1 to 100', () => {
+    expect(StockCommandSchema.safeParse(edit(set, move,
+      { op: 'servings', entry_id: MEAL, expected_version: 2, servings: 6 },
+      { op: 'remove', entry_id: MEAL, expected_version: 3 },
+      { op: 'leftover', entry_id: MEAL, expected_version: 3, date: '2026-12-03', meal_type: 'lunch', servings: 2 })).success).toBe(true);
+    for (const invalid of [
+      edit(), edit(...Array.from({ length: 31 }, () => set)),
+      edit({ ...set, servings: 0 }), edit({ ...set, servings: 2.5 }), edit({ ...set, servings: 101 }),
+      edit({ ...set, expected_version: undefined }), edit({ ...move, target_version: undefined }),
+      edit({ op: 'remove', entry_id: MEAL }), edit({ ...set, meal_type: 'brunch' }), edit({ ...set, date: '1/12/2026' }),
+      edit({ op: 'swap', entry_id: MEAL, expected_version: 1 }), edit({ ...set, user_id: USER }),
+    ]) expect(StockCommandSchema.safeParse(invalid).success).toBe(false);
+  });
+
+  test('a database below capability 6 keeps the request instead of writing it', async () => {
+    const old = client(5);
+    await expect(new StockCommandService(old.supabase).execute(USER, edit(set))).rejects.toMatchObject({ code: 'MIGRATION_REQUIRED', status: 503 });
+    expect(old.rpc).not.toHaveBeenCalledWith('execute_stock_command', expect.anything());
+    const ready = client(6);
+    await new StockCommandService(ready.supabase).execute(USER, edit(set));
+    expect(ready.rpc).toHaveBeenLastCalledWith('execute_stock_command', expect.objectContaining({ p_allocations: [] }));
+  });
+
+  test.each([
+    ['LEFTOVER_CAPACITY', 'Les restes dépasseraient les portions du repas d’origine.'],
+    ['LEFTOVER_ORDER', 'Un reste doit rester après son repas d’origine.'],
+  ])('%s is a refusal to explain, never a failure', async (code, message) => {
+    await expect(new StockCommandService(client(6, { message: code }).supabase).execute(USER, edit(set)))
+      .rejects.toMatchObject({ code, status: 409, message });
+  });
+});
