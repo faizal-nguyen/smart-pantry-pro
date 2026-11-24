@@ -38,7 +38,7 @@ const authMiddleware = createAuthMiddleware(supabaseAdmin);
 v1Router.use('/inventory', authMiddleware, createInventoryRouter(supabaseAdmin));
 v1Router.use('/stock', authMiddleware, createStockRouter());
 // V11-01 E1: the review of a week's shopping.
-v1Router.use('/menus', authMiddleware, createMenusRouter());
+v1Router.use('/menus', authMiddleware, createMenusRouter(supabaseAdmin));
 v1Router.use('/recipes', authMiddleware, createRecipesRouter(supabaseAdmin));
 v1Router.use('/shopping', authMiddleware, createShoppingRouter(supabaseAdmin));
 v1Router.use('/users', authMiddleware, createUsersRouter(supabaseAdmin));

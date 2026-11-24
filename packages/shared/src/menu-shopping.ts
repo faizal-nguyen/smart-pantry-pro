@@ -9,7 +9,7 @@ import {
   allocateRecipeStock, canAddToShoppingList, convertQuantity, describeUnit, ingredientMatchRank, ingredientResembles, needsPurchase,
   normalizeIngredientName, type StockIngredient, type StockMissing,
 } from './quantities.js';
-import type { ResolvedStockRecipe } from './stock-commands.js';
+import { RecipeReferenceSchema, type ResolvedStockRecipe } from './stock-commands.js';
 
 /** A meal of the basis (public.menu_shopping_basis) with its resolved recipe, when it has one. */
 export interface MenuMealInput {
@@ -254,10 +254,46 @@ const isMonday = (day: string) => {
   const date = new Date(`${day}T12:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day && date.getUTCDay() === 1;
 };
-/** POST /api/v1/menus/shopping-preview: the Monday of the week to shop for. */
-export const MenuShoppingPreviewRequestSchema = z.object({
-  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isMonday, { message: 'week_start is a Monday' }),
+/** The Monday of a menu week, AAAA-MM-JJ. */
+export const MenuWeekStartSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isMonday, { message: 'week_start is a Monday' });
+
+const DAY_MS = 86_400_000;
+/** A real calendar day, AAAA-MM-JJ: Date.parse reads 2026-02-31 as 3 March, so the day is written back. */
+export const isCalendarDay = (value: string | undefined) => {
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+/** Whether `date` is a real day of the week starting on `weekStart`. Loose types: the API compiles without strict null checks. */
+export function inMenuWeek(weekStart: string | undefined, date: string | undefined): boolean {
+  if (!isCalendarDay(weekStart) || !isCalendarDay(date)) return false;
+  const offset = (Date.parse(`${date}T12:00:00Z`) - Date.parse(`${weekStart}T12:00:00Z`)) / DAY_MS;
+  return Number.isInteger(offset) && offset >= 0 && offset < 7;
+}
+/** A slot's identity within a week. */
+export const menuSlotKey = (slot: { date?: string; meal_type?: string }) => `${slot.date}:${slot.meal_type}`;
+
+/**
+ * V11-01 E4a: a meal of a proposed week, not saved: its slot, recipe and servings (as update_menu set).
+ * The shopping preview may count it; the week proposal returns and keeps such meals.
+ */
+export const ProposedMealSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isCalendarDay, { message: 'a calendar day' }), meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  recipe: RecipeReferenceSchema, servings: z.number().int().min(1).max(100),
 }).strict();
+export type ProposedMeal = z.infer<typeof ProposedMealSchema>;
+
+/** POST /api/v1/menus/shopping-preview: the Monday of the week to shop for, and (E4a) the meals proposed for it. */
+export const MenuShoppingPreviewRequestSchema = z.object({
+  week_start: MenuWeekStartSchema,
+  proposal: z.array(ProposedMealSchema).max(28).optional(),
+}).strict().superRefine((value, context) => {
+  const seen = new Set<string>();
+  for (const [index, meal] of (value.proposal ?? []).entries()) {
+    if (!inMenuWeek(value.week_start, meal.date)) context.addIssue({ code: z.ZodIssueCode.custom, path: ['proposal', index, 'date'], message: 'a proposed meal is a day of the week' });
+    if (seen.has(menuSlotKey(meal))) context.addIssue({ code: z.ZodIssueCode.custom, path: ['proposal', index], message: 'a slot is proposed once' });
+    seen.add(menuSlotKey(meal));
+  }
+});
 
 /** The review of a week's shopping, with the three tokens menu_add_missing is confirmed against. */
 export interface MenuShoppingPreview {

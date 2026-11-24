@@ -60,6 +60,12 @@ export interface RecommendationContext extends MealContext {
   includeRecentFallback?: boolean;
   /** Ingredients left out of this request only (« sans crème »); never stored. */
   excludedIngredients?: string[];
+  /**
+   * V11-01 E4a: recipes left out before any ranking or limit, by id or catalogue identity (a personal
+   * recipe's canonicalId): those already on the week's menu. Internal callers only: not part of
+   * MealContextSchema, so no public route can send it.
+   */
+  excludeRecipeIds?: string[];
 }
 
 // ---- Score parts -----------------------------------------------------

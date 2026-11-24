@@ -33,7 +33,6 @@
   "src/hooks/useFamilyMode.ts TS6133": 4,
   "src/hooks/useImageManagement.ts TS6133": 1,
   "src/hooks/useInsightsData.ts TS6133": 1,
-  "src/hooks/useMealPlanningRecipes.ts TS2305": 1,
   "src/hooks/useRecipeCatalog.ts TS2339": 6,
   "src/hooks/useRecipeCatalog.ts TS2769": 1,
   "src/hooks/useRecipeCatalog.ts TS6133": 3,
@@ -55,9 +54,6 @@
   "src/services/color/ColorExtractor.ts TS6133": 3,
   "src/services/color/DynamicColorEngine.ts TS6133": 3,
   "src/services/context/PerformanceOptimizer.ts TS2683": 1,
-  "src/services/planning/smartMealPlannerService.ts TS6133": 1,
-  "src/services/planning/types.ts TS1205": 17,
-  "src/services/planning/types.ts TS2304": 5,
   "src/services/voice/voiceOutputService.ts TS6133": 1,
   "src/utils/recipeVoiceParser.ts TS7053": 7
 }

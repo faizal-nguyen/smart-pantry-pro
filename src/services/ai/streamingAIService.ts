@@ -6,8 +6,8 @@
  * (Server-Sent Events), which performs the OpenAI call server-side.
  *
  * Public surface preserved for backwards compatibility with
- * `nutritionalAIService`, `smartMealPlannerService`, and any other
- * consumer that extends/uses this class.
+ * `nutritionalAIService` and any other consumer that extends/uses this
+ * class (`smartMealPlannerService` was removed by V11-01 E4a).
  */
 
 import { supabase } from '@/integrations/supabase/client';

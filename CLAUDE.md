@@ -129,7 +129,6 @@ All agents are available as commands in `.claude/commands/`. See `COMMANDS_INDEX
 
 ### Evolution V2 Services
 - `/src/services/ai/nutritionalAIService.ts`: AI Nutritionist Engine
-- `/src/services/planning/smartMealPlannerService.ts`: Meal Planning System
 - `/src/services/community/communityService.ts`: Community Features
 - `/src/services/iot/iotHubService.ts`: IoT Integration Hub
 - `/src/services/analytics/wasteReductionEngine.ts`: Predictive Analytics
