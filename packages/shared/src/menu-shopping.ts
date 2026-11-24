@@ -3,6 +3,7 @@
  * the API reads the menu basis, the stock and the list, then calls them; the command
  * menu_add_missing writes what the user kept, bounded again in SQL.
  */
+import { z } from 'zod';
 import { qualifyLotsOn, type QualifiedLot } from './lot-qualification.js';
 import {
   allocateRecipeStock, canAddToShoppingList, convertQuantity, describeUnit, ingredientMatchRank, needsPurchase,
@@ -152,6 +153,15 @@ export function menuShoppingLines(needs: MenuNeed[], rows: MenuShoppingRow[], co
   }
   return lines;
 }
+
+const isMonday = (day: string) => {
+  const date = new Date(`${day}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === day && date.getUTCDay() === 1;
+};
+/** POST /api/v1/menus/shopping-preview: the Monday of the week to shop for. */
+export const MenuShoppingPreviewRequestSchema = z.object({
+  week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isMonday, { message: 'week_start is a Monday' }),
+}).strict();
 
 /** The review of a week's shopping, with the three tokens menu_add_missing is confirmed against. */
 export interface MenuShoppingPreview {

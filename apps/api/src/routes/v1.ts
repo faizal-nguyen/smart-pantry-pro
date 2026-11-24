@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { createAuthMiddleware } from '../middleware/auth.middleware.js';
 import { createStockRouter } from './stock.routes.js';
+import { createMenusRouter } from './menus.routes.js';
 import { createNutritionProfileRouter } from './settings.nutrition.routes.js';
 import {
   createInventoryRouter,
@@ -36,6 +37,8 @@ const authMiddleware = createAuthMiddleware(supabaseAdmin);
 // NOT the admin client passed here (only used for router factory)
 v1Router.use('/inventory', authMiddleware, createInventoryRouter(supabaseAdmin));
 v1Router.use('/stock', authMiddleware, createStockRouter());
+// V11-01 E1: the review of a week's shopping.
+v1Router.use('/menus', authMiddleware, createMenusRouter());
 v1Router.use('/recipes', authMiddleware, createRecipesRouter(supabaseAdmin));
 v1Router.use('/shopping', authMiddleware, createShoppingRouter(supabaseAdmin));
 v1Router.use('/users', authMiddleware, createUsersRouter(supabaseAdmin));
