@@ -1,4 +1,4 @@
-import { allocateRecipeStock,calendarDaysUntil,convertQuantity,ingredientMatchRank,normalizeIngredientName,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type StockLot } from '@smart/shared';
+import { allocateRecipeStock,convertQuantity,ingredientMatchRank,normalizeIngredientName,qualifyLots,type ConstraintEvaluation,type NutritionEstimate,type NutritionProfileSettings,type QualifiedLot } from '@smart/shared';
 import { RecipePolicySanitizer } from '../recipeQuality/RecipePolicySanitizer.js';
 import type { RecipeWithIngredients } from './types.js';
 import {NUTRIENTS,nutritionFromRecipeSnapshot,SourcedRecipeNutritionSchema,conservationReviewRequired,type NutrientKey} from '@smart/shared';
@@ -8,7 +8,8 @@ export interface IngredientProduct {
   allergens_json?:{ source?:string;allergensTags?:string[];tracesTags?:string[];complete?:boolean };
   off_last_synced_at?:string|null;updated_at?:string|null;enrichment_status?:string;
 }
-export type QualifiedLot = StockLot & { date_kind?:'use_by'|'best_before'|'unknown';quantity_quality?:'measured'|'estimated'|'unknown';location?:string|null;notes?:string|null };
+// V11-01 E1: lot qualification is shared with the week's shopping (packages/shared/src/lot-qualification.ts).
+export { qualifyLots, type QualifiedLot } from '@smart/shared';
 const norm = (text:string) => normalizeIngredientName(text).replace(/œ/g,'oe').replace(/[_-]/g,' ');
 const contains = (text:string,term:string) => (` ${norm(text)} `).includes(` ${norm(term)} `);
 // Ingredient identities stay separate from allergen families: excluding butter
@@ -103,21 +104,6 @@ export function evaluateConstraints(recipe:Pick<RecipeWithIngredients,'name'|'re
     limitations:profile.allergies.length ? ['Vérification des ingrédients connus uniquement ; les traces non renseignées et la contamination croisée ne sont pas certifiées.'] : [] };
 }
 
-export function qualifyLots(lots:QualifiedLot[],now:Date) {
-  const eligible:QualifiedLot[]=[],excluded:string[]=[];
-  const reasons:Array<{ id:string;date_kind:'use_by'|'best_before'|'unknown';message:string }>=[];
-  for (const lot of lots) {
-    if (!(lot.quantity>0)) continue;
-    const days=calendarDaysUntil(lot.expiry_date,now);
-    // Expired DDM / unknown dates require a human check too; no automatic stock promise.
-    if (days!==null && days<0) {
-      excluded.push(lot.id);
-      const kind=lot.date_kind ?? 'unknown';
-      reasons.push({ id:lot.id,date_kind:kind,message:kind==='use_by' ? `${lot.product_name} : DLC dépassée, lot exclu des idées automatiques.` : kind==='best_before' ? `${lot.product_name} : DDM dépassée, vérification nécessaire avant de compter ce lot.` : `${lot.product_name} : date dépassée de type inconnu, lot à vérifier.` });
-    } else eligible.push(lot);
-  }
-  return { eligible,excluded,reasons };
-}
 /** In stock, but the amount does not convert or is not given. */
 export const UNCLEAR_REASONS:string[]=['QUANTITY_UNKNOWN','UNIT_UNKNOWN','UNIT_INCOMPATIBLE'];
 const matchesLot=(ingredient:{ ingredient_name:string;inventory_product_id?:string|null },lot:{ product_id:string;product_name:string })=>
