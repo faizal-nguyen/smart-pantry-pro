@@ -6,15 +6,20 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { MenuShoppingLine, MenuUncomputable } from '@smart/shared';
 import { Button } from '@/components/ui/button';
+import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useMenuShoppingPreview } from '@/hooks/useMenuShoppingPreview';
 import { mealMoment, mergeChoices, reviewDraft, type LineChoice, type MenuAddMissingPayload, type ReviewChoices } from '@/lib/menuShoppingReview';
 import { confirmMenuShopping, pendingMenuShopping, resendMenuShopping } from '@/services/menuShopping';
 import { isRolledBackRefusal } from '@/services/stockCommandRefusal';
 import { undoStockCommand } from '@/services/stockCommands';
+import { unlinkIngredient } from '@/services/ingredientLinks';
+import IngredientLinkDialog from './IngredientLinkDialog';
 import WeekShoppingSections from './WeekShoppingSections';
 
 interface Counts { adds: number; reductions: number }
 type Outcome = ({ kind: 'done'; commandId: string } & Counts) | ({ kind: 'undone' } & Counts) | null;
+/** A « Je l'ai déjà » of this review, which can be taken back. */
+interface LinkNotice { key: string; name: string; product: string; removed: boolean }
 
 const RECALCULATED = 'Ton menu, ton stock ou ta liste a changé : les courses ont été recalculées. Vérifie-les, puis confirme de nouveau.';
 const REFUSALS: Record<string, string> = {
@@ -52,7 +57,11 @@ function confirmLabel({ adds, reductions }: Counts): string {
 }
 
 export default function WeekShoppingReview({ week }: { week: string }) {
+  const user = useAuthenticatedUser();
   const preview = useMenuShoppingPreview(week);
+  const [linking, setLinking] = useState<MenuShoppingLine | null>(null);
+  const [links, setLinks] = useState<LinkNotice[]>([]);
+  const linksRef = useRef<HTMLDivElement>(null);
   const [review, setReview] = useState<{ lines: MenuShoppingLine[] | null; choices: ReviewChoices }>({ lines: null, choices: {} });
   const [pending, setPending] = useState<Counts | null>(null);
   const [outcome, setOutcome] = useState<Outcome>(null);
@@ -116,6 +125,22 @@ export default function WeekShoppingReview({ week }: { week: string }) {
     }
   });
 
+  const linked = (product: string, key: string) => {
+    const name = linking?.name;
+    setLinking(null); setAlert(null);
+    if (!name) return;
+    // One notice per ingredient: linking it again replaces its notice, never another one's undo.
+    setLinks(previous => [...previous.filter(item => item.key !== key), { key, name, product, removed: false }]);
+    // The line may leave once the week is read again: focus goes to the links.
+    setTimeout(() => linksRef.current?.focus(), 0);
+  };
+  const unlink = (notice: LinkNotice) => exclusive(async () => {
+    try {
+      await unlinkIngredient(user.id, notice.key);
+      setLinks(previous => previous.map(item => item.key === notice.key ? { ...item, removed: true } : item));
+    } catch (error) { setAlert(message(error, {})); }
+  });
+
   const undo = () => exclusive(async () => {
     if (outcome?.kind !== 'done') return;
     try {
@@ -144,6 +169,16 @@ export default function WeekShoppingReview({ week }: { week: string }) {
       <p className="min-w-0 flex-[1_1_14rem]">{readError}</p>
       <Button variant="outline" className="min-h-11" onClick={() => void preview.refetch()}>Relire les courses</Button>
     </div>}
+    {/* Always mounted, so that a link written into it is announced. */}
+    <div ref={linksRef} tabIndex={-1} role="status" className={links.length ? 'grid gap-2 rounded-lg border p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring' : 'sr-only'}>
+      {links.map(notice => <div key={notice.key} className="flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-[1_1_14rem]">{notice.removed
+          ? `Lien retiré : « ${notice.name} » n’est plus compté avec « ${notice.product} ».`
+          : `« ${notice.name} » sera compté avec « ${notice.product} » dans tes recettes.`}</p>
+        {!notice.removed && <Button variant="outline" className="min-h-11" disabled={busy} aria-label={`Retirer le lien de ${notice.name}`}
+          onClick={() => void unlink(notice)}>Retirer ce lien</Button>}
+      </div>)}
+    </div>
     {/* Always mounted, so that an outcome written into it is announced. */}
     <div ref={outcomeRef} tabIndex={-1} role="status" className={outcome ? 'flex flex-wrap items-center gap-2 rounded-lg border p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring' : 'sr-only'}>{outcome && <>
       <p className="min-w-0 flex-[1_1_14rem]">{outcome.kind === 'done' ? doneMessage(outcome)
@@ -156,7 +191,10 @@ export default function WeekShoppingReview({ week }: { week: string }) {
       <p>Aucun repas à préparer d’ici dimanche.</p>
       <Button asChild variant="outline" className="min-h-11"><Link to={`/kitchen/meal-planning?week=${week}`}>Planifier mes repas</Link></Button>
     </div> : !writable && !pending && <p className="kitchen-week-state">Rien à acheter pour cette semaine.</p>}
-    <WeekShoppingSections lines={data.lines} choices={effective} errors={draft?.errors ?? {}} locked={locked} onChange={change} />
+    <WeekShoppingSections lines={data.lines} choices={effective} errors={draft?.errors ?? {}} locked={locked} onChange={change} onLink={setLinking} />
+    {/* Keyed by line: each opening starts without the last search or error. */}
+    <IngredientLinkDialog key={linking?.key ?? 'closed'} open={!!linking} ingredientName={linking?.name ?? ''} similar={linking?.similar_lots ?? []}
+      onOpenChange={open => { if (!open) setLinking(null); }} onLinked={linked} />
     {/* After the lines: what to decide comes first, what could not be counted is still named. */}
     {data.uncomputable.length > 0 && <section className="kitchen-shopping-group kitchen-week-group" data-state="uncomputable" aria-labelledby="week-uncomputable">
       <h2 id="week-uncomputable">Repas non comptés ({data.uncomputable.length})</h2>
