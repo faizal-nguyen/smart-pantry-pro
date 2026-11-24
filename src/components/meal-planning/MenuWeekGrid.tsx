@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { calendarDate } from '@smart/shared';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
-import MenuEntryCard from './MenuEntryCard';
+import MenuEntryCard, { type MenuCardActions } from './MenuEntryCard';
 import type { MenuEntryView, MenuMealType } from '@/hooks/useWeeklyMenu';
 import type { MenuSlot } from './AddRecipeToMenuDialog';
 
@@ -9,8 +9,8 @@ interface MenuWeekGridProps {
   weekStart: string;
   entries: MenuEntryView[];
   onAddSlot: (slot: MenuSlot) => void;
-  onRemoveEntry: (entryId: string) => void;
-  removingId?: string;
+  /** V11-01 E3b: servings, move, leftovers and removal, from the page. */
+  actions: MenuCardActions;
 }
 // Same Monday=0 convention as weekly-menu queries and plan_recipe commands.
 const DAYS=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
@@ -19,7 +19,7 @@ const MEALS: { value:MenuMealType;label:string }[]=[
   {value:'dinner',label:'Dîner'},{value:'snack',label:'Collation'},
 ];
 
-export default function MenuWeekGrid({weekStart,entries,onAddSlot,onRemoveEntry,removingId}:MenuWeekGridProps) {
+export default function MenuWeekGrid({weekStart,entries,onAddSlot,actions}:MenuWeekGridProps) {
   const today=calendarDate(useCalendarNow());
   const days=DAYS.map((label,index)=>{
     const date=new Date(`${weekStart}T12:00:00Z`);date.setUTCDate(date.getUTCDate()+index);
@@ -30,7 +30,7 @@ export default function MenuWeekGrid({weekStart,entries,onAddSlot,onRemoveEntry,
     const planned=entries.filter(entry=>entry.day_of_week===day.index && entry.meal_type===meal.value);
     return <div className="kitchen-menu-slot" role="group" aria-label={`${day.label} — ${meal.label}`} key={meal.value}>
       <h3>{meal.label}</h3>
-      {planned.length ? planned.map(entry=><MenuEntryCard key={entry.id} entry={entry} onRemove={onRemoveEntry} disabled={removingId===entry.id}/>) : <button className="kitchen-menu-empty" onClick={()=>onAddSlot({day_of_week:day.index,meal_type:meal.value,day_label:day.label,meal_label:meal.label})} aria-label={`Ajouter une recette — ${day.label} ${meal.label.toLocaleLowerCase('fr')}`}><Plus className="h-4 w-4" aria-hidden="true"/><span>Choisir une recette</span></button>}
+      {planned.length ? planned.map(entry=><MenuEntryCard key={entry.id} entry={entry} actions={actions}/>) : <button className="kitchen-menu-empty" onClick={()=>onAddSlot({day_of_week:day.index,meal_type:meal.value,day_label:day.label,meal_label:meal.label})} aria-label={`Ajouter une recette — ${day.label} ${meal.label.toLocaleLowerCase('fr')}`}><Plus className="h-4 w-4" aria-hidden="true"/><span>Choisir une recette</span></button>}
     </div>;
   });
   const labelDate=(date:Date)=>date.toLocaleDateString('fr-FR',{day:'numeric',month:'short',timeZone:'UTC'});

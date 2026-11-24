@@ -873,6 +873,32 @@
   .kitchen-menu-entry-title { font-family:Georgia,'Times New Roman',serif; font-size:1.05rem; line-height:1.25; text-align:left; overflow-wrap:anywhere; }
   .kitchen-menu-entry > div { flex-wrap:wrap; }
   .kitchen-menu-entry > div:last-child { justify-content:flex-start; }
+  /* V11-01 E3b: servings step by step, and a leftover told apart from the meal it comes from. */
+  .kitchen-menu-servings { display:inline-flex; align-items:center; gap:2px; border:1px solid oklch(var(--border)); border-radius:999px; }
+  .kitchen-menu-servings > button { border-radius:999px; }
+  .kitchen-menu-step[aria-disabled="true"], .kitchen-menu-more[aria-disabled="true"], .kitchen-menu-notice button[aria-disabled="true"] { opacity:.45; cursor:not-allowed; }
+  .kitchen-menu-servings > span { min-width:2.25rem; justify-content:center; }
+  .kitchen-menu-entry[data-leftover="true"] { @apply bg-card/70; border-style:dashed; }
+  .kitchen-menu-entry[data-leftover="true"] .kitchen-menu-entry-title { font-size:.95rem; }
+  .kitchen-menu-more { margin-left:auto; }
+  .kitchen-menu-entry-origin { @apply text-muted-foreground; display:flex; align-items:center; gap:6px; font-size:.75rem; overflow-wrap:anywhere; }
+  /* The edit's notice and refusals stay in view above the phone's navigation (see .kitchen-shopping-summary). */
+  .kitchen-menus-page[data-notice="true"] { padding-bottom:112px; }
+  .kitchen-menu-notices { position:fixed; z-index:30; inset-inline:12px; bottom:calc(var(--mobile-nav-total-height,72px) + 12px); display:grid; gap:8px; pointer-events:none; }
+  .kitchen-menu-notices > * { pointer-events:auto; }
+  .kitchen-menu-notice { @apply bg-card; display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; min-height:52px; padding:10px 52px 10px 16px; border:1px solid oklch(var(--border)); border-radius:12px; box-shadow:0 10px 30px -12px oklch(0% 0 0 / .35); font-size:.9rem; animation:kitchen-notice-in var(--duration-normal,300ms) cubic-bezier(.16,1,.3,1); }
+  .kitchen-menu-notice[data-tone="error"] { border-color:oklch(var(--destructive)); }
+  .kitchen-menu-notice-close { position:absolute; right:4px; bottom:4px; }
+  @keyframes kitchen-notice-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion:reduce) { .kitchen-menu-notice { animation:none; } }
+  .kitchen-move-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr)); gap:8px; min-width:0; }
+  .kitchen-move-choices > legend { margin-bottom:8px; }
+  .kitchen-move-choice { @apply bg-card; display:flex; align-items:center; gap:10px; min-height:44px; padding:8px 12px; border:1px solid oklch(var(--border)); border-radius:10px; font-size:.9rem; cursor:pointer; transition:border-color var(--duration-fast,150ms) ease, background-color var(--duration-fast,150ms) ease; }
+  .kitchen-move-choice:hover { border-color:oklch(var(--primary)/.55); }
+  .kitchen-move-choice:has(input:checked) { @apply bg-secondary; border-color:oklch(var(--primary)); font-weight:500; }
+  .kitchen-move-choice:has(input:focus-visible) { @apply ring-2 ring-ring ring-offset-2; }
+  .kitchen-move-choice:has(input:disabled) { opacity:.6; cursor:wait; }
+  .kitchen-move-choice > input { width:1.1rem; height:1.1rem; min-height:0; accent-color:oklch(var(--primary)); }
   .kitchen-settings-layout { display:grid; gap:24px; }
   .kitchen-settings-nav { @apply bg-card/50; border:1px solid oklch(var(--border)); border-radius:12px; overflow:hidden; }
   .kitchen-settings-nav a { border-radius:0; }
@@ -947,6 +973,16 @@
     .kitchen-menu-day > header > h2 { font-family:Georgia,'Times New Roman',serif; font-size:1.05rem; }
     .kitchen-menu-day > header > p { @apply text-muted-foreground; font-size:.75rem; margin-top:4px; }
     .kitchen-menu-day > .kitchen-menu-slot { margin-top:16px; }
+    /* Seven narrow columns: with a mouse, the stepper and the menu keep a 32 px target (WCAG 2.5.8). */
+    .kitchen-menu-entry { padding:10px; }
+  }
+  @media(min-width:900px) {
+    .kitchen-menu-notices { bottom:24px; inset-inline:auto; left:50%; width:min(560px,calc(100% - 48px)); transform:translateX(-50%); }
+    .kitchen-menus-page[data-notice="true"] { padding-bottom:96px; }
+  }
+  @media(min-width:1100px) and (pointer:fine) {
+    .kitchen-menu-days .kitchen-menu-servings > button, .kitchen-menu-days .kitchen-menu-more { width:32px; height:32px; min-height:32px; }
+    .kitchen-menu-days .kitchen-menu-servings > span { min-width:1.75rem; }
   }
 }
 

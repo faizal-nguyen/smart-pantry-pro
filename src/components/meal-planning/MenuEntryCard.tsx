@@ -1,40 +1,77 @@
 /**
  * PRP-234 PR2 — MenuEntryCard.
  *
- * Affichage d'une entrée meal_plan_entries dans un slot de la grille
- * Menus : nom de la recette, temps total (prep+cook), nombre de
- * portions, bouton « Ouvrir » (si recipe_id) et bouton « Retirer ».
+ * Affichage d'une entrée meal_plan_entries dans un slot de la grille Menus : nom de la recette,
+ * temps total, portions et actions.
  *
- * V11-01 E1 : un repas planifié avec sa recette est cuisiné par une commande
- * rattachée au repas. « Cuisinée » est lu en base (cooked_command_id), et la
- * fiche ouverte depuis la carte porte le repas (`?meal=`).
+ * V11-01 E1 : un repas planifié avec sa recette est cuisiné par une commande rattachée au repas.
+ * « Cuisinée » est lu en base (cooked_command_id), et la fiche ouverte depuis la carte porte le
+ * repas (`?meal=`).
+ * V11-01 E3b : portions en pas à pas, « Déplacer », « Prévoir des restes » et « Retirer » passent
+ * par update_menu, depuis la page (actions). Un reste (leftover_of) n'est ni cuisiné ni déduit.
  */
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Clock, Undo2, Users, X } from 'lucide-react';
+import { ArrowRightLeft, Check, Clock, Minus, MoreHorizontal, Plus, Soup, Undo2, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { recipeDetailPath } from '@/lib/recipeLinks';
+import { leftoverCapacity, servingsBounds, slotLabel } from '@/lib/menuEdit';
 import { useCookRecipe } from '@/hooks/useCookRecipe';
 import { useRefreshWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 
-interface MenuEntryCardProps {
-  entry: MenuEntryView;
-  onRemove: (entryId: string) => void;
-  disabled?: boolean;
+/** What the page lets a card do; dialogs open once, in the page. */
+export interface MenuCardActions {
+  /** The week as loaded: servings bounds, and the meal a leftover comes from. */
+  entries: MenuEntryView[];
+  /** The meal an edit is running on; while one runs, every card's edits wait (one at a time). */
+  busyId: string | null;
+  onServings: (entry: MenuEntryView, servings: number) => void;
+  onMove: (entry: MenuEntryView) => void;
+  onLeftover: (entry: MenuEntryView) => void;
+  onRemove: (entry: MenuEntryView) => void;
 }
 
-export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCardProps) {
+interface MenuEntryCardProps {
+  entry: MenuEntryView;
+  actions: MenuCardActions;
+}
+
+export default function MenuEntryCard({ entry, actions }: MenuEntryCardProps) {
   const navigate = useNavigate();
-  const totalTime = entry.prep_time + entry.cook_time;
-  const reference = entry.recipe_reference ?? (entry.recipe_id ? { id:entry.recipe_id,source:'auto' as const } : null);
-  const canOpen = !!reference;
   const refreshMenu = useRefreshWeeklyMenu();
+  const isLeftover = !!entry.leftover_of;
+  const origin = isLeftover ? actions.entries.find(item => item.id === entry.leftover_of) ?? null : null;
+  const totalTime = entry.prep_time + entry.cook_time;
+  // A leftover opens the recipe of its meal; it is never cooked nor counted on its own.
+  const source = origin ?? entry;
+  const reference = source.recipe_reference ?? (source.recipe_id ? { id: source.recipe_id, source: 'auto' as const } : null);
+  const canOpen = !!reference && (!isLeftover || !!origin);
   // Only a meal planned with its recipe reference can be linked: the server compares them.
-  const meal = entry.recipe_reference
+  const meal = !isLeftover && entry.recipe_reference
     ? { id: entry.id, version: entry.version, cookedCommandId: entry.cooked_command_id, refresh: refreshMenu }
     : null;
-  const cooking = useCookRecipe(reference ? { ...reference, name: entry.recipe_name, servings: entry.servings } : null, meal);
+  const cooking = useCookRecipe(!isLeftover && reference ? { ...reference, name: entry.recipe_name, servings: entry.servings } : null, meal);
   const cooked = cooking.status === 'cooked' || cooking.status === 'undoing';
+  const busy = actions.busyId === entry.id;
+  // aria-disabled, not disabled: a focused button that becomes disabled drops keyboard focus.
+  const locked = actions.busyId !== null;
+  const bounds = servingsBounds(entry, actions.entries);
+  const canLess = !locked && entry.servings > bounds.min;
+  const canMore = !locked && entry.servings < bounds.max;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const canLeftover = !isLeftover && !!entry.recipe_reference && leftoverCapacity(entry, actions.entries) > 0;
+  // A dialog opens once the menu has closed, from its trigger: the page gives focus back to it.
+  const opening = useRef<'move' | 'leftover' | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const openPending = () => {
+    const next = opening.current;
+    opening.current = null;
+    if (next) trigger.current?.focus();
+    if (next === 'move') actions.onMove(entry);
+    else if (next === 'leftover') actions.onLeftover(entry);
+  };
 
   const open = () => {
     if (!reference) return;
@@ -42,35 +79,42 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
   };
 
   return (
-    <div className="kitchen-menu-entry">
+    <div className="kitchen-menu-entry" data-leftover={isLeftover}>
       {canOpen ? (
-        <button
-          type="button"
-          onClick={open}
-          className="kitchen-menu-entry-title"
-          aria-label={`Ouvrir ${entry.recipe_name}`}
-        >
+        <button type="button" onClick={open} className="kitchen-menu-entry-title" aria-label={`Ouvrir ${entry.recipe_name}`}>
           {entry.recipe_name}
         </button>
       ) : (
         <p className="kitchen-menu-entry-title">{entry.recipe_name}</p>
       )}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        {totalTime > 0 && (
+      {isLeftover && <p className="kitchen-menu-entry-origin">
+        <Soup className="h-3 w-3" aria-hidden="true" />
+        {origin ? `Reste du ${slotLabel(origin).toLocaleLowerCase('fr')}` : 'Reste d’un repas d’une autre semaine'}
+      </p>}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {totalTime > 0 && !isLeftover && (
           <span className="inline-flex items-center gap-1">
             <Clock className="h-3 w-3" aria-hidden="true" />
             {totalTime} min
           </span>
         )}
-        {entry.servings > 0 && (
-          <span className="inline-flex items-center gap-1">
+        <span className="kitchen-menu-servings" role="group" aria-label={`Portions de ${entry.recipe_name}`}>
+          <Button type="button" variant="ghost" size="icon" className="kitchen-menu-step h-11 w-11" aria-disabled={!canLess}
+            aria-label={`Une portion de moins pour ${entry.recipe_name}`} onClick={() => { if (canLess) actions.onServings(entry, entry.servings - 1); }}>
+            <Minus className="h-3 w-3" aria-hidden="true" />
+          </Button>
+          <span className="inline-flex items-center gap-1 tabular-nums">
             <Users className="h-3 w-3" aria-hidden="true" />
-            {entry.servings}
+            <span aria-label={`${entry.servings} portions`}>{entry.servings}</span>
           </span>
-        )}
+          <Button type="button" variant="ghost" size="icon" className="kitchen-menu-step h-11 w-11" aria-disabled={!canMore}
+            aria-label={`Une portion de plus pour ${entry.recipe_name}`} onClick={() => { if (canMore) actions.onServings(entry, entry.servings + 1); }}>
+            <Plus className="h-3 w-3" aria-hidden="true" />
+          </Button>
+        </span>
       </div>
       <div className="flex items-center justify-between gap-1">
-        {canOpen && cooked ? (
+        {!isLeftover && canOpen && cooked ? (
           <span className="inline-flex items-center gap-1">
             <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-xs gap-1" disabled
               aria-label={`${entry.recipe_name} est cuisinée`}>
@@ -84,34 +128,36 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
               Annuler
             </Button>
           </span>
-        ) : canOpen ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-h-11 px-2 text-xs gap-1"
-            disabled={disabled || cooking.status === 'cooking'}
-            onClick={() => void cooking.cook()}
-            aria-label={`Marquer ${entry.recipe_name} comme cuisinée`}
-          >
+        ) : !isLeftover && canOpen ? (
+          <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2 text-xs gap-1"
+            disabled={busy || cooking.status === 'cooking'} onClick={() => void cooking.cook()}
+            aria-label={`Marquer ${entry.recipe_name} comme cuisinée`}>
             <Check className="h-3 w-3" aria-hidden="true" />
             Cuisinée
           </Button>
         ) : (
           <span aria-hidden="true" />
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="min-h-11 px-2 text-xs gap-1 text-muted-foreground"
-          disabled={disabled}
-          onClick={() => onRemove(entry.id)}
-          aria-label={`Retirer ${entry.recipe_name} du menu`}
-        >
-          <X className="h-3 w-3" aria-hidden="true" />
-          Retirer
-        </Button>
+        {/* Not modal: a dialog opened from a modal Radix menu can leave the page without clicks once closed. */}
+        <DropdownMenu modal={false} open={menuOpen} onOpenChange={open => setMenuOpen(open && !locked)}>
+          <DropdownMenuTrigger asChild>
+            <Button ref={trigger} type="button" variant="ghost" size="icon" className="kitchen-menu-more h-11 w-11 shrink-0" aria-disabled={locked}
+              aria-label={`Autres actions pour ${entry.recipe_name}`}>
+              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onCloseAutoFocus={openPending}>
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { opening.current = 'move'; }}>
+              <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />Déplacer…
+            </DropdownMenuItem>
+            {canLeftover && <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => { opening.current = 'leftover'; }}>
+              <Soup className="h-4 w-4" aria-hidden="true" />Prévoir des restes…
+            </DropdownMenuItem>}
+            <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => actions.onRemove(entry)}>
+              <X className="h-4 w-4" aria-hidden="true" />Retirer du menu
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

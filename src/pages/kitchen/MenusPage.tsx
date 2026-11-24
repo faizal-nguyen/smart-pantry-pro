@@ -12,8 +12,8 @@
  * automatiquement.
  */
 import { Link, useSearchParams } from 'react-router-dom';
-import { useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2, ShoppingBasket } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2, ShoppingBasket, X } from 'lucide-react';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
 import { currentMenuWeek, menuWeekFromParam, menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
@@ -21,8 +21,12 @@ import { currentMenuWeek, menuWeekFromParam, menuWeekLabel, shiftMenuWeek } from
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useWeeklyMenu } from '@/hooks/useWeeklyMenu';
+import { useWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
+import { useMenuEdit } from '@/hooks/useMenuEdit';
 import MenuWeekGrid from '@/components/meal-planning/MenuWeekGrid';
+import MoveMealDialog from '@/components/meal-planning/MoveMealDialog';
+import LeftoverDialog from '@/components/meal-planning/LeftoverDialog';
+import type { MenuCardActions } from '@/components/meal-planning/MenuEntryCard';
 import AddRecipeToMenuDialog, {
   type MenuSlot,
 } from '@/components/meal-planning/AddRecipeToMenuDialog';
@@ -45,6 +49,34 @@ export default function MenusPage() {
     return copy;
   }, { replace: true });
   const [openDialog, setOpenDialog] = useState(false);
+  const edit = useMenuEdit();
+  const [moving, setMoving] = useState<MenuEntryView | null>(null);
+  const [leftoverOf, setLeftoverOf] = useState<MenuEntryView | null>(null);
+  // Focus: a dialog closed without change goes back to the card's menu; once an edit is confirmed, to
+  // « Annuler », which says what was done (a removed or moved card leaves its place).
+  const undoButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const [focusUndo, setFocusUndo] = useState(0);
+  const focusUndoOnClose = useRef(false);
+  const dialogOpener = useRef<HTMLElement | null>(null);
+  useEffect(() => { if (focusUndo) undoButton.current?.focus(); }, [focusUndo]);
+  const fromCard = (open: (entry: MenuEntryView) => void) => (entry: MenuEntryView) => {
+    dialogOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    edit.clearError();
+    open(entry);
+  };
+  const afterDialog = (event: Event) => {
+    event.preventDefault();
+    if (focusUndoOnClose.current) setFocusUndo(count => count + 1);
+    else if (dialogOpener.current?.isConnected) dialogOpener.current.focus();
+    focusUndoOnClose.current = false;
+    dialogOpener.current = null;
+  };
+  const confirmed = async (edited: Promise<boolean>) => {
+    const done = await edited;
+    focusUndoOnClose.current = done;
+    return done;
+  };
   const [slot, setSlot] = useState<MenuSlot | null>(null);
   const ask = useAskAssistant();
 
@@ -69,13 +101,6 @@ export default function MenusPage() {
     }
   };
 
-  const handleRemoveEntry = async (entryId: string) => {
-    try {
-      await menu.removeEntry.mutateAsync(entryId);
-    } catch {
-      /* toast already fired */
-    }
-  };
 
   const askAssistant = () =>
     ask(`Aide-moi à planifier mes repas de la ${menuWeekLabel(weekStart).toLowerCase()}. Tu peux ajouter des recettes à mon menu directement.`);
@@ -84,12 +109,22 @@ export default function MenusPage() {
 
   const isThisWeek = weekStart === currentMenuWeek(now);
   const entries = menu.data?.entries ?? [];
-  const removingId = menu.removeEntry.isPending
-    ? menu.removeEntry.variables ?? undefined
-    : undefined;
+  // A dialog works on the meal as last read (its version after a refusal), and closes once the meal is no
+  // longer in the week shown: another week was opened, or it was removed elsewhere.
+  const movingEntry = moving ? entries.find(item => item.id === moving.id) ?? null : null;
+  const leftoverEntry = leftoverOf ? entries.find(item => item.id === leftoverOf.id) ?? null : null;
+  useEffect(() => { if (moving && !movingEntry) setMoving(null); }, [moving, movingEntry]);
+  useEffect(() => { if (leftoverOf && !leftoverEntry) setLeftoverOf(null); }, [leftoverOf, leftoverEntry]);
+  // V11-01 E3b: the card's edits, confirmed by update_menu and offered for undo.
+  const actions: MenuCardActions = {
+    entries, busyId: edit.busyId,
+    onServings: (entry, servings) => void edit.setServings(entry, servings),
+    onMove: fromCard(setMoving), onLeftover: fromCard(setLeftoverOf),
+    onRemove: entry => void edit.remove(entry).then(done => { if (done) setFocusUndo(count => count + 1); }),
+  };
 
   return (
-    <div className="culinary-page kitchen-page kitchen-menus-page">
+    <div className="culinary-page kitchen-page kitchen-menus-page" data-notice={!!(edit.error || edit.lastChange)}>
         <RecipesMenusSwitch />
 {recipeName&&<p className="rounded-lg border p-3 text-sm">Choisis un créneau pour « {recipeName} », puis confirme la recette.</p>}
         <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<>
@@ -109,6 +144,7 @@ export default function MenusPage() {
             Demander à l&apos;assistant
           </Button>
         </>}/>
+
 
         {/* Week navigator */}
         <div className="kitchen-week-navigation">
@@ -167,8 +203,7 @@ export default function MenusPage() {
               weekStart={weekStart}
               entries={entries}
               onAddSlot={handleAddSlot}
-              onRemoveEntry={handleRemoveEntry}
-              removingId={removingId}
+              actions={actions}
             />
             {entries.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
@@ -178,6 +213,28 @@ export default function MenusPage() {
             )}
           </>
         )}
+
+        {movingEntry && <MoveMealDialog key={movingEntry.id} entry={movingEntry} entries={entries} busy={!!edit.busyId} error={edit.error}
+          onClose={() => setMoving(null)} onCloseAutoFocus={afterDialog} onConfirm={(target, occupant) => confirmed(edit.move(movingEntry, weekStart, target, occupant))} />}
+        {leftoverEntry && <LeftoverDialog key={leftoverEntry.id} entry={leftoverEntry} entries={entries} busy={!!edit.busyId} error={edit.error}
+          onClose={() => setLeftoverOf(null)} onCloseAutoFocus={afterDialog} onConfirm={(target, servings) => confirmed(edit.addLeftover(leftoverEntry, weekStart, target, servings))} />}
+
+        {/* Fixed at the bottom: the week is long on a phone, and the edit is often far below the title. */}
+        <div className="kitchen-menu-notices">
+          {edit.error && <p role="alert" className="kitchen-menu-notice" data-tone="error">{edit.error}</p>}
+          {/* Always mounted, so that a confirmed edit written into it is announced. */}
+          <div role="status" className={edit.lastChange ? 'kitchen-menu-notice' : 'sr-only'}>
+            {edit.lastChange && <>
+              <p className="min-w-0 flex-[1_1_12rem]">{edit.lastChange.message}</p>
+              {/* Once undone, this button leaves: focus goes to « Fermer » rather than being lost. */}
+              {!edit.lastChange.undone && <Button ref={undoButton} variant="outline" className="min-h-11" aria-disabled={!!edit.busyId}
+                aria-label={`Annuler : ${edit.lastChange.message}`}
+                onClick={() => { if (!edit.busyId) void edit.undoLast().then(() => closeButton.current?.focus()); }}>Annuler</Button>}
+            </>}
+          </div>
+          {(edit.error || edit.lastChange) && <Button ref={closeButton} type="button" variant="ghost" size="icon" className="kitchen-menu-notice-close h-11 w-11"
+            aria-label="Fermer le message" onClick={edit.dismiss}><X className="h-4 w-4" aria-hidden="true" /></Button>}
+        </div>
 
         <AddRecipeToMenuDialog
           open={openDialog}

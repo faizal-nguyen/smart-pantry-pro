@@ -2,10 +2,11 @@
  * PRP-234 PR2 — useWeeklyMenu hook.
  *
  * Lit la semaine courante depuis `weekly_meal_plans + meal_plan_entries`
- * et expose `addEntry` / `removeEntry` mutations qui écrivent
- * directement via Supabase (latence ~100ms vs ~2-3s pour le tool
- * assistant). Le tool `add_recipe_to_meal_plan` reste utilisable côté
- * assistant — son écriture rafraîchit ce hook via `agentEvents`.
+ * et expose `addEntry`, qui planifie par la commande `plan_recipe`. Les
+ * autres modifications (portions, déplacement, restes, retrait) passent
+ * par `update_menu` (useMenuEdit, V11-01 E3b). Le tool
+ * `add_recipe_to_meal_plan` reste utilisable côté assistant — son
+ * écriture rafraîchit ce hook via `agentEvents`.
  *
  * Pattern miroir de `useCookingJournal` (PRP-223 PR7) : useQuery +
  * useMutation + `queryClient.invalidateQueries` + abonnement
@@ -38,6 +39,8 @@ export interface MenuEntryView {
   version: number;
   /** The cooking that counted this meal, read from the base (null: not cooked). */
   cooked_command_id: string | null;
+  /** V11-01 E3: a leftover names the meal it comes from (null: a meal of its own). */
+  leftover_of: string | null;
 }
 
 export interface WeeklyMenuView {
@@ -67,6 +70,7 @@ interface RawEntry {
   cook_time: number | null;
   version?: number | null;
   cooked_command_id?: string | null;
+  leftover_of?: string | null;
 }
 
 interface RawPlanRow {
@@ -97,6 +101,7 @@ function normaliseEntries(rows: RawEntry[] | null | undefined): MenuEntryView[] 
       cook_time: r.cook_time ?? 0,
       version: r.version ?? 0,
       cooked_command_id: r.cooked_command_id ?? null,
+      leftover_of: r.leftover_of ?? null,
     }));
 }
 
@@ -124,7 +129,7 @@ export function useWeeklyMenu(weekStart: string) {
       const { data, error } = await supabase
         .from('weekly_meal_plans')
         .select(
-          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings, prep_time, cook_time, version, cooked_command_id)',
+          'id, meal_plan_entries(id, day_of_week, meal_type, recipe_id, recipe_reference, recipe_name, servings, prep_time, cook_time, version, cooked_command_id, leftover_of)',
         )
         .eq('user_id', userId!)
         .eq('week_start_date', weekStart)
@@ -179,29 +184,6 @@ export function useWeeklyMenu(weekStart: string) {
     },
   });
 
-  const removeEntry = useMutation({
-    mutationFn: async (entryId: string) => {
-      if (!query.data?.entries.some(entry => entry.id === entryId)) throw new Error('Ce repas n’est plus disponible.');
-      const { error, data } = await supabase
-        .from('meal_plan_entries')
-        .delete()
-        .eq('meal_plan_id',query.data!.meal_plan_id!)
-        .eq('id', entryId).select('id');
-      if (error || data?.length !== 1) throw error ?? new Error('Suppression non confirmée.');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      toast({ title: 'Recette retirée du menu' });
-    },
-    onError: (err: unknown) => {
-      toast({
-        variant: 'destructive',
-        title: 'Retrait impossible',
-        description: errorMessage(err),
-      });
-    },
-  });
-
   return {
     data: query.data,
     isLoading: query.isLoading,
@@ -209,6 +191,5 @@ export function useWeeklyMenu(weekStart: string) {
     error: query.error,
     refetch: query.refetch,
     addEntry,
-    removeEntry,
   };
 }
