@@ -8,8 +8,10 @@ export function safeRecipeSourceUrl(value: string | null | undefined): string | 
   } catch { return null; }
 }
 
-export function recipeDetailPath(reference: Pick<RecipeReference, 'id' | 'source'>, servings?: number | null): string {
+/** `meal`: the planned meal it was opened from, which cooking it from the page marks as cooked. */
+export function recipeDetailPath(reference: Pick<RecipeReference, 'id' | 'source'>, servings?: number | null, meal?: string | null): string {
   const params = new URLSearchParams({ source: reference.source });
   if (servings != null && Number.isFinite(servings) && servings > 0 && servings <= 100) params.set('servings', String(servings));
+  if (meal) params.set('meal', meal);
   return `/kitchen/recipes/${encodeURIComponent(reference.id)}?${params}`;
 }

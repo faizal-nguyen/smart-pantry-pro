@@ -1,6 +1,6 @@
 import { ApiError, apiPost } from '@/lib/api';
 import { dispatchAgentDbChanged } from '@/lib/agentEvents';
-import { commandForIntent, executeStockCommand, finishIntent, pendingIntent, pendingIntents, previewRecipeStock } from '../stockCommands';
+import { changedTables, commandForIntent, executeStockCommand, finishIntent, pendingIntent, pendingIntents, previewRecipeStock } from '../stockCommands';
 
 let mockOwner: string | null = '00000000-0000-4000-8000-000000000001';
 jest.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { getSession: jest.fn(async () => ({ data: { session: mockOwner ? { user: { id: mockOwner } } : null } })) } } }));
@@ -97,5 +97,19 @@ describe('recoverable online stock intentions', () => {
     post.mockResolvedValueOnce({ servings: 4 });
     await previewRecipeStock({ id: '30000000-0000-4000-8000-000000000001', source: 'auto' });
     expect(post).toHaveBeenCalledWith('/v1/stock/preview',{ recipe: { id: '30000000-0000-4000-8000-000000000001', source: 'auto' } },{ expectedUserId: mockOwner });
+  });
+});
+
+// V11-01 E1: the server lists the stock and journal tables for a cooking; the meal link changes too.
+describe('tables reread after a command', () => {
+  const result = (command_type: string, affected_tables: string[], meal_plan_entry_id?: string) => ({ command_type, affected_tables, meal_plan_entry_id });
+  test('a cooking linked to a meal, and the undo of a cooking, reread the menu', () => {
+    expect(changedTables(result('consume_recipe', ['inventory','cooking_journal','user_recipes'], 'meal'))).toEqual(['inventory','cooking_journal','user_recipes','meal_plan_entries']);
+    expect(changedTables(result('undo_stock', ['inventory','shopping_list','cooking_journal','user_recipes']))).toContain('meal_plan_entries');
+  });
+  test('other commands keep the server’s tables', () => {
+    expect(changedTables(result('consume_recipe', ['inventory','cooking_journal']))).toEqual(['inventory','cooking_journal']);
+    expect(changedTables(result('undo_stock', ['shopping_list']))).toEqual(['shopping_list']);
+    expect(changedTables(result('undo_stock', ['meal_plan_entries','cooking_journal']))).toEqual(['meal_plan_entries','cooking_journal']);
   });
 });

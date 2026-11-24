@@ -18,6 +18,18 @@ function readSavedCommand(key: string): StockCommand | null {
 }
 export function newCommandId(): string { return crypto.randomUUID(); }
 
+/**
+ * The tables to reread after a confirmed command. A cooking linked to a planned meal, and the
+ * undo of a cooking, also write the meal's cooked link, which the server leaves out of the
+ * cooking's tables (20261124090000): the menu is added so it rereads its « Cuisinée ».
+ */
+export function changedTables(result: Pick<StockCommandResult, 'command_type' | 'affected_tables' | 'meal_plan_entry_id'>): AgentAffectedTable[] {
+  const tables = result.affected_tables as AgentAffectedTable[];
+  const menu = (result.command_type === 'consume_recipe' && !!result.meal_plan_entry_id)
+    || (result.command_type === 'undo_stock' && tables.includes('cooking_journal'));
+  return menu && !tables.includes('meal_plan_entries') ? [...tables, 'meal_plan_entries'] : tables;
+}
+
 export async function previewRecipeStock(recipe: RecipeReference, servings?: number): Promise<RecipeStockPreview> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Reconnecte-toi pour vérifier le stock.');
@@ -44,7 +56,7 @@ export async function executeStockCommand(input: StockCommand, expectedOwner?: s
   if (result.status !== 'confirmed' || result.command_id !== command.command_id) throw new Error('Le résultat de cette action reste à vérifier.');
   const current = await supabase.auth.getSession();
   if (current.data.session?.user.id !== owner) throw new ApiError('Le compte a changé. Reconnecte-toi au compte qui a commencé l’action pour en retrouver le résultat.',{ status: 401, code: 'AUTH_CHANGED' });
-  dispatchAgentDbChanged(result.affected_tables as AgentAffectedTable[]);
+  dispatchAgentDbChanged(changedTables(result));
   return result;
 }
 
@@ -67,7 +79,7 @@ export async function getStockCommandResult(commandId: string, expectedOwner?: s
   const current = await supabase.auth.getSession();
   if (current.data.session?.user.id !== owner) throw new ApiError('Le compte a changé. Reprends ce repas avec son propriétaire.',{ status:401,code:'AUTH_CHANGED' });
   if (result.status !== 'confirmed' || result.command_id !== commandId) throw new Error('Le résultat de ce repas reste à vérifier.');
-  dispatchAgentDbChanged(result.affected_tables as AgentAffectedTable[]);
+  dispatchAgentDbChanged(changedTables(result));
   return result;
 }
 

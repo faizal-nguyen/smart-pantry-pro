@@ -25,6 +25,7 @@ import { useRecipes } from '@/hooks/useRecipes';
 import { useImageManagement } from '@/hooks/useImageManagement';
 import { useRecipeFavorites } from '@/hooks/useRecipeFavorites';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
+import { plannedMealId, usePlannedMeal } from '@/hooks/usePlannedMeal';
 import { toast } from '@/hooks/use-toast';
 import { startCookingSession } from '@/services/cookingSessions';
 import { saveRecipePhoto } from '@/services/recipeDetails';
@@ -53,6 +54,17 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const ingredients = details.data?.ingredients ?? [];
   const instructions = details.data?.instructions ?? [];
   const reference: RecipeEvaluationInput['recipe'] | undefined = recipe ? { id: recipe.id, source: recipe.source } : undefined;
+  // V11-01 E1: opened from a planned meal, the cooking marks it as cooked, if it is still this
+  // recipe's and not cooked yet. Until the meal is read, cooking waits: started unlinked, the
+  // meal could later be counted a second time from its card.
+  const mealId = plannedMealId(params.get('meal'));
+  const plannedMeal = usePlannedMeal(user.id, mealId);
+  const meal = plannedMeal.data;
+  const linkable = !!meal && !meal.cooked && meal.recipe_id === id;
+  // A meal read and no longer linkable is `null`: a session still linked to it drops the link.
+  const mealLink = !mealId ? undefined : linkable ? { id: meal!.id, version: meal!.version } : null;
+  // A cached meal being read again is not trusted: it may have been cooked or changed since.
+  const mealUnread = !!mealId && (plannedMeal.isLoading || plannedMeal.isFetching || plannedMeal.isError);
   const [chosenServings, setChosenServings] = useState<number | undefined>(() => {
     const value = Number(params.get('servings'));
     return Number.isFinite(value) && value > 0 && value <= 100 ? value : undefined;
@@ -85,6 +97,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const canEdit = ownsRecipe && recipe?.source === 'recipes';
   const hasBaseServings = recipe?.servings != null && Number.isFinite(recipe.servings) && recipe.servings > 0;
   const canUseStock = hasBaseServings && evaluation.validServings;
+  const canCook = canUseStock && !mealUnread;
   const purchaseCount = freshEvaluation?.availability.missing.filter(canAddToShoppingList).length ?? 0;
   const handlePhotoUpload = async (file: File) => {
     if (!reference || !ownsRecipe) return;
@@ -98,10 +111,10 @@ function RecipeDetailContent({ id }: { id?: string }) {
     } catch (error) { showActionError(error); }
   };
   const handleCook = async () => {
-    if (!reference || !canUseStock || cooking) return;
+    if (!reference || !canCook || cooking) return;
     setCooking(true); setActionError(null);
     try {
-      const session = await startCookingSession(user.id, reference, instructions, servings);
+      const session = await startCookingSession(user.id, reference, instructions, servings, mealLink);
       navigate('/kitchen/cooking/' + session.id);
     } catch (error) { showActionError(error); }
     finally { setCooking(false); }
@@ -159,7 +172,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const onEdit = () => navigate('/kitchen/recipes/' + recipe.id + '/edit?source=' + recipe.source);
   const actions = {
     onCook: handleCook, onAddMissingToShoppingList: handleAddMissing, onEdit, cooking, addingToCart,
-    canCook: canUseStock, canEdit,
+    canCook, canEdit,
     canAddMissing: canUseStock && purchaseCount > 0,
   };
   return <div className="culinary-page kitchen-page kitchen-recipe-detail">
@@ -190,6 +203,15 @@ function RecipeDetailContent({ id }: { id?: string }) {
       <Button variant="outline" onClick={()=>void details.refetch()}>Relire la recette</Button>
     </div>}
     {actionError && <p role="alert" className="mb-4 rounded-md border border-destructive p-3 text-destructive">{actionError}</p>}
+    {mealId && plannedMeal.isError && <div role="alert" className="mb-4 space-y-2 rounded-md border p-3 text-sm">
+      <p>Le repas du menu n’a pas pu être relu : la cuisine attend de savoir s’il faut le marquer cuisiné.</p>
+      <Button variant="outline" className="min-h-11" onClick={() => void plannedMeal.refetch()}>Relire le repas</Button>
+    </div>}
+    {mealId && !mealUnread && <p role="note" className="mb-4 rounded-md border p-3 text-sm">{mealLink
+      ? 'Repas du menu : il sera marqué cuisiné quand tu confirmeras la fin de la cuisine.'
+      : meal?.cooked && meal.recipe_id === id
+        ? 'Ce repas du menu est déjà marqué cuisiné. Cuisiner à nouveau retirera le stock sans changer le menu.'
+        : 'Ce repas n’est plus au menu avec cette recette : la cuisine ne changera pas le menu.'}</p>}
     <label className="mb-3 flex items-center gap-3 text-sm">Portions à préparer
       <Input aria-label="Portions à préparer" className="w-24" type="number" min="1" max="100" step="1" value={servings === 0 ? '' : servings ?? ''} disabled={cooking}
         onChange={event => setChosenServings(event.target.value === '' ? 0 : Number(event.target.value))} />

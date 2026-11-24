@@ -142,6 +142,12 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
       data.inventory.push(...inserted); data.shopping_list = data.shopping_list.filter(row => !selected.includes(row));
       result.affected_tables = ['inventory','shopping_list']; result.inventory_ids = inserted.map(row => String(row.id));
     } else if (command.command_type === 'consume_recipe') {
+      // Visual QA only: the meal link of V11-01 E1, checked before any change; SQL rules are tested on PostgreSQL.
+      const mealId=command.payload.meal_plan_entry_id;
+      const meal=mealId ? (data.meal_plan_entries ?? []).find(row=>row.id===mealId) : undefined;
+      if (mealId && !meal) throw new ApiError('Ce produit ou cet achat n’est plus disponible. Actualise la liste.',{ status:400,code:'ITEM_NOT_FOUND' });
+      if (meal?.cooked_command_id) throw new ApiError('Ce repas est déjà marqué cuisiné.',{ status:409,code:'ALREADY_COOKED' });
+      if (meal && Number(meal.version ?? 0)!==command.payload.entry_version) throw new ApiError('Ce repas a changé dans le menu entre-temps : rien n’a été modifié. Relis le menu avant de recommencer.',{ status:409,code:'MENU_CHANGED' });
       const computed = preview(command.payload.recipe.id,command.payload.servings);
       const actual=allocateCookingStock(computed.recipe.ingredients,computed.lots,computed.recipe.servings,computed.servings,command.payload.adjustments,command.payload.outside_inventory);
       if (actual.missing.length) throw new ApiError('Stock insuffisant.',{ status:409,code:'INSUFFICIENT_QUANTITY' });
@@ -150,6 +156,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
         lot.quantity = Number(lot.quantity)-allocation.quantity; lot.stock_version = Number(lot.stock_version)+1;
       }
       result.journal_id = crypto.randomUUID(); result.affected_tables = ['inventory','cooking_journal'];
+      if (meal) { meal.cooked_command_id=command.command_id;result.meal_plan_entry_id=String(meal.id); }
       data.cooking_journal_entries.push({ id:result.journal_id,user_id:OWNER,stock_command_id:command.command_id });
     } else if (command.command_type==='adjust_inventory' || command.command_type==='consume_inventory') {
       result.changes=[];
@@ -167,6 +174,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
       const previous=snapshots.get(command.payload.original_command_id);
       if (!previous) throw new ApiError('Action introuvable.',{ status:409,code:'COMMAND_NOT_FOUND' });
       data.inventory=structuredClone(previous.inventory);data.shopping_list=structuredClone(previous.shopping);
+      (data.meal_plan_entries ?? []).filter(row=>row.cooked_command_id===command.payload.original_command_id).forEach(row=>{ row.cooked_command_id=null; });
       result.affected_tables=['inventory','shopping_list','cooking_journal'];
     } else if (command.command_type==='shopping_add') {
       // Visual QA only: the oldest unchecked row in a convertible unit is topped up (D16); SQL rules are tested on PostgreSQL.

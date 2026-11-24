@@ -17,7 +17,7 @@ export function seedCarnetScene(data: Record<string, Record<string, unknown>[]>,
   data.mobile_routine_preferences=[{user_id:owner,introduction:'done',stock_view:'list',updated_at:today.toISOString()}];
   const dayIndex=(today.getUTCDay()+6)%7;
   data.weekly_meal_plans=[{id:id(8,1),user_id:owner,week_start_date:date(-dayIndex)}];
-  data.meal_plan_entries=[{id:id(9,1),meal_plan_id:id(8,1),day_of_week:dayIndex,meal_type:'dinner',recipe_id:recipe,recipe_reference:{id:recipe,source:'recipes'},recipe_name:'Couscous de légumes',servings:2,prep_time:10,cook_time:15}];
+  data.meal_plan_entries=[{id:id(9,1),meal_plan_id:id(8,1),day_of_week:dayIndex,meal_type:'dinner',recipe_id:recipe,recipe_reference:{id:recipe,source:'recipes'},recipe_name:'Couscous de légumes',servings:2,prep_time:10,cook_time:15,version:0,cooked_command_id:null}];
 }
 
 export function seedRecipeLifeScene(data:Record<string,Record<string,unknown>[]>,owner:string){

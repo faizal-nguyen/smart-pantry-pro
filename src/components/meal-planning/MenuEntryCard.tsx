@@ -4,6 +4,10 @@
  * Affichage d'une entrée meal_plan_entries dans un slot de la grille
  * Menus : nom de la recette, temps total (prep+cook), nombre de
  * portions, bouton « Ouvrir » (si recipe_id) et bouton « Retirer ».
+ *
+ * V11-01 E1 : un repas planifié avec sa recette est cuisiné par une commande
+ * rattachée au repas. « Cuisinée » est lu en base (cooked_command_id), et la
+ * fiche ouverte depuis la carte porte le repas (`?meal=`).
  */
 import { useNavigate } from 'react-router-dom';
 import { Check, Clock, Undo2, Users, X } from 'lucide-react';
@@ -11,7 +15,7 @@ import { Check, Clock, Undo2, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { recipeDetailPath } from '@/lib/recipeLinks';
 import { useCookRecipe } from '@/hooks/useCookRecipe';
-import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
+import { useRefreshWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 
 interface MenuEntryCardProps {
   entry: MenuEntryView;
@@ -24,12 +28,17 @@ export default function MenuEntryCard({ entry, onRemove, disabled }: MenuEntryCa
   const totalTime = entry.prep_time + entry.cook_time;
   const reference = entry.recipe_reference ?? (entry.recipe_id ? { id:entry.recipe_id,source:'auto' as const } : null);
   const canOpen = !!reference;
-  const cooking = useCookRecipe(reference ? { ...reference, name: entry.recipe_name, servings: entry.servings } : null);
+  const refreshMenu = useRefreshWeeklyMenu();
+  // Only a meal planned with its recipe reference can be linked: the server compares them.
+  const meal = entry.recipe_reference
+    ? { id: entry.id, version: entry.version, cookedCommandId: entry.cooked_command_id, refresh: refreshMenu }
+    : null;
+  const cooking = useCookRecipe(reference ? { ...reference, name: entry.recipe_name, servings: entry.servings } : null, meal);
   const cooked = cooking.status === 'cooked' || cooking.status === 'undoing';
 
   const open = () => {
     if (!reference) return;
-    navigate(recipeDetailPath(reference,entry.servings));
+    navigate(recipeDetailPath(reference, entry.servings, meal?.id));
   };
 
   return (

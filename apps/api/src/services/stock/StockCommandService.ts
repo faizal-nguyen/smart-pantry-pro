@@ -17,7 +17,7 @@ const MESSAGES: Record<string, string> = {
   UNIT_UNKNOWN: 'Une unité reste à vérifier.',
   UNIT_INCOMPATIBLE: 'Ces unités ne sont pas convertibles sans information supplémentaire.',
   UNDO_CONFLICT: 'Le stock a changé depuis cette action. L’annulation écraserait une correction.',
-  MENU_CHANGED: 'Ce repas a été modifié dans le menu depuis : je n’ai rien annulé.',
+  MENU_CHANGED: 'Ce repas a changé dans le menu entre-temps : rien n’a été modifié. Relis le menu avant de recommencer.',
   ALREADY_UNDONE: 'Cette action a déjà été annulée.',
   IDEMPOTENCY_CONFLICT: 'Cette action a déjà un résultat différent. Vérifie son état avant de continuer.',
   INVALID_ALLOCATION: 'Les ingrédients ne correspondent plus au stock sélectionné.',

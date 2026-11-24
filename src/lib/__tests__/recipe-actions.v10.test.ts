@@ -1,5 +1,6 @@
-import { cookRecipeWithStock, fireRecipeAssistantAction } from '../recipeActions';
-import { commandForIntent, executeStockCommand, previewRecipeStock } from '@/services/stockCommands';
+import { cookRecipeWithStock, fireRecipeAssistantAction, forgetMealCooking } from '../recipeActions';
+import { commandForIntent, executeStockCommand, finishIntent, getStockCommandResult, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
+import { ApiError } from '@/lib/apiError';
 
 let mockPlans: Array<{ week_start_date: string; meal_plan_entries: Array<{ day_of_week: number; meal_type: string; recipe_name: string }> }> = [];
 jest.mock('@/integrations/supabase/client', () => ({ supabase: {
@@ -10,7 +11,7 @@ jest.mock('@/integrations/supabase/client', () => ({ supabase: {
 jest.mock('@/services/stockCommands', () => ({
   pendingIntent: jest.fn(async () => null), finishIntent: jest.fn(async () => undefined), executeStockCommand: jest.fn(async () => undefined),
   commandForIntent: jest.fn(async (type: string, _intent: string, payload: unknown) => ({ command_id: 'command-1', command_type: type, payload })),
-  previewRecipeStock: jest.fn(),
+  previewRecipeStock: jest.fn(), getStockCommandResult: jest.fn(),
 }));
 
 test('adding missing ingredients names the ones whose amount the shopping list cannot hold', async () => {
@@ -34,6 +35,60 @@ test('« Cuisinée » takes what the stock holds and says what it left out', asy
     outside_inventory: [1], adjustments: [{ ingredient_index: 0, quantity: 100, unit: 'g' }] }));
   expect(outcome).toEqual({ title: 'Repas enregistré et stock mis à jour', commandId: 'command-1', details: [
     'Retiré de ton stock : Oignon 2 pièces.', 'Tout ce que tu avais : Riz basmati 100 g (la recette en demande 300 g).', 'Pas dans ton stock, rien à retirer : Agneau.'] });
+});
+
+// V11-01 E1: cooked from the menu, the same command marks the planned meal, under its own intention.
+test('« Cuisinée » from a planned meal links the meal at the version the menu read', async () => {
+  jest.mocked(previewRecipeStock).mockResolvedValue({ servings: 4, lots: [],
+    recipe: { version: 'v', servings: 4, ingredients: [{ ingredient_name: 'Riz', quantity: 300, unit: 'g' }] }, allocations: [], missing: [] } as never);
+  await cookRecipeWithStock({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz', servings: 4 }, { id: '60000000-0000-4000-8000-000000000001', version: 2 });
+  expect(commandForIntent).toHaveBeenLastCalledWith('consume_recipe', 'menu-entry:60000000-0000-4000-8000-000000000001:cooked', expect.objectContaining({
+    recipe: { id: '30000000-0000-4000-8000-000000000001', source: 'auto' }, meal_plan_entry_id: '60000000-0000-4000-8000-000000000001', entry_version: 2 }));
+  expect(finishIntent).toHaveBeenLastCalledWith('menu-entry:60000000-0000-4000-8000-000000000001:cooked');
+});
+
+test('without a meal, the cooking command carries no meal fields', async () => {
+  jest.mocked(previewRecipeStock).mockResolvedValue({ servings: 4, lots: [],
+    recipe: { version: 'v', servings: 4, ingredients: [{ ingredient_name: 'Riz', quantity: 300, unit: 'g' }] }, allocations: [], missing: [] } as never);
+  await cookRecipeWithStock({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz' });
+  const calls = jest.mocked(commandForIntent).mock.calls;
+  const payload = calls[calls.length - 1][2] as Record<string, unknown>;
+  expect(payload).not.toHaveProperty('meal_plan_entry_id');
+  expect(payload).not.toHaveProperty('entry_version');
+});
+
+// Review 2026-11-24: a lost reply left the cooking saved; undone elsewhere, its replay returned the old receipt.
+describe('a meal’s saved cooking after a lost reply', () => {
+  const MEAL = { id: '60000000-0000-4000-8000-000000000001', version: 2 };
+  const saved = { command_id: 'saved-command', command_type: 'consume_recipe', payload_version: 1, payload: {} };
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(pendingIntent).mockResolvedValueOnce(saved as never);
+    jest.mocked(previewRecipeStock).mockResolvedValue({ servings: 4, lots: [],
+      recipe: { version: 'v', servings: 4, ingredients: [{ ingredient_name: 'Riz', quantity: 300, unit: 'g' }] }, allocations: [], missing: [] } as never);
+  });
+  test('never received by the server: the same command is sent again', async () => {
+    jest.mocked(getStockCommandResult).mockRejectedValueOnce(new ApiError('Introuvable', { status: 404, code: 'COMMAND_NOT_FOUND' }));
+    await cookRecipeWithStock({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz' }, MEAL);
+    expect(executeStockCommand).toHaveBeenLastCalledWith(saved);
+    expect(commandForIntent).not.toHaveBeenCalled();
+  });
+  test('confirmed, then undone since: it is forgotten and a new cooking is sent', async () => {
+    jest.mocked(getStockCommandResult).mockResolvedValueOnce({ command_id: 'saved-command', status: 'confirmed' } as never);
+    await cookRecipeWithStock({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz' }, MEAL);
+    expect(finishIntent).toHaveBeenCalledWith('menu-entry:60000000-0000-4000-8000-000000000001:cooked');
+    expect(executeStockCommand).toHaveBeenLastCalledWith(expect.objectContaining({ command_id: 'command-1' }));
+  });
+  test('an unknown outcome keeps the saved command and sends nothing', async () => {
+    jest.mocked(getStockCommandResult).mockRejectedValueOnce(new ApiError('Serveur indisponible', { status: 503 }));
+    await expect(cookRecipeWithStock({ id: '30000000-0000-4000-8000-000000000001', name: 'Riz' }, MEAL)).rejects.toThrow('Serveur indisponible');
+    expect(executeStockCommand).not.toHaveBeenCalled();
+  });
+});
+
+test('undoing a meal’s cooking forgets only the intention of that very command', async () => {
+  await forgetMealCooking('60000000-0000-4000-8000-000000000001', 'command-9');
+  expect(finishIntent).toHaveBeenCalledWith('menu-entry:60000000-0000-4000-8000-000000000001:cooked', { owner: 'owner-a', commandId: 'command-9' });
 });
 
 describe('« Planifier » takes the next free dinner (audit 2026-11-07: it replaced tonight’s meal)', () => {
