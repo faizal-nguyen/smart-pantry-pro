@@ -3,6 +3,7 @@ import { discoveryFixtureRequest, isDiscoveryFixturePath } from './discovery';
 import { classifyMemoryFact,MemoryCommandSchema,type MemoryWriteResult,emptyNutritionProfile,mapLibraryRecipe,recipeDurationMinutes,type LibraryRecipeRow,type RecipeCatalogRow,type RecipeEvaluationInput,type RecipeEvaluation,type NutritionProfile,type ProfileWrite,allocateRecipeStock, allocateCookingStock, convertQuantity, type RecipeStockPreview, type StockCommand, type StockCommandResult, type StockIngredient, type StockLot } from '@smart/shared';
 import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
+import { applyMenuAddMissing, weekShoppingPreview } from './weekShopping';
 import {buildFoodGuidance} from '@smart/shared';
 
 // Only for the isolated visual fixture; never supplies a real access token.
@@ -130,6 +131,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   }
   if (path==='/v1/settings/export') return { nutrition_profile:fixtureProfile(),assistant_memory:data.assistant_memory_items } as T;
   if (path==='/v1/settings/delete-request') return { id:crypto.randomUUID(),status:'pending',requestedAt:new Date().toISOString(),alreadyPending:false } as T;
+  if (path==='/v1/menus/shopping-preview') return weekShoppingPreview(String((body as { week_start?: string })?.week_start)) as T;
   if (path === '/v1/stock/commands') {
     const command = body as StockCommand;
     if (results.has(command.command_id)) return results.get(command.command_id) as T;
@@ -170,6 +172,8 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
         result.changes.push({ id:item.id,before_quantity:before,after_quantity:Number(lot.quantity),unit:String(lot.unit),stock_version:Number(lot.stock_version) });
       }
       result.affected_tables=['inventory'];
+    } else if (command.command_type==='menu_add_missing') {
+      applyMenuAddMissing(command,result,(code,message)=>{ throw new ApiError(message,{ status:409,code }); });
     } else if (command.command_type==='undo_stock') {
       const previous=snapshots.get(command.payload.original_command_id);
       if (!previous) throw new ApiError('Action introuvable.',{ status:409,code:'COMMAND_NOT_FOUND' });

@@ -11,13 +11,12 @@
  * `add_recipe_to_meal_plan` ; `useAgentDbInvalidation` rafraîchit
  * automatiquement.
  */
-import {useSearchParams} from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2 } from 'lucide-react';
-import { addDays, format } from 'date-fns';
-import { calendarWeekStart } from '@smart/shared';
+import { ChevronLeft, ChevronRight, MessageSquarePlus, Loader2, ShoppingBasket } from 'lucide-react';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
-import { fr } from 'date-fns/locale';
+import { useCalendarNow } from '@/hooks/useCalendarNow';
+import { currentMenuWeek, menuWeekFromParam, menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
@@ -30,27 +29,21 @@ import AddRecipeToMenuDialog, {
 import { useAskAssistant } from '@/hooks/useAskAssistant';
 import RecipesMenusSwitch from '@/components/recipes/RecipesMenusSwitch';
 
-function isoWeekStart(date: Date): string {
-  return calendarWeekStart(date)!;
-}
-
-function weekLabel(weekStart: string): string {
-  const monday = new Date(`${weekStart}T00:00:00`);
-  const sunday = addDays(monday, 6);
-  // « Semaine du 19 → 25 mai »
-  if (format(monday, 'MM') === format(sunday, 'MM')) {
-    return `Semaine du ${format(monday, 'd', { locale: fr })} → ${format(sunday, 'd MMM', { locale: fr })}`;
-  }
-  return `Semaine du ${format(monday, 'd MMM', { locale: fr })} → ${format(sunday, 'd MMM', { locale: fr })}`;
-}
 
 export default function MenusPage() {
   // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
   const user = useAuthenticatedUser();
-  const [params]=useSearchParams();
+  const [params, setParams] = useSearchParams();
   const recipeName=(params.get('recipe_name')??'').slice(0,200);
   void user;
-  const [weekStart, setWeekStart] = useState<string>(() => isoWeekStart(new Date()));
+  // D8 (V11-01): the week is in the address, so the week's shopping and the way back keep it.
+  const now = useCalendarNow();
+  const weekStart = menuWeekFromParam(params.get('week'), now);
+  const setWeekStart = (week: string) => setParams(previous => {
+    const copy = new URLSearchParams(previous);
+    copy.set('week', week);
+    return copy;
+  }, { replace: true });
   const [openDialog, setOpenDialog] = useState(false);
   const [slot, setSlot] = useState<MenuSlot | null>(null);
   const ask = useAskAssistant();
@@ -85,14 +78,11 @@ export default function MenusPage() {
   };
 
   const askAssistant = () =>
-    ask(`Aide-moi à planifier mes repas de la ${weekLabel(weekStart).toLowerCase()}. Tu peux ajouter des recettes à mon menu directement.`);
+    ask(`Aide-moi à planifier mes repas de la ${menuWeekLabel(weekStart).toLowerCase()}. Tu peux ajouter des recettes à mon menu directement.`);
 
-  const shiftWeek = (deltaDays: number) => {
-    const monday = new Date(`${weekStart}T00:00:00`);
-    setWeekStart(format(addDays(monday, deltaDays), 'yyyy-MM-dd'));
-  };
+  const shiftWeek = (weeks: number) => setWeekStart(shiftMenuWeek(weekStart, weeks));
 
-  const isThisWeek = weekStart === isoWeekStart(new Date());
+  const isThisWeek = weekStart === currentMenuWeek(now);
   const entries = menu.data?.entries ?? [];
   const removingId = menu.removeEntry.isPending
     ? menu.removeEntry.variables ?? undefined
@@ -102,15 +92,23 @@ export default function MenusPage() {
     <div className="culinary-page kitchen-page kitchen-menus-page">
         <RecipesMenusSwitch />
 {recipeName&&<p className="rounded-lg border p-3 text-sm">Choisis un créneau pour « {recipeName} », puis confirme la recette.</p>}
-        <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<Button
+        <KitchenPageHeader title="Menus" description="Une semaine de repas, à ton rythme." actions={<>
+          <Button asChild className="min-h-11 gap-2 self-start md:self-auto">
+            <Link to={`/shopping/week?week=${weekStart}`}>
+              <ShoppingBasket className="h-4 w-4" aria-hidden="true" />
+              Courses de la semaine
+            </Link>
+          </Button>
+          <Button
             type="button"
             variant="outline"
             onClick={askAssistant}
-            className="gap-2 self-start md:self-auto"
+            className="min-h-11 gap-2 self-start md:self-auto"
           >
             <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             Demander à l&apos;assistant
-          </Button>}/>
+          </Button>
+        </>}/>
 
         {/* Week navigator */}
         <div className="kitchen-week-navigation">
@@ -118,17 +116,17 @@ export default function MenusPage() {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => shiftWeek(-7)}
+            onClick={() => shiftWeek(-1)}
             aria-label="Semaine précédente"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <div className="flex flex-col items-center text-center">
-            <p className="text-sm font-medium">{weekLabel(weekStart)}</p>
+            <p className="text-sm font-medium">{menuWeekLabel(weekStart)}</p>
             {!isThisWeek && (
               <button
                 type="button"
-                onClick={() => setWeekStart(isoWeekStart(new Date()))}
+                onClick={() => setWeekStart(currentMenuWeek(now))}
                 className="text-xs text-muted-foreground underline-offset-2 hover:underline"
               >
                 Revenir à cette semaine
@@ -139,7 +137,7 @@ export default function MenusPage() {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => shiftWeek(7)}
+            onClick={() => shiftWeek(1)}
             aria-label="Semaine suivante"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />

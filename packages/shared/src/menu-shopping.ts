@@ -256,3 +256,27 @@ export interface MenuShoppingPreview {
   meals: Array<{ id: string; date: string; meal_type: string; recipe_name: string; role: 'reserve' | 'target' }>;
   uncomputable: MenuUncomputable[];
 }
+
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const amount = z.number().finite();
+const rowAt = z.object({ id: z.string().min(1), expected_version: z.number().int().nonnegative() });
+const NeedMealSchema = z.object({ id: z.string().min(1), date: day, meal_type: z.string(), recipe_name: z.string(), quantity: amount.nullable(), unit: z.string().nullable() });
+const MenuShoppingLineSchema = z.object({
+  key: z.string().min(1), state: z.enum(['to_add', 'listed', 'purchased_pending', 'manual', 'verify', 'excess']),
+  name: z.string(), product_id: z.string().nullable(), quantity: amount.nullable(), unit: z.string().nullable(),
+  listed_quantity: amount.optional(), purchased_quantity: amount.optional(),
+  target: rowAt.optional(), reduction: rowAt.extend({ quantity: amount.positive(), unit: z.string().min(1) }).optional(),
+  meals: z.array(NeedMealSchema), verify_lots: z.array(z.string()).optional(),
+});
+/**
+ * V11-01 E2: what the review screen accepts from the API before showing it (the identifiers it
+ * writes are checked again by StockCommandSchema, then in SQL). Its output matches
+ * MenuShoppingPreview: the client returns it as one, under strict type checking.
+ */
+export const MenuShoppingPreviewSchema = z.object({
+  week_start: day, as_of: day, menu_version: z.string().regex(/^[0-9a-f]{32}$/), context_revision: z.number().int().nonnegative(),
+  lines: z.array(MenuShoppingLineSchema),
+  meals: z.array(z.object({ id: z.string().min(1), date: day, meal_type: z.string(), recipe_name: z.string(), role: z.enum(['reserve', 'target']) })),
+  uncomputable: z.array(z.object({ id: z.string().min(1), date: day, meal_type: z.string(), recipe_name: z.string(), role: z.enum(['reserve', 'target']),
+    reason: z.enum(['NO_RECIPE', 'RECIPE_UNAVAILABLE', 'NO_SERVINGS']) })),
+});

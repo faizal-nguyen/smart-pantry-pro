@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { MenuShoppingService } from '../MenuShoppingService.js';
+import { MenuShoppingPreviewSchema } from '@smart/shared';
 
 const USER = '00000000-0000-4000-8000-000000000001';
 const MAX_ROWS = 1000; // PostgREST max-rows: one response never holds more.
@@ -79,5 +80,12 @@ describe('MenuShoppingService.preview', () => {
 
   test('a basis of an unexpected shape is refused, never computed', async () => {
     await expect(new MenuShoppingService(client({ basisData: null }).supabase).preview(USER, '2026-11-30')).rejects.toThrow('MENU_BASIS_INVALID');
+  });
+  // V11-01 E2: the review screen parses the preview with the shared schema before showing it.
+  test('the preview is what the review screen accepts', async () => {
+    const preview = await new MenuShoppingService(client().supabase).preview(USER, '2026-11-30');
+    expect(MenuShoppingPreviewSchema.safeParse(preview).success).toBe(true);
+    expect(MenuShoppingPreviewSchema.safeParse({ ...preview, menu_version: 'not-a-hash' }).success).toBe(false);
+    expect(MenuShoppingPreviewSchema.safeParse({ ...preview, lines: [{ ...preview.lines[0], state: 'unknown' }] }).success).toBe(false);
   });
 });

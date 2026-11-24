@@ -821,6 +821,30 @@
   .kitchen-shopping-summary[data-ready="true"] .kitchen-shopping-note,.kitchen-shopping-summary[data-ready="true"] .kitchen-shopping-stock-link { display:none; }
   .kitchen-shopping-summary[data-ready="true"] h2 { font-family:inherit; font-size:.8rem; letter-spacing:0; }
   .kitchen-shopping-page.has-purchases { padding-bottom:128px; }
+  /* V11-01 E2 — Courses de la semaine: the list's surfaces, one tone per kind of line. */
+  .kitchen-week-back { @apply text-muted-foreground; display:inline-flex; align-items:center; gap:6px; min-height:44px; font-size:.875rem; text-underline-offset:3px; }
+  .kitchen-week-back:hover { @apply text-foreground; text-decoration:underline; }
+  .kitchen-week-back:focus-visible, .kitchen-week-planned-summary:focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2; border-radius:8px; }
+  .kitchen-week-state { @apply bg-card/60 text-muted-foreground; border:1px dashed oklch(var(--border)); border-radius:12px; padding:16px; font-size:.9rem; }
+  .kitchen-week-group[data-state="to_add"] { border-color:oklch(var(--primary)/.35); }
+  .kitchen-week-group[data-state="verify"], .kitchen-week-group[data-state="uncomputable"] { border-color:oklch(var(--warning)/.6); }
+  .kitchen-week-group[data-state="excess"] { border-style:dashed; }
+  .kitchen-week-group[data-state="planned"] { @apply bg-card/40; }
+  .kitchen-week-group-hint { @apply text-muted-foreground; font-size:.8rem; line-height:1.5; margin:-6px 0 8px; }
+  .kitchen-week-line-main { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 16px; }
+  .kitchen-week-line-check { display:flex; flex:1 1 12rem; align-items:center; gap:12px; min-width:0; min-height:44px; cursor:pointer; }
+  .kitchen-week-line-check input { accent-color:oklch(var(--primary)); }
+  .kitchen-week-line-name { font-weight:500; overflow-wrap:anywhere; }
+  .kitchen-week-quantity { display:inline-flex; align-items:center; gap:8px; margin-left:32px; font-size:.875rem; }
+  .kitchen-week-quantity input[aria-invalid="true"] { border-color:oklch(var(--destructive)); }
+  .kitchen-week-line-amount { font-weight:500; font-variant-numeric:tabular-nums; }
+  .kitchen-week-line-note, .kitchen-week-meals { @apply text-muted-foreground; font-size:.8rem; line-height:1.5; margin-top:2px; }
+  .kitchen-week-line[data-state="to_add"] .kitchen-week-meals, .kitchen-week-line[data-state="to_add"] > .text-destructive,
+  .kitchen-week-line[data-state="excess"] .kitchen-week-meals, .kitchen-week-line[data-state="excess"] .kitchen-week-line-note { padding-left:32px; }
+  .kitchen-week-line[data-state="verify"] .kitchen-week-line-name { text-decoration:underline; text-decoration-color:oklch(var(--warning)); text-underline-offset:4px; }
+  .kitchen-week-planned-summary { display:flex; align-items:center; min-height:44px; cursor:pointer; font-family:Georgia,'Times New Roman',serif; font-size:1.2rem; letter-spacing:-.02em; }
+  .kitchen-week-subtitle { @apply text-muted-foreground; font-size:.75rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; margin:12px 0 4px; }
+  .kitchen-week-uncomputable { display:grid; gap:6px; font-size:.875rem; list-style:disc; padding-left:20px; }
   .kitchen-week-navigation { @apply bg-card/60; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid oklch(var(--border)); border-radius:12px; }
   .kitchen-week-navigation > div > p { font-family:Georgia,'Times New Roman',serif; font-size:1.15rem; }
   .kitchen-menu-days { display:none; }
