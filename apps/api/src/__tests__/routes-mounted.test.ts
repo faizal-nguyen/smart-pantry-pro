@@ -54,6 +54,9 @@ const V1_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/v1/imports/social' },
   { method: 'get', path: '/api/v1/recipes/discovery' },
   { method: 'post', path: '/api/v1/recipes/discovery/items' },
+  // V11-01 E5a: one receipt photo read, and the scans of the account.
+  { method: 'post', path: '/api/v1/receipts/scan' },
+  { method: 'get',  path: '/api/v1/receipts/history' },
 ];
 
 // Public routes removed in the 2026-11 security pass (no live caller):

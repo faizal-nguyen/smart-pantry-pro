@@ -1,327 +1,104 @@
 /**
- * Receipt Scanning Routes
- * Phase A Implementation: Scan French grocery receipts
+ * V11-01 E5a — receipt routes (PRP V11-01, section 7; decisions D10 and D13).
+ *
+ * `POST /api/v1/receipts/scan`: one photo (multipart field `receipt`, 4 MB at most, under Vercel's
+ * 4.5 MB request limit), checked by its bytes and size, read by the vision role, kept as text in
+ * receipt_scans (never the photo). Writes nothing to the list or the stock: the reviewed scan is
+ * applied by the stock command reconcile_receipt. 20 scans per hour free, 200 premium (V11-01 E0).
+ * `GET /api/v1/receipts/history` and `GET /api/v1/receipts/:id`: the user's scans, user-scoped (RLS);
+ * 60 reads per hour free, 600 premium.
+ * Removed (no caller, PRP V11-01 §3): `scan-base64`, and `add-to-inventory`, which wrote the stock
+ * outside the commands. Logs carry ids, states and counts, never a receipt's text or prices.
  */
-import { Router, Request, Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
-import { SupabaseClient } from '@supabase/supabase-js';
-import { Database, Json } from '../types/supabase.js';
-import { getReceiptProcessingService } from '../services/receipt/index.js';
-import { AddToInventoryRequest } from '../types/receipt.types.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase.js';
+import { logError, logger } from '../config/logger.js';
+import { userRateLimit } from '../middleware/userRateLimit.js';
+import { loadAssistantModelConfig, type AssistantModelConfig } from '../services/ai/ModelConfig.js';
+import { createOpenAICompletionClient } from '../services/ai/OpenAITransport.js';
+import type { AICompletionClient } from '../services/imports/RecipeExtractionService.js';
+import { ReceiptReader } from '../services/receipt/ReceiptReader.js';
+import { ReceiptScanError, ReceiptScanService } from '../services/receipt/ReceiptScanService.js';
+import { fail, ok } from '../utils/responses.js';
 
-// Configure Multer for memory storage
-const upload = multer({
+const HOUR = 3_600_000;
+const PHOTO_LIMIT_BYTES = 4 * 1024 * 1024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const photoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB max
-  },
+  limits: { fileSize: PHOTO_LIMIT_BYTES, files: 1, fields: 0 },
   fileFilter: (_req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Type de fichier non supporte. Utilisez JPEG, PNG, WebP ou HEIC.'));
-    }
+    // A first filter only: the content is checked by its bytes before the provider (some phones
+    // declare a photo as octet-stream).
+    if (['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream'].includes(file.mimetype)) { cb(null, true); return; }
+    cb(new Error('Photo en JPEG, PNG ou WebP seulement.'));
   },
 });
+function receiptPhoto(req: Request, res: Response, next: NextFunction) {
+  photoUpload.single('receipt')(req, res, (error: unknown) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      return fail(res, 'Photo trop volumineuse (4 Mo au plus).', 413, 'RECEIPT_PHOTO_TOO_LARGE');
+    }
+    if (error instanceof multer.MulterError) return fail(res, 'Envoie une seule photo du ticket.', 400, 'RECEIPT_PHOTO_INVALID');
+    return fail(res, 'Photo en JPEG, PNG ou WebP seulement.', 415, 'UNSUPPORTED_IMAGE');
+  });
+}
 
-/**
- * Create receipts router
- */
-export function createReceiptsRouter(supabaseAdmin: SupabaseClient<Database>) {
+export interface ReceiptsRouterOptions {
+  /** The provider client and model configuration, injected in tests. */
+  ai?: AICompletionClient;
+  modelConfig?: AssistantModelConfig;
+}
+
+export function createReceiptsRouter(supabaseAdmin: SupabaseClient<Database>, options: ReceiptsRouterOptions = {}): Router {
   const router = Router();
+  const reader = new ReceiptReader(options.ai ?? createOpenAICompletionClient(), options.modelConfig ?? loadAssistantModelConfig());
+  const service = new ReceiptScanService(supabaseAdmin as unknown as SupabaseClient, reader);
+  const readLimiter = userRateLimit({ key: 'receipts.read', freeMax: 60, premiumMax: 600, windowMs: HOUR });
+  const answerFailure = (res: Response, error: unknown, context: string, message: string) => {
+    if (error instanceof ReceiptScanError) return fail(res, error.message, error.status, error.code);
+    logError(error, { context });
+    return fail(res, message, 500, 'RECEIPT_FAILED');
+  };
 
-  /**
-   * POST /api/v1/receipts/scan
-   * Scan a receipt image and extract products
-   */
-  router.post('/scan', upload.single('receipt'), async (req: Request, res: Response) => {
+  router.post('/scan', userRateLimit({ key: 'receipts.scan', freeMax: 20, premiumMax: 200, windowMs: HOUR }), receiptPhoto, async (req: Request, res: Response) => {
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    if (!req.file) return fail(res, 'Ajoute la photo du ticket.', 400, 'RECEIPT_PHOTO_MISSING');
+    const started = Date.now();
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'NO_FILE', message: 'Aucun fichier fourni' },
-        });
-      }
-
-      console.log(`[Receipts] Scan request from user ${userId}, file size: ${req.file.size} bytes`);
-
-      // Upload to Supabase Storage
-      const fileName = `${userId}/${Date.now()}-receipt.jpg`;
-      const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-        .from('receipt-scans')
-        .upload(fileName, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error('[Receipts] Storage upload error:', uploadError);
-
-        // If bucket doesn't exist, try creating with base64
-        if (uploadError.message?.includes('not found')) {
-          console.log('[Receipts] Bucket not found, using base64 instead');
-
-          // Use base64 directly
-          const base64Data = req.file.buffer.toString('base64');
-          const service = getReceiptProcessingService();
-          const result = await service.processReceiptFromBase64(
-            base64Data,
-            req.file.mimetype,
-            userId
-          );
-          return res.json(result);
-        }
-
-        return res.status(500).json({
-          success: false,
-          error: { code: 'UPLOAD_ERROR', message: 'Erreur upload image' },
-        });
-      }
-
-      // Get public URL
-      const { data: urlData } = supabaseAdmin.storage
-        .from('receipt-scans')
-        .getPublicUrl(fileName);
-
-      const imageUrl = urlData.publicUrl;
-
-      // Process the receipt
-      const service = getReceiptProcessingService();
-      const result = await service.processReceipt(imageUrl, userId);
-
-      // Optionally clean up the image after processing
-      // await supabaseAdmin.storage.from('receipt-scans').remove([fileName]);
-
-      return res.json(result);
+      const scan = await service.scan(req.supabaseClient as unknown as SupabaseClient, req.user.id, req.file.buffer);
+      logger.info({ context: 'receipts.scan', scan_id: scan.id, state: scan.state, lines: scan.lines.length, duration_ms: Date.now() - started });
+      return ok(res, scan, 'OK', 'RECEIPT_SCANNED', 201);
     } catch (error) {
-      console.error('[Receipts] Scan error:', error);
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Erreur interne',
-        },
-      });
+      if (error instanceof ReceiptScanError) logger.info({ context: 'receipts.scan', code: error.code, duration_ms: Date.now() - started });
+      return answerFailure(res, error, 'receipts.scan', 'La lecture du ticket a échoué. Réessaie dans un instant.');
     }
   });
 
-  /**
-   * POST /api/v1/receipts/scan-base64
-   * Scan a receipt from base64 image data (alternative endpoint)
-   */
-  router.post('/scan-base64', async (req: Request, res: Response) => {
+  router.get('/history', readLimiter, async (req: Request, res: Response) => {
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
     try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      const { image, mimeType = 'image/jpeg' } = req.body;
-
-      if (!image) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'NO_IMAGE', message: 'Image base64 non fournie' },
-        });
-      }
-
-      console.log(`[Receipts] Scan-base64 request from user ${userId}`);
-
-      // Process the receipt directly from base64
-      const service = getReceiptProcessingService();
-      const result = await service.processReceiptFromBase64(image, mimeType, userId);
-
-      return res.json(result);
+      return ok(res, await service.history(req.supabaseClient as unknown as SupabaseClient, req.user.id), 'OK', 'RECEIPT_HISTORY_OK');
     } catch (error) {
-      console.error('[Receipts] Scan-base64 error:', error);
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Erreur interne',
-        },
-      });
+      return answerFailure(res, error, 'receipts.history', 'L’historique des tickets ne peut pas être lu pour le moment.');
     }
   });
 
-  /**
-   * POST /api/v1/receipts/add-to-inventory
-   * Add scanned products to inventory
-   */
-  router.post('/add-to-inventory', async (req: Request, res: Response) => {
+  router.get('/:id', readLimiter, async (req: Request, res: Response) => {
+    if (!req.user?.id || !req.supabaseClient) return fail(res, 'Unauthorized', 401, 'UNAUTHORIZED');
+    const notFound = () => fail(res, 'Ce ticket n’est plus disponible : scanne-le à nouveau.', 404, 'RECEIPT_NOT_FOUND');
+    if (!UUID.test(req.params.id)) return notFound();
     try {
-      const userId = req.user?.id;
-      const userClient = req.supabaseClient;
-
-      if (!userId || !userClient) {
-        return res.status(401).json({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      const { products, receipt_scan_id } = req.body as AddToInventoryRequest;
-
-      if (!products || !Array.isArray(products) || products.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: { code: 'INVALID_PRODUCTS', message: 'Liste de produits invalide' },
-        });
-      }
-
-      console.log(`[Receipts] Adding ${products.length} products to inventory for user ${userId}`);
-
-      // First, ensure products exist in the products table (create if needed)
-      const productResults = [];
-
-      for (const product of products) {
-        // Check if product exists or create it
-        let productId = product.product_id;
-
-        if (!productId) {
-          // Try to find existing product by name
-          const { data: existingProduct } = await userClient
-            .from('products')
-            .select('id')
-            .ilike('name', product.name)
-            .single();
-
-          if (existingProduct) {
-            productId = existingProduct.id;
-          } else {
-            // Create new product
-            const { data: newProduct, error: productError } = await userClient
-              .from('products')
-              .insert({
-                name: product.name,
-                category: product.category || 'Autres',
-                unit_type: product.unit || 'unite',
-                barcode: product.barcode || null,
-              })
-              .select('id')
-              .single();
-
-            if (productError) {
-              console.error('[Receipts] Error creating product:', productError);
-              continue; // Skip this product
-            }
-            productId = newProduct.id;
-          }
-        }
-
-        // Add to inventory
-        const inventoryItem = {
-          user_id: userId,
-          product_id: productId,
-          name: product.name,
-          quantity: product.quantity || 1,
-          expiration_date: product.expiry_date || null,
-          location: { zone: product.location || 'placard' } as Json,
-          category: product.category || 'Autres',
-        };
-
-        const { data: inventoryData, error: inventoryError } = await userClient
-          .from('inventory')
-          .insert(inventoryItem)
-          .select('*, product:products(*)')
-          .single();
-
-        if (inventoryError) {
-          console.error('[Receipts] Error adding to inventory:', inventoryError);
-          continue;
-        }
-
-        productResults.push(inventoryData);
-      }
-
-      console.log(`[Receipts] Successfully added ${productResults.length} items to inventory`);
-
-      return res.json({
-        success: true,
-        data: {
-          added_count: productResults.length,
-          items: productResults,
-          receipt_scan_id: receipt_scan_id || null,
-        },
-      });
+      const scan = await service.get(req.supabaseClient as unknown as SupabaseClient, req.user.id, req.params.id);
+      return scan ? ok(res, scan, 'OK', 'RECEIPT_OK') : notFound();
     } catch (error) {
-      console.error('[Receipts] Add to inventory error:', error);
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Erreur interne',
-        },
-      });
-    }
-  });
-
-  /**
-   * GET /api/v1/receipts/history
-   * Get user's receipt scan history
-   */
-  router.get('/history', async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
-        });
-      }
-
-      // List files in user's folder in storage
-      const { data: files, error } = await supabaseAdmin.storage
-        .from('receipt-scans')
-        .list(userId, {
-          limit: 20,
-          sortBy: { column: 'created_at', order: 'desc' },
-        });
-
-      if (error) {
-        console.error('[Receipts] History error:', error);
-        return res.status(500).json({
-          success: false,
-          error: { code: 'STORAGE_ERROR', message: 'Erreur recuperation historique' },
-        });
-      }
-
-      const history = files.map((file) => ({
-        id: file.id,
-        name: file.name,
-        created_at: file.created_at,
-        size: file.metadata?.size,
-      }));
-
-      return res.json({
-        success: true,
-        data: history,
-      });
-    } catch (error) {
-      console.error('[Receipts] History error:', error);
-      return res.status(500).json({
-        success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'Erreur interne',
-        },
-      });
+      return answerFailure(res, error, 'receipts.get', 'Ce ticket ne peut pas être lu pour le moment.');
     }
   });
 
   return router;
 }
-
-export default createReceiptsRouter;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CookingAdjustmentsSchema } from './cooking-adjustments.js';
 import { LotDateKindSchema,LotQuantityQualitySchema } from './personalization.js';
+import { RECEIPT_MAX_LINES, RECEIPT_PRICE_MAX } from './receipts.js';
 import type { StockAllocation, StockIngredient, StockLot, StockMissing } from './quantities.js';
 
 export const RecipeReferenceSchema = z.object({
@@ -33,6 +34,8 @@ export const SHOPPING_COMMANDS_CAPABILITY = 4;
 export const MENU_COMMANDS_CAPABILITY = 5;
 /** V11-01 E3: update_menu (servings, move, remove, leftovers, copy). */
 export const MENU_EDIT_CAPABILITY = 6;
+/** V11-01 E5a: reconcile_receipt, receipt scans and purchase prices. */
+export const RECEIPT_COMMANDS_CAPABILITY = 7;
 
 const shoppingRow = { id: z.string().uuid(), expected_version: version };
 /** V11-01 E3: an operation of update_menu, against the version of the meals it touches (null: an empty slot). */
@@ -55,6 +58,18 @@ const shoppingCategory = z.string().trim().min(1).max(60);
 const shoppingUnit = z.string().trim().min(1).max(SHOPPING_UNIT_MAX_LENGTH);
 const shoppingSection = z.string().trim().max(60).nullable();
 const UPDATABLE = ['name', 'quantity', 'unit', 'estimated_price', 'store_section'] as const;
+/**
+ * V11-01 E5a: a reviewed receipt line, by its place in the scan. Its target is a row of the list at its
+ * version (checked at this quantity; less leaves the remainder to buy, D14), or null for a purchase the
+ * list did not hold. A line left out of the payload is set aside (not food, removed at the review).
+ */
+const receiptPrice = z.number().finite().nonnegative().max(RECEIPT_PRICE_MAX).nullable();
+const receiptLine = z.object({
+  line_index: z.number().int().nonnegative().max(RECEIPT_MAX_LINES - 1),
+  name: shoppingName, quantity: positiveQuantity, unit: shoppingUnit,
+  unit_price: receiptPrice, total_price: receiptPrice,
+  target: z.object({ shopping_id: z.string().uuid(), expected_version: version }).strict().nullable(),
+}).strict();
 const shoppingAddItem = z.object({
   product_id: z.string().uuid().optional(), name: shoppingName.optional(), category: shoppingCategory.optional(),
   quantity: positiveQuantity, unit: shoppingUnit, store_section: shoppingSection.optional(), origin: ShoppingOriginSchema,
@@ -134,6 +149,10 @@ export const StockCommandSchema = z.discriminatedUnion('command_type', [
     }).strict().refine(item => (item.product_id === undefined) !== (item.name === undefined), { message: 'product_id or name, not both' })).max(100),
     reductions: z.array(z.object({ ...shoppingRow, quantity: positiveQuantity, unit: shoppingUnit }).strict()).max(100),
   }).strict().refine(payload => payload.adds.length + payload.reductions.length > 0, { message: 'nothing to write' })),
+  command('reconcile_receipt', z.object({
+    receipt_scan_id: z.string().uuid(),
+    lines: z.array(receiptLine).min(1).max(RECEIPT_MAX_LINES),
+  }).strict().refine(payload => new Set(payload.lines.map(line => line.line_index)).size === payload.lines.length, { message: 'each line once' })),
 ]);
 export type StockCommand = z.infer<typeof StockCommandSchema>;
 
@@ -151,8 +170,12 @@ export interface ShoppingChange {
   id: string; outcome: ShoppingChangeOutcome; name?: string; quantity?: number; unit?: string; purchased?: boolean;
   /** created or merged: the amount this command put on the row, in the row's unit. */
   added_quantity?: number;
-  /** created: why the product was not topped up on a row it already has. */
-  note?: 'unit_incompatible' | 'purchased_pending';
+  /**
+   * created: why the product was not topped up on a row it already has. reconcile_receipt (V11-01 E5a):
+   * a row checked at less than it asked (receipt_partial), the remainder left to buy (receipt_remainder),
+   * a purchase the list did not hold (receipt_added).
+   */
+  note?: 'unit_incompatible' | 'purchased_pending' | 'receipt_partial' | 'receipt_remainder' | 'receipt_added';
   stock_version?: number;
 }
 export interface StockCommandResult {
@@ -168,5 +191,7 @@ export interface StockCommandResult {
   changes?: Array<{ id: string; before_quantity: number; after_quantity: number; unit: string; stock_version: number }>;
   /** Shopping commands, recipe_add_missing and their undo. */
   shopping_changes?: ShoppingChange[];
+  /** reconcile_receipt (V11-01 E5a): the scan applied. */
+  receipt_scan_id?: string;
   recipe_id?: string; journal_id?: string; user_recipe_id?: string;
 }
