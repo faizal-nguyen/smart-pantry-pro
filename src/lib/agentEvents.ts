@@ -20,7 +20,7 @@
  * pub/sub. The `AssistantProvider` calls `dispatchAgentDbChanged()`
  * after every successful tool execution; downstream consumers
  * (`useInventory`, `useShoppingList`, `useRecipes`, `useUserRecipes`,
- * `useFoodWaste`) subscribe via `useAgentDbInvalidation()`. Adding a
+ * `useWasteLog`) subscribe via `useAgentDbInvalidation()`. Adding a
  * new write tool means appending it to `TOOL_TABLES` below and adding
  * its target table(s) to `AgentAffectedTable`.
  */

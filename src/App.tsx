@@ -40,7 +40,6 @@ const ShareTarget = lazy(() => import("./pages/ShareTarget"));
 
 // Dashboards hiérarchiques (lazy)
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
-const WasteInsightsPage = lazy(() => import("./pages/WasteInsightsPage"));
 // PRP-230 Commit 2: ShoppingDashboard no longer routed (/shopping redirects
 // to /shopping/list). File preserved for PRP-234 Today resurrection if needed.
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
@@ -122,7 +121,7 @@ const protectedRoutes: RouteObject[] = [
 
   // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },
-  { path: "/insights/waste", element: withSuspense(WasteInsightsPage) },
+  { path: "/insights/waste", element: <Navigate to="/insights#pertes" replace /> },
 
   // Settings
   { path: "/settings", element: withSuspense(Settings) },
