@@ -1,10 +1,10 @@
 /**
  * PRP-238 PR1 etape (b) — Hook public consommateur de ResponsiveContext.
  *
- * Throw si appele en dehors d'un ResponsiveProvider. Tous les hooks
- * responsive legacy (`useViewport`, `useBreakpoints`, `useResponsiveZones`,
- * `useAdaptiveHero`, `useHybridGrid`, etc.) doivent passer par celui-ci
- * au lieu d'installer leur propre listener resize.
+ * Throw si appele en dehors d'un ResponsiveProvider. Les anciens hooks
+ * responsive (`useViewport`, `useBreakpoints`, `useResponsiveZones`,
+ * `useAdaptiveHero`, `useHybridGrid`) sont retirés : un besoin responsive
+ * passe par celui-ci au lieu d'installer son propre listener resize.
  */
 import { useContext } from 'react';
 import { ResponsiveContext, type ResponsiveContextValue } from '@/contexts/ResponsiveContext';
