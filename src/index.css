@@ -873,6 +873,21 @@
   .kitchen-menu-entry-title { font-family:Georgia,'Times New Roman',serif; font-size:1.05rem; line-height:1.25; text-align:left; overflow-wrap:anywhere; }
   .kitchen-menu-entry > div { flex-wrap:wrap; }
   .kitchen-menu-entry > div:last-child { justify-content:flex-start; }
+  /* V11-01 E3d: the computer grid takes a meal held by the pointer; the slot says what the drop will do, in words. */
+  .kitchen-menu-days .kitchen-menu-entry[draggable="true"] { position:relative; cursor:grab; }
+  .kitchen-menu-days .kitchen-menu-entry[draggable="true"]:active { cursor:grabbing; }
+  .kitchen-menu-days .kitchen-menu-entry[draggable="true"] > .kitchen-menu-entry-title { padding-right:26px; }
+  /* The grip is a handle too: Firefox starts no drag from a button, such as the title. */
+  .kitchen-menu-grip { @apply text-muted-foreground; position:absolute; top:4px; right:0; box-sizing:content-box; padding:6px; cursor:grab; }
+  .kitchen-menu-entry[data-dragging="true"] { opacity:.45; }
+  /* While a meal is held, a slot takes the drag wherever the pointer is: its buttons send no dragover in Chromium. */
+  .kitchen-menu-days[data-holding="true"] .kitchen-menu-slot > :not([data-dragging="true"]) { pointer-events:none; }
+  .kitchen-menu-slot[data-drop] { outline:2px dashed oklch(var(--primary)); outline-offset:3px; border-radius:8px; }
+  .kitchen-menu-slot[data-drop="blocked"] { outline-color:oklch(var(--destructive)); }
+  /* Laid over the slot's bottom, so that the grid does not move under the pointer. */
+  .kitchen-menu-days .kitchen-menu-slot { position:relative; }
+  .kitchen-menu-drop-hint { @apply bg-card shadow-sm; position:absolute; inset-inline:2px; bottom:2px; z-index:1; padding:4px 6px; border:1px solid oklch(var(--border)); border-radius:6px; font-size:.75rem; font-weight:500; overflow-wrap:anywhere; }
+  .kitchen-menu-slot[data-drop="blocked"] .kitchen-menu-drop-hint { color:oklch(var(--destructive)); }
   /* V11-01 E3b: servings step by step, and a leftover told apart from the meal it comes from. */
   .kitchen-menu-servings { display:inline-flex; align-items:center; gap:2px; border:1px solid oklch(var(--border)); border-radius:999px; }
   .kitchen-menu-servings > button { border-radius:999px; }

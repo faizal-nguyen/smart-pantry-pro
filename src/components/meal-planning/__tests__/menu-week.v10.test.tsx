@@ -213,3 +213,24 @@ test('the card’s menu never freezes the page, and asks for a dialog once focus
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   expect(document.body.style.pointerEvents).not.toBe('none');
 });
+
+// V11-01 E3d (D5): on the computer grid, a card is held by the pointer; its id travels under the app's own type.
+test('a card held by the pointer carries its id under the app type, never its name as text; a decorative grip shows it', () => {
+  const onStart = jest.fn(), onEnd = jest.fn();
+  const { container, unmount } = render(withClient(<MenuEntryCard entry={entry} actions={actionsFor([entry])} drag={{ enabled: true, dragging: false, onStart, onEnd }} />));
+  const card = container.querySelector('.kitchen-menu-entry') as HTMLElement;
+  expect(card).toHaveAttribute('draggable', 'true');
+  expect(container.querySelector('.kitchen-menu-grip')).toHaveAttribute('aria-hidden', 'true');
+  const dataTransfer = { setData: jest.fn(), effectAllowed: 'all' };
+  fireEvent.dragStart(card, { dataTransfer });
+  expect(dataTransfer.setData).toHaveBeenCalledWith('application/x-smart-menu-entry', 'friday');
+  expect(dataTransfer.setData).not.toHaveBeenCalledWith('text/plain', expect.anything());
+  expect(dataTransfer.effectAllowed).toBe('move');
+  expect(onStart).toHaveBeenCalledTimes(1);
+  fireEvent.dragEnd(card);
+  expect(onEnd).toHaveBeenCalledTimes(1);
+  unmount();
+  const plain = render(withClient(<MenuEntryCard entry={entry} actions={actionsFor([entry])} />));
+  expect(plain.container.querySelector('.kitchen-menu-entry')).not.toHaveAttribute('draggable');
+  expect(plain.container.querySelector('.kitchen-menu-grip')).toBeNull();
+});

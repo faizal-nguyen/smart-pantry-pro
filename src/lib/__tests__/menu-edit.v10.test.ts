@@ -1,5 +1,5 @@
 import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
-import { changeMessage, leftoverCapacity, leftoverOptions, menuRefusal, moveOptions, servingsBounds, slotDate, slotLabel } from '../menuEdit';
+import { changeMessage, dropHint, dropTarget, leftoverCapacity, leftoverOptions, menuRefusal, moveOptions, servingsBounds, slotDate, slotLabel } from '../menuEdit';
 
 const meal = (id: string, day: number, meal_type: MenuEntryView['meal_type'], extra: Partial<MenuEntryView> = {}): MenuEntryView => ({
   id, day_of_week: day, meal_type, recipe_id: null, recipe_reference: { id: `r-${id}`, source: 'recipes' }, recipe_name: id,
@@ -73,4 +73,24 @@ test('refusals are explained; anything else keeps its own message', () => {
   expect(menuRefusal(refused('MEAL_COOKED'))).toBe('Ce repas a déjà été cuisiné : annule d’abord sa cuisson.');
   expect(menuRefusal(refused('UNDO_CONFLICT'))).toBe('Le menu a changé depuis : cette modification ne peut plus être annulée.');
   expect(menuRefusal(new Error('Réseau coupé'))).toBe('Réseau coupé');
+});
+
+// V11-01 E3d (D5): a drop says what it will do before it does it, from the same options as « Déplacer… ».
+test('a drop is nothing on its own slot, a move on a free one, a swap on an occupied one, refused against the order of leftovers', () => {
+  expect(dropTarget(curry, { day_of_week: 1, meal_type: 'dinner' }, week)).toEqual({ kind: 'same' });
+  expect(dropTarget(curry, { day_of_week: 0, meal_type: 'dinner' }, week)).toEqual({ kind: 'move' });
+  // Swapped with a Monday lunch, the leftover would come before its curry.
+  const soup = meal('Soupe', 0, 'lunch');
+  expect(dropTarget(soup, { day_of_week: 2, meal_type: 'lunch' }, [...week, soup])).toEqual({ kind: 'blocked', reason: '« Reste : Curry » doit venir après son repas d’origine : l’échange est impossible.' });
+  expect(dropTarget(rest, { day_of_week: 0, meal_type: 'lunch' }, week)).toEqual({ kind: 'blocked', reason: 'Ce reste doit venir après son repas d’origine.' });
+  expect(dropTarget(curry, { day_of_week: 4, meal_type: 'lunch' }, week)).toEqual({ kind: 'blocked', reason: 'Ce repas doit venir avant ses restes.' });
+  expect(dropTarget(salad, { day_of_week: 5, meal_type: 'dinner' }, [...week, meal('Gratin', 5, 'dinner')]))
+    .toEqual({ kind: 'swap', occupant: expect.objectContaining({ id: 'Gratin' }) });
+});
+
+test('each drop target is said in words', () => {
+  expect(dropHint({ kind: 'same' })).toBeNull();
+  expect(dropHint({ kind: 'move' })).toBe('Déposer ici');
+  expect(dropHint({ kind: 'swap', occupant: salad })).toBe('Échanger avec « Salade »');
+  expect(dropHint({ kind: 'blocked', reason: 'Ce repas doit venir avant ses restes.' })).toBe('Ce repas doit venir avant ses restes.');
 });
