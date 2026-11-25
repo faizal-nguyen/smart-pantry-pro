@@ -119,6 +119,14 @@ describe('shopping list writes go through commands', () => {
     await waitFor(() => expect(finishIntent).toHaveBeenCalledWith('shopping-list:add:riz'));
   });
 
+  // V11-01 E5b: the receipt page resends its own command; the list's intentions wait for Courses.
+  test('a screen that resumes its own command leaves the pending list writes to Courses', async () => {
+    const hook = renderHook(() => useShoppingList({ notify: false, resume: false }));
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    expect(pendingIntents).not.toHaveBeenCalled();
+    expect(executeStockCommand).not.toHaveBeenCalled();
+  });
+
   test('a pending write is settled before a new gesture, which then stops on the reread list', async () => {
     const saved = { command_id: 'saved', command_type: 'shopping_check', payload_version: 1, payload: { items: [{ id: OTHER, expected_version: 5, purchased: true }] } };
     jest.mocked(pendingIntents).mockResolvedValueOnce([]).mockResolvedValueOnce([{ intent: 'shopping-list:check:x', command: saved }] as never);

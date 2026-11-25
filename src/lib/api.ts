@@ -103,6 +103,22 @@ export async function apiPost<T = unknown>(path: string, body?: unknown, options
   return value;
 }
 
+/**
+ * V11-01 E5b — a multipart form (a receipt photo). The browser sets the content type with its
+ * boundary; the token, the errors in French and the account check are those of apiPost.
+ */
+export async function apiPostForm<T = unknown>(path: string, form: FormData, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
+  const res = await send(`${resolveBase()}${path}`, {
+    method: 'POST',
+    signal: options?.signal,
+    headers: { ...(await authHeader(options?.expectedUserId)) },
+    body: form,
+  });
+  const value = await unwrap<T>(res);
+  if (options?.expectedUserId) await authHeader(options.expectedUserId);
+  return value;
+}
+
 export async function apiGet<T = unknown>(path: string, query?: Record<string, string | number | boolean | undefined>, options?: { expectedUserId?: string; signal?: AbortSignal }): Promise<T> {
   const url = new URL(`${resolveBase()}${path}`, window.location.origin);
   if (query) {

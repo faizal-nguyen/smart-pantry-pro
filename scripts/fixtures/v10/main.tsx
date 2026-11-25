@@ -20,6 +20,7 @@ import MenusPage from '@/pages/kitchen/MenusPage';
 import CookingSessionPage from '@/pages/kitchen/CookingSessionPage';
 import WeekShoppingPage from '@/pages/shopping/WeekShoppingPage';
 import WeekProposalPage from '@/pages/kitchen/WeekProposalPage';
+import ReceiptScanPage from '@/pages/shopping/ReceiptScanPage';
 import Recipes from '@/pages/Recipes';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
@@ -83,13 +84,15 @@ function Fixture() {
       <button onClick={()=>{failures.modelsOffline=!failures.modelsOffline;void queries.invalidateQueries({queryKey:['assistant-models']});}}>Basculer le refus du catalogue de modèles</button>
       <Link to="/assistant?conversation=90000000-0000-4000-8000-000000000001">Réponse fictive avec coût incomplet</Link>
       <span>Écran : {route.pathname}</span>
-      <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/shopping/week">Courses de la semaine</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
+      <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/shopping/week">Courses de la semaine</Link><Link to="/shopping/ticket">Scanner le ticket</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
       <Link to="/kitchen/recipes">Bibliothèque</Link><Link to={`/kitchen/recipes/${CATALOG}?source=recipes_catalog`}>Fiche catalogue</Link><Link to={`/kitchen/recipes/${WRAPPER}?source=user_recipes`}>Fiche personnelle</Link>
       <button onClick={toggleTheme}>{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
       <button aria-pressed={design==='personal'} onClick={()=>setDesign('personal')}>Cuisine personnelle</button><button aria-pressed={design==='notebook'} onClick={()=>setDesign('notebook')}>Carnet de cuisine</button>
       <button onClick={()=>scenario('normal')}>Stock de référence</button><button onClick={()=>scenario('empty')}>Stock vide</button><button onClick={()=>scenario('hundred')}>Cent ingrédients</button><button onClick={()=>scenario('urgent')}>Date proche</button>
       <button onClick={() => { failures.nextCommand = true; setFailure(true); }}>{failure ? 'Prochain refus activé' : 'Simuler une coupure'}</button>
       <button onClick={() => { failures.nextReplyLost=true;setFailure(true); }}>Perdre la prochaine réponse après écriture</button>
+      <button onClick={() => { failures.receiptUnreadable=true; }}>Refuser la prochaine lecture de ticket</button>
+      <button onClick={() => { failures.receiptDuplicate=true; }}>Signaler le prochain ticket comme doublon possible</button>
       <button onClick={() => { failures.menuChanged=true; }}>Refuser la prochaine modification du menu ou des courses (menu changé)</button>
       <button onClick={()=>{ failures.evaluationOffline=!evaluationOffline;setEvaluationOffline(!evaluationOffline);if (!evaluationOffline) dispatchAgentDbChanged(['inventory']); }}>{evaluationOffline ? 'Rétablir la vérification' : 'Refuser la vérification'}</button>
     </div></details>;
@@ -97,7 +100,7 @@ function Fixture() {
     {!carnetScene && controls}
     <Routes><Route element={<AuthenticatedLayout/>}>
       <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/meal-planning/proposition" element={<WeekProposalPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
-      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/>
+      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/><Route path="/shopping/ticket" element={<ReceiptScanPage/>}/>
       <Route path="/settings" element={<Settings/>}/><Route path="/fixture/manual" element={<ManualRecipe/>}/>
       <Route path="/assistant" element={<AssistantDashboard/>}/>
       <Route path="/pantry/inventory" element={<Inventory/>}/>

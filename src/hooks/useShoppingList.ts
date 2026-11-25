@@ -35,7 +35,9 @@ const RESUME_PENDING = 'Une action précédente sur la liste n’est pas encore 
 const resumeNotice = (outcome: ResumeOutcome): string | null =>
   outcome.failures.length ? RESUME_PENDING : outcome.refused ? RESUME_REFUSED : outcome.confirmed.length ? RESUME_DONE : null;
 
-export const useShoppingList = (options: { notify?: boolean } = {}) => {
+/** `resume: false`: a screen that resumes its own command (the receipt, V11-01 E5b) leaves the list's intentions to Courses. */
+export const useShoppingList = (options: { notify?: boolean; resume?: boolean } = {}) => {
+  const resume = options.resume !== false;
   const { user } = useAuthSessionOptional();
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
   /** Applies what pending list writes became: the last confirmed one can be undone, the list is reread. */
   const applyResume = async (outcome: ResumeOutcome): Promise<string | null> => {
     const last = outcome.confirmed[outcome.confirmed.length - 1];
-    if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+    if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes, last.command_type) });
     if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
     return resumeNotice(outcome);
   };
@@ -98,7 +100,7 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
       await fetchShoppingList().catch(() => undefined);
       throw new Error(stale);
     }
-    setLastShoppingChange({ commandId: result.command_id, message: describeShoppingChanges(result.shopping_changes) });
+    setLastShoppingChange({ commandId: result.command_id, message: describeShoppingChanges(result.shopping_changes, result.command_type) });
     await fetchShoppingList().catch(() => setError('Action confirmée, mais la liste n’a pas pu être relue. Actualisez les courses.'));
     return result;
   };
@@ -205,20 +207,22 @@ export const useShoppingList = (options: { notify?: boolean } = {}) => {
     // A list write whose reply was lost is sent again under its identity: at most one effect.
     // Its outcome is applied only while this account's list is still the one shown.
     let active = true;
-    void resumePendingShoppingCommands().then(async outcome => {
+    if (resume) void resumePendingShoppingCommands().then(async outcome => {
       if (!active) return;
       const last = outcome.confirmed[outcome.confirmed.length - 1];
-      if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes) });
+      if (last) setLastShoppingChange({ commandId: last.command_id, message: describeShoppingChanges(last.shopping_changes, last.command_type) });
       if (outcome.confirmed.length || outcome.refused) await fetchShoppingList().catch(() => undefined);
       const notice = resumeNotice(outcome);
       if (active && notice && notice !== RESUME_DONE) setError(notice);
     }).catch(() => { if (active) setError(RESUME_PENDING); });
     return () => { active = false; };
-  }, [fetchShoppingList]);
+  }, [fetchShoppingList, resume]);
   useAgentDbInvalidation(['shopping_list','products'], () => fetchShoppingList().catch(() => undefined));
+  /** V11-01 E5b: a list change confirmed on another screen (a receipt applied), shown here with « Annuler ». */
+  const adoptShoppingChange = useCallback((change: ShoppingChangeNotice) => setLastShoppingChange(change), []);
   return { shoppingList, loading, error, isTransferring, pendingTransfer, addToShoppingList, togglePurchased,
     removeFromShoppingList, updateShoppingItem, addAllToInventory, clearPurchased,
     removeMultipleFromShoppingList, toggleMultiplePurchased, addMultipleToShoppingList,
-    lastShoppingChange, undoLastShoppingChange,
+    lastShoppingChange, undoLastShoppingChange, adoptShoppingChange,
     getTotalEstimatedCost, getPurchasedCount, generateShareableList, refetch: fetchShoppingList };
 };

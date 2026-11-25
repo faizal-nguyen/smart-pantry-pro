@@ -8,6 +8,11 @@
 export const PHOTO_MAX_SIDE = 1600;
 /** A photo kept on a product only needs to be recognised: about 150 KB. */
 export const KEPT_PHOTO_SIDE = 1024;
+/**
+ * V11-01 E5b: a receipt is long and narrow; 2048 px on its long side (the provider's own bound)
+ * keeps its lines legible, about 500 KB in JPEG, under the API's 4 MB.
+ */
+export const RECEIPT_PHOTO_SIDE = 2048;
 
 const UNREADABLE = 'Cette photo ne peut pas être lue sur cet appareil.';
 const CONVERTER_UNAVAILABLE = 'La conversion de la photo HEIC n’a pas pu démarrer. Vérifie ta connexion et réessaie.';

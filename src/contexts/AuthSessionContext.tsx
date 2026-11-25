@@ -62,7 +62,8 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         // V11-01 E4b: a proposed week keeps what the user typed (foods left out, possibly allergies): it
         // never outlives the account of the tab, not even a plain sign-out.
         if (currentAccount !== undefined && currentAccount !== next) {
-          for (const key of Object.keys(sessionStorage)) if (key.startsWith('v11-week-proposal:')) sessionStorage.removeItem(key);
+          // V11-01 E5b: so does a receipt under review (what was bought, where).
+          for (const key of Object.keys(sessionStorage)) if (key.startsWith('v11-week-proposal:') || key.startsWith('v11-receipt-review:')) sessionStorage.removeItem(key);
         }
         if (next) for (const storage of [localStorage,sessionStorage]) {
           for (const key of Object.keys(storage)) {
