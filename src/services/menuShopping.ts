@@ -2,7 +2,7 @@
  * V11-01 E2 — the week's shopping: the preview read from the API, and its confirmation, saved
  * under one intention per week so that a lost reply resends the very same command.
  */
-import { MenuShoppingPreviewRequestSchema, MenuShoppingPreviewSchema, type MenuShoppingPreview, type StockCommand, type StockCommandResult } from '@smart/shared';
+import { MenuShoppingPreviewRequestSchema, MenuShoppingPreviewSchema, type MenuShoppingPreview, type ProposedMeal, type StockCommand, type StockCommandResult } from '@smart/shared';
 import { ApiError, apiPost } from '@/lib/api';
 import type { MenuAddMissingPayload } from '@/lib/menuShoppingReview';
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntent } from './stockCommands';
@@ -12,9 +12,9 @@ type MenuAddMissingCommand = Extract<StockCommand, { command_type: 'menu_add_mis
 /** One saved confirmation per week. */
 export const menuShoppingIntent = (week: string): string => `menu-shopping:${week}`;
 
-/** The week's lines and tokens, checked before they are shown. */
-export async function fetchMenuShoppingPreview(owner: string, week: string, signal?: AbortSignal): Promise<MenuShoppingPreview> {
-  const request = MenuShoppingPreviewRequestSchema.parse({ week_start: week });
+/** The week's lines and tokens, checked before they are shown; with (E4b) the meals of a proposal, saved nowhere. */
+export async function fetchMenuShoppingPreview(owner: string, week: string, signal?: AbortSignal, proposal?: ProposedMeal[]): Promise<MenuShoppingPreview> {
+  const request = MenuShoppingPreviewRequestSchema.parse(proposal?.length ? { week_start: week, proposal } : { week_start: week });
   const result = await apiPost<unknown>('/v1/menus/shopping-preview', request, { expectedUserId: owner, signal });
   const checked = MenuShoppingPreviewSchema.safeParse(result);
   if (!checked.success || checked.data.week_start !== request.week_start) {

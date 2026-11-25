@@ -1,5 +1,5 @@
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntents } from '../stockCommands';
-import { menuCopyIntent, menuEditIntent, resumePendingMenuEdits, updateMenu } from '../menuCommands';
+import { menuCopyIntent, menuEditIntent, menuProposalIntent, resumePendingMenuEdits, updateMenu } from '../menuCommands';
 
 jest.mock('@/lib/api', () => ({ ApiError: class extends Error {
   status: number; code?: string;
@@ -58,4 +58,17 @@ test('a week copy is the same gesture for the same operations, another one other
   expect(menuCopyIntent('2026-12-07', [{ ...operations[0], servings: 2 }])).not.toBe(intent);
   expect(menuCopyIntent('2026-12-07', [{ ...operations[0], expected_version: 3 }])).not.toBe(intent);
   expect(menuCopyIntent('2026-12-14', operations)).not.toBe(intent);
+});
+
+// V11-01 E4b: a validated proposal names the profile and expiry it was computed with.
+test('a proposal is sent as one update_menu with its profile and expiry, under one gesture per week and operations', async () => {
+  const operations = [{ op: 'set' as const, date: '2026-12-01', meal_type: 'dinner' as const, recipe: { id: MEAL, source: 'auto' as const }, servings: 2, expected_version: null }];
+  const proposal = { profile_version: 3, expires_at: '2026-11-30T09:30:00.000Z' };
+  const intent = menuProposalIntent('2026-11-30', 'b'.repeat(32), operations);
+  expect(intent).toMatch(/^menu-edit:proposal:2026-11-30:b{32}:[0-9a-f]{8}$/);
+  expect(menuProposalIntent('2026-11-30', 'b'.repeat(32), JSON.parse(JSON.stringify(operations)))).toBe(intent);
+  // A recomputed proposal (another identity, another expiry) is another gesture, never blocked by the former.
+  expect(menuProposalIntent('2026-11-30', 'c'.repeat(32), operations)).not.toBe(intent);
+  await updateMenu(intent, operations, proposal);
+  expect(commandForIntent).toHaveBeenCalledWith('update_menu', intent, { operations, proposal });
 });

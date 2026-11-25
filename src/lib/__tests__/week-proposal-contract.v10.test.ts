@@ -10,6 +10,8 @@ test('a request names empty slots of one week, at most 28, never twice', () => {
   expect(WeekProposalRequestSchema.safeParse(request).success).toBe(true);
   expect(WeekProposalRequestSchema.safeParse({ ...request, week_start: '2026-12-01' }).success).toBe(false);
   expect(WeekProposalRequestSchema.safeParse({ ...request, slots: [] }).success).toBe(false);
+  // E4b: recomputing a proposal keeps every choice: only kept slots, nothing to fill.
+  expect(WeekProposalRequestSchema.safeParse({ ...request, slots: [], keep: [{ date: '2026-12-03', meal_type: 'dinner', recipe: RECIPE, servings: 2 }] }).success).toBe(true);
   expect(WeekProposalRequestSchema.safeParse({ ...request, slots: [...request.slots, request.slots[0]] }).success).toBe(false);
   expect(WeekProposalRequestSchema.safeParse({ ...request, slots: [{ date: '2026-12-07', meal_type: 'dinner' }] }).success).toBe(false);
   // The 28 slots of the week of Monday 30 Nov.

@@ -19,6 +19,7 @@ import KitchenDashboard from '@/pages/kitchen/KitchenDashboard';
 import MenusPage from '@/pages/kitchen/MenusPage';
 import CookingSessionPage from '@/pages/kitchen/CookingSessionPage';
 import WeekShoppingPage from '@/pages/shopping/WeekShoppingPage';
+import WeekProposalPage from '@/pages/kitchen/WeekProposalPage';
 import Recipes from '@/pages/Recipes';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from '@/components/ui/sonner';
@@ -95,7 +96,7 @@ function Fixture() {
   return <CulinaryDesignContext.Provider value={design}>
     {!carnetScene && controls}
     <Routes><Route element={<AuthenticatedLayout/>}>
-      <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
+      <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/meal-planning/proposition" element={<WeekProposalPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
       <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/>
       <Route path="/settings" element={<Settings/>}/><Route path="/fixture/manual" element={<ManualRecipe/>}/>
       <Route path="/assistant" element={<AssistantDashboard/>}/>

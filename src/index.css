@@ -894,6 +894,56 @@
   /* V11-01 E3c: the week's tools under its navigator, and the copy's conflicts. */
   .kitchen-week-tools { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   .kitchen-week-tools-note { @apply text-muted-foreground; flex-basis:100%; font-size:.875rem; scroll-margin-block:80px calc(var(--mobile-nav-total-height,72px) + 140px); }
+  /* V11-01 E4b: « Proposer la semaine ». A slot is a card of the notebook: its day small, its recipe in
+     the serif of titles, its availability marked by colour and by words (never by colour alone). */
+  .kitchen-proposal-page { display:grid; gap:20px; }
+  .kitchen-proposal-week { font-family:Georgia,'Times New Roman',serif; font-size:1.15rem; }
+  .kitchen-proposal-settings { @apply bg-card/60; display:grid; gap:14px; padding:16px; border:1px solid oklch(var(--border)); border-radius:14px; }
+  .kitchen-proposal-meals { display:flex; flex-wrap:wrap; gap:8px; }
+  .kitchen-proposal-meals > legend { width:100%; margin-bottom:8px; }
+  .kitchen-proposal-field { display:grid; gap:6px; font-size:.875rem; max-width:22rem; }
+  .kitchen-proposal-field > input, .kitchen-proposal-field > select { @apply bg-background; min-height:44px; padding:0 10px; border:1px solid oklch(var(--border)); border-radius:8px; font-size:1rem; }
+  .kitchen-proposal-more > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; font-size:.875rem; font-weight:500; }
+  .kitchen-proposal-more[open] { display:grid; gap:12px; }
+  .kitchen-proposal-settings > button { justify-self:start; }
+  .kitchen-proposal { display:grid; gap:16px; }
+  .kitchen-proposal-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; }
+  .kitchen-proposal-head > h2 { font-family:Georgia,'Times New Roman',serif; font-size:1.35rem; }
+  .kitchen-proposal-slots { display:grid; gap:12px; }
+  .kitchen-proposal-slot { @apply bg-card; display:grid; gap:8px; padding:14px 16px; border:1px solid oklch(var(--border)); border-left-width:4px; border-radius:12px; min-width:0; }
+  .kitchen-proposal-slot > h3 { @apply text-muted-foreground; font-size:.75rem; font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  .kitchen-proposal-slot[data-availability="in_stock"] { border-left-color:oklch(var(--success)); }
+  .kitchen-proposal-slot[data-availability="to_buy"] { border-left-color:oklch(var(--primary)); }
+  .kitchen-proposal-slot[data-availability="to_check"] { border-left-color:oklch(var(--muted-foreground)); }
+  .kitchen-proposal-slot[data-state="empty"], .kitchen-proposal-slot[data-state="cleared"] { @apply bg-card/50; border-style:dashed; border-left-width:1px; }
+  .kitchen-proposal-slot[aria-busy="true"] { opacity:.6; }
+  .kitchen-proposal-recipe { font-family:Georgia,'Times New Roman',serif; font-size:1.15rem; line-height:1.25; overflow-wrap:anywhere; }
+  .kitchen-proposal-recipe > a { text-underline-offset:3px; }
+  .kitchen-proposal-recipe > a:hover { text-decoration:underline; }
+  .kitchen-proposal-recipe > a:focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2; border-radius:4px; }
+  .kitchen-proposal-meta { @apply text-muted-foreground; display:flex; flex-wrap:wrap; gap:12px; font-size:.8rem; }
+  .kitchen-proposal-meta > span { display:inline-flex; align-items:center; gap:4px; }
+  .kitchen-proposal-availability { font-size:.875rem; overflow-wrap:anywhere; }
+  .kitchen-proposal-reasons > summary { @apply text-muted-foreground; min-height:44px; display:flex; align-items:center; cursor:pointer; font-size:.8rem; }
+  .kitchen-proposal-reasons ul { display:grid; gap:4px; padding-left:1.1rem; list-style:disc; font-size:.8rem; }
+  .kitchen-proposal-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .kitchen-proposal-shopping-toggle { display:grid; gap:10px; }
+  .kitchen-proposal-shopping-toggle > button { justify-self:start; }
+  .kitchen-proposal-shopping { @apply bg-card/60; display:grid; gap:12px; padding:14px 16px; border:1px solid oklch(var(--border)); border-radius:12px; }
+  .kitchen-proposal-shopping h3 { font-size:.875rem; font-weight:600; }
+  .kitchen-proposal-shopping ul { display:grid; gap:4px; padding-left:1.1rem; list-style:disc; font-size:.875rem; overflow-wrap:anywhere; }
+  .kitchen-proposal-footer { display:grid; gap:10px; }
+  .kitchen-proposal-error { display:grid; gap:10px; justify-items:start; padding:12px 14px; border:1px solid oklch(var(--destructive)); border-radius:12px; font-size:.875rem; }
+  .kitchen-proposal-slot > button { justify-self:start; }
+  .kitchen-proposal-more > summary::before, .kitchen-proposal-reasons > summary::before { content:'▸'; display:inline-block; width:1em; transition:transform var(--duration-fast,150ms) ease; }
+  .kitchen-proposal-more[open] > summary::before, .kitchen-proposal-reasons[open] > summary::before { transform:rotate(90deg); }
+  .kitchen-proposal-more > summary:focus-visible, .kitchen-proposal-reasons > summary:focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2; border-radius:6px; }
+  @media (min-width:900px) {
+    .kitchen-proposal-slots { grid-template-columns:repeat(auto-fill,minmax(20rem,1fr)); }
+    .kitchen-proposal-footer > button { justify-self:start; width:auto; min-width:20rem; }
+  }
+  @media (prefers-reduced-motion:no-preference) { .kitchen-proposal-slot { transition:opacity var(--duration-fast,150ms) ease; } }
+  @media (prefers-reduced-motion:reduce) { .kitchen-proposal-more > summary::before, .kitchen-proposal-reasons > summary::before { transition:none; } }
   .kitchen-copy-conflicts { display:grid; gap:6px; padding-left:1.1rem; list-style:disc; font-size:.875rem; overflow-wrap:anywhere; }
   .kitchen-move-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr)); gap:8px; min-width:0; }
   .kitchen-move-choices > legend { margin-bottom:8px; }

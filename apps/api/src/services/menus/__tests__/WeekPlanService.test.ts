@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { WeekProposalSchema, type WeekProposalRequest } from '@smart/shared';
+import { emptyNutritionProfile, WeekProposalSchema, type WeekProposalRequest } from '@smart/shared';
 import { RecommendationEngine } from '../../recommendations/RecommendationEngine.js';
 import type { RecommendationContext } from '../../recommendations/types.js';
 import { WeekPlanService } from '../WeekPlanService.js';
@@ -224,4 +224,19 @@ test('a recipe named by several meals is resolved once', async () => {
     { date: '2026-12-02', meal_type: 'dinner', recipe: { id: 'k', source: 'recipes' }, servings: 2 },
   ] }));
   expect(mocked.rpc.mock.calls.filter(([name, args]) => name === 'resolve_stock_recipe' && args.p_recipe_id === 'k')).toHaveLength(1);
+});
+
+// V11-01 E4b: recomputing an expired proposal keeps its choices: only kept slots, no engine read.
+test('a proposal of kept slots only reads no engine and takes the profile version from the profile', async () => {
+  const spy = jest.spyOn(RecommendationEngine.prototype, 'suggestForUser');
+  const mocked = client();
+  const from = mocked.supabase.from as unknown as jest.Mock;
+  const base = from.getMockImplementation()!;
+  from.mockImplementation((table: string) => table === 'nutrition_profiles'
+    ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { user_id: USER, version: 6, schema_version: 1, settings: emptyNutritionProfile(), updated_at: null, origin: 'explicit' }, error: null }) }) }) }
+    : base(table));
+  const proposal = await propose(mocked, ask([], { keep: [{ date: '2026-12-01', meal_type: 'dinner', recipe: { id: 'k', source: 'recipes' }, servings: 2 }] }));
+  expect(spy).not.toHaveBeenCalled();
+  expect(proposal.profile_version).toBe(6);
+  expect(proposal.slots.map(item => item.status)).toEqual(['kept']);
 });

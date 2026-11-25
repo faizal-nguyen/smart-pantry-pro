@@ -29,8 +29,8 @@ export const WeekProposalConstraintsSchema = z.object({
 /** POST /api/v1/menus/week-proposal. */
 export const WeekProposalRequestSchema = z.object({
   week_start: MenuWeekStartSchema,
-  /** The empty slots to fill. */
-  slots: z.array(SlotSchema).min(1).max(WEEK_PROPOSAL_MAX_SLOTS),
+  /** The empty slots to fill; none when a proposal is recomputed with every choice kept (E4b). */
+  slots: z.array(SlotSchema).max(WEEK_PROPOSAL_MAX_SLOTS),
   servings: z.number().int().min(1).max(20).optional(),
   constraints: WeekProposalConstraintsSchema.optional(),
   /** Slots of an earlier proposal kept as they are (« change jeudi soir »): placed, never chosen again. */
@@ -47,6 +47,7 @@ export const WeekProposalRequestSchema = z.object({
     seen.add(menuSlotKey(slot));
   }
   if (slots.length > WEEK_PROPOSAL_MAX_SLOTS) context.addIssue({ code: z.ZodIssueCode.custom, path: ['keep'], message: 'a week has 28 slots' });
+  if (!slots.length) context.addIssue({ code: z.ZodIssueCode.custom, path: ['slots'], message: 'a slot to fill or to keep' });
 });
 export type WeekProposalRequest = z.infer<typeof WeekProposalRequestSchema>;
 

@@ -59,6 +59,11 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       // A different signed-in account never inherits private work, even after reload.
       try {
         sessionStorage.removeItem('assistant.lastConversationId');
+        // V11-01 E4b: a proposed week keeps what the user typed (foods left out, possibly allergies): it
+        // never outlives the account of the tab, not even a plain sign-out.
+        if (currentAccount !== undefined && currentAccount !== next) {
+          for (const key of Object.keys(sessionStorage)) if (key.startsWith('v11-week-proposal:')) sessionStorage.removeItem(key);
+        }
         if (next) for (const storage of [localStorage,sessionStorage]) {
           for (const key of Object.keys(storage)) {
             const prefix = ['v10-draft:', 'v10-command:', 'assistant.lastConversationId:'].find(value => key.startsWith(value));

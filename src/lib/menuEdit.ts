@@ -134,6 +134,15 @@ export function copyRefusal(error: unknown): string {
   return menuRefusal(error);
 }
 
+/** V11-01 E4b: a proposal refused at validation is recomputed, the user's choices kept. */
+export function proposalRefusal(error: unknown): string {
+  const code = errorCode(error);
+  if (code === 'PROPOSAL_EXPIRED') return 'Cette proposition a expiré : recalcule-la, tes choix sont gardés.';
+  if (code === 'PROFILE_CHANGED') return 'Ton profil a changé depuis la proposition : recalcule-la, tes choix sont gardés.';
+  if (code === 'MENU_CHANGED' || code === 'MEAL_COOKED') return 'Un créneau a été pris entre-temps : recalcule la proposition, tes autres choix sont gardés.';
+  return menuRefusal(error);
+}
+
 /** An undo refused because the menu moved on since the edit. */
 export function undoRefusal(error: unknown): string {
   const code = errorCode(error);

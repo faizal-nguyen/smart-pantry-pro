@@ -70,3 +70,12 @@ describe('the confirmation', () => {
     expect(executeStockCommand).not.toHaveBeenCalled();
   });
 });
+
+// V11-01 E4b: the shopping of a proposed week, before it is validated.
+test('the preview may count the meals of a proposal, of the same week', async () => {
+  jest.mocked(apiPost).mockResolvedValueOnce(preview);
+  const proposal = [{ date: '2026-12-01', meal_type: 'dinner' as const, recipe: { id: '11111111-1111-4111-8111-111111111111', source: 'recipes_catalog' as const }, servings: 2 }];
+  await fetchMenuShoppingPreview(OWNER, '2026-11-30', undefined, proposal);
+  expect(apiPost).toHaveBeenCalledWith('/v1/menus/shopping-preview', { week_start: '2026-11-30', proposal }, { expectedUserId: OWNER, signal: undefined });
+  await expect(fetchMenuShoppingPreview(OWNER, '2026-11-30', undefined, [{ ...proposal[0], date: '2026-12-09' }])).rejects.toThrow();
+});

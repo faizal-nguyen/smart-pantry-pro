@@ -3,6 +3,9 @@
  * is sent again under its identity, never doubled.
  */
 import type { MenuOperation, StockCommandResult } from '@smart/shared';
+
+/** V11-01 E4b: what a validated proposal was computed with (the API refuses it once expired or on another profile). */
+export interface ProposalCheck { profile_version: number; expires_at: string }
 import { commandForIntent, executeStockCommand, finishIntent, pendingIntents } from './stockCommands';
 import { isRolledBackRefusal } from './stockCommandRefusal';
 
@@ -41,9 +44,17 @@ export function menuCopyIntent(targetWeek: string, operations: MenuOperation[]):
   return `${INTENT_PREFIX}copy:${targetWeek}:${digest(JSON.stringify(operations))}`;
 }
 
+/**
+ * V11-01 E4b — a proposal validated: one gesture per proposal and operations. Sent again after a lost
+ * reply, it is the same command; a recomputed proposal (new identity and expiry) is another gesture.
+ */
+export function menuProposalIntent(weekStart: string, proposalId: string, operations: MenuOperation[]): string {
+  return `${INTENT_PREFIX}proposal:${weekStart}:${proposalId}:${digest(JSON.stringify(operations))}`;
+}
+
 /** Sends the edit; a lost reply keeps it saved under its gesture. */
-export async function updateMenu(intent: string, operations: MenuOperation[]): Promise<StockCommandResult> {
-  const command = await commandForIntent('update_menu', intent, { operations });
+export async function updateMenu(intent: string, operations: MenuOperation[], proposal?: ProposalCheck): Promise<StockCommandResult> {
+  const command = await commandForIntent('update_menu', intent, proposal ? { operations, proposal } : { operations });
   const result = await executeStockCommand(command);
   await finishIntent(intent);
   return result;

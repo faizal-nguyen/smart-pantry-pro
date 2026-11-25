@@ -10,6 +10,8 @@ import {
   type MenuAllocation, type MenuMealInput, type ProposedMeal, type RecipeReference, type WeekProposal, type WeekProposalRequest, type WeekProposalSlot,
 } from '@smart/shared';
 import type { MemoryService } from '../assistant/MemoryService.js';
+import { NutritionProfileService, ProfileError } from '../recommendations/NutritionProfileService.js';
+import { StockCommandError } from '../stock/StockCommandService.js';
 import { RecommendationEngine } from '../recommendations/RecommendationEngine.js';
 import type { RecommendationContext, RecommendationResult, RecommendedRecipeView } from '../recommendations/types.js';
 import { MenuShoppingService, proposedMealId } from './MenuShoppingService.js';
@@ -65,8 +67,9 @@ export class WeekPlanService {
     const types = [...new Set(slots.map(slot => slot.meal_type))];
     const results = new Map(await Promise.all(types.map(async type => [type, await this.suggest(userId, now, type, request, [...left])] as const)));
     // Results read on different profile versions (an edit during the reads): the oldest, so that the
-    // validation errs towards PROFILE_CHANGED.
-    const profileVersion = Math.min(...[...results.values()].map(item => Number(item.profile_version ?? 0)));
+    // validation errs towards PROFILE_CHANGED. Kept slots only (a recomputation): the profile itself.
+    const profileVersion = results.size ? Math.min(...[...results.values()].map(item => Number(item.profile_version ?? 0)))
+      : await this.profileVersion(userId);
     // Nothing left for a type once the week's own recipes are out: compatible recipes exist, all placed.
     const drained = new Set<MealType>();
     await Promise.all(types.filter(type => left.size && !candidatesOf(results.get(type)).length).map(async type => {
@@ -108,6 +111,14 @@ export class WeekPlanService {
     };
     // What leaves the API is what the screen (and the assistant) accept.
     return WeekProposalSchema.parse(proposal);
+  }
+
+  private async profileVersion(userId: string): Promise<number> {
+    try { return (await new NutritionProfileService(this.client).read(userId)).profile.version; }
+    catch (error) {
+      if (error instanceof ProfileError) throw new StockCommandError(error.code === 'MIGRATION_REQUIRED' ? 'MIGRATION_REQUIRED' : 'PROFILE_UNAVAILABLE', 503);
+      throw error;
+    }
   }
 
   /** One read of the engine for a meal type, without writer: nothing is recorded. */

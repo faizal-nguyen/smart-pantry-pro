@@ -5,6 +5,7 @@ import { data, failures, OWNER,persistFixtureData } from './supabase';
 import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
 import { applyMenuAddMissing, weekShoppingPreview } from './weekShopping';
 import { applyUpdateMenu } from './menuEdit';
+import { weekProposalFixture } from './weekProposal';
 import {buildFoodGuidance} from '@smart/shared';
 
 // Only for the isolated visual fixture; never supplies a real access token.
@@ -133,6 +134,10 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   if (path==='/v1/settings/export') return { nutrition_profile:fixtureProfile(),assistant_memory:data.assistant_memory_items } as T;
   if (path==='/v1/settings/delete-request') return { id:crypto.randomUUID(),status:'pending',requestedAt:new Date().toISOString(),alreadyPending:false } as T;
   if (path==='/v1/menus/shopping-preview') return weekShoppingPreview(String((body as { week_start?: string })?.week_start)) as T;
+  if (path==='/v1/menus/week-proposal') {
+    try { return weekProposalFixture(body as never) as T; }
+    catch (failure) { const known=failure as { message:string;status?:number;code?:string };throw new ApiError(known.message,{ status:known.status ?? 503,code:known.code }); }
+  }
   if (path === '/v1/stock/commands') {
     const command = body as StockCommand;
     if (results.has(command.command_id)) return results.get(command.command_id) as T;

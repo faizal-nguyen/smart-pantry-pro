@@ -11,9 +11,10 @@
  * `add_recipe_to_meal_plan` ; `useAgentDbInvalidation` rafraîchit
  * automatiquement.
  */
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarPlus, ChevronLeft, ChevronRight, Copy, MessageSquarePlus, Loader2, ShoppingBasket, X } from 'lucide-react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Copy, MessageSquarePlus, Loader2, ShoppingBasket, Sparkles, X } from 'lucide-react';
+import { calendarDate } from '@smart/shared';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
 import { currentMenuWeek, menuWeekFromParam, menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
@@ -22,7 +23,8 @@ import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
-import { useMenuEdit } from '@/hooks/useMenuEdit';
+import { useMenuEdit, type MenuChangeNotice } from '@/hooks/useMenuEdit';
+import { openSlots } from '@/lib/weekProposal';
 import MenuWeekGrid from '@/components/meal-planning/MenuWeekGrid';
 import MoveMealDialog from '@/components/meal-planning/MoveMealDialog';
 import LeftoverDialog from '@/components/meal-planning/LeftoverDialog';
@@ -53,7 +55,11 @@ export default function MenusPage() {
     return copy;
   }, { replace: true });
   const [openDialog, setOpenDialog] = useState(false);
-  const edit = useMenuEdit();
+  // V11-01 E4b: the meals a proposal added on its own page arrive with their notice, to undo them here.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const received = useRef((location.state as { menuNotice?: MenuChangeNotice } | null)?.menuNotice ?? null);
+  const edit = useMenuEdit(received.current);
   const [moving, setMoving] = useState<MenuEntryView | null>(null);
   const [leftoverOf, setLeftoverOf] = useState<MenuEntryView | null>(null);
   // Focus: a dialog closed without change goes back to the card's menu; once an edit is confirmed, to
@@ -64,6 +70,13 @@ export default function MenusPage() {
   const focusUndoOnClose = useRef(false);
   const dialogOpener = useRef<HTMLElement | null>(null);
   useEffect(() => { if (focusUndo) undoButton.current?.focus(); }, [focusUndo]);
+  useEffect(() => {
+    if (!received.current) return;
+    // Read once: the history entry forgets it, so a reload or a way back does not announce it again.
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+    setFocusUndo(count => count + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival
+  }, []);
   const beforeDialog = () => {
     dialogOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     edit.clearError();
@@ -148,6 +161,9 @@ export default function MenusPage() {
     window.setTimeout(() => setCalendarNote({ week: weekStart, text }), 0);
   };
   const note = calendarNote?.week === weekStart ? calendarNote.text : '';
+  // V11-01 E4b: a proposal while the week has empty lunches or dinners to come.
+  const canPropose = !menu.isLoading && !menu.isError && openSlots(weekStart, calendarDate(now) ?? weekStart, entries, ['lunch', 'dinner']).length > 0;
+  const proposalPath = `/kitchen/meal-planning/proposition?week=${weekStart}`;
   // On a phone the note can fall behind the fixed notice: brought into view, above it (scroll-margin).
   const noteRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (calendarNote) noteRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [calendarNote]);
@@ -216,7 +232,11 @@ export default function MenusPage() {
           </Button>
         </div>
 
-        {entries.length > 0 && <div className="kitchen-week-tools">
+        {(entries.length > 0 || canPropose) && <div className="kitchen-week-tools">
+          {canPropose && <Button asChild variant="outline" className="min-h-11 gap-2">
+            <Link to={proposalPath}><Sparkles className="h-4 w-4" aria-hidden="true" />Proposer la semaine</Link>
+          </Button>}
+          {entries.length > 0 && <>
           <Button type="button" variant="outline" className="min-h-11 gap-2" aria-disabled={!!edit.busyId}
             onClick={() => { if (!edit.busyId) { beforeDialog(); setCopyFrom(weekStart); } }}>
             <Copy className="h-4 w-4" aria-hidden="true" />Copier vers…
@@ -224,6 +244,7 @@ export default function MenusPage() {
           <Button type="button" variant="outline" className="min-h-11 gap-2" onClick={exportCalendar}>
             <CalendarPlus className="h-4 w-4" aria-hidden="true" />Ajouter au calendrier
           </Button>
+          </>}
           {/* Always mounted, so that the file's note is announced. */}
           <p ref={noteRef} role="status" className={note ? 'kitchen-week-tools-note' : 'sr-only'}>{note}</p>
         </div>}
@@ -256,7 +277,7 @@ export default function MenusPage() {
             {entries.length === 0 && (
               <p className="text-center text-sm text-muted-foreground">
                 Aucun repas planifié cette semaine — clique sur un créneau pour
-                ajouter une recette.
+                ajouter une recette{canPropose ? <>, ou <Link className="underline underline-offset-2" to={proposalPath}>Proposer la semaine</Link></> : null}.
               </p>
             )}
           </>
