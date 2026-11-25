@@ -25,6 +25,7 @@ export const data: Record<string, Row[]> = {
     stock_version: 0, is_purchased: false, priority: 1, created_at: '2026-10-08T10:00:00Z', updated_at: '2026-10-08T10:00:00Z' })),
   user_recipes: [], recipes_catalog: [], stock_commands: [], cooking_journal_entries: [],
   mobile_routine_preferences: [],routine_recipe_favorites: [],user_meal_preferences: [],nutrition_profiles:[],assistant_memory_items:[],recipe_interactions:[],recommendation_events:[],
+  food_waste_events: [],
 };
 if (carnetScene) seedCarnetScene(data,OWNER,RECIPE);
 seedRecipeLifeScene(data,OWNER);
@@ -41,10 +42,19 @@ if (!personal.custom_photo_url) personal.custom_photo_url='/scripts/fixtures/v10
 const broken='30000000-0000-4000-8000-000000000002',absent='30000000-0000-4000-8000-000000000003';
 if (!carnetScene && !data.recipes.some(row=>row.id===broken)) data.recipes.push({ ...recipe,id:broken,name:'Recette de test avec une image cassée et un titre assez long pour vérifier la lecture sur petit écran',image_url:'/scripts/fixtures/v10/assets/missing-image.jpg' });
 if (!carnetScene && !data.recipes.some(row=>row.id===absent)) data.recipes.push({ ...recipe,id:absent,name:'Recette de test sans photo',image_url:null,prep_time:null });
-export function persistFixtureData() { localStorage.setItem(fixtureStorageKey,JSON.stringify(data)); }
-export const failures = { receiptUnreadable: false,receiptDuplicate: false,proposalExpired: false,menuChanged: false,nextCommand: false,nextReplyLost:false,evaluationOffline:false,memoryConflict:false,memoryOffline:false,memoryReplyLost:false,modelsOffline:false };
+/**
+ * V11-06 E0: states for the visual captures, from the address; nothing is saved while one is set:
+ * `empty=inventory,shopping_list` empties tables; `fail=food_waste_events` makes their reads fail;
+ * `hold=1` keeps every read pending (the loading state).
+ */
+const states = new URLSearchParams(location.search);
+for (const table of (states.get('empty') ?? '').split(',').filter(Boolean)) data[table] = [];
+const transientState = ['empty', 'fail', 'hold'].some(key => states.has(key));
+export function persistFixtureData() { if (!transientState) localStorage.setItem(fixtureStorageKey,JSON.stringify(data)); }
+export const failures = { readErrors: (states.get('fail') ?? '').split(',').filter(Boolean), holdReads: states.get('hold') === '1', receiptUnreadable: false,receiptDuplicate: false,proposalExpired: false,menuChanged: false,nextCommand: false,nextReplyLost:false,evaluationOffline:false,memoryConflict:false,memoryOffline:false,memoryReplyLost:false,modelsOffline:false };
 const session = { user: { id: OWNER, email: 'test@example.invalid', user_metadata: { full_name:carnetScene ? 'Foyer démo':'Test local' } }, access_token: 'local-test-only' };
-class Query implements PromiseLike<{ data: unknown; error: null; count: number }> {
+type Answer = { data: unknown; error: { message: string } | null; count: number };
+class Query implements PromiseLike<Answer> {
   private filters: Array<(row: Row) => boolean> = [];
   private mode = 'read'; private patch: Row = {}; private added: Row[] = []; private singleResult = false;
   private offset=0;private maximum=Infinity;private sortKey:string|null=null;private ascending=true;
@@ -69,10 +79,14 @@ class Query implements PromiseLike<{ data: unknown; error: null; count: number }
   delete() { this.mode = 'delete'; return this; }
   single() { this.singleResult = true; return this; }
   maybeSingle() { return this.single(); }
-  then<TResult1 = { data: unknown; error: null; count: number }, TResult2 = never>(
-    resolve?: ((value: { data: unknown; error: null; count: number }) => TResult1 | PromiseLike<TResult1>) | null,
+  then<TResult1 = Answer, TResult2 = never>(
+    resolve?: ((value: Answer) => TResult1 | PromiseLike<TResult1>) | null,
     reject?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
+    if (this.mode === 'read' && failures.holdReads) return new Promise<TResult1 | TResult2>(() => undefined);
+    if (this.mode === 'read' && failures.readErrors.includes(this.table)) {
+      return Promise.resolve<Answer>({ data: null, error: { message: 'Lecture refusée dans le test local.' }, count: 0 }).then(resolve, reject);
+    }
     let rows = data[this.table] ?? [];
     if (this.mode === 'upsert') {
       const all=data[this.table] ?? [];
@@ -96,7 +110,7 @@ class Query implements PromiseLike<{ data: unknown; error: null; count: number }
       ...(this.table === 'recipes' ? { recipe_ingredients: data.recipe_ingredients.filter(ingredient => ingredient.recipe_id === row.id) } : {}),
       ...(this.table === 'user_recipes' && row.recipe_id ? { catalog_recipe: data.recipes_catalog.find(catalog=>catalog.id===row.recipe_id) } : {}),
     }));
-    return Promise.resolve({ data: this.singleResult ? mapped[0] ?? null : mapped, error: null, count }).then(resolve,reject);
+    return Promise.resolve<Answer>({ data: this.singleResult ? mapped[0] ?? null : mapped, error: null, count }).then(resolve,reject);
   }
 }
 const channel = { on: () => channel, subscribe: () => channel, unsubscribe: async () => {} };
