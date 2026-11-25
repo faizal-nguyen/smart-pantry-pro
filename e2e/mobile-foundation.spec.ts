@@ -126,9 +126,8 @@ test.describe('mobile foundation — authenticated screenshots', () => {
     await page.goto('/kitchen/recipes?tab=library');
     await assertSingleAppNavigation(page);
 
-    // Wait for the library cards to load. Les cards LibraryRecipeCard
-    // wrappent leur contenu dans un MaterialCard cliquable. On cherche
-    // un container article/article-like avec un h2/h3 (titre recette).
+    // Wait for the library cards to load. On cherche un container
+    // article/article-like cliquable avec un h2/h3 (titre recette).
     const cardSelector = 'article, [class*="cursor-pointer"]';
     await page.locator(cardSelector).first().waitFor({ state: 'visible', timeout: 15_000 });
 

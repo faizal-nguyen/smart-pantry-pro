@@ -27,7 +27,7 @@ function setSharedTheme(theme: Theme) {
   window.dispatchEvent(new Event(THEME_EVENT));
 }
 
-/** Every shell, Material theme and notification host observes the same preference. */
+/** Every shell, page and notification host observes the same preference; it alone sets the browser bar colour. */
 export const useTheme = () => {
   const theme = useSyncExternalStore(subscribe, readTheme, () => 'light' as Theme);
   useEffect(() => {
