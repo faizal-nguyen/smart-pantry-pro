@@ -114,6 +114,21 @@ test('a removal confirmed puts focus on « Annuler », the card being gone', asy
   await waitFor(() => expect(screen.getByRole('button', { name: 'Annuler : « Repas du mercredi » retiré du menu.' })).toHaveFocus());
 });
 
+// V11-01 E3d (D5): a drop on the computer grid is the same move as « Déplacer… », then « Annuler ».
+test('a meal dropped on another slot sends the same move as « Déplacer… », and focus goes to « Annuler »', async () => {
+  const other: MenuEntryView = { ...meal, id: 'other', day_of_week: 4, recipe_name: 'Repas du vendredi', version: 3 };
+  weekEntries = { '2026-11-30': [meal, other] };
+  edit.move.mockImplementationOnce(async () => {
+    edit.lastChange = { commandId: 'command-4', message: '« Repas du mercredi » et « Repas du vendredi » échangés.', undone: false };
+    return true;
+  });
+  const { rerender } = show('/kitchen/meal-planning?week=2026-11-30');
+  await act(async () => { gridActions!.onDrop!(meal, { day_of_week: 4, meal_type: 'dinner' }, other); });
+  expect(edit.move).toHaveBeenCalledWith(meal, '2026-11-30', { day_of_week: 4, meal_type: 'dinner' }, other);
+  rerender(<MemoryRouter initialEntries={['/kitchen/meal-planning?week=2026-11-30']}><Routes><Route path="/kitchen/meal-planning" element={<MenusPage />} /></Routes></MemoryRouter>);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Annuler : « Repas du mercredi » et « Repas du vendredi » échangés.' })).toHaveFocus());
+});
+
 test('the notice stays in view at the bottom of the screen and can be closed', () => {
   edit.lastChange = { commandId: 'command-1', message: '« Repas du mercredi » : 5 portions.', undone: false };
   edit.error = 'Ce repas a changé entre-temps : le menu a été relu.';

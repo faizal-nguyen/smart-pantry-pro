@@ -86,6 +86,31 @@ export function moveOptions(entry: MenuEntryView, entries: MenuEntryView[]): Mov
     });
 }
 
+/** V11-01 E3d (D5): what a meal dropped on a slot does, from the options of « Déplacer… ». */
+export type DropTarget =
+  | { kind: 'same' }
+  | { kind: 'move' }
+  | { kind: 'swap'; occupant: MenuEntryView }
+  | { kind: 'blocked'; reason: string };
+
+export function dropTarget(entry: MenuEntryView, slot: MenuSlotRef, entries: MenuEntryView[]): DropTarget {
+  if (sameSlot(entry, slot)) return { kind: 'same' };
+  const option = moveOptions(entry, entries).find(item => sameSlot(item, slot));
+  if (!option) return { kind: 'same' };
+  if (option.blocked) return { kind: 'blocked', reason: option.blocked };
+  return option.occupant ? { kind: 'swap', occupant: option.occupant } : { kind: 'move' };
+}
+
+/** The words a slot shows while a meal is held over it; nothing on its own place. */
+export function dropHint(target: DropTarget): string | null {
+  switch (target.kind) {
+    case 'same': return null;
+    case 'move': return 'Déposer ici';
+    case 'swap': return `Échanger avec « ${target.occupant.recipe_name} »`;
+    case 'blocked': return target.reason;
+  }
+}
+
 /** The empty slots of the week after the meal, where a leftover may go. */
 export function leftoverOptions(entry: MenuEntryView, entries: MenuEntryView[]): MenuSlotRef[] {
   const from = slotMoment(entry);

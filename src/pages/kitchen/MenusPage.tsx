@@ -173,6 +173,8 @@ export default function MenusPage() {
     onServings: (entry, servings) => void edit.setServings(entry, servings),
     onMove: fromCard(setMoving), onLeftover: fromCard(setLeftoverOf),
     onRemove: entry => void edit.remove(entry).then(done => { if (done) setFocusUndo(count => count + 1); }),
+    // V11-01 E3d: a meal dropped on the computer grid moves or swaps as « Déplacer… » does, then « Annuler ».
+    onDrop: (entry, slot, occupant) => void edit.move(entry, weekStart, slot, occupant).then(done => { if (done) setFocusUndo(count => count + 1); }),
   };
 
   return (

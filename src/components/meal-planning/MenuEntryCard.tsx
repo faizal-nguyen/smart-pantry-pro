@@ -9,10 +9,11 @@
  * repas (`?meal=`).
  * V11-01 E3b : portions en pas à pas, « Déplacer », « Prévoir des restes » et « Retirer » passent
  * par update_menu, depuis la page (actions). Un reste (leftover_of) n'est ni cuisiné ni déduit.
+ * V11-01 E3d : sur la grille d'ordinateur, la carte se saisit au pointeur (drag) ; « Déplacer… » reste.
  */
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRightLeft, Check, Clock, Minus, MoreHorizontal, Plus, Soup, Undo2, Users, X } from 'lucide-react';
+import { ArrowRightLeft, Check, Clock, GripVertical, Minus, MoreHorizontal, Plus, Soup, Undo2, Users, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -20,6 +21,10 @@ import { recipeDetailPath } from '@/lib/recipeLinks';
 import { leftoverCapacity, servingsBounds, slotLabel } from '@/lib/menuEdit';
 import { useCookRecipe } from '@/hooks/useCookRecipe';
 import { useRefreshWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
+import type { MenuSlotRef } from '@/lib/menuEdit';
+
+/** The type a held meal travels under: the app's own, never its name as plain text. */
+export const MENU_ENTRY_DRAG_TYPE = 'application/x-smart-menu-entry';
 
 /** What the page lets a card do; dialogs open once, in the page. */
 export interface MenuCardActions {
@@ -31,14 +36,25 @@ export interface MenuCardActions {
   onMove: (entry: MenuEntryView) => void;
   onLeftover: (entry: MenuEntryView) => void;
   onRemove: (entry: MenuEntryView) => void;
+  /** V11-01 E3d: a meal dropped on a slot of the computer grid; an occupied one swaps (as « Déplacer… »). */
+  onDrop?: (entry: MenuEntryView, slot: MenuSlotRef, occupant: MenuEntryView | null) => void;
+}
+
+/** V11-01 E3d: a card of the computer grid, held by the pointer. */
+export interface CardDrag {
+  enabled: boolean;
+  dragging: boolean;
+  onStart: () => void;
+  onEnd: () => void;
 }
 
 interface MenuEntryCardProps {
   entry: MenuEntryView;
   actions: MenuCardActions;
+  drag?: CardDrag;
 }
 
-export default function MenuEntryCard({ entry, actions }: MenuEntryCardProps) {
+export default function MenuEntryCard({ entry, actions, drag }: MenuEntryCardProps) {
   const navigate = useNavigate();
   const refreshMenu = useRefreshWeeklyMenu();
   const isLeftover = !!entry.leftover_of;
@@ -79,7 +95,14 @@ export default function MenuEntryCard({ entry, actions }: MenuEntryCardProps) {
   };
 
   return (
-    <div className="kitchen-menu-entry" data-leftover={isLeftover}>
+    <div className="kitchen-menu-entry" data-leftover={isLeftover} data-dragging={drag?.dragging || undefined} draggable={drag?.enabled || undefined}
+      onDragStart={drag?.enabled ? event => {
+        event.dataTransfer?.setData(MENU_ENTRY_DRAG_TYPE, entry.id);
+        if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        drag.onStart();
+      } : undefined}
+      onDragEnd={drag ? () => drag.onEnd() : undefined}>
+      {drag?.enabled && <GripVertical className="kitchen-menu-grip h-4 w-4" aria-hidden="true" />}
       {canOpen ? (
         <button type="button" onClick={open} className="kitchen-menu-entry-title" aria-label={`Ouvrir ${entry.recipe_name}`}>
           {entry.recipe_name}
