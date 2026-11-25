@@ -2,7 +2,6 @@ import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, Navigate, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
-import { MaterialYouThemeProvider } from "./contexts/MaterialYouThemeContext";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 import { ResponsiveProvider } from "./contexts/ResponsiveContext";
@@ -207,11 +206,9 @@ const App = () => (
             consomment via useAuthenticatedUser(). */}
         <AuthSessionProvider>
           <ThemeProvider>
-            <MaterialYouThemeProvider>
-              <RouterProvider router={router} />
-              <Toaster />
-              <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
-            </MaterialYouThemeProvider>
+            <RouterProvider router={router} />
+            <Toaster />
+            <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
           </ThemeProvider>
         </AuthSessionProvider>
       </ResponsiveProvider>

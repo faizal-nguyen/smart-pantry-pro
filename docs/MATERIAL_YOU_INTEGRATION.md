@@ -1,5 +1,7 @@
 # Material You Integration Guide for Smart Pantry Pro
 
+> **Document historique, non factuel.** La couche Material You a été retirée le 25 novembre 2026 ([V11-06 E3](implementations/V11-06-E3.md), décision D4) : aucun des fichiers, composants ni variables `--md-sys-*` décrits ici n'existe plus. Le thème clair ou sombre relève de `useTheme`.
+
 This guide explains how to integrate and use the new Material You design system in Smart Pantry Pro.
 
 ## Overview

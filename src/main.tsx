@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
-import './styles/material-you.css'
 
 import { useAppStore } from './store/appStore';
 import { claimChunkReload } from './lib/chunkReload';

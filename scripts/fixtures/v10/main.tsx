@@ -7,7 +7,6 @@ import { MemoryRouter, Routes, Route, Link, useLocation, Navigate } from 'react-
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthSessionProvider } from '@/contexts/AuthSessionContext';
 import { ResponsiveProvider } from '@/contexts/ResponsiveContext';
-import { MaterialYouThemeProvider } from '@/contexts/MaterialYouThemeContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
@@ -118,8 +117,8 @@ function Fixture() {
 }
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <ResponsiveProvider><AuthSessionProvider><LayoutPerformanceProvider><ThemeProvider><MaterialYouThemeProvider>
+    <ResponsiveProvider><AuthSessionProvider><LayoutPerformanceProvider><ThemeProvider>
       <MemoryRouter initialEntries={[new URLSearchParams(location.search).get('route') ?? '/kitchen']}><Fixture/></MemoryRouter>
-    </MaterialYouThemeProvider></ThemeProvider></LayoutPerformanceProvider></AuthSessionProvider></ResponsiveProvider>
+    </ThemeProvider></LayoutPerformanceProvider></AuthSessionProvider></ResponsiveProvider>
   </QueryClientProvider>,
 );
