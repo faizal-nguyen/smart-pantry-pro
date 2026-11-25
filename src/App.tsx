@@ -26,6 +26,7 @@ const InventoryPage = lazy(() => import("./pages/InventoryPage"));
 const RecipesPage = lazy(() => import("./pages/RecipesPage"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const WeekShoppingPage = lazy(() => import("./pages/shopping/WeekShoppingPage"));
+const ReceiptScanPage = lazy(() => import("./pages/shopping/ReceiptScanPage"));
 const WeekProposalPage = lazy(() => import("./pages/kitchen/WeekProposalPage"));
 const InsightsPage = lazy(() => import("./pages/InsightsPage"));
 // PRP-233 PR1: AssistantAI no longer routed (/assistant/chat redirects to
@@ -112,6 +113,8 @@ const protectedRoutes: RouteObject[] = [
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
   // V11-01 E2: the week's shopping from the menu, the week in the address.
   { path: "/shopping/week", element: withSuspense(WeekShoppingPage) },
+  // V11-01 E5b: a receipt photographed, reviewed against the list, the scan in the address.
+  { path: "/shopping/ticket", element: withSuspense(ReceiptScanPage) },
 
   // Assistant
   { path: "/assistant", element: withSuspense(AssistantDashboard) },

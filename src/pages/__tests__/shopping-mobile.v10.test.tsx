@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import SmartShoppingList from '../SmartShoppingList';
 const owner='00000000-0000-4000-8000-000000000001';
-const mockAdd=jest.fn(),mockToggle=jest.fn(),mockUndo=jest.fn();
+const mockAdd=jest.fn(),mockToggle=jest.fn(),mockUndo=jest.fn(),mockAdopt=jest.fn();
 let mockPending=false,mockChange:{ commandId:string;message:string }|null=null;
 jest.mock('@/hooks/useAuthenticatedUser',()=>({ useAuthenticatedUser:()=>({ id:owner }) }));
 jest.mock('@/hooks/useShoppingList',()=>({ useShoppingList:()=>({ shoppingList:[{ id:'line',product:{ name:'Farine' },quantity:1,unit:'kg',is_purchased:false }],addToShoppingList:mockAdd,togglePurchased:mockToggle,getPurchasedCount:()=>0,pendingTransfer:mockPending,refetch:jest.fn(),
-  lastShoppingChange:mockChange,undoLastShoppingChange:mockUndo }) }));
+  lastShoppingChange:mockChange,undoLastShoppingChange:mockUndo,adoptShoppingChange:mockAdopt }) }));
 jest.mock('@/components/shopping/ShoppingStorageReview',()=>({ __esModule:true,default:()=>null }));
 jest.mock('@/components/shopping/EditShoppingItemDialog',()=>({ __esModule:true,default:()=>null }));
 beforeEach(()=>{ localStorage.clear();jest.clearAllMocks();mockPending=false;mockChange=null; });
@@ -84,4 +84,17 @@ test('checking a purchase sends its explicit state; a pending transfer freezes e
 test('the list leads to the week’s shopping from the menu',()=>{
   render(<MemoryRouter><SmartShoppingList /></MemoryRouter>);
   expect(screen.getByRole('link',{ name:'Courses du menu' })).toHaveAttribute('href','/shopping/week');
+});
+
+// V11-01 E5b: the receipt has its own page; a receipt applied there arrives here with its notice, read once.
+test('Courses opens the receipt page, and adopts the notice of a receipt applied there once',()=>{
+  function Location() { const location=useLocation(); return <output data-testid="location">{JSON.stringify(location.state)}</output>; }
+  const notice={ commandId:'c9',message:'Ticket rapproché : 3 achats cochés.' };
+  mockChange=notice;
+  render(<MemoryRouter initialEntries={[{ pathname:'/shopping/list',state:{ shoppingChange:notice } }]}><Routes><Route path="/shopping/list" element={<><SmartShoppingList /><Location /></>} /></Routes></MemoryRouter>);
+  expect(screen.getByRole('link',{ name:'Scanner le ticket' })).toHaveAttribute('href','/shopping/ticket');
+  expect(mockAdopt).toHaveBeenCalledTimes(1);
+  expect(mockAdopt).toHaveBeenCalledWith(notice);
+  expect(screen.getByTestId('location')).toHaveTextContent('null');
+  expect(screen.getByRole('button',{ name:'Annuler : Ticket rapproché : 3 achats cochés.' })).toHaveFocus();
 });

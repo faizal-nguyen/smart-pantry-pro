@@ -6,6 +6,7 @@ import {modelCatalog,modelReceipt,MODEL_CONVERSATION} from './models';
 import { applyMenuAddMissing, weekShoppingPreview } from './weekShopping';
 import { applyUpdateMenu } from './menuEdit';
 import { weekProposalFixture } from './weekProposal';
+import { applyReconcileFixture, receiptFixture, receiptHistoryFixture, scanReceiptFixture, undoReconcileFixture } from './receipts';
 import {buildFoodGuidance} from '@smart/shared';
 
 // Only for the isolated visual fixture; never supplies a real access token.
@@ -182,6 +183,8 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
       applyUpdateMenu(command,result,(code,message)=>{ throw new ApiError(message,{ status:409,code }); });
     } else if (command.command_type==='menu_add_missing') {
       applyMenuAddMissing(command,result,(code,message)=>{ throw new ApiError(message,{ status:409,code }); });
+    } else if (command.command_type==='reconcile_receipt') {
+      applyReconcileFixture(command,result,(code,message,status=409)=>{ throw new ApiError(message,{ status,code }); });
     } else if (command.command_type==='undo_stock') {
       const previous=snapshots.get(command.payload.original_command_id);
       if (!previous) throw new ApiError('Action introuvable.',{ status:409,code:'COMMAND_NOT_FOUND' });
@@ -189,6 +192,8 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
       if (results.get(command.payload.original_command_id)?.command_type==='update_menu') { data.meal_plan_entries=structuredClone(previous.meals ?? []);result.affected_tables=['meal_plan_entries']; }
       else {
         data.inventory=structuredClone(previous.inventory);data.shopping_list=structuredClone(previous.shopping);
+        const original=results.get(command.payload.original_command_id);
+        if (original?.command_type==='reconcile_receipt') undoReconcileFixture(original.receipt_scan_id);
         (data.meal_plan_entries ?? []).filter(row=>row.cooked_command_id===command.payload.original_command_id).forEach(row=>{ row.cooked_command_id=null; });
         result.affected_tables=['inventory','shopping_list','cooking_journal'];
       }
@@ -244,7 +249,21 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
   }
   throw new ApiError('Service absent du jeu de test visuel.',{ status: 503 });
 }
+/** V11-01 E5b: a receipt photo, read after a short wait as the real reading would. */
+export async function apiPostForm<T>(path:string,_form:FormData,options?:{ signal?:AbortSignal }):Promise<T> {
+  if (path==='/v1/receipts/scan') {
+    await new Promise((resolve,reject)=>{ const timer=setTimeout(resolve,900);options?.signal?.addEventListener('abort',()=>{ clearTimeout(timer);reject(new DOMException('Lecture annulée.','AbortError')); }); });
+    try { return scanReceiptFixture() as T; }
+    catch (failure) { const known=failure as { message:string;status?:number;code?:string };throw new ApiError(known.message,{ status:known.status ?? 503,code:known.code }); }
+  }
+  throw new ApiError('Service absent du jeu de test visuel.',{ status:503 });
+}
 export async function apiGet<T>(path:string):Promise<T> {
+  if (path==='/v1/receipts/history') return receiptHistoryFixture() as T;
+  if (path.startsWith('/v1/receipts/')) {
+    try { return receiptFixture(decodeURIComponent(path.split('/').pop()!)) as T; }
+    catch (failure) { const known=failure as { message:string;status?:number;code?:string };throw new ApiError(known.message,{ status:known.status ?? 503,code:known.code }); }
+  }
   if(path==='/v1/recommendations/library-state'){
     const events=data.recipe_interactions.filter(r=>(r.metadata as {library_lifecycle?:boolean})?.library_lifecycle).map(r=>({id:r.id,recipe:r.recipe_reference,action:(r.metadata as {action:string}).action,at:r.created_at})) as RecipeLifecycleEvent[];
     return {...foldRecipeLifecycle(events),eligibility:[...data.recipes.map(r=>({recipe:{id:r.id,source:'recipes'},status:'compatible'})),...data.user_recipes.map(r=>({recipe:{id:r.id,source:'user_recipes'},status:'compatible'}))]} as T;

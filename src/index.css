@@ -945,6 +945,41 @@
   @media (prefers-reduced-motion:no-preference) { .kitchen-proposal-slot { transition:opacity var(--duration-fast,150ms) ease; } }
   @media (prefers-reduced-motion:reduce) { .kitchen-proposal-more > summary::before, .kitchen-proposal-reasons > summary::before { transition:none; } }
   .kitchen-copy-conflicts { display:grid; gap:6px; padding-left:1.1rem; list-style:disc; font-size:.875rem; overflow-wrap:anywhere; }
+  /* V11-01 E5b — « Scanner le ticket ». A line to check is marked by its words and its border, never by colour only. */
+  .kitchen-receipt-start { display:grid; gap:24px; }
+  .kitchen-receipt-capture { @apply bg-card/60; display:grid; gap:12px; padding:18px; border:1px solid oklch(var(--border)); border-radius:14px; }
+  .kitchen-receipt-capture > h2, .kitchen-receipt-history > h2, .kitchen-receipt-group > h2 { font-family:Georgia,'Times New Roman',serif; font-size:1.2rem; }
+  .kitchen-receipt-capture-actions { display:flex; flex-wrap:wrap; gap:8px; }
+  .kitchen-receipt-reading { display:grid; gap:10px; justify-items:start; font-size:.9rem; }
+  .kitchen-receipt-history { display:grid; gap:10px; }
+  .kitchen-receipt-history > ul { display:grid; gap:6px; }
+  .kitchen-receipt-history li { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:8px 12px; border:1px solid oklch(var(--border)); border-radius:10px; }
+  .kitchen-receipt-history-action { display:inline-flex; align-items:center; min-height:44px; padding:0 8px; font-weight:500; text-underline-offset:3px; }
+  .kitchen-receipt-history-action:hover { text-decoration:underline; }
+  .kitchen-receipt-history-action:focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2; border-radius:6px; }
+  .kitchen-receipt-work { display:grid; gap:20px; min-width:0; }
+  .kitchen-receipt-head { font-family:Georgia,'Times New Roman',serif; font-size:1.1rem; overflow-wrap:anywhere; }
+  .kitchen-receipt-group { display:grid; gap:10px; }
+  .kitchen-receipt-group > ul { display:grid; gap:10px; }
+  .kitchen-receipt-line { @apply bg-card; display:grid; gap:8px; padding:12px 14px; border:1px solid oklch(var(--border)); border-left-width:4px; border-left-color:oklch(var(--success)); border-radius:12px; min-width:0; }
+  .kitchen-receipt-line[data-target="new"] { border-left-color:oklch(var(--primary)); }
+  .kitchen-receipt-line[data-target="skip"] { @apply bg-card/50; border-style:dashed; border-left-width:1px; }
+  .kitchen-receipt-line[data-check="true"] { border-left-color:oklch(var(--warning)); border-left-style:double; border-left-width:6px; }
+  .kitchen-receipt-check > svg { color:oklch(var(--warning-foreground)); }
+  .dark .kitchen-receipt-check > svg { color:oklch(var(--warning)); }
+  .kitchen-receipt-raw { @apply text-muted-foreground; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.75rem; letter-spacing:.02em; overflow-wrap:anywhere; }
+  .kitchen-receipt-line-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+  .kitchen-receipt-line-head > h3 { font-weight:600; overflow-wrap:anywhere; min-width:0; }
+  .kitchen-receipt-check { display:flex; align-items:flex-start; gap:6px; font-size:.85rem; font-weight:500; }
+  .kitchen-receipt-amount { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+  .kitchen-receipt-line .kitchen-proposal-field { max-width:none; min-width:0; }
+  .kitchen-receipt-line .kitchen-proposal-field > input, .kitchen-receipt-line select { width:100%; min-width:0; }
+  .kitchen-receipt-line select { @apply bg-background; min-height:44px; padding:0 10px; border:1px solid oklch(var(--border)); border-radius:8px; font-size:1rem; max-width:100%; }
+  .kitchen-receipt-remaining { display:grid; gap:4px; padding-left:1.1rem; list-style:disc; font-size:.875rem; overflow-wrap:anywhere; }
+  .kitchen-receipt-done { display:grid; gap:12px; justify-items:start; }
+  @media (min-width:900px) {
+    .kitchen-receipt-group > ul { grid-template-columns:repeat(auto-fill,minmax(19rem,1fr)); }
+  }
   .kitchen-move-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(7.5rem,1fr)); gap:8px; min-width:0; }
   .kitchen-move-choices > legend { margin-bottom:8px; }
   .kitchen-move-choice { @apply bg-card; display:flex; align-items:center; gap:10px; min-height:44px; padding:8px 12px; border:1px solid oklch(var(--border)); border-radius:10px; font-size:.9rem; cursor:pointer; transition:border-color var(--duration-fast,150ms) ease, background-color var(--duration-fast,150ms) ease; }

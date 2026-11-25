@@ -60,7 +60,10 @@ test('signing out forgets the proposed weeks of the tab', async () => {
   render(<QueryClientProvider client={new QueryClient()}><AuthSessionProvider><Probe /></AuthSessionProvider></QueryClientProvider>);
   await screen.findByText('A');
   sessionStorage.setItem('v11-week-proposal:A:2026-11-30', '{"settings":{"excluded":"arachide"}}');
+  // V11-01 E5b: so does a receipt under review.
+  sessionStorage.setItem('v11-receipt-review:A:scan', '{"lines":[]}');
   act(() => mockListener('SIGNED_OUT', null));
   await screen.findByText('signed-out');
   expect(sessionStorage.getItem('v11-week-proposal:A:2026-11-30')).toBeNull();
+  expect(sessionStorage.getItem('v11-receipt-review:A:scan')).toBeNull();
 });
