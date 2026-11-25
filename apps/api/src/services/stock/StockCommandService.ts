@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   allocateRecipeStock, allocateCookingStock, canAddToShoppingList, needsPurchase, StockCommandSchema,
-  SHOPPING_COMMAND_TYPES, SHOPPING_COMMANDS_CAPABILITY, MENU_COMMANDS_CAPABILITY, MENU_EDIT_CAPABILITY,
+  SHOPPING_COMMAND_TYPES, SHOPPING_COMMANDS_CAPABILITY, MENU_COMMANDS_CAPABILITY, MENU_EDIT_CAPABILITY, RECEIPT_COMMANDS_CAPABILITY,
   type RecipeReference, type RecipeStockPreview, type ResolvedStockRecipe,
   type StockCommand, type StockCommandResult, type StockLot,
 } from '@smart/shared';
@@ -37,6 +37,9 @@ const MESSAGES: Record<string, string> = {
   PROFILE_CHANGED: 'Ton profil a changé depuis la proposition : recalcule-la avant de la valider.',
   INVALID_PROPOSAL: 'Cette proposition porte sur un jour déjà passé : recalcule-la.',
   PROFILE_UNAVAILABLE: 'Ton profil ne peut pas être lu pour le moment : réessaie dans un instant.',
+  // V11-01 E5a: a receipt applied to the list.
+  RECEIPT_ALREADY_APPLIED: 'Ce ticket a déjà été rapproché de ta liste.',
+  RECEIPT_NOT_FOUND: 'Ce ticket n’est plus disponible : scanne-le à nouveau.',
 };
 
 export class StockCommandError extends Error {
@@ -50,7 +53,7 @@ export class StockCommandError extends Error {
 export function databaseError(error: { message: string; code?: string }): never {
   const code = Object.keys(MESSAGES).find(key => error.message === key || error.message.startsWith(`${key}:`));
   if (code) throw new StockCommandError(code, code === 'UNAUTHORIZED' ? 401 : ['CONFLICT','RECIPE_CHANGED','UNDO_CONFLICT','MENU_CHANGED','IDEMPOTENCY_CONFLICT','ALREADY_UNDONE',
-    'STOCK_CHANGED','ALREADY_COOKED','MEAL_COOKED','LEFTOVER_CAPACITY','LEFTOVER_ORDER'].includes(code) ? 409 : 400);
+    'STOCK_CHANGED','ALREADY_COOKED','MEAL_COOKED','LEFTOVER_CAPACITY','LEFTOVER_ORDER','RECEIPT_ALREADY_APPLIED'].includes(code) ? 409 : 400);
   if (error.code === 'PGRST202' || error.code === '42P01' || error.code === '42703') throw new StockCommandError('MIGRATION_REQUIRED', 503);
   throw new StockCommandError('STOCK_WRITE_FAILED', 500);
 }
@@ -134,8 +137,10 @@ export class StockCommandService {
       || command.command_type==='consume_recipe' && command.payload.meal_plan_entry_id!==undefined;
     // V11-01 E3: the editable menu.
     const requiresMenuEdit = command.command_type==='update_menu';
-    if (requiresRoutine || requiresMetadata || requiresShopping || requiresMenu || requiresMenuEdit) {
-      const required = requiresMenuEdit ? MENU_EDIT_CAPABILITY : requiresMenu ? MENU_COMMANDS_CAPABILITY
+    // V11-01 E5a: a receipt applied to the list.
+    const requiresReceipt = command.command_type==='reconcile_receipt';
+    if (requiresRoutine || requiresMetadata || requiresShopping || requiresMenu || requiresMenuEdit || requiresReceipt) {
+      const required = requiresReceipt ? RECEIPT_COMMANDS_CAPABILITY : requiresMenuEdit ? MENU_EDIT_CAPABILITY : requiresMenu ? MENU_COMMANDS_CAPABILITY
         : requiresShopping ? SHOPPING_COMMANDS_CAPABILITY : requiresMetadata ? 3 : 2;
       const capabilities = await this.client.rpc('stock_routine_capabilities');
       if (capabilities.error || typeof capabilities.data!=='number' || capabilities.data<required) throw new StockCommandError('MIGRATION_REQUIRED',503);

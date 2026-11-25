@@ -2,6 +2,9 @@
  * French Receipt Abbreviation Dictionary
  * Comprehensive dictionary for normalizing French grocery receipt abbreviations
  * Source: Analysis of 100+ receipts from Carrefour, Leclerc, Aldi, Lidl, Intermarche
+ *
+ * V11-01 E5a: the local, deterministic fallback of the receipt reader, used for a line the model gave
+ * no name. Store brands are not products and are left out; no quantity is ever guessed here.
  */
 
 export const FRENCH_RECEIPT_ABBREVIATIONS: Record<string, string[]> = {
@@ -252,33 +255,6 @@ export const FRENCH_RECEIPT_ABBREVIATIONS: Record<string, string[]> = {
   'GLACE': ['Glace'],
   'CREME GLAC': ['Creme glacee'],
   'SORBET': ['Sorbet'],
-
-  // ===== MARQUES DISTRIBUTEUR =====
-  'MDD': ['Marque distributeur'],
-  'ECO+': ['Eco+ (Leclerc)'],
-  'MARQ REP': ['Marque Repere'],
-  'CARF': ['Carrefour'],
-  'CARF BIO': ['Carrefour Bio'],
-  'CASIN': ['Casino'],
-  'AUCHAN': ['Auchan'],
-  'U': ['U (Systeme U)'],
-  'INTER': ['Intermarche'],
-  'LIDL': ['Lidl'],
-  'ALDI': ['Aldi'],
-};
-
-/**
- * Patterns to detect quantities on receipts
- */
-export const QUANTITY_PATTERNS = {
-  // Format: "2 X" or "X2" or "2x"
-  multiplier: /(\d+)\s*[xX×]\s*|\s*[xX×]\s*(\d+)/,
-  // Format: "1.5 KG" or "500G"
-  weight: /(\d+[.,]?\d*)\s*(kg|g|gr|grammes?|kilos?)/i,
-  // Format: "1.5L" or "33CL"
-  volume: /(\d+[.,]?\d*)\s*(l|L|cl|ml|litres?|centilitres?|millilitres?)/i,
-  // Format: "6 PIECES" or "PACK 12"
-  units: /(\d+)\s*(pcs?|pieces?|unites?|pack|lot)/i,
 };
 
 /**
@@ -314,33 +290,3 @@ export function normalizeTicketLine(line: string): string {
 function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
-/**
- * Extract quantity from a product name
- */
-export function extractQuantity(productName: string): { quantity: number; cleanName: string } {
-  let quantity = 1;
-  let cleanName = productName;
-
-  // Check for multiplier pattern (e.g., "2 X Yaourt")
-  const multiplierMatch = productName.match(QUANTITY_PATTERNS.multiplier);
-  if (multiplierMatch) {
-    quantity = parseInt(multiplierMatch[1] || multiplierMatch[2], 10);
-    cleanName = productName.replace(QUANTITY_PATTERNS.multiplier, '').trim();
-  }
-
-  // Check for unit pattern (e.g., "Pack 6")
-  const unitsMatch = productName.match(QUANTITY_PATTERNS.units);
-  if (unitsMatch && !multiplierMatch) {
-    quantity = parseInt(unitsMatch[1], 10);
-  }
-
-  return { quantity, cleanName };
-}
-
-export default {
-  FRENCH_RECEIPT_ABBREVIATIONS,
-  QUANTITY_PATTERNS,
-  normalizeTicketLine,
-  extractQuantity,
-};

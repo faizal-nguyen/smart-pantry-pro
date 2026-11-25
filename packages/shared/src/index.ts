@@ -7,6 +7,7 @@ export * from './lot-qualification.js';
 export * from './menu-shopping.js';
 export * from './menu-week-proposal.js';
 export * from './stock-commands.js';
+export * from './receipts.js';
 export * from './recipe-model.js';
 
 export * from './calendar.js';
