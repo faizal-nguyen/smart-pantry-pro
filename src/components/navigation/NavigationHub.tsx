@@ -122,7 +122,7 @@ export const getLegacyRedirections = (): Record<string, string> => ({
 
   '/recipe-catalog': '/kitchen/recipes',
   '/kitchen-favorites': '/kitchen/favorites',
-  '/insights-waste': '/insights/waste',
+  '/insights-waste': '/insights#pertes',
 
   '/home': '/kitchen',
   '/dashboard': '/kitchen',

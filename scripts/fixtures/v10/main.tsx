@@ -32,7 +32,6 @@ import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { CulinaryDesignContext } from '@/contexts/CulinaryDesignContext';
 import AssistantDashboard from '@/pages/assistant/AssistantDashboard';
 import InsightsPage from '@/pages/InsightsPage';
-import WasteInsightsPage from '@/pages/WasteInsightsPage';
 
 if(carnetScene) document.title='Kitchen OS — Démo · données fictives';
 // `still=1` (visual captures): framer-motion ends its animations at once; it ignores the reduced-motion preference.
@@ -89,7 +88,7 @@ function Fixture() {
       <button onClick={()=>{failures.modelsOffline=!failures.modelsOffline;void queries.invalidateQueries({queryKey:['assistant-models']});}}>Basculer le refus du catalogue de modèles</button>
       <Link to="/assistant?conversation=90000000-0000-4000-8000-000000000001">Réponse fictive avec coût incomplet</Link>
       <span>Écran : {route.pathname}</span>
-      <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/shopping/week">Courses de la semaine</Link><Link to="/shopping/ticket">Scanner le ticket</Link><Link to="/insights">Analyses</Link><Link to="/insights/waste">Pertes</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
+      <Link to="/kitchen">Accueil</Link><Link to={`/kitchen/recipes/${RECIPE}`}>Fiche recette</Link><Link to="/shopping/list">Courses</Link><Link to="/shopping/week">Courses de la semaine</Link><Link to="/shopping/ticket">Scanner le ticket</Link><Link to="/insights">Analyses</Link><Link to="/insights#pertes">Pertes</Link><Link to="/settings">Paramètres</Link><Link to="/fixture/manual">Saisie</Link>
       <Link to="/kitchen/recipes">Bibliothèque</Link><Link to={`/kitchen/recipes/${CATALOG}?source=recipes_catalog`}>Fiche catalogue</Link><Link to={`/kitchen/recipes/${WRAPPER}?source=user_recipes`}>Fiche personnelle</Link>
       <button onClick={toggleTheme}>{theme === 'dark' ? 'Thème clair' : 'Thème sombre'}</button>
       <button aria-pressed={design==='personal'} onClick={()=>setDesign('personal')}>Cuisine personnelle</button><button aria-pressed={design==='notebook'} onClick={()=>setDesign('notebook')}>Carnet de cuisine</button>
@@ -105,7 +104,7 @@ function Fixture() {
     {!carnetScene && controls}
     <Routes><Route element={<AuthenticatedLayout/>}>
       <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/meal-planning/proposition" element={<WeekProposalPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
-      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/><Route path="/shopping/ticket" element={<ReceiptScanPage/>}/><Route path="/insights" element={<InsightsPage/>}/><Route path="/insights/waste" element={<WasteInsightsPage/>}/>
+      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/><Route path="/shopping/ticket" element={<ReceiptScanPage/>}/><Route path="/insights" element={<InsightsPage/>}/><Route path="/insights/waste" element={<Navigate to="/insights#pertes" replace/>}/>
       <Route path="/settings" element={<Settings/>}/><Route path="/fixture/manual" element={<ManualRecipe/>}/>
       <Route path="/assistant" element={<AssistantDashboard/>}/>
       <Route path="/pantry/inventory" element={<Inventory/>}/>

@@ -25,7 +25,7 @@ export default function RoutineDiscardDialog({ open,onOpenChange,onSaved }: { op
     finally { setBusy(false); }
   };
   return <Dialog open={open} onOpenChange={value=>{ if (!busy) onOpenChange(value); }}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>{done ? 'Perte enregistrée' : `Jeter ${draft?.product_name ?? 'un ingrédient'}`}</DialogTitle><DialogDescription>Confirmez la quantité jetée et son motif. Un enregistrement interrompu reste reprenable.</DialogDescription></DialogHeader>
-    {done ? <div role="status" className="space-y-3"><p>Le stock et la déclaration de perte sont confirmés.</p><Button className="min-h-11" asChild><Link to="/insights/waste">Voir mes pertes</Link></Button><Button className="min-h-11" variant="outline" onClick={()=>onOpenChange(false)}>Fermer</Button></div> : draft ? <>
+    {done ? <div role="status" className="space-y-3"><p>Le stock et la déclaration de perte sont confirmés.</p><Button className="min-h-11" asChild><Link to="/insights#pertes">Voir mes pertes</Link></Button><Button className="min-h-11" variant="outline" onClick={()=>onOpenChange(false)}>Fermer</Button></div> : draft ? <>
       {draft.stock_confirmed ? <p role="status">Le stock a déjà été mis à jour. Seule la déclaration de perte reste à enregistrer.</p> : draft.command && <p role="status">Une confirmation reste à vérifier. La même commande sera reprise.</p>}
       <fieldset disabled={busy || !!draft.command || draft.stock_confirmed} className="space-y-3">
         <label className="block space-y-1">Quantité jetée<Input inputMode="decimal" value={draft.quantity} onChange={e=>patch({ quantity:e.target.value })} /></label><p className="text-sm">Unité : {draft.unit || 'à vérifier dans le stock'}</p>

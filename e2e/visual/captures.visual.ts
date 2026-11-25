@@ -1,7 +1,7 @@
 /**
  * V11-06 E0 — the reduced capture matrix (PRP V11-06, section 12), on the bench's `carnet` scene:
  * home, analyses and shopping at seven widths; the other screens at 390 and 1440 px; light and
- * dark; empty, loading and error states at 390 px (82 captures). Time is fixed: the scene depends on the day.
+ * dark; empty, loading and error states at 390 px (75 captures). Time is fixed: the scene depends on the day.
  * Each capture first checks the page is the one expected: an unknown path of the bench renders a
  * recipe page. A horizontal overflow or a page error is recorded in `test-results/visual/findings.jsonl`
  * (emptied by each run), not failed: E0 is the reference, the exit criteria of the lot apply later.
@@ -20,14 +20,13 @@ const THEMES = ['light', 'dark'] as const;
 const viewportHeight = (width: number) => (width < 900 ? 844 : 900);
 const FINDINGS = 'test-results/visual/findings.jsonl';
 
-type ScreenKey = 'accueil' | 'analyses' | 'courses' | 'pertes' | 'bibliotheque' | 'fiche' | 'stock' | 'menus' | 'assistant' | 'parametres';
+type ScreenKey = 'accueil' | 'analyses' | 'courses' | 'bibliotheque' | 'fiche' | 'stock' | 'menus' | 'assistant' | 'parametres';
 interface Screen { key: ScreenKey; route: string; title: RegExp; widths: number[] }
 /** The page's own h1: a wrong route or a crash never passes for the screen. */
 const SCREENS: Screen[] = [
   { key: 'accueil', route: '/kitchen', title: /ce soir/i, widths: ALL_WIDTHS },
-  { key: 'analyses', route: '/insights', title: /^Analyses$/, widths: ALL_WIDTHS },
+  { key: 'analyses', route: '/insights', title: /^Mes analyses$/, widths: ALL_WIDTHS },
   { key: 'courses', route: '/shopping/list', title: /^Mes courses$/, widths: ALL_WIDTHS },
-  { key: 'pertes', route: '/insights/waste', title: /^Anti-gaspi$/, widths: TWO_WIDTHS },
   { key: 'bibliotheque', route: '/kitchen/recipes', title: /^Recettes$/, widths: TWO_WIDTHS },
   { key: 'fiche', route: `/kitchen/recipes/${RECIPE}`, title: /^Couscous de légumes rôtis$/, widths: TWO_WIDTHS },
   { key: 'stock', route: '/pantry/inventory', title: /^Mon stock$/, widths: TWO_WIDTHS },
@@ -46,8 +45,8 @@ const STATES = [
   { key: 'chargement', query: '&hold=1', loading: true },
   { key: 'erreur', query: `&fail=${READ_TABLES}`, loading: false },
 ] as const;
-/** Home, shopping, and both halves of the future « Mes analyses » (D1). */
-const STATE_SCREENS: ScreenKey[] = ['accueil', 'analyses', 'pertes', 'courses'];
+/** Home, shopping, and « Mes analyses » (stock and declared losses since V11-06 E1b). */
+const STATE_SCREENS: ScreenKey[] = ['accueil', 'analyses', 'courses'];
 const BY_KEY = new Map(SCREENS.map(screen => [screen.key, screen]));
 
 function record(finding: Record<string, unknown>) {

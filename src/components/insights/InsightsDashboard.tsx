@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
 import { PANTRY_TIME_ZONE } from '@smart/shared';
@@ -22,10 +23,11 @@ function coverage({ undatedLots, expiredLots }: StockInsights): string {
 
 /**
  * V11-06 E1a: only what the stock measures, each figure with its period and coverage. A loading or
- * failed read never shows as zero; a measured zero does. Declared losses keep their own page until E1b.
+ * failed read never shows as zero; a measured zero does. Declared losses follow in their own section.
  */
-export function InsightsDashboard() {
+export function InsightsDashboard({ onSettled }: { onSettled?: () => void } = {}) {
   const { status, insights, retry } = useStockInsights();
+  useEffect(() => { if (status !== 'loading') onSettled?.(); }, [status, onSettled]);
 
   if (status === 'loading') return <p role="status" className="text-sm text-muted-foreground">Chargement de ton stock…</p>;
   if (status === 'error' || !insights) {
@@ -36,7 +38,7 @@ export function InsightsDashboard() {
   }
   if (insights.lotsInStock === 0) {
     return <div className="space-y-4">
-      <EmptyState icon={Package} titleAs="h2" title="Aucun produit en stock" description="Ces mesures se calculent sur ton stock : elles apparaîtront avec ton premier produit." />
+      <EmptyState icon={Package} title="Aucun produit en stock" description="Ces mesures se calculent sur ton stock : elles apparaîtront avec ton premier produit." />
       <div className="flex justify-center"><Button className="min-h-11" asChild><Link to="/pantry/inventory">Ajouter au stock</Link></Button></div>
     </div>;
   }
@@ -44,7 +46,7 @@ export function InsightsDashboard() {
   return <div className="grid gap-4 sm:grid-cols-2">
     <section aria-labelledby="insights-soon-title">
       <Card className="h-full"><CardContent className="space-y-2 p-5">
-        <h2 id="insights-soon-title" className="kitchen-section-title">À utiliser sous {EXPIRY_HORIZON_DAYS} jours</h2>
+        <h3 id="insights-soon-title" className="kitchen-section-title">À utiliser sous {EXPIRY_HORIZON_DAYS} jours</h3>
         <p className="text-3xl font-semibold tabular-nums">{lots(insights.expiringSoon)}</p>
         <p className="text-sm text-muted-foreground">d’ici le {dayLabel(insights.horizon)}</p>
         <p className="text-sm text-muted-foreground">{coverage(insights)}</p>
@@ -53,7 +55,7 @@ export function InsightsDashboard() {
     </section>
     <section aria-labelledby="insights-stock-title">
       <Card className="h-full"><CardContent className="space-y-2 p-5">
-        <h2 id="insights-stock-title" className="kitchen-section-title">Lots en stock</h2>
+        <h3 id="insights-stock-title" className="kitchen-section-title">Lots en stock</h3>
         <p className="text-3xl font-semibold tabular-nums">{lots(insights.lotsInStock)}</p>
         <p className="text-sm text-muted-foreground">à quantité positive, à ce jour</p>
       </CardContent></Card>
