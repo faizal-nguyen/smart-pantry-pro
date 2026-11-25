@@ -85,3 +85,6 @@ supabase/.temp/
 
 # Dev process PID files
 *.pid
+
+# V11-06 E0: local visual references (machine-dependent fonts)
+/.visual-baseline/

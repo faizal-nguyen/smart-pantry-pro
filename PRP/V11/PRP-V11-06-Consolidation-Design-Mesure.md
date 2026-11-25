@@ -1,6 +1,6 @@
 # PRP V11-06 — Consolidation, design cohérent et mesure
 
-> Statut : Brouillon — décisions proposées, non validées par l'utilisateur.
+> Statut : décisions validées (D8 et D9 le 22 novembre 2026, les autres le 25 novembre 2026) ; E0 réalisée le 25 novembre 2026 ([compte rendu E0](../../docs/implementations/V11-06-E0.md)).
 > Date : 2026-11-22.
 > Relecture : Codex, 22 novembre 2026 ; constats vérifiés dans le code et intégrés.
 > Priorité : P1 pour les chiffres affichés à tort, pour l'exposition des fonctions Edge et pour le filet de tests visuels ; P2 pour l'unification de l'interface et le retrait du code sans appelant ; P3 pour la mesure produit, qui attend une décision de l'utilisateur.
@@ -8,7 +8,7 @@
 > Coordination : [V11-01](PRP-V11-01-Boucle-Menus-Courses.md) (menus → courses, place des menus dans la navigation, scan de ticket, restes), [V11-02](PRP-V11-02-Retention-Foyer-Hors-Ligne.md) (notifications, foyer, hors-ligne, onboarding, manifeste PWA), [V11-03](PRP-V11-03-Recettes-Recherche-Cuisson.md) (recettes et mode cuisson), [V11-04](PRP-V11-04-Assistant-Chef.md) (assistant), [V11-05](PRP-V11-05-Stock-Et-Courses.md) (stock et liste de courses). Ce lot ne traite aucun de ces sujets ; il les cite quand une frontière passe par un fichier commun.
 > Source : audit fonctionnel du 22 novembre 2026, revérifié sur l'arbre de travail du même jour (référence locale `3ade8b54`, modifications non commitées laissées intactes).
 > Estimation indicative : 11 à 15 jours pour E0 à E6, hors E7 ; E8 (suppression des tables orphelines) 2 à 3 jours en plus (8 à 12 jours avant relecture, sans E8). La hausse vient du banc à compléter, de la correction des agrégats de pertes, de l'inventaire des fonctions Edge et du journal d'erreurs. Hypothèses : une personne à temps plein, décisions du tableau de la section 4 rendues avant l'étape qui en dépend. À recalibrer après E0, une fois la matrice de captures fixée.
-> Réalisation : aucune. Cette PRP ne crée ni migration, ni dépendance, ni déploiement. Seule exception possible, soumise à D9 : la dépublication de fonctions Edge exposées.
+> Réalisation : E0 (référence, 25 novembre 2026). Cette PRP ne crée ni migration, ni dépendance, ni déploiement avant E8. Seule exception, soumise à D9 : la dépublication des fonctions Edge exposées, faite au rang 1 ; E0 constate qu'aucune fonction n'est déployée.
 
 ## 1. Problème et résultat attendu
 
@@ -55,7 +55,7 @@ Relevé du 22 novembre 2026 par recherche d'importeurs dans `src/`, `scripts/`, 
 
 ## 4. Décisions proposées
 
-Aucune de ces décisions n'est validée. Chacune est tranchée par l'utilisateur avant l'étape qui en dépend.
+Toutes ces décisions sont validées telles que proposées : D8 et D9 le 22 novembre 2026, les autres par l'utilisateur le 25 novembre 2026 ([compte rendu E0](../../docs/implementations/V11-06-E0.md), section 1). L'outil d'accessibilité est choisi (`@axe-core/playwright`, règles `critical` et `serious`) ; son installation est reportée au passage du harnais en CI.
 
 | N° | Décision proposée | Alternative écartée, et pourquoi | Bloque |
 | --- | --- | --- | --- |
@@ -240,7 +240,7 @@ Firefox n'est pas couvert ; l'ajouter est proposé en fin de lot et non requis p
 | E5 — Accueil | Hiérarchie de la section 8, lien vers le repas du jour, composant découpé | D5 ; coordination V11-01 et V11-02 |
 | E6 — Paramètres, locale, journal d'erreurs | Rubrique nutrition clarifiée ; module de formatage et fuseau unique ; schéma minimal du journal d'erreurs | D6 ; D10 |
 | E7 — Mesure | Option retenue mise en œuvre, politique mise à jour, consentement contrôlé côté serveur | D7 ; base légale confirmée ; aucune collecte avant validation écrite |
-| E8 — Suppression des tables orphelines | Déclencheurs et contraintes retirés d'abord (`create_default_shopping_list_trigger` sur `auth.users`, `shared_list_id ON DELETE CASCADE`), puis une migration par groupe de tables ; `recipe_conversations` en premier si `recipe-assistant` est retirée, puisque la suppression de compte ne la couvre pas | D8 ; inventaire E0 avec nombre de lignes relevé sur la base distante ; restauration d'essai de la sauvegarde réussie ; liste validée par l'utilisateur ; E4 fait |
+| E8 — Suppression des tables orphelines | Une migration par groupe de tables, selon l'inventaire E0 (section 5 du compte rendu). E0 constate que `create_default_shopping_list_trigger` et `shared_list_id ON DELETE CASCADE` n'existent pas en production (migration `20250818000001` jamais appliquée) et que la suppression de compte couvre `recipe_conversations` ; l'état réel se lit sur les objets, l'historique distant des migrations n'étant pas fiable | D8 ; inventaire E0 avec nombre de lignes relevé sur la base distante ; restauration d'essai de la sauvegarde réussie ; liste validée par l'utilisateur ; E4 fait |
 
 E1a, E2, E4 et E5 sont livrables indépendamment après E0. E1b suit E1a ; E3 dépend de E1b. La dépublication décidée par D9 n'attend aucune étape. E7 peut ne jamais être réalisée si l'utilisateur retient « ne rien collecter ».
 
