@@ -583,6 +583,8 @@ export const useInventory = (options: UseInventoryOptions = {}) => {
 
     // Sync
     refetch: () => Promise.all([fetchInventory(), fetchProducts()]),
+    /** Re-reads the stock lots only, without the large product catalogue. */
+    refetchInventory: fetchInventory,
     handleRealtimeUpdate,
 
     // Optimistic state info

@@ -1,6 +1,6 @@
 # PRP V11-06 — Consolidation, design cohérent et mesure
 
-> Statut : décisions validées (D8 et D9 le 22 novembre 2026, les autres le 25 novembre 2026) ; E0 réalisée le 25 novembre 2026 ([compte rendu E0](../../docs/implementations/V11-06-E0.md)).
+> Statut : décisions validées (D8 et D9 le 22 novembre 2026, les autres le 25 novembre 2026) ; E0 réalisée le 25 novembre 2026 ([compte rendu E0](../../docs/implementations/V11-06-E0.md)) ; E1a réalisée le 25 novembre 2026 ([compte rendu E1a](../../docs/implementations/V11-06-E1a.md)).
 > Date : 2026-11-22.
 > Relecture : Codex, 22 novembre 2026 ; constats vérifiés dans le code et intégrés.
 > Priorité : P1 pour les chiffres affichés à tort, pour l'exposition des fonctions Edge et pour le filet de tests visuels ; P2 pour l'unification de l'interface et le retrait du code sans appelant ; P3 pour la mesure produit, qui attend une décision de l'utilisateur.
@@ -8,7 +8,7 @@
 > Coordination : [V11-01](PRP-V11-01-Boucle-Menus-Courses.md) (menus → courses, place des menus dans la navigation, scan de ticket, restes), [V11-02](PRP-V11-02-Retention-Foyer-Hors-Ligne.md) (notifications, foyer, hors-ligne, onboarding, manifeste PWA), [V11-03](PRP-V11-03-Recettes-Recherche-Cuisson.md) (recettes et mode cuisson), [V11-04](PRP-V11-04-Assistant-Chef.md) (assistant), [V11-05](PRP-V11-05-Stock-Et-Courses.md) (stock et liste de courses). Ce lot ne traite aucun de ces sujets ; il les cite quand une frontière passe par un fichier commun.
 > Source : audit fonctionnel du 22 novembre 2026, revérifié sur l'arbre de travail du même jour (référence locale `3ade8b54`, modifications non commitées laissées intactes).
 > Estimation indicative : 11 à 15 jours pour E0 à E6, hors E7 ; E8 (suppression des tables orphelines) 2 à 3 jours en plus (8 à 12 jours avant relecture, sans E8). La hausse vient du banc à compléter, de la correction des agrégats de pertes, de l'inventaire des fonctions Edge et du journal d'erreurs. Hypothèses : une personne à temps plein, décisions du tableau de la section 4 rendues avant l'étape qui en dépend. À recalibrer après E0, une fois la matrice de captures fixée.
-> Réalisation : E0 (référence, 25 novembre 2026). Cette PRP ne crée ni migration, ni dépendance, ni déploiement avant E8. Seule exception, soumise à D9 : la dépublication des fonctions Edge exposées, faite au rang 1 ; E0 constate qu'aucune fonction n'est déployée.
+> Réalisation : E0 (référence) et E1a (chiffres faux retirés, page minimale vraie ; lot R7 avancé), 25 novembre 2026. Cette PRP ne crée ni migration, ni dépendance, ni déploiement avant E8. Seule exception, soumise à D9 : la dépublication des fonctions Edge exposées, faite au rang 1 ; E0 constate qu'aucune fonction n'est déployée.
 
 ## 1. Problème et résultat attendu
 

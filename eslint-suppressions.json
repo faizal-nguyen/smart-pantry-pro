@@ -373,11 +373,6 @@
       "count": 1
     }
   },
-  "src/components/insights/InteractiveCharts.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    }
-  },
   "src/components/onboarding/OnboardingFlow.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
@@ -406,16 +401,6 @@
   "src/hooks/__tests__/useClipboardImportSuggestion.test.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
-    }
-  },
-  "src/hooks/useChartData.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "src/hooks/useInsightsData.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
     }
   },
   "src/hooks/useRecipeCatalog.ts": {

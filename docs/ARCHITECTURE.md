@@ -105,7 +105,7 @@ Smart Pantry Pro utilise une architecture moderne basée sur le JAMstack, optimi
 - **useEnhancedVoice** : Reconnaissance vocale française avec fallback texte
 - **useBarcodeAPI** : Scanner avec APIs multiples et gestion des échecs
 - **useShoppingListRealtime** : Synchronisation temps réel des listes de courses
-- **useInsightsData** : Analytics et métriques avec cache intelligent
+- **useStockInsights** : Mesures de la page d'analyses, calculées sur les lots du stock (V11-06 E1a)
 
 ### 3. Performance et UX Optimisées
 - **Lazy loading modulaire** : Chargement des composants par fonctionnalité

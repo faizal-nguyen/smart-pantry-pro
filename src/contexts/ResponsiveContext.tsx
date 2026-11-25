@@ -44,8 +44,8 @@ export interface ResponsiveContextValue {
 }
 
 const BREAKPOINTS = {
-  // Mêmes seuils que `HybridGoldenGrid.generateHybridGrid` utilisé par
-  // le hook legacy `useBreakpoints` pour eviter une divergence visuelle.
+  // Seuils repris de l'ancienne grille `HybridGoldenGrid` (retirée en
+  // V11-06 E1a), pour ne pas changer la mise en page.
   mobile: 640,   // < 640 => mobile
   tablet: 768,   // 640-767 => tablet
   desktop: 1024, // 768-1023 => desktop

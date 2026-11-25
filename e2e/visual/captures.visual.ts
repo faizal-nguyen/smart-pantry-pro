@@ -25,7 +25,7 @@ interface Screen { key: ScreenKey; route: string; title: RegExp; widths: number[
 /** The page's own h1: a wrong route or a crash never passes for the screen. */
 const SCREENS: Screen[] = [
   { key: 'accueil', route: '/kitchen', title: /ce soir/i, widths: ALL_WIDTHS },
-  { key: 'analyses', route: '/insights', title: /Insights Dashboard/, widths: ALL_WIDTHS },
+  { key: 'analyses', route: '/insights', title: /^Analyses$/, widths: ALL_WIDTHS },
   { key: 'courses', route: '/shopping/list', title: /^Mes courses$/, widths: ALL_WIDTHS },
   { key: 'pertes', route: '/insights/waste', title: /^Anti-gaspi$/, widths: TWO_WIDTHS },
   { key: 'bibliotheque', route: '/kitchen/recipes', title: /^Recettes$/, widths: TWO_WIDTHS },

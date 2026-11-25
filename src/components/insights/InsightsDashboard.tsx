@@ -1,259 +1,62 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MaterialCard, MaterialCardContent, MaterialCardHeader } from '@/components/ui/material/Card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MaterialButton } from '@/components/ui/material/Button';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
-import {
-  BarChart3,
-  TrendingUp,
-  Download,
-  Share2,
-  RefreshCw,
-  Calendar,
-  Filter
-} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Package } from 'lucide-react';
+import { PANTRY_TIME_ZONE } from '@smart/shared';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useStockInsights } from '@/hooks/useStockInsights';
+import { EXPIRY_HORIZON_DAYS, type StockInsights } from '@/lib/stockInsights';
 
-import { AnimatedMetricCard } from './AnimatedMetricCard';
-import {
-  SpendingTrendsChart,
-  CategoryBreakdownChart,
-  NutritionRadarChart,
-  CombinedTrendsChart
-} from './InteractiveCharts';
+const DAY_LABEL = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: PANTRY_TIME_ZONE });
+const dayLabel = (date: string) => DAY_LABEL.format(new Date(`${date}T12:00:00Z`));
+const lots = (count: number) => `${count} ${count > 1 ? 'lots' : 'lot'}`;
 
-import { useInsightsData } from '@/hooks/useInsightsData';
-import { useChartData } from '@/hooks/useChartData';
-import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
-
-interface InsightsDashboardProps {
-  className?: string;
+/** What the window leaves out, so that « 0 lot » never reads as « nothing to use ». */
+function coverage({ undatedLots, expiredLots }: StockInsights): string {
+  const parts: string[] = [];
+  if (undatedLots > 0) parts.push(`${lots(undatedLots)} sans date`);
+  if (expiredLots > 0) parts.push(`${lots(expiredLots)} à date dépassée`);
+  if (parts.length === 0) return 'Tous tes lots ont une date à venir';
+  return `${parts.join(' et ')}, non ${undatedLots + expiredLots > 1 ? 'comptés' : 'compté'}`;
 }
 
-export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ className }) => {
-  const { insightsData, loading: insightsLoading, refetch: refetchInsights } = useInsightsData();
-  const {
-    spendingTrendsData,
-    categoryBreakdownData,
-    nutritionBalanceData,
-    combinedTrendsData,
-    formatCurrency
-  } = useChartData();
+/**
+ * V11-06 E1a: only what the stock measures, each figure with its period and coverage. A loading or
+ * failed read never shows as zero; a measured zero does. Declared losses keep their own page until E1b.
+ */
+export function InsightsDashboard() {
+  const { status, insights, retry } = useStockInsights();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'charts'>('overview');
-  const [refreshing, setRefreshing] = useState(false);
-  const { toast } = useToast();
-
-  // Handle data refresh
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refetchInsights();
-      toast({
-        title: "Données actualisées",
-        description: "Vos insights ont été mis à jour avec succès."
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible d'actualiser les données."
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  // Handle export functionality
-  const handleExport = () => {
-    // Mock export functionality
-    toast({
-      title: "Export en cours",
-      description: "Vos données seront téléchargées dans un moment."
-    });
-  };
-
-  // Handle share functionality
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: 'Mes Insights Kitchen OS',
-          text: `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Kitchen OS!`,
-          url: window.location.href
-        });
-      } else {
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(
-          `J'ai économisé ${formatCurrency(insightsData.totalSavings)} ce mois avec Kitchen OS! ${window.location.href}`
-        );
-        toast({
-          title: "Lien copié",
-          description: "Le lien a été copié dans votre presse-papiers."
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erreur",
-        description: "Impossible de partager vos insights."
-      });
-    }
-  };
-
-  // PRP-229 Commit 4: removed the hardcoded "smartInsights" sidebar
-  // (3 marketing cards "Optimisez vos achats", "Réduisez le gaspillage",
-  // "Atteignez votre objectif nutrition" with fabricated numbers).
-  // A real insight engine should land before re-enabling this surface.
-
-  if (insightsLoading) {
-    return (
-      <div className={cn("space-y-6", className)}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-64 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Skeleton className="h-72 w-full" />
-          <Skeleton className="h-72 w-full" />
-        </div>
-      </div>
-    );
+  if (status === 'loading') return <p role="status" className="text-sm text-muted-foreground">Chargement de ton stock…</p>;
+  if (status === 'error' || !insights) {
+    return <div role="alert" className="kitchen-notice">
+      <p>Impossible de lire ton stock pour le moment.</p>
+      <Button variant="outline" className="min-h-11" onClick={() => { void retry(); }}>Réessayer</Button>
+    </div>;
+  }
+  if (insights.lotsInStock === 0) {
+    return <div className="space-y-4">
+      <EmptyState icon={Package} titleAs="h2" title="Aucun produit en stock" description="Ces mesures se calculent sur ton stock : elles apparaîtront avec ton premier produit." />
+      <div className="flex justify-center"><Button className="min-h-11" asChild><Link to="/pantry/inventory">Ajouter au stock</Link></Button></div>
+    </div>;
   }
 
-  return (
-    <div className={cn("space-y-6", className)}>
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-      >
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            Insights Dashboard
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Découvrez vos habitudes alimentaires et vos économies
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <MaterialButton 
-            variant="outlined" 
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            icon={<RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />}
-          >
-            Actualiser
-          </MaterialButton>
-          <MaterialButton 
-            variant="outlined" 
-            size="sm" 
-            onClick={handleExport}
-            icon={<Download className="h-4 w-4" />}
-          >
-            Exporter
-          </MaterialButton>
-          <MaterialButton 
-            variant="outlined" 
-            size="sm" 
-            onClick={handleShare}
-            icon={<Share2 className="h-4 w-4" />}
-          >
-            Partager
-          </MaterialButton>
-        </div>
-      </motion.div>
-
-      {/* Quick Stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-      >
-        {insightsData.keyMetrics.map((metric, index) => (
-          <motion.div
-            key={metric.id || `metric-${index}`}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + index * 0.1 }}
-          >
-            <AnimatedMetricCard metric={metric} />
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* Main Content Tabs */}
-      <Tabs value={activeTab} onValueChange={value => { if (value === 'overview' || value === 'charts') setActiveTab(value); }} className="space-y-6">
-        <div className="flex items-center justify-between">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Vue d'ensemble
-            </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Analyses
-            </TabsTrigger>
-          </TabsList>
-          
-          <Badge variant="outline" className="text-xs">
-            Mis à jour: {new Date().toLocaleDateString('fr-FR')}
-          </Badge>
-        </div>
-
-        <AnimatePresence mode="wait">
-          {activeTab === 'overview' && (
-            <TabsContent key="overview-content" value="overview" className="space-y-6">
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-              >
-                {/* Main Charts */}
-                <div className="lg:col-span-2 space-y-6">
-                  <SpendingTrendsChart data={spendingTrendsData} />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <CategoryBreakdownChart data={categoryBreakdownData} />
-                    <NutritionRadarChart data={nutritionBalanceData} />
-                  </div>
-                </div>
-
-              </motion.div>
-            </TabsContent>
-          )}
-
-          {activeTab === 'charts' && (
-            <TabsContent key="charts-content" value="charts" className="space-y-6">
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <CombinedTrendsChart data={combinedTrendsData} />
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <SpendingTrendsChart data={spendingTrendsData} />
-                  <CategoryBreakdownChart data={categoryBreakdownData} />
-                </div>
-                
-                <NutritionRadarChart data={nutritionBalanceData} />
-              </motion.div>
-            </TabsContent>
-          )}
-
-        </AnimatePresence>
-      </Tabs>
-    </div>
-  );
-};
+  return <div className="grid gap-4 sm:grid-cols-2">
+    <section aria-labelledby="insights-soon-title">
+      <Card className="h-full"><CardContent className="space-y-2 p-5">
+        <h2 id="insights-soon-title" className="kitchen-section-title">À utiliser sous {EXPIRY_HORIZON_DAYS} jours</h2>
+        <p className="text-3xl font-semibold tabular-nums">{lots(insights.expiringSoon)}</p>
+        <p className="text-sm text-muted-foreground">d’ici le {dayLabel(insights.horizon)}</p>
+        <p className="text-sm text-muted-foreground">{coverage(insights)}</p>
+        <Button variant="link" className="min-h-11 px-0" asChild><Link to="/pantry/inventory">Voir mon stock</Link></Button>
+      </CardContent></Card>
+    </section>
+    <section aria-labelledby="insights-stock-title">
+      <Card className="h-full"><CardContent className="space-y-2 p-5">
+        <h2 id="insights-stock-title" className="kitchen-section-title">Lots en stock</h2>
+        <p className="text-3xl font-semibold tabular-nums">{lots(insights.lotsInStock)}</p>
+        <p className="text-sm text-muted-foreground">à quantité positive, à ce jour</p>
+      </CardContent></Card>
+    </section>
+  </div>;
+}
