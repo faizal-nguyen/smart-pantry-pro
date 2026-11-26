@@ -1,4 +1,4 @@
-import { OnboardingStepData, TutorialHighlight } from '@/types/onboarding';
+import { OnboardingStepData } from '@/types/onboarding';
 
 export const ONBOARDING_STEPS: OnboardingStepData[] = [
   {
@@ -74,39 +74,5 @@ export const ONBOARDING_STEPS: OnboardingStepData[] = [
   }
 ];
 
-export const TUTORIAL_HIGHLIGHTS: TutorialHighlight[] = [
-  {
-    element: 'add-product-button',
-    message: "Ajoutez vos produits ici",
-    gesture: 'tap',
-    position: 'bottom'
-  },
-  {
-    element: 'expiry-badge',
-    message: "Les badges colorés indiquent la fraîcheur",
-    gesture: 'point',
-    position: 'top'
-  },
-  {
-    element: 'ai-assistant',
-    message: "Votre chef personnel est toujours là",
-    gesture: 'pulse',
-    position: 'left'
-  },
-  {
-    element: 'shopping-list',
-    message: "Organisez vos courses intelligemment",
-    gesture: 'tap',
-    position: 'bottom'
-  },
-  {
-    element: 'recipe-suggestions',
-    message: "Découvrez des recettes avec vos ingrédients",
-    gesture: 'swipe',
-    position: 'center'
-  }
-];
-
 export const ONBOARDING_STORAGE_KEY = 'smart-pantry-onboarding';
 export const PERSONALIZATION_STORAGE_KEY = 'smart-pantry-personalization';
-export const TUTORIAL_STORAGE_KEY = 'smart-pantry-tutorial';
