@@ -56,7 +56,7 @@ export const logger = pino({
 
 /**
  * Create a child logger with additional context
- * Example: const log = createLogger({ service: 'InventoryService' })
+ * Example: const log = createLogger({ service: 'StockCommandService' })
  */
 export function createLogger(context: Record<string, any>) {
   return logger.child(context);

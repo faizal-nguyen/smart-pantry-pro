@@ -17,7 +17,6 @@ import { createStockRouter } from './stock.routes.js';
 import { createMenusRouter } from './menus.routes.js';
 import { createNutritionProfileRouter } from './settings.nutrition.routes.js';
 import {
-  createInventoryRouter,
   createRecipesRouter,
   createShoppingRouter,
   createUsersRouter,
@@ -35,7 +34,6 @@ const authMiddleware = createAuthMiddleware(supabaseAdmin);
 // Mount repository-based routes with authentication
 // NOTE: Routes will receive req.supabaseClient (user-scoped, RLS-enforced)
 // NOT the admin client passed here (only used for router factory)
-v1Router.use('/inventory', authMiddleware, createInventoryRouter(supabaseAdmin));
 v1Router.use('/stock', authMiddleware, createStockRouter());
 // V11-01 E1: the review of a week's shopping.
 v1Router.use('/menus', authMiddleware, createMenusRouter(supabaseAdmin));

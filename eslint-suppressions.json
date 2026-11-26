@@ -127,11 +127,6 @@
       "count": 10
     }
   },
-  "apps/api/src/routes/inventory.routes.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "apps/api/src/routes/media.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 8
