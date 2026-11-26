@@ -75,6 +75,8 @@ const REMOVED_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/v1/inventory' },
   { method: 'get',  path: '/api/v1/inventory/stats' },
   { method: 'post', path: '/api/v1/inventory' },
+  { method: 'get',  path: '/api/v1/shopping' },
+  { method: 'post', path: '/api/v1/shopping/from-recipe' },
 ];
 
 // Costly or outbound routes kept for a live caller: signed-in users only.
