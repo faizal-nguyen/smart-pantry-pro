@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { calendarDate } from '@smart/shared';
+import { formatDate, calendarDate } from '@smart/shared';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
 import MenuEntryCard, { type MenuCardActions } from './MenuEntryCard';
 import type { MenuEntryView, MenuMealType } from '@/hooks/useWeeklyMenu';
@@ -90,7 +90,7 @@ export default function MenuWeekGrid({weekStart,entries,onAddSlot,actions}:MenuW
       {hint && <p className="kitchen-menu-drop-hint">{hint}</p>}
     </div>;
   });
-  const labelDate=(date:Date)=>date.toLocaleDateString('fr-FR',{day:'numeric',month:'short',timeZone:'UTC'});
+  const labelDate=(date:Date)=>formatDate(date,'dayMonthShort');
   return <>
     {/* While a meal is held, a slot's content lets the drag through to the slot itself (Chromium sends its buttons no dragover). */}
     <div className="kitchen-menu-days" role="group" aria-label="Menus de la semaine" data-holding={held ? 'true' : undefined}>

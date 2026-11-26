@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { calendarDate, menuSlotKey } from '@smart/shared';
+import { formatTime, calendarDate, menuSlotKey } from '@smart/shared';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import ProposalSettings from '@/components/meal-planning/proposal/ProposalSettings';
 import ProposalShopping from '@/components/meal-planning/proposal/ProposalShopping';
@@ -25,7 +25,6 @@ import { isFilled, openSlots, proposalOperations } from '@/lib/weekProposal';
 /** How often the validity is judged again while the page is open. */
 const CLOCK_MS = 15_000;
 const EXPIRED = 'Cette proposition a expiré : recalcule-la, tes choix sont gardés.';
-const time = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
 export default function WeekProposalPage() {
   const user = useAuthenticatedUser();
@@ -109,7 +108,7 @@ function WeekProposalScreen({ owner, week, today }: { owner: string; week: strin
     {proposal && <section className="kitchen-proposal" aria-labelledby="proposal-title">
       <div className="kitchen-proposal-head">
         <h2 id="proposal-title" ref={heading} tabIndex={-1}>Ta proposition</h2>
-        {!expired && <p className="text-sm text-muted-foreground">Valable jusqu’à {time.format(new Date(proposal.expires_at))}.</p>}
+        {!expired && <p className="text-sm text-muted-foreground">Valable jusqu’à {formatTime(proposal.expires_at)}.</p>}
       </div>
       <ol aria-labelledby="proposal-title" className="kitchen-proposal-slots">
         {proposal.slots.map(slot => {

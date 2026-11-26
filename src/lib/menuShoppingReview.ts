@@ -2,7 +2,7 @@
  * V11-01 E2 — the review of a week's shopping: what the user keeps, and the menu_add_missing
  * payload it gives. Pure functions; the page holds the choices, the server bounds them again.
  */
-import { SHOPPING_NAME_MAX_LENGTH, SHOPPING_UNIT_MAX_LENGTH, type MenuLineState, type MenuNeedMeal, type MenuShoppingLine, type MenuShoppingPreview, type StockCommand } from '@smart/shared';
+import { formatDate, SHOPPING_NAME_MAX_LENGTH, SHOPPING_UNIT_MAX_LENGTH, type MenuLineState, type MenuNeedMeal, type MenuShoppingLine, type MenuShoppingPreview, type StockCommand } from '@smart/shared';
 import { formatShoppingQuantity } from '@/lib/shoppingChanges';
 
 export type MenuAddMissingPayload = Extract<StockCommand, { command_type: 'menu_add_missing' }>['payload'];
@@ -21,7 +21,6 @@ export interface ReviewSection { state: MenuLineState; lines: MenuShoppingLine[]
 const EPSILON = 1e-9;
 const SECTION_ORDER: MenuLineState[] = ['to_add', 'excess', 'manual', 'verify', 'listed', 'purchased_pending'];
 const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'collation' };
-const mealDay = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 const INVALID_AMOUNT = 'Indique une quantité positive.';
 /** An amount as it is typed: no grouping space (« 1500 »), a comma, at most three decimals. */
 const editable = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3, useGrouping: false });
@@ -117,7 +116,7 @@ export function reviewSections(lines: MenuShoppingLine[]): ReviewSection[] {
 
 /** « mar. 1 déc., déjeuner ». */
 export function mealMoment(meal: Pick<MenuNeedMeal, 'date' | 'meal_type'>): string {
-  return `${mealDay.format(new Date(`${meal.date}T12:00:00Z`))}, ${MEAL_LABELS[meal.meal_type] ?? meal.meal_type}`;
+  return `${formatDate(meal.date, 'weekdayShortDayMonthShort')}, ${MEAL_LABELS[meal.meal_type] ?? meal.meal_type}`;
 }
 
 /** « Pour : Curry (mar. 1 déc., déjeuner) · Curry jaune (jeu. 3 déc., dîner) ». */

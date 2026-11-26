@@ -2,15 +2,14 @@ import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
-import { PANTRY_TIME_ZONE } from '@smart/shared';
+import { formatDate } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useStockInsights } from '@/hooks/useStockInsights';
 import { EXPIRY_HORIZON_DAYS, type StockInsights } from '@/lib/stockInsights';
 
-const DAY_LABEL = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: PANTRY_TIME_ZONE });
-const dayLabel = (date: string) => DAY_LABEL.format(new Date(`${date}T12:00:00Z`));
+const dayLabel = (date: string) => formatDate(date, 'weekdayDayMonth');
 const lots = (count: number) => `${count} ${count > 1 ? 'lots' : 'lot'}`;
 
 /** What the window leaves out, so that « 0 lot » never reads as « nothing to use ». */

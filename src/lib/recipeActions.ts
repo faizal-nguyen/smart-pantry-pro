@@ -5,7 +5,7 @@
  */
 import { commandForIntent, executeStockCommand, finishIntent, getStockCommandResult, pendingIntent, previewRecipeStock } from '@/services/stockCommands';
 import { ApiError } from '@/lib/apiError';
-import { calendarDate, calendarWeekStart, canAddToShoppingList, describeCookPlan, needsPurchase, planCookFromStock, type RecipeReference } from '@smart/shared';
+import { formatDate, calendarDate, calendarWeekStart, canAddToShoppingList, describeCookPlan, needsPurchase, planCookFromStock, type RecipeReference } from '@smart/shared';
 import { supabase } from '@/integrations/supabase/client';
 
 export type RecipeAction = 'add_missing' | 'plan' | 'cooked';
@@ -141,7 +141,7 @@ async function nextFreeDinner(now = new Date()): Promise<{ date: string; label: 
       .map(entry => calendarDate(new Date(Date.parse(`${plan.week_start_date}T12:00:00Z`) + entry.day_of_week * DAY_MS)))));
   const index = Math.max(0, days.findIndex(day => !taken.has(day)));
   const label = index === 0 ? 'ce soir' : index === 1 ? 'demain soir'
-    : `dîner, ${new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${days[index]}T12:00:00Z`))}`;
+    : `dîner, ${formatDate(days[index], 'weekdayDayMonth')}`;
   return { date: days[index], label };
 }
 
