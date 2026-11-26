@@ -39,6 +39,6 @@ module.exports = {
     },
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(.*\\.mjs$|@supabase/.*|zustand|recharts))',
+    'node_modules/(?!(.*\\.mjs$|@supabase/.*|zustand))',
   ],
 };
