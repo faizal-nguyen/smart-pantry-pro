@@ -113,9 +113,21 @@ export function ResponsiveProvider({ children }: { children: ReactNode }) {
       });
     };
 
+    // With the keyboard open, iOS scrolls the visual viewport without resizing it: only its offset
+    // moves. Bottom sheets follow it through the CSS variable alone, without re-rendering the tree.
+    let offsetFrame: number | null = null;
+    const onViewportScroll = () => {
+      if (offsetFrame !== null) return;
+      offsetFrame = window.requestAnimationFrame(() => {
+        offsetFrame = null;
+        document.documentElement.style.setProperty('--routine-viewport-offset',`${window.visualViewport?.offsetTop ?? 0}px`);
+      });
+    };
+
     window.addEventListener('resize', onResize, { passive: true });
     window.addEventListener('orientationchange', onResize, { passive: true });
     window.visualViewport?.addEventListener('resize', onResize, { passive: true });
+    window.visualViewport?.addEventListener('scroll', onViewportScroll, { passive: true });
 
     // Initial sync (au cas où la variable CSS aurait change entre le
     // useState init et le mount, ex: SSR ou hydration).
@@ -125,6 +137,8 @@ export function ResponsiveProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('orientationchange', onResize);
       window.visualViewport?.removeEventListener('resize', onResize);
+      window.visualViewport?.removeEventListener('scroll', onViewportScroll);
+      if (offsetFrame !== null) window.cancelAnimationFrame(offsetFrame);
       if (rafRef.current !== null) {
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;

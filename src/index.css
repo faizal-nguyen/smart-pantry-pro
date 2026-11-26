@@ -617,6 +617,38 @@
 .routine-dialog input, .routine-dialog textarea, .routine-dialog select { font-size: 1rem; }
 .routine-dialog-footer { position: sticky; bottom: -1.5rem; background: oklch(var(--background)); padding-block: .75rem; }
 
+/* V11-06 E2b: under 900 px (the navigation breakpoint), a form dialog marked `presentation="sheet"`
+   rises from the bottom of the visible area and follows the keyboard; confirmations stay centred.
+   `[role="dialog"][data-presentation]` outranks the centring utilities and `.routine-dialog`. */
+@media (max-width: 899px) {
+  [role="dialog"][data-presentation="sheet"] {
+    top: calc(var(--routine-viewport-offset, 0px) + var(--routine-viewport-height, 100dvh));
+    left: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(var(--routine-viewport-height, 100dvh) - 1rem - env(safe-area-inset-top, 0px));
+    --tw-translate-x: 0;
+    --tw-translate-y: -100%;
+    border-width: 1px 0 0;
+    border-radius: 1rem 1rem 0 0;
+    /* Clear of the notch in landscape; on a tablet in portrait, the form keeps a readable width. */
+    padding-left: max(1.5rem, env(safe-area-inset-left, 0px), calc((100% - 40rem) / 2));
+    padding-right: max(1.5rem, env(safe-area-inset-right, 0px), calc((100% - 40rem) / 2));
+    /* max(), not a sum: with the keyboard open, the home indicator area is under the keyboard. */
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+  }
+  /* Enters and leaves through the bottom edge, without the zoom and slides of centred dialogs. */
+  [role="dialog"][data-presentation="sheet"][data-state] {
+    --tw-enter-translate-x: 0; --tw-exit-translate-x: 0;
+    --tw-enter-translate-y: 0; --tw-exit-translate-y: 0;
+    --tw-enter-scale: 1; --tw-exit-scale: 1;
+  }
+  [role="dialog"][data-presentation="sheet"] .routine-dialog-footer { bottom: calc(-1 * max(1.5rem, env(safe-area-inset-bottom, 0px))); }
+}
+@media (max-width: 899px) and (prefers-reduced-motion: reduce) {
+  [role="dialog"][data-presentation="sheet"][data-state] { animation: none; }
+}
+
 /* Two executable culinary layouts, shared data and interactions. */
 @layer components {
   .culinary-title { @apply text-2xl md:text-3xl font-semibold tracking-tight leading-tight break-words; }
