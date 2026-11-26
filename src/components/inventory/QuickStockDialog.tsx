@@ -9,11 +9,14 @@ import { dispatchAgentDbChanged } from '@/lib/agentEvents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useReturnFocus } from '@/hooks/useReturnFocus';
 type Sent={ product_id:string;quantity:number;unit:string;expiry_date:string|null;date_kind:LotDateKind;quantity_quality:QuantityQuality };
 interface Row { id:string;name:string;quantity:string;unit:string;selected:boolean;confirmed:boolean;date?:string;dateKind?:LotDateKind;quality?:QuantityQuality;sent?:Sent }
 const common = ['Œufs','Riz','Tomates','Lait','Huile d’olive'];
-export default function QuickStockDialog({ open,onOpenChange,firstUse=false,onSaved }: { open:boolean;onOpenChange:(value:boolean)=>void;firstUse?:boolean;onSaved?:()=>void }) {
+/** `presentation`: `sheet` on the home (V11-06 E2b); the stock keeps the centred dialog until V11-05. */
+export default function QuickStockDialog({ open,onOpenChange,firstUse=false,onSaved,presentation='center' }: { open:boolean;onOpenChange:(value:boolean)=>void;firstUse?:boolean;onSaved?:()=>void;presentation?:'center'|'sheet' }) {
   const user = useAuthenticatedUser(), { addProduct } = useInventory();
+  const returnFocus = useReturnFocus();
   const [rows,setRows,storageError] = useOwnedValue<Row[]>(user.id,firstUse ? 'first-stock' : 'quick-stock',[]);
   const [error,setError] = useState<string|null>(null), [busy,setBusy] = useState(false), [text,setText] = useOwnedValue(user.id,'quick-stock-names','');
   const saveRows = (value:Row[]) => { try { setRows(value); } catch (failure) { setError((failure as Error).message); } };
@@ -52,7 +55,7 @@ export default function QuickStockDialog({ open,onOpenChange,firstUse=false,onSa
     finally { setBusy(false); }
   };
   const pending = rows.filter(row => row.selected && !row.confirmed).length;
-  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }}><DialogContent className="routine-dialog"><DialogHeader><DialogTitle>{firstUse ? 'Quelques ingrédients pour commencer' : 'Ajouter au stock'}</DialogTitle><DialogDescription>Nom, quantité et unité suffisent. Zone, photo et date sont facultatives. Seuls les produits sélectionnés sont ajoutés.</DialogDescription></DialogHeader>
+  return <Dialog open={open} onOpenChange={value => { if (!busy) onOpenChange(value); }}><DialogContent className="routine-dialog" presentation={presentation} {...returnFocus}><DialogHeader><DialogTitle>{firstUse ? 'Quelques ingrédients pour commencer' : 'Ajouter au stock'}</DialogTitle><DialogDescription>Nom, quantité et unité suffisent. Zone, photo et date sont facultatives. Seuls les produits sélectionnés sont ajoutés.</DialogDescription></DialogHeader>
     {!rows.length && firstUse && <Button variant="outline" onClick={() => fill(common)}>Préparer cinq ingrédients courants</Button>}
     <label className="space-y-2">Saisie manuelle, un nom par ligne<textarea className="w-full rounded-md border bg-background p-2" rows={3} value={text} onChange={e => { try { setText(e.target.value); } catch (failure) { setError((failure as Error).message); } }} placeholder={"Tomates\nRiz"} /></label>
     <Button variant="outline" onClick={() => { fill(text.split(/[,;\n]+/)); try { setText(''); } catch (failure) { setError((failure as Error).message); } }} disabled={!text.trim() || busy}>Préparer ces produits</Button>

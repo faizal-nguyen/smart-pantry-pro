@@ -14,7 +14,7 @@ export default function MealContextPanel({ value, onChange, defaults, variant='i
       <p className="text-sm font-medium break-words" aria-label="Contexte du repas">{summary}</p>
       <DialogTrigger asChild><Button variant="ghost" className="min-h-11 shrink-0">Modifier le repas</Button></DialogTrigger>
     </div>}
-    <DialogContent className="routine-dialog">
+    <DialogContent className="routine-dialog" presentation="sheet">
       <DialogHeader><DialogTitle>Le repas qui te ferait envie</DialogTitle><DialogDescription>Ces choix concernent ce repas. Les champs laissés libres reprennent ton profil ou la recette.</DialogDescription></DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm">Temps disponible<select className="culinary-select" value={value.minutes} onChange={e => update({ minutes: e.target.value })}><option value="">Temps du profil</option><option value="15">15 minutes</option><option value="20">20 minutes</option><option value="30">30 minutes</option><option value="60">1 heure</option></select></label>

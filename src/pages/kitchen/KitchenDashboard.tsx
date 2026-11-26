@@ -73,6 +73,6 @@ export default function KitchenDashboard() {
     <LazyFold heading summary="Mieux manger aujourd’hui"><DailyFoodGuidance now={now} heading={false} /></LazyFold>
     <MealContextPanel variant="prompt" value={context} onChange={value=>updateContext(value)} defaults={profile.error ? undefined : { minutes:profile.data?.profile.settings.usualTimeMinutes,servings:profile.data?.profile.settings.usualServings }} />
     {intro && !['done','skipped'].includes(intro) && <details className="kitchen-onboarding"><summary>Prendre tes repères</summary><div><p className="text-sm text-muted-foreground">Ajoute quelques ingrédients, puis choisis un repas. Ton profil peut attendre.</p><div className="flex flex-wrap gap-2"><Button onClick={()=>setAdd(true)}>Ajouter des ingrédients</Button><Button variant="outline" asChild><Link to="/kitchen/recipes">Choisir une recette</Link></Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('skipped')}>Passer l’introduction</Button><Button variant="ghost" disabled={saving} onClick={()=>void advance('done')}>J’ai pris mes repères</Button></div></div></details>}
-    <QuickStockDialog firstUse open={add} onOpenChange={setAdd} onSaved={() => { void advance('recipe'); void stock.refetch(); setAdd(false); }} />
+    <QuickStockDialog firstUse presentation="sheet" open={add} onOpenChange={setAdd} onSaved={() => { void advance('recipe'); void stock.refetch(); setAdd(false); }} />
   </div>;
 }

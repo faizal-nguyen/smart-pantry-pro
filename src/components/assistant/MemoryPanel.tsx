@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAssistantMemories } from '@/hooks/useAssistantMemories';
+import { useReturnFocus } from '@/hooks/useReturnFocus';
 import type { AssistantMemoryItem } from '@/services/assistantApi';
 
 const origins = { user_explicit: 'Votre demande', assistant_inferred: 'Proposition de l’assistant',
@@ -27,8 +28,10 @@ function resultText(receipt: MemoryWriteResult): string {
   return receipt.destination === 'profile' ? 'Profil alimentaire mis à jour.' : 'Souvenir enregistré.';
 }
 
-export default function MemoryPanel() {
+/** `presentation`: `sheet` from the settings (V11-06 E2b); the assistant keeps the centred dialog until V11-04. */
+export default function MemoryPanel({ presentation = 'center' }: { presentation?: 'center' | 'sheet' }) {
   const memory = useAssistantMemories();
+  const returnFocus = useReturnFocus();
   const { owner, memories, isLoading, error, policy, policyError, pendingCommand, storageError, isBusy } = memory;
   const activeOwner = useRef(owner); activeOwner.current = owner;
   const [search, setSearch] = useState('');
@@ -91,7 +94,7 @@ export default function MemoryPanel() {
       })}
     </div></CardContent></Card>)}
     {memory.hasMore && <Button variant="outline" className="min-h-11" disabled={memory.isLoadingMore || isBusy} onClick={() => void memory.loadMore()}>{memory.isLoadingMore ? 'Chargement des souvenirs…' : 'Charger les souvenirs suivants'}</Button>}
-    <Dialog open={!!visibleEditor} onOpenChange={open => { if (!open && !isBusy) setEditor(null); }}><DialogContent className="routine-dialog min-w-0 [&>button:last-child]:min-w-11"><DialogHeader><DialogTitle>Corriger ce souvenir</DialogTitle><DialogDescription>Le texte sera reclassé. Un changement destiné au profil attendra sa confirmation.</DialogDescription></DialogHeader>
+    <Dialog open={!!visibleEditor} onOpenChange={open => { if (!open && !isBusy) setEditor(null); }}><DialogContent className="routine-dialog min-w-0 [&>button:last-child]:min-w-11" presentation={presentation} {...returnFocus}><DialogHeader><DialogTitle>Corriger ce souvenir</DialogTitle><DialogDescription>Le texte sera reclassé. Un changement destiné au profil attendra sa confirmation.</DialogDescription></DialogHeader>
       {visibleEditor && <><label className="space-y-2 text-sm">Votre correction<Textarea value={visibleEditor.text} maxLength={2000} onChange={e => setEditor(previous => previous ? { ...previous, text: e.target.value } : null)} /></label>
         {visibleEditor.conflict && <div role="alert" className="min-w-0 space-y-2 rounded-lg border p-3 text-sm"><p>Un autre appareil a changé ce souvenir. Votre texte est conservé.</p><p className="break-words">Version actuelle : {memories.find(row => row.id === visibleEditor.memory.id)?.content ?? 'Souvenir retiré'}</p><Button variant="outline" className="min-h-11 h-auto w-full whitespace-normal px-3 py-3 text-left" onClick={() => void reloadEditor()}>Relire la version actuelle et garder mon texte</Button></div>}
         {!visibleEditor.conflict && notice?.owner === owner && notice && <p role={notice.error ? 'alert' : 'status'} className="text-sm">{notice.message}</p>}
