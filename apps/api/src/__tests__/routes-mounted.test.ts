@@ -84,6 +84,8 @@ const AUTH_ONLY_ROUTES: Probe[] = [
   { method: 'post', path: '/api/parse-video-recipe' },
   { method: 'post', path: '/api/social/instagram/thumbnail' },
   { method: 'post', path: '/api/assistant/stream' },
+  // V11-06 E6a: client crash reports are accepted from signed-in users only.
+  { method: 'post', path: '/api/v1/client-errors' },
 ];
 
 const ALL_ROUTES = [
