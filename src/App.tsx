@@ -21,8 +21,8 @@ import NotFound from "./pages/NotFound";
 // Pages avec lazy loading (code splitting)
 const OnboardingPage = lazy(() => import("./pages/OnboardingPage"));
 const Settings = lazy(() => import("./pages/Settings"));
-const InventoryPage = lazy(() => import("./pages/InventoryPage"));
-const RecipesPage = lazy(() => import("./pages/RecipesPage"));
+const Inventory = lazy(() => import("./pages/Inventory"));
+const Recipes = lazy(() => import("./pages/Recipes"));
 const SmartShoppingList = lazy(() => import("./pages/SmartShoppingList"));
 const WeekShoppingPage = lazy(() => import("./pages/shopping/WeekShoppingPage"));
 const ReceiptScanPage = lazy(() => import("./pages/shopping/ReceiptScanPage"));
@@ -92,11 +92,11 @@ const protectedRoutes: RouteObject[] = [
   // Pantry
   // The old « Ma Réserve Magique » page: the Stock tab is /pantry/inventory (audit 2026-11-07, UX P2 8).
   { path: "/pantry", element: <Navigate to="/pantry/inventory" replace /> },
-  { path: "/pantry/inventory", element: withSuspense(InventoryPage) },
+  { path: "/pantry/inventory", element: withSuspense(Inventory) },
 
   // Kitchen
   { path: "/kitchen", element: withSuspense(KitchenDashboard) },
-  { path: "/kitchen/recipes", element: withSuspense(RecipesPage) },
+  { path: "/kitchen/recipes", element: withSuspense(Recipes) },
   { path: "/kitchen/recipes/:id", element: withSuspense(RecipeDetail) },
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },

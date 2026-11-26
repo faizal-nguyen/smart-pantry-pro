@@ -32,7 +32,6 @@
   "src/hooks/useUserRecipes.ts TS7006": 1,
   "src/pages/Inventory.tsx TS6133": 1,
   "src/pages/RecipeEdit.tsx TS6133": 2,
-  "src/pages/RecipesPage.tsx TS6133": 1,
   "src/services/ai/nutritionalAIService.ts TS6133": 3,
   "src/services/ai/streamingAIService.ts TS2352": 1,
   "src/services/ai/streamingAIService.ts TS6133": 1,
