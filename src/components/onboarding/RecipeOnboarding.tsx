@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 import { 
   useRecipeCatalog, 
@@ -117,10 +117,8 @@ export default function RecipeOnboarding({
       } else if (prev.length < 10) {
         return [...prev, recipe];
       } else {
-        toast({
-          title: "Limite atteinte",
+        toast.error("Limite atteinte", {
           description: "Vous pouvez sélectionner maximum 10 recettes pour commencer.",
-          variant: "destructive",
         });
         return prev;
       }
@@ -139,10 +137,8 @@ export default function RecipeOnboarding({
 
   const handleFinish = async () => {
     if (selectedRecipes.length === 0) {
-      toast({
-        title: "Sélection requise",
+      toast.error("Sélection requise", {
         description: "Veuillez sélectionner au moins une recette pour commencer.",
-        variant: "destructive",
       });
       return;
     }
@@ -153,17 +149,14 @@ export default function RecipeOnboarding({
       // Fallback: simulation de création de bibliothèque
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      toast({
-        title: "🎉 Bibliothèque créée !",
+      toast("🎉 Bibliothèque créée !", {
         description: `${selectedRecipes.length} recettes ont été ajoutées à votre bibliothèque.`,
       });
       
       onComplete();
     } catch (error) {
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de créer votre bibliothèque. Réessayez.",
-        variant: "destructive",
       });
     } finally {
       setIsLoading(false);

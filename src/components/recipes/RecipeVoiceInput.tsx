@@ -38,7 +38,7 @@ import {
   ParsedIngredientVoice,
   recipeExamplePhrases 
 } from "@/utils/recipeVoiceParser";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface RecipeVoiceInputProps {
   open: boolean;
@@ -77,7 +77,6 @@ const RecipeVoiceInput = ({ open, onOpenChange, onRecipeValidated }: RecipeVoice
   const [currentStep, setCurrentStep] = useState<'listening' | 'validating' | 'editing'>('listening');
   const [selectedExample, setSelectedExample] = useState<string>("");
   
-  const { toast } = useToast();
   
   const {
     isListening,
@@ -135,10 +134,8 @@ const RecipeVoiceInput = ({ open, onOpenChange, onRecipeValidated }: RecipeVoice
       stopListening();
     } else {
       if (!isSupported) {
-        toast({
-          title: "Non supporté",
+        toast.error("Non supporté", {
           description: "La reconnaissance vocale n'est pas supportée par votre navigateur",
-          variant: "destructive"
         });
         return;
       }
@@ -187,8 +184,7 @@ const RecipeVoiceInput = ({ open, onOpenChange, onRecipeValidated }: RecipeVoice
       onRecipeValidated(editingRecipe);
       onOpenChange(false);
       
-      toast({
-        title: "Recette ajoutée !",
+      toast("Recette ajoutée !", {
         description: `${editingRecipe.name} avec ${editingRecipe.ingredients.length} ingrédients`,
       });
     }

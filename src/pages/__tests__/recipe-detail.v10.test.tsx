@@ -41,7 +41,6 @@ jest.mock('@/services/recipeDetails', () => ({ saveRecipePhoto: jest.fn() }));
 jest.mock('@/services/cookingSessions', () => ({ startCookingSession: jest.fn(async () => ({ id: 'session' })) }));
 jest.mock('@/lib/recipeActions', () => ({ fireRecipeAssistantAction: jest.fn() }));
 jest.mock('@/lib/api', () => ({ ApiError: class extends Error { status:number; constructor(message:string,options:{ status:number }){ super(message);this.status=options.status; } } }));
-jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
 let mockMeal: { data?: unknown; isLoading: boolean; isError: boolean } = { isLoading: false, isError: false };
 const mockMealRefetch = jest.fn();
 jest.mock('@/hooks/usePlannedMeal', () => ({ ...jest.requireActual('@/hooks/usePlannedMeal'),

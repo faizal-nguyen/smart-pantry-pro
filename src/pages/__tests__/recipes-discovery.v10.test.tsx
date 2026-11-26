@@ -13,7 +13,6 @@ jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthenticatedUser: () => (
 jest.mock('@/hooks/useUserRecipes', () => ({ useUserRecipes: () => ({ recipes: [], isLoading: false, addFromCatalog: jest.fn(), isAddingFromCatalog: false }) }));
 jest.mock('@/hooks/useRecipes', () => ({ useRecipes: () => ({ addRecipeWithIngredients: mockAddRecipe, fetchRecipes: jest.fn() }) }));
 jest.mock('@/hooks/useSocialRecipeImports', () => ({ useSocialRecipeImports: () => ({ pendingCount: 0 }) }));
-jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
 jest.mock('@/components/recipes/RoutineRecipeLibrary', () => ({ __esModule: true, default: () => <div>Bibliothèque du test</div> }));
 jest.mock('@/components/recipes/discovery/RecipeDiscovery', () => ({ __esModule: true, default: () => <div>Découverte montée</div> }));
 jest.mock('@/components/recipes/discovery/DiscoveryDraftEditor', () => ({ __esModule: true, default: ({ owner, prepared }: { owner: string; prepared: { import: { id: string }; draft: { version: number } } }) => <div>Éditeur canonique {owner} {prepared.import.id} révision {prepared.draft.version}</div> }));

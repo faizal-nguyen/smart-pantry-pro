@@ -12,7 +12,6 @@ const extract = jest.fn();
 jest.mock('@/hooks/useSocialRecipeImports', () => ({ useSocialRecipeImports: () => ({ capture, extract, getCurrentDraft: jest.fn() }) }));
 jest.mock('../RecipeBookScanner', () => ({ __esModule: true, default: () => null }));
 jest.mock('../RecipeVoiceInput', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
 
 const save = jest.mocked(saveRecipeWithIngredients);
 beforeEach(() => { localStorage.clear(); jest.clearAllMocks(); jest.mocked(pendingIntent).mockResolvedValue(null); });

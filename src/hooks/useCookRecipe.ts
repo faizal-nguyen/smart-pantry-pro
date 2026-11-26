@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { ApiError } from '@/lib/apiError';
 import { cookRecipeWithStock, forgetMealCooking, type ActionableRecipe, type PlannedMealRef } from '@/lib/recipeActions';
 import { undoStockCommand } from '@/services/stockCommands';
@@ -49,7 +49,6 @@ function mealStatus(state: CookState, meal: CookedMealLink): CookStatus {
  * with what the stock gave in the toast and « Annuler » to give it back.
  */
 export function useCookRecipe(recipe: ActionableRecipe | null, meal?: CookedMealLink | null) {
-  const { toast } = useToast();
   const [state, setState] = useState<CookState>({ status: 'idle' });
   const settleTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(settleTimer.current), []);
@@ -70,11 +69,11 @@ export function useCookRecipe(recipe: ActionableRecipe | null, meal?: CookedMeal
       if (meal) await settle(meal, outcome.commandId);
       else setState({ status: 'cooked', commandId: outcome.commandId });
       dispatchAgentDbChanged(tablesForTool('cook_recipe'));
-      toast({ title: outcome.title, description: [`Recette : ${recipe.name}`, ...outcome.details].join(' ') });
+      toast(outcome.title, { description: [`Recette : ${recipe.name}`, ...outcome.details].join(' ') });
     } catch (err) {
       if (meal && isMenuConflict(err)) await meal.refresh();
       setState({ status: 'idle' });
-      toast({ variant: 'destructive', title: 'Action impossible', description: message(err, meal) });
+      toast.error('Action impossible', { description: message(err, meal) });
     }
   };
 
@@ -89,11 +88,11 @@ export function useCookRecipe(recipe: ActionableRecipe | null, meal?: CookedMeal
         await settle(meal, null);
       } else setState({ status: 'idle' });
       dispatchAgentDbChanged(tablesForTool('cook_recipe'));
-      toast({ title: 'Repas annulé', description: 'Ton stock est revenu comme avant.' });
+      toast('Repas annulé', { description: 'Ton stock est revenu comme avant.' });
     } catch (err) {
       if (meal && isMenuConflict(err)) await meal.refresh();
       setState(meal ? { status: 'idle' } : { status: 'cooked', commandId });
-      toast({ variant: 'destructive', title: 'Annulation impossible', description: message(err, meal) });
+      toast.error('Annulation impossible', { description: message(err, meal) });
     }
   };
 
