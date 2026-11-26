@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PlatformIcon, platformLabel, type SourcePlatform } from './PlatformIcon';
 import { detectPlatform } from '@/services/recipe-import/helpers/url';
 import { safeRecipeSourceUrl } from '@/lib/recipeLinks';
+import { formatDate } from '@smart/shared';
 
 /**
  * The shape this card consumes is the legacy `recipes` row enriched
@@ -189,11 +190,5 @@ function renderAuthor(meta: NonNullable<RecipeSourceLike['source_metadata']>): R
 }
 
 function safeFormatDate(iso: string): string | null {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(d);
+  return formatDate(iso, 'dayMonthYear') || null;
 }

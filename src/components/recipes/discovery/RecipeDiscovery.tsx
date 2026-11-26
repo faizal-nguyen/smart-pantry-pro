@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
-import type { DiscoveryItem, DiscoveryPrepareImportResponse } from '@smart/shared';
+import { formatDateTime, type DiscoveryItem, type DiscoveryPrepareImportResponse } from '@smart/shared';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useRecipeDiscovery } from '@/hooks/useRecipeDiscovery';
 import { useOwnedValue } from '@/lib/ownedStorage';
@@ -107,7 +107,7 @@ export function OwnedDiscovery({ owner }: { owner: string }) {
         {discovery.linksError && <p className="text-sm text-muted-foreground">Les liens de départ ne sont pas disponibles. Tu peux proposer ton propre lien.</p>}
       </div>
     </details>
-    {discovery.feed?.selectionAt && <p className="text-xs text-muted-foreground">Sélection du {new Date(discovery.feed.selectionAt).toLocaleString('fr-FR')}</p>}
+    {discovery.feed?.selectionAt && <p className="text-xs text-muted-foreground">Sélection du {formatDateTime(discovery.feed.selectionAt)}</p>}
     {!discovery.isLoading && !discovery.error && available.length === 0 && <div className="rounded-lg bg-muted/40 p-4 text-sm"><p>Aucune nouvelle proposition. Ajoute un lien d’un créateur pour préparer la prochaine recette.</p></div>}
     {discovery.feed?.errors.map((message, index) => <p key={index} role="status" className="text-sm">{message}</p>)}
     {available.length > 0 && <ul className="culinary-recipe-grid" aria-label="Recettes à découvrir">{available.map((item, index) => <DiscoveryCard key={item.id} item={item} creator={discovery.creators.find(creator => creator.id === item.creatorId)} priority={index === 0} disabled={locked} onDecision={decide} onReview={item => void perform(() => prepare(item))} onFeedback={feedback} />)}</ul>}

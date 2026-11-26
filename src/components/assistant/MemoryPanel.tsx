@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { BookOpen, Check, Pencil, Search, X } from 'lucide-react';
-import { classifyMemoryFact, type MemoryWriteResult } from '@smart/shared';
+import { formatDate, classifyMemoryFact, type MemoryWriteResult } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import type { AssistantMemoryItem } from '@/services/assistantApi';
 const origins = { user_explicit: 'Votre demande', assistant_inferred: 'Proposition de l’assistant',
   recipe_feedback: 'Votre retour sur une recette', imported: 'Import', system: 'Ancien réglage' };
 const destinations = { memory: 'Souvenir', profile: 'Profil alimentaire', feedback: 'Retour recette', session: 'Ce repas' };
-const date = (value: string) => new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+const date = (value: string) => formatDate(value, 'dayMonthShortYear');
 function resultText(receipt: MemoryWriteResult): string {
   if (receipt.status === 'verification_required') return 'Résultat à vérifier. La même commande sera utilisée.';
   if (receipt.status === 'disabled') return 'La mémoire est désactivée. Activez-la pour confirmer ou corriger un souvenir.';

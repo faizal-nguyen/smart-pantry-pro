@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { NutritionProfileSettingsSchema,emptyNutritionProfile,type NutritionProfileSettings } from '@smart/shared';
+import { formatDate, NutritionProfileSettingsSchema, emptyNutritionProfile, type NutritionProfileSettings } from '@smart/shared';
 import { useNutritionProfile } from '@/hooks/useNutritionProfile';
 import { usePersonalization } from '@/hooks/usePersonalization';
 import { useAssistantMemories } from '@/hooks/useAssistantMemories';
@@ -65,7 +65,7 @@ function NutritionProfileContent({ profile,focus }:{ profile:ReturnType<typeof u
     <Card><CardHeader><CardTitle>{focus==='nutrition' ? 'Objectifs et profil alimentaire' : 'Cuisine et profil alimentaire'}</CardTitle><CardDescription>Vos contraintes passent avant le classement. Le contexte d’un repas reste indépendant de ce profil.</CardDescription></CardHeader><CardContent className="space-y-4">
       {profile.isLoading && <p role="status">Chargement de ton profil…</p>}
       {profile.error && <div role="alert"><p>Le profil serveur ne peut pas être lu. Vos valeurs ne sont pas remplacées.</p><Button variant="outline" className="min-h-11" onClick={()=>void profile.refetch()}>Relire mon profil</Button></div>}
-      {server && <p className="text-xs text-muted-foreground">{server.version ? `Profil synchronisé · version ${server.version}` : 'Profil à confirmer'}{server.updated_at ? ` · ${new Date(server.updated_at).toLocaleDateString('fr-FR')}` : ''}</p>}
+      {server && <p className="text-xs text-muted-foreground">{server.version ? `Profil synchronisé · version ${server.version}` : 'Profil à confirmer'}{server.updated_at ? ` · ${formatDate(server.updated_at, 'numeric')}` : ''}</p>}
       {profile.data?.legacyServerPresent && <p className="rounded-lg border p-3">Vos anciennes contraintes serveur restent appliquées. Vérifiez et confirmez leur reprise ci-dessous.</p>}
       {local.personalizationData && server && !pending && <div className="rounded-lg border p-3 space-y-2"><p>Des préférences de cuisine sont enregistrées pour ce compte sur cet appareil. Leur reprise conserve les exclusions du profil serveur.</p><Button className="min-h-11" variant="outline" onClick={()=>{ try { setDraft({ version:server.version,settings:migrateOwnedCookingPreferences(settings,local.personalizationData!),origin:'imported' }); } catch (failure) { setError((failure as Error).message); } }}>Comparer et reprendre les valeurs de cet appareil</Button><p className="text-xs">Les anciens objectifs généraux sans mesure fiable ne sont pas transformés en promesse nutritionnelle.</p></div>}
       {local.hasUnassignedLegacyPreferences && <p className="text-sm text-muted-foreground">Un ancien profil sans propriétaire existe sur cet appareil. Il n’est pas attribué automatiquement à votre compte.</p>}

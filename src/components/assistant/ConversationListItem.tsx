@@ -36,21 +36,11 @@ import {
   patchAssistantConversation,
   softDeleteAssistantConversation,
 } from '@/services/assistantApi';
+import { formatDateTime } from '@smart/shared';
 
 interface ConversationListItemProps {
   conversation: AssistantConversation;
   onSelect?: () => void;
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 export default function ConversationListItem({ conversation,onSelect }: ConversationListItemProps) {
@@ -118,7 +108,7 @@ export default function ConversationListItem({ conversation,onSelect }: Conversa
               {conversation.title ?? 'Conversation sans titre'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {formatDate(conversation.last_message_at ?? conversation.created_at)}
+              {formatDateTime(conversation.last_message_at ?? conversation.created_at, 'short')}
             </p>
           </div>
         </Link>

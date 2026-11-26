@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { getAssistantModels } from '@/services/assistantApi';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@smart/shared';
 const labels={dialogue:'Dialogue et choix des outils',culinary:'Synthèse complexe et correction',summary:'Résumé des conversations',vision:'Lecture des photos de courses'};
 export default function AssistantModelsSection() {
   const owner=useAuthSessionOptional().user?.id;
@@ -15,7 +16,7 @@ export default function AssistantModelsSection() {
     {catalog.roles.map(role=><article key={role.role} className="border-b pb-4 space-y-1 break-words">
       <h3 className="font-medium">{labels[role.role]}</h3><p>{role.model}</p>
       <p className="text-sm text-muted-foreground">{role.transport==='responses' ? 'Responses' : 'Chat Completions'}{role.effort ? ' · Effort '+role.effort : ''} · Sortie limitée à {role.max_output_tokens} tokens · Délai d’appel : {role.timeout_ms/1000} s</p>
-      {role.last_verified_at ? <p className="text-sm">Dernier modèle observé : {role.last_served_model}, le {new Date(role.last_verified_at).toLocaleString('fr-FR')}. Observation sur ce processus serveur.</p> : <p className="text-sm text-muted-foreground">Configuration non vérifiée par un appel sur ce processus serveur.</p>}
+      {role.last_verified_at ? <p className="text-sm">Dernier modèle observé : {role.last_served_model}, le {formatDateTime(role.last_verified_at)}. Observation sur ce processus serveur.</p> : <p className="text-sm text-muted-foreground">Configuration non vérifiée par un appel sur ce processus serveur.</p>}
     </article>)}
     <p className="text-sm text-muted-foreground">Maximum {catalog.limits.max_calls} appels de modèle et {catalog.limits.max_tools} outils par demande. Les nouveaux appels cessent après {catalog.limits.deadline_ms/1000} s. Plafond de réservation : ${catalog.limits.max_usd}. Les coûts incomplets restent signalés.</p>
     <p className="text-xs text-muted-foreground">Tarifs : {catalog.pricing_version}. Les changements de modèle sont gérés sur le serveur.</p>
