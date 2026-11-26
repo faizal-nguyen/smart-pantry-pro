@@ -87,17 +87,3 @@ export interface PersonalizationData {
   initialInventoryScan?: boolean;
   onboardingCompletedAt: Date;
 }
-
-export interface TutorialHighlight {
-  element: string;
-  message: string;
-  gesture: 'tap' | 'point' | 'pulse' | 'swipe';
-  position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
-}
-
-export interface TutorialState {
-  isActive: boolean;
-  currentHighlightIndex: number;
-  highlights: TutorialHighlight[];
-  hasSeenTutorial: boolean;
-}
