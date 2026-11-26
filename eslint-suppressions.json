@@ -433,11 +433,6 @@
       "count": 7
     }
   },
-  "src/services/context/PerformanceOptimizer.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    }
-  },
   "src/setupTests.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
