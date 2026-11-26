@@ -1,4 +1,4 @@
-import { formatDateTime, needsPurchase, type RecipeEvaluation } from '@smart/shared';
+import { formatNumber, formatDateTime, needsPurchase, type RecipeEvaluation } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 
 export default function RecipeEvaluationPanel({ evaluation,loading,refreshing,error,onRetry,validServings }:{
@@ -14,7 +14,7 @@ export default function RecipeEvaluationPanel({ evaluation,loading,refreshing,er
   return <section className="mb-4 space-y-2 border-y py-3 text-sm" aria-label="Vérification de la recette">
       <p className="font-medium">{availability.status==='available' ? `Ingrédients présents dans ton stock pour ${evaluation.servings} portions.` : availability.status==='missing' ? 'Des ingrédients manquent.' : 'Stock à vérifier.'}</p>
       <ul className="space-y-1">{availability.missing.map((item,index)=><li key={index}>
-        {needsPurchase(item) ? 'À acheter' : 'En stock, quantité à vérifier'} : {item.ingredient_name}{item.quantity!=null ? ` · ${item.quantity.toLocaleString('fr-FR')} ${item.unit ?? ''}`.trimEnd() : ' · quantité à préciser'}{item.is_essential===false ? ' (facultatif)' : ''}.
+        {needsPurchase(item) ? 'À acheter' : 'En stock, quantité à vérifier'} : {item.ingredient_name}{item.quantity!=null ? ` · ${formatNumber(item.quantity)} ${item.unit ?? ''}`.trimEnd() : ' · quantité à préciser'}{item.is_essential===false ? ' (facultatif)' : ''}.
       </li>)}</ul>
       {availability.uncertainties.map((text,index)=><p key={index}>{text}</p>)}
       {availability.excluded_lot_reasons?.map(reason=><p key={reason.id}>{reason.message}</p>)}
