@@ -6,6 +6,7 @@ import { MEAL_TITLE, todayIndex, tonightMeal } from '@/lib/tonightMeal';
 import type { SuggestRecommendationsInput } from '@/services/recommendationsApi';
 import LazyFold from './LazyFold';
 import TonightMealCard from './TonightMealCard';
+import { APP_LOCALE } from '@smart/shared';
 
 export interface MenuRead { data?: WeeklyMenuView; isLoading: boolean; isError: boolean }
 
@@ -38,7 +39,7 @@ export default function TonightBlock({ menu, now, mealType, input, owner, onAddS
   if (menu.isLoading && !waited) {
     return <section className="min-w-0" aria-labelledby="tonight-title">
       <h2 id="tonight-title" className="sr-only">{title}</h2>
-      <LoadingSkeleton label={`Chargement de ${title.charAt(0).toLocaleLowerCase('fr-FR')}${title.slice(1)}…`} count={1} itemClassName="h-60 rounded-xl" />
+      <LoadingSkeleton label={`Chargement de ${title.charAt(0).toLocaleLowerCase(APP_LOCALE)}${title.slice(1)}…`} count={1} itemClassName="h-60 rounded-xl" />
     </section>;
   }
   if (!planned) return <Suggestion input={input} onAddStock={onAddStock} />;

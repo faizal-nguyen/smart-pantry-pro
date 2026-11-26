@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronDown, MessageCircle } from 'lucide-react';
-import { keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
+import { APP_LOCALE, keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -22,7 +22,7 @@ export default function RoutineHeader({ navigationConfig }: { navigationConfig?:
   const navigation = navigationConfig ?? defaults;
   const isHome = location.pathname === '/kitchen';
   const profileName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : user.email ?? 'Kitchen';
-  const profileInitial = profileName.trim().slice(0,1).toLocaleUpperCase('fr-FR') || 'K';
+  const profileInitial = profileName.trim().slice(0,1).toLocaleUpperCase(APP_LOCALE) || 'K';
   const product = new URLSearchParams(location.search).get('product');
   const task = location.pathname + (product ? '?product=' + product : '');
   const key = user.id + ':' + task;

@@ -1,7 +1,7 @@
 import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { Leaf, Milk, Package } from 'lucide-react';
-import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
+import { APP_LOCALE, calendarDaysUntil, pantryDateLabel } from '@smart/shared';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 /** Rank 5: the three lots to use first, shown even when empty (moved as is from the home page). */
@@ -14,7 +14,7 @@ export default function UseSoonStrip({ inventory, loading, failed, now }: { inve
       const days = calendarDaysUntil(item.expiry_date, now)!;
       const label = days < 0 ? 'Date dépassée' : days === 0 ? 'Aujourd’hui' : `${days} ${days === 1 ? 'jour' : 'jours'}`;
       const photo = item.product?.image_url;
-      const category = item.product?.category?.toLocaleLowerCase('fr-FR');
+      const category = item.product?.category?.toLocaleLowerCase(APP_LOCALE);
       const StockIcon = category === 'légumes' || category === 'fruits et légumes' ? Leaf : category === 'produits laitiers' ? Milk : Package;
       return <li key={item.id}><Link className="kitchen-stock-item" to={`/pantry/inventory?product=${item.id}`}>
         <span className="kitchen-stock-symbol"><StockIcon aria-hidden="true" strokeWidth={1.25} />{photo && /^(https?:\/\/|\/(?!\/))/.test(photo) && <img key={photo} src={photo} alt="" loading="lazy" referrerPolicy="no-referrer" onError={e => { e.currentTarget.hidden = true; }} />}</span>

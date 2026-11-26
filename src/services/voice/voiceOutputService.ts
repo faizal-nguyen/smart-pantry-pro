@@ -1,3 +1,4 @@
+import { APP_LOCALE } from '@smart/shared';
 /**
  * Voice Output Service - Text-to-Speech (TTS) for Kitchen OS
  * Phase 1 Implementation: Web Speech API synthesis with French optimization
@@ -111,7 +112,7 @@ export class VoiceOutputService {
   private isEnabled: boolean = true;
 
   private config: VoiceOutputConfig = {
-    lang: 'fr-FR',
+    lang: APP_LOCALE,
     rate: 1.0,
     pitch: 1.0,
     volume: 0.9,

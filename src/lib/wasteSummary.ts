@@ -1,4 +1,4 @@
-import { calendarDate } from '@smart/shared';
+import { APP_LOCALE, calendarDate } from '@smart/shared';
 
 export type WasteReason = 'expired' | 'spoiled' | 'leftover' | 'other';
 export type WastePeriod = 'last30' | 'all';
@@ -81,7 +81,7 @@ export function wasteSummary(events: readonly WasteEvent[], period: WastePeriod,
     const cost = knownCost(event.estimated_cost_eur);
     if (cost !== null) { knownCostCount += 1; knownCostTotal += cost; }
   }
-  const byCategory = ranked(categories, (a, b) => a.localeCompare(b, 'fr')).map(([category, count]) => ({ category, count }));
+  const byCategory = ranked(categories, (a, b) => a.localeCompare(b, APP_LOCALE)).map(([category, count]) => ({ category, count }));
   return {
     count: inPeriod.length,
     byReason: ranked(reasons, (a, b) => REASON_ORDER.indexOf(a) - REASON_ORDER.indexOf(b)).map(([reason, count]) => ({ reason, count })),

@@ -2,7 +2,7 @@ import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
 import { useMemo, useState, lazy, Suspense } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Package, Plus, Pencil, ChefHat, LayoutGrid, List, Camera, MoreHorizontal } from 'lucide-react';
-import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
+import { APP_LOCALE, calendarDaysUntil, pantryDateLabel } from '@smart/shared';
 import { useInventory, type InventoryItem } from '@/hooks/useInventory';
 import { useShoppingList } from '@/hooks/useShoppingList';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
@@ -262,7 +262,7 @@ export default function Inventory() {
   const updateFilters = (patch:Partial<Filters>) => { try { setFilters({ ...filters,...patch }); } catch (failure) { fail(failure); } };
   const rows = useMemo(() => stock.inventory.filter(item => {
     const name = item.product?.name ?? 'Produit', days = calendarDaysUntil(item.expiry_date,now);
-    return (!filters.search || `${name} ${item.location ?? ''}`.toLocaleLowerCase('fr').includes(filters.search.toLocaleLowerCase('fr')))
+    return (!filters.search || `${name} ${item.location ?? ''}`.toLocaleLowerCase(APP_LOCALE).includes(filters.search.toLocaleLowerCase(APP_LOCALE)))
       && (filters.category === 'all' || categorizeProduct(item.product?.category,name) === filters.category)
       && (filters.zone === 'all' || item.location === filters.zone)
       && (filters.status !== 'available' || item.quantity>0)

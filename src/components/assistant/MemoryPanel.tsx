@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { BookOpen, Check, Pencil, Search, X } from 'lucide-react';
-import { formatDate, classifyMemoryFact, type MemoryWriteResult } from '@smart/shared';
+import { APP_LOCALE, formatDate, classifyMemoryFact, type MemoryWriteResult } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,7 @@ export default function MemoryPanel({ presentation = 'center' }: { presentation?
   };
   if (error) return <div role="alert" className="space-y-3 rounded-lg border p-4"><p>Impossible de lire les souvenirs pour le moment.</p><Button variant="outline" className="min-h-11" onClick={() => void memory.refetch()}>Réessayer la lecture de la mémoire</Button></div>;
   if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Chargement de ta mémoire…</p>;
-  const filtered = memories.filter(row => row.content.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
+  const filtered = memories.filter(row => row.content.toLocaleLowerCase(APP_LOCALE).includes(search.toLocaleLowerCase(APP_LOCALE)));
   const candidate = (row: AssistantMemoryItem) => row.status === 'candidate' || !row.version || !row.destination;
   const groups = [ { label: 'À confirmer', rows: filtered.filter(candidate) }, { label: 'Souvenirs enregistrés', rows: filtered.filter(row => !candidate(row)) } ];
   const actionsDisabled = isBusy || !!pendingCommand || !!storageError || !policy;

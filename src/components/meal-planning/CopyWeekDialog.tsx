@@ -10,6 +10,7 @@ import { useWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 import { slotLabel } from '@/lib/menuEdit';
 import { copyTargetWeeks, planWeekCopy, type CopyConflict, type WeekCopyPlan } from '@/lib/menuCopy';
 import { menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
+import { APP_LOCALE } from '@smart/shared';
 
 interface CopyWeekDialogProps {
   sourceWeek: string;
@@ -66,7 +67,7 @@ export default function CopyWeekDialog({ sourceWeek, entries, busy, error, onClo
       <DialogHeader>
         <DialogTitle>Copier ce menu vers une autre semaine</DialogTitle>
         <DialogDescription>
-          Les repas de la {menuWeekLabel(sourceWeek).toLocaleLowerCase('fr')} vont aux mêmes jours et repas. Rien n’est acheté ni cuisiné.
+          Les repas de la {menuWeekLabel(sourceWeek).toLocaleLowerCase(APP_LOCALE)} vont aux mêmes jours et repas. Rien n’est acheté ni cuisiné.
         </DialogDescription>
       </DialogHeader>
       <label className="block space-y-1 text-sm">Vers

@@ -4,6 +4,7 @@
  */
 
 import { StreamingAIService, AIContext } from './streamingAIService';
+import { APP_LOCALE } from '@smart/shared';
 
 export interface UserHealthProfile {
   id: string;
@@ -151,7 +152,7 @@ Fournir une analyse complète avec:
       recipes: [],
       healthProfile,
       nutritionalGoals: this.calculateNutritionalGoals(healthProfile),
-      language: 'fr-FR'
+      language: APP_LOCALE
     };
 
     const systemPrompt = this.buildRecommendationPrompt(context);

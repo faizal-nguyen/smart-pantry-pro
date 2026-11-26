@@ -1,4 +1,4 @@
-import type { ShoppingOrigin, StockCommand, StockCommandResult } from '@smart/shared';
+import { APP_LOCALE, type ShoppingOrigin, type StockCommand, type StockCommandResult } from '@smart/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -117,7 +117,7 @@ export const useShoppingList = (options: { notify?: boolean; resume?: boolean } 
     if (!Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error('Indiquez une quantité positive.');
     if (!name || !unit) throw new Error('Indiquez le produit et son unité.');
     const category = item.category.trim();
-    const intent = shoppingIntent(`add:${name.toLocaleLowerCase('fr')}`);
+    const intent = shoppingIntent(`add:${name.toLocaleLowerCase(APP_LOCALE)}`);
     return listCommand(async () => sendShoppingCommand(intent, await commandForIntent('shopping_add', intent, { items: [{
       name, ...(category ? { category } : {}), quantity: item.quantity, unit,
       ...(item.storeSection?.trim() ? { store_section: item.storeSection.trim() } : {}), origin,

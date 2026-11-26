@@ -1,3 +1,4 @@
+import { APP_LOCALE } from './format.js';
 import {z} from 'zod';
 import {calendarDate,calendarDaysUntil} from './calendar.js';
 import {ingredientMatchRank,normalizeIngredientName} from './quantities.js';
@@ -123,14 +124,14 @@ export function buildFoodGuidance(lots:readonly FoodGuidanceLot[],options:{now?:
  });
  const eligible=matched.filter(({fact,ref})=>ref.daily&&fact.stock_state==='present'&&!options.dailyExcludedIds?.has(fact.id)).filter((row,index,all)=>all.findIndex(other=>other.ref.id===row.ref.id)===index);
  const day=Math.floor(Date.parse(date+'T00:00:00Z')/86400000);
- const ordered=(rows:typeof matched)=>[...rows].sort((a,b)=>a.fact.name.localeCompare(b.fact.name,'fr')||a.fact.id.localeCompare(b.fact.id));
+ const ordered=(rows:typeof matched)=>[...rows].sort((a,b)=>a.fact.name.localeCompare(b.fact.name, APP_LOCALE)||a.fact.id.localeCompare(b.fact.id));
  const rotate=(rows:typeof matched)=>{const sorted=ordered(rows);return sorted.length?[...sorted.slice(day%sorted.length),...sorted.slice(0,day%sorted.length)]:[];};
  const produce=eligible.filter(r=>r.ref.group==='produce'),seasonal=produce.filter(r=>r.fact.season==='in_season');
  const first=rotate(seasonal.length?seasonal:produce)[0];
  const second=rotate(eligible.filter(r=>r.ref.group==='pulses'))[0]??rotate(produce.filter(r=>r!==first))[0];
  const daily=[first,second].flatMap(r=>r?[r.fact]:[]);
  const focus=normalizeIngredientName(options.focus??'');
- const facts=[...matched].sort((a,b)=>Number(focus&&normalizeIngredientName(b.fact.name).includes(focus))-Number(focus&&normalizeIngredientName(a.fact.name).includes(focus))||Number(b.fact.kind==='plant')-Number(a.fact.kind==='plant')||a.fact.name.localeCompare(b.fact.name,'fr')).map(r=>r.fact);
+ const facts=[...matched].sort((a,b)=>Number(focus&&normalizeIngredientName(b.fact.name).includes(focus))-Number(focus&&normalizeIngredientName(a.fact.name).includes(focus))||Number(b.fact.kind==='plant')-Number(a.fact.kind==='plant')||a.fact.name.localeCompare(b.fact.name, APP_LOCALE)).map(r=>r.fact);
  const present=new Set(matched.map(r=>r.ref.id));
  const ideas=FOOD_REFERENCES.filter(r=>r.group==='produce'&&r.months?.includes(month)&&!present.has(r.id)).slice(0,3).map(r=>({name:r.label,source:FOOD_SOURCES.season}));
  return FoodGuidanceSchema.parse({version:FOOD_GUIDANCE_VERSION,date,reference_region:'France métropolitaine',season,seasonal_calendar:PRODUCE_REFERENCES.map(r=>({name:r.label,months:r.months})),season_source:FOOD_SOURCES.season,inventory_complete:true,facts_complete:facts.length<=100,facts:facts.slice(0,100),daily_foods:daily,daily_drink:rotate(eligible.filter(r=>r.ref.kind==='drink'))[0]?.fact??null,seasonal_in_stock:ordered(seasonal).map(r=>r.fact),seasonal_ideas:ideas,uncovered_product_count:lots.filter(l=>l.quantity>0&&!referenceFor(l.product_name)).length});
