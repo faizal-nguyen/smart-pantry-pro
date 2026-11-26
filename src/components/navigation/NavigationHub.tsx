@@ -74,30 +74,3 @@ export const useNavigationConfig = () => {
     allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS]
   }), []);
 };
-
-/**
- * Table de redirections de compatibilité historique. Réduite aux routes
- * coeur V1 en PRP-222 PR1.
- */
-export const getLegacyRedirections = (): Record<string, string> => ({
-  '/inventory': '/pantry/inventory',
-  '/recipes': '/kitchen/recipes',
-  '/shopping': '/shopping/list',
-  '/assistant': '/assistant',
-  '/insights': '/insights',
-
-  '/pantry-inventory': '/pantry/inventory',
-  '/kitchen-recipes': '/kitchen/recipes',
-  '/shopping-list': '/shopping/list',
-  '/meal-planning': '/kitchen/meal-planning',
-  '/ai-assistant': '/assistant/chat',
-  '/assistant-chat': '/assistant/chat',
-
-  '/recipe-catalog': '/kitchen/recipes',
-  '/kitchen-favorites': '/kitchen/favorites',
-  '/insights-waste': '/insights#pertes',
-
-  '/home': '/kitchen',
-  '/dashboard': '/kitchen',
-  '/main': '/kitchen'
-});
