@@ -7,8 +7,7 @@ import { LoadingFallback } from "./components/LoadingFallback";
 import { ResponsiveProvider } from "./contexts/ResponsiveContext";
 import { AuthSessionProvider } from "./contexts/AuthSessionContext";
 import { AuthenticatedLayout } from "./components/layout/AuthenticatedLayout";
-import { Toaster } from "./components/ui/toaster";
-import { Toaster as Sonner } from "./components/ui/sonner";
+import { Toaster } from "./components/ui/sonner";
 import NewVersionBanner from "./components/layout/NewVersionBanner";
 import RouteError from "./components/RouteError";
 import { useNewVersion } from "./hooks/useNewVersion";
@@ -176,7 +175,6 @@ const App = () => (
           <ThemeProvider>
             <RouterProvider router={router} />
             <Toaster />
-            <Sonner />
           </ThemeProvider>
         </AuthSessionProvider>
       </ResponsiveProvider>

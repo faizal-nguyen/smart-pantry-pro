@@ -12,10 +12,10 @@ jest.mock('@/integrations/supabase/client', () => ({ supabase: { auth: {
 } } }));
 jest.mock('@/lib/recipeSource', () => ({ invalidateUnifiedRecipeCache: jest.fn() }));
 jest.mock('@/lib/agentEvents', () => ({ useAgentDbInvalidation: jest.fn() }));
-jest.mock('@/hooks/use-toast', () => { const dismiss = jest.fn(); return { useToast: () => ({ dismiss }) }; });
-jest.mock('sonner', () => ({ toast: { dismiss: jest.fn() } }));
+const mockToastDismiss = jest.fn();
+jest.mock('sonner', () => ({ toast: { dismiss: (...args: unknown[]) => mockToastDismiss(...args) } }));
 function Probe() { return <p>{useContext(AuthSessionContext)?.user?.id ?? 'signed-out'}</p>; }
-beforeEach(() => { sessionStorage.clear(); localStorage.clear(); mockGetSession = async () => ({ data: { session: { user: { id: 'A' } } } }); });
+beforeEach(() => { sessionStorage.clear(); localStorage.clear(); mockToastDismiss.mockReset(); mockGetSession = async () => ({ data: { session: { user: { id: 'A' } } } }); });
 test('account change purges query results and the former account work files', async () => {
   const queryClient = new QueryClient();
   render(<QueryClientProvider client={queryClient}><AuthSessionProvider><Probe /></AuthSessionProvider></QueryClientProvider>);
@@ -24,8 +24,11 @@ test('account change purges query results and the former account work files', as
   localStorage.setItem('v10-draft:A:manual-recipe','private A'); sessionStorage.setItem('v10-command:A:transfer','private A');
   sessionStorage.setItem('assistant.lastConversationId:A:active','private conversation A');
   sessionStorage.setItem('assistant.lastConversationId','legacy private conversation');
+  expect(mockToastDismiss).not.toHaveBeenCalled();
   act(() => mockListener('SIGNED_IN',{ user: { id: 'B' } }));
   await screen.findByText('B');
+  // Notifications may name A's recipes or products.
+  expect(mockToastDismiss).toHaveBeenCalledTimes(1);
   expect(queryClient.getQueryData(['private','A'])).toBeUndefined();
   expect(localStorage.getItem('v10-draft:A:manual-recipe')).toBeNull();
   expect(sessionStorage.getItem('v10-command:A:transfer')).toBeNull();

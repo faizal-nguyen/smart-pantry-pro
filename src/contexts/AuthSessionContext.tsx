@@ -18,7 +18,6 @@
 import { createContext, Fragment, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { invalidateUnifiedRecipeCache } from '@/lib/recipeSource';
 import { useAgentDbInvalidation } from '@/lib/agentEvents';
@@ -33,7 +32,6 @@ export const AuthSessionContext = createContext<AuthSessionContextValue | null>(
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const { dismiss } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,7 +50,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         void queryClient.cancelQueries();
         queryClient.clear();
         invalidateUnifiedRecipeCache();
-        dismiss(); sonnerToast.dismiss();
+        sonnerToast.dismiss();
         navigator.serviceWorker?.controller?.postMessage({ type: 'PURGE_PRIVATE_DATA' });
       }
       // Expired sessions keep their drafts for reconnecting to the same account.
@@ -84,7 +82,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       if (mounted) apply(session?.user ?? null);
     });
     return () => { mounted = false; subscription.unsubscribe(); };
-  }, [queryClient, dismiss]);
+  }, [queryClient]);
 
   return (
     <AuthSessionContext.Provider value={{ user, isLoading }}>
