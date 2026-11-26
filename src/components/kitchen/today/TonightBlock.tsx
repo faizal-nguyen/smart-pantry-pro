@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect, useState } from 'react';
 import PersonalizedRecipeSuggestions from '@/components/recipes/PersonalizedRecipeSuggestions';
 import type { MenuMealType, WeeklyMenuView } from '@/hooks/useWeeklyMenu';
@@ -37,7 +38,7 @@ export default function TonightBlock({ menu, now, mealType, input, owner, onAddS
   if (menu.isLoading && !waited) {
     return <section className="min-w-0" aria-labelledby="tonight-title">
       <h2 id="tonight-title" className="sr-only">{title}</h2>
-      <p className="culinary-recipe-state" role="status">Chargement de {title.charAt(0).toLocaleLowerCase('fr-FR')}{title.slice(1)}…</p>
+      <LoadingSkeleton label={`Chargement de ${title.charAt(0).toLocaleLowerCase('fr-FR')}${title.slice(1)}…`} count={1} itemClassName="h-60 rounded-xl" />
     </section>;
   }
   if (!planned) return <Suggestion input={input} onAddStock={onAddStock} />;

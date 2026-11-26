@@ -6,6 +6,7 @@
  * (toggleable) + ConversationListItem (chacun avec rename/archive/
  * delete via dropdown menu).
  */
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { MessageCircle } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -40,10 +41,8 @@ export default function ConversationHistoryList({
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6 space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-          ))}
+        <CardContent className="p-6">
+          <LoadingSkeleton label="Chargement des conversations…" itemClassName="h-12 rounded" />
         </CardContent>
       </Card>
     );

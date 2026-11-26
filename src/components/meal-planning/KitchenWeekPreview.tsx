@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { calendarDate } from '@smart/shared';
 import type { MenuMealType } from '@/hooks/useWeeklyMenu';
@@ -17,7 +18,7 @@ export default function KitchenWeekPreview({ now, mealType, menu }: { now: Date;
   });
   return <aside className="kitchen-week" aria-labelledby="kitchen-week-title">
     <h2 id="kitchen-week-title" className="kitchen-section-title">Cette semaine</h2>
-    {menu.isLoading ? <p className="kitchen-week-status" role="status">Chargement de tes menus…</p>
+    {menu.isLoading ? <LoadingSkeleton label="Chargement de tes menus…" className="kitchen-week-status space-y-2" />
       : menu.isError ? <p className="kitchen-week-status">Semaine indisponible pour le moment.</p>
       : <ul className="kitchen-week-days">{days.map(({ date, entry }, index) => <li key={date.toISOString()}>
         <Link to="/kitchen/meal-planning" className="kitchen-week-day" data-today={index === 0}>
