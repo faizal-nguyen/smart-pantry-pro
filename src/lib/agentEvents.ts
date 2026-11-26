@@ -17,8 +17,10 @@
  *
  * PRP-233 PR4 — this is the **invalidation bridge for agent writes**.
  * Do NOT replace it with a second event bus or swap to a generic
- * pub/sub. The `AssistantProvider` calls `dispatchAgentDbChanged()`
- * after every successful tool execution; downstream consumers
+ * pub/sub. The assistant surfaces (`AssistantConversationSurface`,
+ * `AssistantActionsPanel`, `GroceryReviewDialog`) and the stock, cooking
+ * and loss writers call `dispatchAgentDbChanged()` after every successful
+ * write; downstream consumers
  * (`useInventory`, `useShoppingList`, `useRecipes`, `useUserRecipes`,
  * `useWasteLog`) subscribe via `useAgentDbInvalidation()`. Adding a
  * new write tool means appending it to `TOOL_TABLES` below and adding
@@ -106,7 +108,7 @@ export function tablesForTool(tool: string): AgentAffectedTable[] {
   return TOOL_TABLES[tool] ?? [];
 }
 
-/** Dispatched by AssistantProvider whenever an action mutates state. */
+/** Dispatched by the assistant surfaces and the app's writers whenever an action mutates state. */
 export function dispatchAgentDbChanged(tables: AgentAffectedTable[]): void {
   if (tables.length === 0) return;
   const unique = Array.from(new Set(tables));

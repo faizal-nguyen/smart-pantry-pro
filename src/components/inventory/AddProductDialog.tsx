@@ -62,7 +62,7 @@ interface AddProductDialogProps {
    * rendering its `defaultTrigger` FAB. Inventory.tsx drives the
    * dialog through its FAB menu and used to pass these props that
    * were silently ignored, causing the default trigger to render a
-   * stray "+" button under the global AssistantFAB.
+   * stray "+" button under the former global assistant button.
    */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
