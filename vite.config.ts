@@ -109,7 +109,6 @@ export default defineConfig(({ mode, command }) => ({
             'tailwind-merge',
             'tailwindcss-animate',
             'lucide-react',
-            'date-fns',
             'zod',
             'react-hook-form',
             '@hookform/resolvers'
