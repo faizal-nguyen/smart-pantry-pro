@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import { keepsSessionTurns, type AssistantSessionMessage } from '@smart/shared';
-import { useFamilyMode } from '@/hooks/useFamilyMode';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -24,7 +23,6 @@ export default function RoutineHeader({ navigationConfig }: { navigationConfig?:
   const isHome = location.pathname === '/kitchen';
   const profileName = typeof user.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : user.email ?? 'Kitchen';
   const profileInitial = profileName.trim().slice(0,1).toLocaleUpperCase('fr-FR') || 'K';
-  const { canAccessSection, isFamilyModeActive } = useFamilyMode();
   const product = new URLSearchParams(location.search).get('product');
   const task = location.pathname + (product ? '?product=' + product : '');
   const key = user.id + ':' + task;
@@ -91,16 +89,16 @@ export default function RoutineHeader({ navigationConfig }: { navigationConfig?:
         })}
       </nav>
       <div className="flex items-center gap-1">
-        {!isHome && (!isFamilyModeActive || canAccessSection('assistant')) && <Button ref={helpTrigger} variant="ghost" className="min-h-11 gap-2" aria-label="Aide" onClick={() => setOpen(true)}><MessageCircle className="w-4 h-4" aria-hidden="true" /><span className="hidden xs:inline">Aide</span></Button>}
+        {!isHome && <Button ref={helpTrigger} variant="ghost" className="min-h-11 gap-2" aria-label="Aide" onClick={() => setOpen(true)}><MessageCircle className="w-4 h-4" aria-hidden="true" /><span className="hidden xs:inline">Aide</span></Button>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button ref={profileTrigger} variant="ghost" size="icon" className="kitchen-profile h-11 w-11" aria-label="Profil et paramètres"><span className="kitchen-profile-initial" aria-hidden="true">{profileInitial}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={10} className="w-64 p-2">
             <DropdownMenuLabel>Ma cuisine</DropdownMenuLabel>
-            {(!isFamilyModeActive || canAccessSection('assistant')) && <DropdownMenuItem className="min-h-11" onSelect={()=>setOpen(true)}>Aide pour cette tâche</DropdownMenuItem>}
+            <DropdownMenuItem className="min-h-11" onSelect={()=>setOpen(true)}>Aide pour cette tâche</DropdownMenuItem>
             {navigation.mainNavigation.flatMap(item=>item.subItems ?? []).map(sub=><DropdownMenuItem key={sub.id} asChild className="min-h-11"><Link to={sub.path}>{sub.label}</Link></DropdownMenuItem>)}
             <DropdownMenuSeparator />
-            {navigation.specialNavigation.filter(item=>!isFamilyModeActive || canAccessSection(item.section)).map(item=><DropdownMenuItem key={item.id} asChild className="min-h-11"><Link to={item.path}>{item.label}</Link></DropdownMenuItem>)}
-            {(!isFamilyModeActive || canAccessSection('settings')) && <DropdownMenuItem asChild className="min-h-11"><Link to="/settings?section=account">Mon compte et déconnexion</Link></DropdownMenuItem>}
+            {navigation.specialNavigation.map(item=><DropdownMenuItem key={item.id} asChild className="min-h-11"><Link to={item.path}>{item.label}</Link></DropdownMenuItem>)}
+            <DropdownMenuItem asChild className="min-h-11"><Link to="/settings?section=account">Mon compte et déconnexion</Link></DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

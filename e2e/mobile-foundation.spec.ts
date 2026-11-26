@@ -42,8 +42,6 @@ async function assertNoHorizontalScroll(page: Page) {
 }
 
 async function assertSingleAppNavigation(page: Page) {
-  // AppNavigation a une branche loading qui ne rend pas le data-testid
-  // tant que family/personalization/gridReady ne sont pas resolus.
   // On attend que le shell auth apparaisse, puis on verifie qu'il
   // n'y en a qu'un seul (PR2 ajoutera l'assertion stricte == 1 quand
   // le shell sera unifie ; pour PR1 c'est == 1 ou plus tolerant en

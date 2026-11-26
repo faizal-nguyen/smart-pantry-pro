@@ -10,10 +10,8 @@
  */
 import React, { useMemo,useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { cn } from '@/lib/utils';
 
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
-import { useAgeAdaptiveUI } from '@/hooks/useFamilyMode';
 import { useResponsive } from '@/hooks/useResponsive';
 import MemoryPanel from '@/components/assistant/MemoryPanel';
 import KitchenPageHeader from '@/components/layout/KitchenPageHeader';
@@ -44,7 +42,6 @@ const AssistantDashboard: React.FC = () => {
   // PRP-238 PR2 — AuthenticatedLayout garantit l'auth.
   const user = useAuthenticatedUser();
   void user;
-  const { adaptiveInterface, getStyleClasses } = useAgeAdaptiveUI();
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationId = searchParams.get('conversation');
   const [historyOpen,setHistoryOpen]=useState(false);
@@ -70,11 +67,7 @@ const AssistantDashboard: React.FC = () => {
   return (
     <div
       data-compact={viewport.availableHeight<600}
-      className={cn(
-        'culinary-page kitchen-page kitchen-assistant-page',
-        getStyleClasses(),
-        adaptiveInterface.buttonSpacing === 'spacious' && 'space-y-12',
-      )}
+      className="culinary-page kitchen-page kitchen-assistant-page"
     >
         <KitchenPageHeader title="Assistant" description="Un coup de main pour cuisiner avec ce que tu as." actions={<div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" aria-label="Nouvelle conversation" onClick={()=>{ setNewThread(value=>value+1);setSearchParams(mode==='general' ? {} : {mode}); }}><span className="sm:hidden">Nouveau</span><span className="hidden sm:inline">Nouvelle conversation</span></Button>

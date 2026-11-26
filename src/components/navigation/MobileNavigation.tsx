@@ -1,12 +1,10 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { NavigationItem } from './NavigationHub';
-import { FamilyProfile, NavigationSection } from '@/types/family-mode';
 import { isNavigationActive } from '@/lib/routineRoutes';
 import { cn } from '@/lib/utils';
 interface Props {
   navigationConfig: { mainNavigation:NavigationItem[]; specialNavigation:NavigationItem[]; allNavigation:NavigationItem[] };
-  currentProfile:FamilyProfile|null; onNavigate:(section:NavigationSection,path?:string) => void;
 }
 export default function MobileNavigation({ navigationConfig }: Props) {
   const location = useLocation(), navigate = useNavigate(), ref = useRef<HTMLElement>(null);

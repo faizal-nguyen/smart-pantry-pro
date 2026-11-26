@@ -4,7 +4,6 @@ import { MemoryRouter } from 'react-router-dom';
 import RoutineHeader from '../RoutineHeader';
 let mockOwner='owner-a';let mockSequence=0;const mockPost=jest.fn();
 jest.mock('@/hooks/useAuthenticatedUser',()=>({useAuthenticatedUser:()=>({id:mockOwner})}));
-jest.mock('@/hooks/useFamilyMode',()=>({useFamilyMode:()=>({canAccessSection:()=>true,isFamilyModeActive:false})}));
 jest.mock('@/services/assistantApi',()=>({postAssistantText:(...a:unknown[])=>mockPost(...a),newClientRequestId:()=>`request-${++mockSequence}`}));
 jest.mock('@/services/cookingSessions',()=>({CookingSessionSchema:{safeParse:()=>({success:false})}}));
 let mockDictation:UseDictationOptions|null=null;const mockCancel=jest.fn();
