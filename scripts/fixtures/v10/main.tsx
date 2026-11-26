@@ -3,7 +3,8 @@ import { carnetScene } from './carnet';
 import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MotionGlobalConfig } from 'framer-motion';
-import { MemoryRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { legacyRedirectRoutes } from '@/components/navigation/legacyRedirectRoutes';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { AuthSessionProvider } from '@/contexts/AuthSessionContext';
 import { ResponsiveProvider } from '@/contexts/ResponsiveContext';
@@ -102,12 +103,12 @@ function Fixture() {
     {!carnetScene && controls}
     <Routes><Route element={<AuthenticatedLayout/>}>
       <Route path="/kitchen" element={<KitchenDashboard/>}/><Route path="/kitchen/meal-planning" element={<MenusPage/>}/><Route path="/kitchen/meal-planning/proposition" element={<WeekProposalPage/>}/><Route path="/kitchen/cooking/:sessionId" element={<CookingSessionPage/>}/><Route path="/kitchen/recipes" element={<Recipes/>}/>
-      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/><Route path="/shopping/ticket" element={<ReceiptScanPage/>}/><Route path="/insights" element={<InsightsPage/>}/><Route path="/insights/waste" element={<Navigate to="/insights#pertes" replace/>}/>
+      <Route path="/kitchen/recipes/:id" element={<RecipeDetail/>}/><Route path="/shopping/list" element={<SmartShoppingList/>}/><Route path="/shopping/week" element={<WeekShoppingPage/>}/><Route path="/shopping/ticket" element={<ReceiptScanPage/>}/><Route path="/insights" element={<InsightsPage/>}/>
       <Route path="/settings" element={<Settings/>}/><Route path="/fixture/manual" element={<ManualRecipe/>}/>
       <Route path="/assistant" element={<AssistantDashboard/>}/>
       <Route path="/pantry/inventory" element={<Inventory/>}/>
-      <Route path="/pantry" element={<Navigate to="/pantry/inventory" replace/>}/>
-      <Route path="/shopping" element={<Navigate to="/shopping/list" replace/>}/>
+      {/* V11-06 E4b (R8): the router's alias routes, from the same table as App. */}
+      {legacyRedirectRoutes().map(alias => <Route key={alias.path} path={alias.path} element={alias.element}/>)}
       <Route path="*" element={<RecipeDetail/>}/>
     </Route></Routes>
     {carnetScene && controls}

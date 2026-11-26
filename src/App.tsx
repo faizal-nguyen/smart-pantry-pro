@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, Navigate, RouterProvider, RouteObject, Outlet } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, RouteObject, Outlet } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
@@ -44,7 +44,7 @@ const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
 const AssistantDashboard = lazy(() => import("./pages/assistant/AssistantDashboard"));
 
 // Composants de navigation
-import { getLegacyRedirections } from './components/navigation/NavigationHub';
+import { legacyRedirectRoutes } from './components/navigation/legacyRedirectRoutes';
 
 // Helper pour wrapper les composants lazy avec Suspense
 const withSuspense = (Component: React.ComponentType) => (
@@ -90,8 +90,6 @@ const protectedRoutes: RouteObject[] = [
   { path: "/", element: <Index /> },
 
   // Pantry
-  // The old « Ma Réserve Magique » page: the Stock tab is /pantry/inventory (audit 2026-11-07, UX P2 8).
-  { path: "/pantry", element: <Navigate to="/pantry/inventory" replace /> },
   { path: "/pantry/inventory", element: withSuspense(Inventory) },
 
   // Kitchen
@@ -101,13 +99,9 @@ const protectedRoutes: RouteObject[] = [
   { path: "/kitchen/recipes/:id/edit", element: withSuspense(RecipeEdit) },
   { path: "/kitchen/meal-planning", element: withSuspense(MealPlanningPage) },
   { path: "/kitchen/meal-planning/proposition", element: withSuspense(WeekProposalPage) },
-  // PRP-232 PR3 : favoris URL canonique = `?tab=library&filter=favorites`.
-  { path: "/kitchen/favorites", element: <Navigate to="/kitchen/recipes?tab=library&filter=favorites" replace /> },
-
   { path: "/kitchen/cooking/:sessionId", element: withSuspense(CookingSessionPage) },
 
   // Shopping
-  { path: "/shopping", element: <Navigate to="/shopping/list" replace /> },
   { path: "/shopping/list", element: withSuspense(SmartShoppingList) },
   // V11-01 E2: the week's shopping from the menu, the week in the address.
   { path: "/shopping/week", element: withSuspense(WeekShoppingPage) },
@@ -116,43 +110,17 @@ const protectedRoutes: RouteObject[] = [
 
   // Assistant
   { path: "/assistant", element: withSuspense(AssistantDashboard) },
-  { path: "/assistant/chat", element: <Navigate to="/assistant" replace /> },
 
   // Insights
   { path: "/insights", element: withSuspense(InsightsPage) },
-  { path: "/insights/waste", element: <Navigate to="/insights#pertes" replace /> },
 
   // Settings
   { path: "/settings", element: withSuspense(Settings) },
-  { path: "/settings/appearance", element: <Navigate to="/settings?section=appearance" replace /> },
 
-  // Redirections legacy
-  { path: "/games", element: <Navigate to="/kitchen/recipes" replace /> },
-  { path: "/games/*", element: <Navigate to="/kitchen/recipes" replace /> },
-  { path: "/shopping/store-mode", element: <Navigate to="/shopping/list" replace /> },
-  { path: "/shopping/history", element: <Navigate to="/shopping/list" replace /> },
-  { path: "/pantry/scanner", element: <Navigate to="/pantry/inventory" replace /> },
-  { path: "/pantry/alerts", element: <Navigate to="/pantry/inventory" replace /> },
-  { path: "/assistant/suggestions", element: <Navigate to="/assistant" replace /> },
-  { path: "/assistant/nutrition", element: <Navigate to="/assistant" replace /> },
-  { path: "/insights/analytics", element: <Navigate to="/insights" replace /> },
-  { path: "/insights/goals", element: <Navigate to="/insights" replace /> },
-  { path: "/settings/family", element: <Navigate to="/settings" replace /> },
-  { path: "/settings/parental", element: <Navigate to="/settings" replace /> },
+  // V11-06 E4b (R8): every historical address, one hop to its canonical screen, from the same
+  // table as the post-sign-in return (src/lib/legacyRoutes.ts).
+  ...legacyRedirectRoutes(),
 ];
-
-// Historical links stay available in production.
-{
-  protectedRoutes.push(
-    { path: "/inventory", element: <Navigate to="/pantry/inventory" replace /> },
-    { path: "/recipes", element: <Navigate to="/kitchen/recipes" replace /> },
-    { path: "/shopping-legacy", element: <Navigate to="/shopping/list" replace /> },
-  );
-}
-
-protectedRoutes.push(...Object.entries(getLegacyRedirections())
-  .filter(([path,to]) => path !== to && !protectedRoutes.some(route => route.path === path))
-  .map(([path,to]) => ({ path, element:<Navigate to={to} replace /> })));
 
 // Voice input lives in the assistant composer; no global floating microphone.
 // V10-03: legacy preferences are reviewed explicitly in the versioned profile.
