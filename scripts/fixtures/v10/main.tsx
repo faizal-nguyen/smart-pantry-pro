@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { AuthSessionProvider } from '@/contexts/AuthSessionContext';
 import { ResponsiveProvider } from '@/contexts/ResponsiveContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import { LayoutPerformanceProvider } from '@/components/performance/PerformanceMonitor';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import RecipeDetail from '@/pages/RecipeDetail';
 import SmartShoppingList from '@/pages/SmartShoppingList';
@@ -117,8 +116,8 @@ function Fixture() {
 }
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <ResponsiveProvider><AuthSessionProvider><LayoutPerformanceProvider><ThemeProvider>
+    <ResponsiveProvider><AuthSessionProvider><ThemeProvider>
       <MemoryRouter initialEntries={[new URLSearchParams(location.search).get('route') ?? '/kitchen']}><Fixture/></MemoryRouter>
-    </ThemeProvider></LayoutPerformanceProvider></AuthSessionProvider></ResponsiveProvider>
+    </ThemeProvider></AuthSessionProvider></ResponsiveProvider>
   </QueryClientProvider>,
 );
