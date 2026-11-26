@@ -82,7 +82,7 @@ export default function AssistantMemorySection() {
 
       {/* MemoryPanel PRP-223 PR6 — gère active/candidate + actions
           (confirm, oublier) + disclaimer health_sensitive. */}
-      <MemoryPanel />
+      <MemoryPanel presentation="sheet" />
 
       {/* Aperçu compact des conversations récentes — pas de search
           ici (cas d'usage dans la page assistant complète) ;
