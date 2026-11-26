@@ -112,7 +112,7 @@ function Fixture() {
       <Route path="*" element={<RecipeDetail/>}/>
     </Route></Routes>
     {carnetScene && controls}
-    <Toaster/><Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)"/>
+    <Toaster/><Sonner/>
   </CulinaryDesignContext.Provider>;
 }
 createRoot(document.getElementById('root')!).render(

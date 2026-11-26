@@ -176,7 +176,7 @@ const App = () => (
           <ThemeProvider>
             <RouterProvider router={router} />
             <Toaster />
-            <Sonner position="bottom-right" offset="calc(var(--content-bottom-pad, 0px) + 16px)" />
+            <Sonner />
           </ThemeProvider>
         </AuthSessionProvider>
       </ResponsiveProvider>
