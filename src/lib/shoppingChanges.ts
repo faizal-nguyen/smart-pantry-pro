@@ -1,8 +1,7 @@
-import type { ShoppingChange } from '@smart/shared';
+import { formatNumber, type ShoppingChange } from '@smart/shared';
 
-const quantityFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 /** A list quantity as the user reads it: « 1,5 », not « 1.5 ». */
-export const formatShoppingQuantity = (quantity: number): string => quantityFormat.format(quantity);
+export const formatShoppingQuantity = (quantity: number): string => formatNumber(quantity);
 const amount = (quantity: number | undefined, unit: string | undefined) =>
   `${quantity === undefined ? '' : formatShoppingQuantity(quantity)} ${unit ?? ''}`.trim();
 

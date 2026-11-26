@@ -21,7 +21,7 @@ import {
   type RiskTier,
 } from '@/services/assistantApi';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
-import { formatDate } from '@smart/shared';
+import { formatNumber, formatDate } from '@smart/shared';
 
 export interface AssistantActionsPanelProps {
   result: AssistantPlanResponse;
@@ -64,7 +64,6 @@ const NOT_A_CHANGE = new Set(['ask_clarification']);
 /** Confirmation outcomes the server could not settle yet: neither a failure nor a success. */
 const UNSETTLED_CODES = new Set(['EXECUTION_IN_PROGRESS', 'EXECUTION_UNVERIFIED']);
 const isChange = (action: ExecutedAction) => action.risk_tier !== 'read' && !NOT_A_CHANGE.has(action.tool);
-const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3 });
 const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'en-cas' };
 
 type Item = { name?: string; inventory_id?: string; quantity?: number; unit?: string };
@@ -79,7 +78,7 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
   // Rows chosen by id show the name the server read for them (« 200 g Riz basmati »).
   if (Array.isArray(args.items)) {
     return (args.items as Item[])
-      .map(item => `• ${`${typeof item.quantity === 'number' ? number.format(item.quantity) : ''} ${item.unit ?? ''} ${item.name ?? labels[item.inventory_id ?? ''] ?? ''}`.replace(/\s+/g, ' ').trim()}`)
+      .map(item => `• ${`${typeof item.quantity === 'number' ? formatNumber(item.quantity) : ''} ${item.unit ?? ''} ${item.name ?? labels[item.inventory_id ?? ''] ?? ''}`.replace(/\s+/g, ' ').trim()}`)
       .join('\n');
   }
   if (Array.isArray(args.shopping_item_ids)) {

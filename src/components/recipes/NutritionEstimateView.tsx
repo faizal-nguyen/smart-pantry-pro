@@ -1,4 +1,4 @@
-import { formatDate, MACRO_NUTRIENTS, MICRO_NUTRIENTS, type NutritionEstimate } from '@smart/shared';
+import { formatNumber, formatDate, MACRO_NUTRIENTS, MICRO_NUTRIENTS, type NutritionEstimate } from '@smart/shared';
 
 const sources:Record<string,string>={ manual:'saisie manuelle',openfoodfacts:'Open Food Facts',estimated:'estimation déclarée',ciqual2020:'Anses — Ciqual 2020' };
 const states:Record<NutritionEstimate['status'],string>={
@@ -6,7 +6,7 @@ const states:Record<NutritionEstimate['status'],string>={
 };
 export default function NutritionEstimateView({ nutrition,showDetails=true }:{ nutrition:NutritionEstimate;showDetails?:boolean }) {
   const nutrients=(fields:readonly {key:keyof NutritionEstimate['per_serving'];label:string;unit:string}[])=><dl className="grid grid-cols-2 sm:grid-cols-3 gap-3">{fields.map(({key,label,unit})=><div key={key}>
-    <dt className="text-muted-foreground">{label}</dt><dd>{nutrition.per_serving[key]==null ? 'Non renseigné' : `${nutrition.upper_bounds?.includes(key) ? '< ' : ''}${(nutrition.upper_bounds?.includes(key) ? Math.ceil(nutrition.per_serving[key]!*10000)/10000 : nutrition.per_serving[key]!).toLocaleString('fr-FR',{maximumFractionDigits:nutrition.upper_bounds?.includes(key) ? 4 : 2})} ${unit}`}</dd>
+    <dt className="text-muted-foreground">{label}</dt><dd>{nutrition.per_serving[key]==null ? 'Non renseigné' : `${nutrition.upper_bounds?.includes(key) ? '< ' : ''}${formatNumber(nutrition.upper_bounds?.includes(key) ? Math.ceil(nutrition.per_serving[key]!*10000)/10000 : nutrition.per_serving[key]!, { maximumFractionDigits: nutrition.upper_bounds?.includes(key) ? 4 : 2 })} ${unit}`}</dd>
   </div>)}</dl>;
   const details=<div className="space-y-2">
     {nutrition.sources.length>0 && <p>Sources : {[...new Set(nutrition.sources.map(source=>{

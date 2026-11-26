@@ -2,7 +2,7 @@ import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { formatDate } from '@smart/shared';
+import { formatMoney, formatNumber, formatDate } from '@smart/shared';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -16,8 +16,6 @@ import { WASTE_WINDOW_DAYS, knownCost, wasteSummary, type WasteEvent, type Waste
 const HISTORY_PAGE = 20;
 const REASON_LABELS: Record<WasteReason, string> = { expired: 'Périmé', spoiled: 'Abîmé', leftover: 'Reste', other: 'Autre' };
 const PERIOD_LABELS: Record<WastePeriod, string> = { last30: `${WASTE_WINDOW_DAYS} derniers jours`, all: 'Depuis le début' };
-const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
-const AMOUNT = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
 
 const sinceLabel = (start: string, end: string) => `depuis le ${formatDate(start, start.slice(0, 4) === end.slice(0, 4) ? 'dayMonth' : 'dayMonthYear')}`;
 const periodLabel = (period: WastePeriod, summary: WasteSummary) => summary.start === null ? 'aucune déclaration datée'
@@ -27,7 +25,7 @@ const undatedLabel = (count: number) => count > 1
   : '1 déclaration sans date utilisable, non comptée';
 const quantityLabel = (event: WasteEvent) => {
   const amount = Number(event.quantity);
-  return Number.isFinite(amount) && amount > 0 ? `${AMOUNT.format(amount)}${event.unit_type ? ` ${event.unit_type}` : ''}` : null;
+  return Number.isFinite(amount) && amount > 0 ? `${formatNumber(amount, { maximumFractionDigits: 2 })}${event.unit_type ? ` ${event.unit_type}` : ''}` : null;
 };
 const eventDay = (event: WasteEvent) => formatDate(event.occurred_at, 'dayMonthYear') || 'Date inconnue';
 
@@ -65,7 +63,7 @@ function Measures({ period, summary }: { period: WastePeriod; summary: WasteSumm
     </MeasureCard>
     <MeasureCard id="losses-cost-title" title="Coût connu">
       {summary.knownCostCount > 0 ? <>
-        <p className="text-3xl font-semibold tabular-nums">{EUR.format(summary.knownCostTotal)}</p>
+        <p className="text-3xl font-semibold tabular-nums">{formatMoney(summary.knownCostTotal)}</p>
         <p className="text-sm text-muted-foreground">coût connu pour {summary.knownCostCount} {summary.knownCostCount > 1 ? 'pertes' : 'perte'} sur {summary.count}</p>
       </> : <p className="text-sm text-muted-foreground">Coût inconnu pour les pertes de la période</p>}
     </MeasureCard>
@@ -135,7 +133,7 @@ export function WasteSection({ onSettled }: { onSettled?: () => void } = {}) {
               <p className="text-sm text-muted-foreground">{[
                 eventDay(event), REASON_LABELS[event.reason], event.category,
                 quantityLabel(event),
-                knownCost(event.estimated_cost_eur) === null ? null : EUR.format(knownCost(event.estimated_cost_eur)!),
+                knownCost(event.estimated_cost_eur) === null ? null : formatMoney(knownCost(event.estimated_cost_eur)!),
               ].filter(Boolean).join(' · ')}</p>
               {event.notes && <p className="break-words text-sm italic text-muted-foreground">{event.notes}</p>}
             </div>

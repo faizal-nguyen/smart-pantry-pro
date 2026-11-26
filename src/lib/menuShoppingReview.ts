@@ -2,7 +2,7 @@
  * V11-01 E2 — the review of a week's shopping: what the user keeps, and the menu_add_missing
  * payload it gives. Pure functions; the page holds the choices, the server bounds them again.
  */
-import { formatDate, SHOPPING_NAME_MAX_LENGTH, SHOPPING_UNIT_MAX_LENGTH, type MenuLineState, type MenuNeedMeal, type MenuShoppingLine, type MenuShoppingPreview, type StockCommand } from '@smart/shared';
+import { formatNumber, formatDate, SHOPPING_NAME_MAX_LENGTH, SHOPPING_UNIT_MAX_LENGTH, type MenuLineState, type MenuNeedMeal, type MenuShoppingLine, type MenuShoppingPreview, type StockCommand } from '@smart/shared';
 import { formatShoppingQuantity } from '@/lib/shoppingChanges';
 
 export type MenuAddMissingPayload = Extract<StockCommand, { command_type: 'menu_add_missing' }>['payload'];
@@ -23,7 +23,6 @@ const SECTION_ORDER: MenuLineState[] = ['to_add', 'excess', 'manual', 'verify', 
 const MEAL_LABELS: Record<string, string> = { breakfast: 'petit-déjeuner', lunch: 'déjeuner', dinner: 'dîner', snack: 'collation' };
 const INVALID_AMOUNT = 'Indique une quantité positive.';
 /** An amount as it is typed: no grouping space (« 1500 »), a comma, at most three decimals. */
-const editable = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 3, useGrouping: false });
 
 /** The list's command accepts the name (when no product is known) and the unit only up to a length. */
 const listCanHold = (line: MenuShoppingLine) => {
@@ -36,7 +35,7 @@ const isWritable = (line: MenuShoppingLine): line is MenuShoppingLine & { state:
 
 /** The text of an amount in its field. */
 export function editableQuantity(value: number): string {
-  return editable.format(value);
+  return formatNumber(value, { maximumFractionDigits: 3, useGrouping: false });
 }
 
 /** The amount proposed for a line: the need to add, or the menu's share to take back. */
