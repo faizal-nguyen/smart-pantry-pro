@@ -1,6 +1,6 @@
 # Politique de Confidentialité - Smart Pantry Pro
 
-*Dernière mise à jour : Janvier 2025*
+*Dernière mise à jour : Janvier 2025. Mise à jour partielle le 26 novembre 2026 : journal d'erreurs techniques (section 7.3).*
 
 ## 1. Introduction
 
@@ -107,6 +107,16 @@ Vous pouvez limiter le traitement de vos données via les paramètres de confide
 - Tests de sécurité réguliers
 - Conformité ISO 27001
 
+### 7.3 Journal d'erreurs techniques
+Pour détecter et corriger les plantages, quand l'application rencontre une erreur dans votre navigateur, elle envoie un rapport technique au serveur, qui l'inscrit dans les journaux d'exécution de l'hébergeur (Vercel). Ce rapport contient uniquement :
+- le type d'erreur et son nom technique (par exemple `TypeError`) ;
+- un code technique, s'il fait partie d'une liste connue ;
+- le modèle de la page concernée (par exemple `/kitchen/recipes/:id` pour une fiche recette), jamais son adresse complète ni ses identifiants ;
+- les lignes techniques de la pile d'appels : nom de fonction, fichier de l'application, ligne et colonne, sans le message d'erreur ;
+- la version de l'application.
+
+Il ne contient ni le message d'erreur, ni ce que vous avez saisi, ni l'adresse complète de la page, ni votre identifiant de compte. Un rapport n'est envoyé que si vous êtes connecté. L'hébergeur peut conserver de son côté, dans ses journaux d'infrastructure, l'adresse IP et les métadonnées techniques de la requête ; nous ne les ajoutons pas au rapport. D'après la documentation de Vercel, les journaux d'exécution sont conservés une heure avec la formule d'hébergement actuelle. Base légale : intérêt légitime, pour la sécurité et la fiabilité du service.
+
 ## 8. Conservation des Données
 
 ### 8.1 Durées de Conservation
@@ -125,7 +135,7 @@ Vous pouvez limiter le traitement de vos données via les paramètres de confide
 ### 9.1 Services Tiers Essentiels
 - **Supabase** : Base de données (chiffrée, hébergée en Europe)
 - **OpenAI** : Reconnaissance d'images (données anonymisées, pas de stockage)
-- **Vercel** : Hébergement (pas d'accès aux données utilisateur)
+- **Vercel** : Hébergement de l'application, de l'API et de leurs journaux techniques (voir section 7.3)
 
 ### 9.2 Garanties
 - Accords de confidentialité stricts avec tous les prestataires
