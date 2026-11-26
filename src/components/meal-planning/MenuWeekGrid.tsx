@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { formatDate, calendarDate } from '@smart/shared';
+import { APP_LOCALE, formatDate, calendarDate } from '@smart/shared';
 import { useCalendarNow } from '@/hooks/useCalendarNow';
 import MenuEntryCard, { type MenuCardActions } from './MenuEntryCard';
 import type { MenuEntryView, MenuMealType } from '@/hooks/useWeeklyMenu';
@@ -86,7 +86,7 @@ export default function MenuWeekGrid({weekStart,entries,onAddSlot,actions}:MenuW
     return <div className="kitchen-menu-slot" role="group" aria-label={`${day.label} — ${meal.label}`} key={meal.value} {...drop}>
       <h3>{meal.label}</h3>
       {planned.length ? planned.map(entry=><MenuEntryCard key={entry.id} entry={entry} actions={actions}
-        drag={pointer && actions.onDrop ? { enabled:canDrag,dragging:held?.id===entry.id,onStart:()=>startDrag(entry),onEnd:letGo } : undefined}/>) : <button className="kitchen-menu-empty" onClick={()=>onAddSlot({day_of_week:day.index,meal_type:meal.value,day_label:day.label,meal_label:meal.label})} aria-label={`Ajouter une recette — ${day.label} ${meal.label.toLocaleLowerCase('fr')}`}><Plus className="h-4 w-4" aria-hidden="true"/><span>Choisir une recette</span></button>}
+        drag={pointer && actions.onDrop ? { enabled:canDrag,dragging:held?.id===entry.id,onStart:()=>startDrag(entry),onEnd:letGo } : undefined}/>) : <button className="kitchen-menu-empty" onClick={()=>onAddSlot({day_of_week:day.index,meal_type:meal.value,day_label:day.label,meal_label:meal.label})} aria-label={`Ajouter une recette — ${day.label} ${meal.label.toLocaleLowerCase(APP_LOCALE)}`}><Plus className="h-4 w-4" aria-hidden="true"/><span>Choisir une recette</span></button>}
       {hint && <p className="kitchen-menu-drop-hint">{hint}</p>}
     </div>;
   });

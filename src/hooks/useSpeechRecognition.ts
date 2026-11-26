@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
+import { APP_LOCALE } from '@smart/shared';
 
 interface SpeechRecognitionResult {
   text: string;
@@ -41,7 +42,7 @@ export const useSpeechRecognition = (
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const {
-    language = 'fr-FR',
+    language = APP_LOCALE,
     continuous = false,
     interimResults = true
   } = options;

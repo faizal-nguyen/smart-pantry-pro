@@ -3,7 +3,7 @@
  * requests it sends to week-proposal (first, « Autre recette », recomputation), the update_menu it
  * validates with, and the words of each slot. The server checks everything again.
  */
-import { menuSlotKey, type ProposedMeal, type RecipeReference, type WeekProposal, type WeekProposalRequest, type WeekProposalSlot } from '@smart/shared';
+import { APP_LOCALE, menuSlotKey, type ProposedMeal, type RecipeReference, type WeekProposal, type WeekProposalRequest, type WeekProposalSlot } from '@smart/shared';
 import type { MenuEntryView, MenuMealType } from '@/hooks/useWeeklyMenu';
 import { MEALS, slotDate, slotLabel } from '@/lib/menuEdit';
 import type { MenuSetOperation } from '@/lib/menuCopy';
@@ -53,7 +53,7 @@ export function openSlots(weekStart: string, today: string, entries: MenuEntryVi
 export function excludedTerms(text: string): string[] {
   const seen = new Set<string>();
   return text.split(/[,;]/).map(term => term.trim().slice(0, MAX_TERM)).filter(term => {
-    const key = term.toLocaleLowerCase('fr');
+    const key = term.toLocaleLowerCase(APP_LOCALE);
     if (!term || seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -141,7 +141,7 @@ export function availabilityText(slot: FilledSlot): string {
 /** « 5 repas ajoutés au menu de la semaine du 7 → 13 déc. » */
 export function addedMessage(count: number, weekStart: string): string {
   const week = menuWeekLabel(weekStart);
-  return `${count} repas ajouté${count > 1 ? 's' : ''} au menu de la ${week.charAt(0).toLocaleLowerCase('fr')}${week.slice(1)}`;
+  return `${count} repas ajouté${count > 1 ? 's' : ''} au menu de la ${week.charAt(0).toLocaleLowerCase(APP_LOCALE)}${week.slice(1)}`;
 }
 
 /** A kept slot comes back without reasons (no engine read): it keeps those it was proposed with. */

@@ -22,6 +22,7 @@ import { leftoverCapacity, servingsBounds, slotLabel } from '@/lib/menuEdit';
 import { useCookRecipe } from '@/hooks/useCookRecipe';
 import { useRefreshWeeklyMenu, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 import type { MenuSlotRef } from '@/lib/menuEdit';
+import { APP_LOCALE } from '@smart/shared';
 
 /** The type a held meal travels under: the app's own, never its name as plain text. */
 export const MENU_ENTRY_DRAG_TYPE = 'application/x-smart-menu-entry';
@@ -112,7 +113,7 @@ export default function MenuEntryCard({ entry, actions, drag }: MenuEntryCardPro
       )}
       {isLeftover && <p className="kitchen-menu-entry-origin">
         <Soup className="h-3 w-3" aria-hidden="true" />
-        {origin ? `Reste du ${slotLabel(origin).toLocaleLowerCase('fr')}` : 'Reste d’un repas d’une autre semaine'}
+        {origin ? `Reste du ${slotLabel(origin).toLocaleLowerCase(APP_LOCALE)}` : 'Reste d’un repas d’une autre semaine'}
       </p>}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {totalTime > 0 && !isLeftover && (

@@ -4,7 +4,7 @@
  * A meal already planned there is kept unless the user chose to replace it; a cooked one is always kept
  * (update_menu refuses to replace it, which would refuse the whole copy).
  */
-import type { MenuOperation, StockCommandResult } from '@smart/shared';
+import { APP_LOCALE, type MenuOperation, type StockCommandResult } from '@smart/shared';
 import type { MenuEntryView } from '@/hooks/useWeeklyMenu';
 import { menuWeekLabel, shiftMenuWeek } from '@/lib/menuWeek';
 import { slotDate, slotMoment, type MenuSlotRef } from '@/lib/menuEdit';
@@ -87,7 +87,7 @@ export function copyTargetWeeks(sourceWeek: string): string[] {
  */
 export function copyMessage(copied: number, targetWeek: string, removed: NonNullable<StockCommandResult['menu_edit']>['removed'] = []): string {
   const week = menuWeekLabel(targetWeek);
-  const head = `${copied} repas copié${copied > 1 ? 's' : ''} vers la ${week.charAt(0).toLocaleLowerCase('fr')}${week.slice(1)}`;
+  const head = `${copied} repas copié${copied > 1 ? 's' : ''} vers la ${week.charAt(0).toLocaleLowerCase(APP_LOCALE)}${week.slice(1)}`;
   const leftovers = removed.filter(row => row.leftover_of).length;
   const meals = removed.length - leftovers;
   const parts = [

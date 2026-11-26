@@ -4,6 +4,7 @@
  * each outcome. The server checks it all again (update_menu); these only shape the screen.
  */
 import type { MenuEntryView, MenuMealType } from '@/hooks/useWeeklyMenu';
+import { APP_LOCALE } from '@smart/shared';
 
 export interface MenuSlotRef { day_of_week: number; meal_type: MenuMealType }
 export interface MoveOption extends MenuSlotRef {
@@ -39,7 +40,7 @@ const sumServings = (items: MenuEntryView[]) => items.reduce((total, item) => to
 
 /** « Mercredi · déjeuner ». */
 export function slotLabel(slot: MenuSlotRef): string {
-  return `${DAY_LABELS[slot.day_of_week]} · ${MEAL_LABELS[slot.meal_type].toLocaleLowerCase('fr')}`;
+  return `${DAY_LABELS[slot.day_of_week]} · ${MEAL_LABELS[slot.meal_type].toLocaleLowerCase(APP_LOCALE)}`;
 }
 
 /** The day of a slot of the week starting on `weekStart` (AAAA-MM-JJ). */
@@ -132,8 +133,8 @@ export function changeMessage(change: MenuChange): string {
   const name = `« ${change.entry.recipe_name} »`;
   switch (change.kind) {
     case 'servings': return `${name} : ${plural(change.servings, 'portion')}.`;
-    case 'move': return change.occupant ? `${name} et « ${change.occupant.recipe_name} » échangés.` : `${name} déplacé : ${slotLabel(change.slot).toLocaleLowerCase('fr')}.`;
-    case 'leftover': return `Reste prévu : ${slotLabel(change.slot).toLocaleLowerCase('fr')}, ${plural(change.servings, 'portion')}.`;
+    case 'move': return change.occupant ? `${name} et « ${change.occupant.recipe_name} » échangés.` : `${name} déplacé : ${slotLabel(change.slot).toLocaleLowerCase(APP_LOCALE)}.`;
+    case 'leftover': return `Reste prévu : ${slotLabel(change.slot).toLocaleLowerCase(APP_LOCALE)}, ${plural(change.servings, 'portion')}.`;
     case 'remove': return change.removed > 1 ? `${name} retiré du menu, avec ${plural(change.removed - 1, 'reste')}.` : `${name} retiré du menu.`;
   }
 }

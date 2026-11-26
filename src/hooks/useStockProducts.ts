@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { formatShoppingQuantity } from '@/lib/shoppingChanges';
+import { APP_LOCALE } from '@smart/shared';
 
 /** A product of the account's stock, with the amounts of its lots (« 1 contenant », « 250 ml »). */
 export interface StockProduct { id: string; name: string; amounts: string[] }
@@ -17,7 +18,7 @@ export function stockProducts(rows: LotRow[]): StockProduct[] {
     const known = byProduct.get(row.product_id);
     byProduct.set(row.product_id, known ? { ...known, amounts: [...known.amounts, amount] } : { id: row.product_id, name, amounts: [amount] });
   }
-  return [...byProduct.values()].sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  return [...byProduct.values()].sort((a, b) => a.name.localeCompare(b.name, APP_LOCALE));
 }
 
 /** PostgREST answers at most this many rows (max-rows), possibly fewer. */
