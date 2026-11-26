@@ -1,12 +1,12 @@
-import { emptyNutritionProfile, type DiscoveryItem, type ImportedRecipeDraft, type NutritionProfileSettings } from '@smart/shared';
+import { calendarDate, emptyNutritionProfile, type DiscoveryItem, type ImportedRecipeDraft, type NutritionProfileSettings } from '@smart/shared';
 import { evaluateConstraints, scoreExplicitTaste } from '../recommendations/PersonalizationScoring.js';
 import type { RecipeWithIngredients } from '../recommendations/types.js';
 
 /** ISO week with Monday/Thursday windows, computed in Paris rather than the host timezone. */
 export function discoverySelectionKey(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
-  const part = (type: string) => parts.find(value => value.type === type)!.value;
-  const day = new Date(Date.UTC(Number(part('year')), Number(part('month')) - 1, Number(part('day'))));
+  const today = calendarDate(now);
+  if (!today) throw new RangeError('Invalid selection date');
+  const day = new Date(`${today}T00:00:00Z`);
   const isoDay = day.getUTCDay() || 7;
   day.setUTCDate(day.getUTCDate() + 4 - isoDay);
   const year = day.getUTCFullYear();

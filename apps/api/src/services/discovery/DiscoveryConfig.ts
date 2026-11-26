@@ -9,5 +9,4 @@ export const discoveryConfig = Object.freeze({
   selectionLimit: 5 as const,
   maxCreators: 30 as const,
   maxItems: 2000 as const,
-  timezone: 'Europe/Paris' as const,
 });
