@@ -173,14 +173,17 @@ WITH CHECK (auth.uid() = user_id);
 
 ### 2.5 Edge Functions
 
-Ne pas déployer `ai-assistant-enhanced`, `indian-price-estimator`, `recipe-assistant` ni `panic-mode` : aucune n'a d'appelant dans l'application, et les trois dernières se fient à un identifiant de compte fourni par l'appelant tout en utilisant la clé de service. Si elles sont déployées, les dépublier (décision D9 de [PRP-V11-06](../PRP/V11/PRP-V11-06-Consolidation-Design-Mesure.md)). `cleanup-shopping-list` est retirée du dépôt, et sa tâche nocturne par la migration `20261122204021_remove_cleanup_shopping_list_cron.sql`.
+L'application n'utilise aucune fonction Edge : toutes les opérations passent par l'API Express ou par la base sous RLS.
+
+- `ai-assistant-enhanced`, `indian-price-estimator`, `recipe-assistant` et `panic-mode` ont été dépubliées au rang 1 (décision D9 de [PRP-V11-06](../PRP/V11/PRP-V11-06-Consolidation-Design-Mesure.md)), puis leur code a quitté le dépôt avec `_shared` ([V11-06 E4a](implementations/V11-06-E4a.md)). Elles n'avaient aucun appelant, et trois d'entre elles se fiaient à un identifiant de compte fourni par l'appelant tout en utilisant la clé de service : **ne pas les redéployer**.
+- Leur code reste dans l'historique : `git show 75342be4:supabase/functions/<nom>/index.ts` (dernier commit de `main` qui le contient).
+- `cleanup-shopping-list` est retirée du dépôt, et sa tâche nocturne par la migration `20261122204021_remove_cleanup_shopping_list_cron.sql`.
+
+Vérifier qu'aucune fonction n'est déployée :
 
 ```bash
-# Lister les fonctions déployées
-supabase functions list
-
-# Dépublier une fonction exposée
-supabase functions delete recipe-assistant
+# Doit afficher une liste vide
+supabase functions list --remote=<référence du projet>
 ```
 
 ## 3. Configuration Vercel
