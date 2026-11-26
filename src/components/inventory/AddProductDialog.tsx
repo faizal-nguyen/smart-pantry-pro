@@ -22,7 +22,7 @@ import { useBarcodeAPI, ProductInfo } from "@/hooks/useBarcodeAPI";
 // The scanner and its decoder (~300 kB) load when it opens, not with every manual add (audit 2026-11-07, perf P1 1).
 const BarcodeScanner = lazy(() => import("./BarcodeScanner"));
 import { ImageUploadSection } from "./ImageUploadSection";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 const CATEGORIES = [
   "Fruits et légumes",
@@ -191,8 +191,7 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
         setImageUrl(product.image_url);
       }
       setSelectedProduct(product);
-      toast({
-        title: "Produit sélectionné !",
+      toast("Produit sélectionné !", {
         description: `${product.name} - Vérifiez les informations avant de continuer`,
       });
     }
@@ -215,8 +214,7 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
         setImageUrl(existingProduct.image_url);
       }
       setSelectedProduct(existingProduct);
-      toast({
-        title: "Produit existant trouvé !",
+      toast("Produit existant trouvé !", {
         description: `${existingProduct.name} - Vous pouvez modifier les informations si nécessaire`,
       });
       return;
@@ -284,24 +282,19 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
           imageUrl: result.product.image_url 
         });
         
-        toast({
-          title: "Produit trouvé !",
+        toast("Produit trouvé !", {
           description: `Informations récupérées pour ${result.product.name}`,
         });
       } else {
         console.log('❌ Product not found in API');
-        toast({
-          title: "Produit non trouvé",
+        toast.error("Produit non trouvé", {
           description: "Aucune information disponible pour ce code-barres",
-          variant: "destructive",
         });
       }
     } catch (error) {
       console.error('❌ Error in handleBarcodeScanned:', error);
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de récupérer les informations du produit",
-        variant: "destructive",
       });
     }
   };
@@ -482,22 +475,17 @@ const AddProductDialog = ({ trigger, open: controlledOpen, onOpenChange, startWi
                             if (result.product.suggested_unit && UNIT_TYPES.includes(result.product.suggested_unit)) {
                               setUnitType(result.product.suggested_unit);
                             }
-                            toast({
-                              title: "Produit trouvé !",
+                            toast("Produit trouvé !", {
                               description: `Informations récupérées pour ${result.product.name}`,
                             });
                           } else {
-                            toast({
-                              title: "Produit non trouvé",
+                            toast.error("Produit non trouvé", {
                               description: "Aucune information disponible pour ce code-barres",
-                              variant: "destructive",
                             });
                           }
                         } catch (error) {
-                          toast({
-                            title: "Erreur",
+                          toast.error("Erreur", {
                             description: "Impossible de récupérer les informations du produit",
-                            variant: "destructive",
                           });
                         }
                       }}

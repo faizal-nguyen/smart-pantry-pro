@@ -15,7 +15,6 @@ jest.mock('@/integrations/supabase/client', () => ({ supabase: { from: (table: s
   return query;
 } } }));
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: 'owner' } }) }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 jest.mock('@/lib/agentEvents', () => ({ useAgentDbInvalidation: jest.fn() }));
 jest.mock('@/lib/recipeSource', () => ({ fetchUnifiedRecipe: jest.fn() }));
 jest.mock('@/services/stockCommands', () => ({ pendingIntent: jest.fn(async () => null), commandForIntent: jest.fn(), executeStockCommand: jest.fn(), finishIntent: jest.fn() }));

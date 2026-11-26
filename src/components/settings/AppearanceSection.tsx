@@ -23,7 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from '@/hooks/useTheme';
 import { useAccessibility } from '@/hooks/useAccessibility';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface OsPreferenceRowProps {
   label: string;
@@ -48,13 +48,11 @@ function OsPreferenceRow({ label, detected, description }: OsPreferenceRowProps)
 export default function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   const { settings } = useAccessibility();
-  const { toast } = useToast();
 
   const handleToggle = () => {
     const next = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
-    toast({
-      title: 'Thème modifié',
+    toast('Thème modifié', {
       description: `Mode ${next === 'dark' ? 'sombre' : 'clair'} activé.`,
     });
   };
