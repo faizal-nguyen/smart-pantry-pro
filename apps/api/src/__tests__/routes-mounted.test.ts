@@ -71,6 +71,10 @@ const REMOVED_ROUTES: Probe[] = [
   { method: 'post', path: '/api/ai-assistant-enhanced' },
   { method: 'get',  path: '/api/diagnostics' },
   { method: 'get',  path: '/api/realtime/status' },
+  // V11-06 E4b (R9): historical v1 routes without a caller.
+  { method: 'get',  path: '/api/v1/inventory' },
+  { method: 'get',  path: '/api/v1/inventory/stats' },
+  { method: 'post', path: '/api/v1/inventory' },
 ];
 
 // Costly or outbound routes kept for a live caller: signed-in users only.

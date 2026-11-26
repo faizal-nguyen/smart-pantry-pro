@@ -33,7 +33,6 @@ Smart Pantry Pro API follows a **layered architecture** with clear separation of
 **Responsibility**: HTTP request handling, response formatting
 
 **Files**:
-- `inventory.routes.ts` - Inventory management endpoints
 - `recipes.routes.ts` - Recipe management endpoints
 - `shopping.routes.ts` - Shopping list endpoints
 - `users.routes.ts` - User profile endpoints
@@ -69,7 +68,6 @@ router.get('/stats', async (req: Request, res: Response) => {
 **Responsibility**: Business logic, data orchestration, complex operations
 
 **Files**:
-- `InventoryService.ts` - Inventory business logic
 - `RecipeService.ts` - Recipe operations, cookable recipes
 - `ShoppingService.ts` - Shopping list management
 - `UserService.ts` - User profile management
@@ -299,7 +297,7 @@ export function validateBody<T extends ZodSchema>(schema: T) {
 7. **Supabase** → Returns data
 8. **Response** → Formatted JSON response to client
 
-### Example: Create Inventory Item
+### Example: Create Inventory Item (historique : la route et `InventoryService` ont été retirés en V11-06 E4b)
 
 ```
 Client
@@ -442,7 +440,7 @@ try {
 - Database operations
 - Authentication flows
 
-### Example Test
+### Example Test (historique : `InventoryService` a été retiré en V11-06 E4b)
 
 ```typescript
 describe('InventoryService', () => {

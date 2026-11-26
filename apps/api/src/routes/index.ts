@@ -9,7 +9,6 @@
  * - DELETE: Delete resources
  */
 
-export { createInventoryRouter } from './inventory.routes.js';
 export { createRecipesRouter } from './recipes.routes.js';
 export { createShoppingRouter } from './shopping.routes.js';
 export { createUsersRouter } from './users.routes.js';
