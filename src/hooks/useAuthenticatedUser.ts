@@ -37,8 +37,8 @@ export function useAuthenticatedUser(): User {
 
 /**
  * Variante optionnelle : pour les rares composants qui peuvent etre
- * rendus aussi en zone publique (ex: AssistantProvider mounte au
- * root). Retourne null si pas authentifie au lieu de throw.
+ * rendus aussi en zone publique. Retourne null si pas authentifie au
+ * lieu de throw.
  */
 export function useAuthSessionOptional(): { user: User | null; isLoading: boolean } {
   const ctx = useContext(AuthSessionContext);
