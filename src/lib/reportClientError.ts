@@ -2,11 +2,15 @@ import { apiPost } from './api';
 import { CURRENT_BUILD } from './appVersion';
 import { createErrorReporter } from './errorReporting';
 
-/** Sends crashes to the API, which logs them (signed in only: the route needs a token). */
+/**
+ * Sends crashes to the API, which logs them (signed in only: the route needs a token). Only the
+ * route pattern of the address leaves the browser, never the address itself (V11-06 D10).
+ */
 export const reportClientError = createErrorReporter({
   send: report => apiPost('/v1/client-errors', report).then(() => undefined),
   build: CURRENT_BUILD,
   path: () => window.location.pathname,
+  origin: () => window.location.origin,
 });
 
 /** Errors and rejected promises no component caught. */
