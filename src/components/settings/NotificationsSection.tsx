@@ -98,6 +98,7 @@ export default function NotificationsSection() {
               type="button"
               variant="outline"
               size="sm"
+              className="min-h-11"
               onClick={() => void requestNotificationPermission()}
             >
               Demander l&apos;autorisation

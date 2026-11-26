@@ -101,7 +101,7 @@ export default function AccountSection({ user }: AccountSectionProps) {
         <Button
           type="button"
           variant="outline"
-          className="w-full justify-start gap-2"
+          className="min-h-11 w-full justify-start gap-2"
           onClick={() => setShowResetDialog(true)}
         >
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -113,7 +113,7 @@ export default function AccountSection({ user }: AccountSectionProps) {
         <Button
           type="button"
           variant="destructive"
-          className="w-full justify-start gap-2"
+          className="min-h-11 w-full justify-start gap-2"
           onClick={() => setShowLogoutDialog(true)}
         >
           <LogOut className="h-4 w-4" aria-hidden="true" />
@@ -131,11 +131,11 @@ export default function AccountSection({ user }: AccountSectionProps) {
             {accountError && <p role="alert" className="text-sm text-destructive">{accountError}</p>}
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={logoutPending}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel className="min-h-11" disabled={logoutPending}>Annuler</AlertDialogCancel>
             <Button
               onClick={handleLogout}
               disabled={logoutPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {logoutPending ? 'Déconnexion…' : 'Se déconnecter'}
             </Button>
@@ -153,8 +153,8 @@ export default function AccountSection({ user }: AccountSectionProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction onClick={handleResetOnboarding}>
+            <AlertDialogCancel className="min-h-11">Annuler</AlertDialogCancel>
+            <AlertDialogAction className="min-h-11" onClick={handleResetOnboarding}>
               Réinitialiser
             </AlertDialogAction>
           </AlertDialogFooter>

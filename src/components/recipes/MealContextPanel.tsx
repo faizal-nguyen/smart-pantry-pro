@@ -9,8 +9,10 @@ export default function MealContextPanel({ value, onChange, defaults, variant='i
   const update = (patch: Partial<MealContext>) => onChange({ ...value, ...patch });
   const minutes=value.minutes || defaults?.minutes,servings=value.servings || defaults?.servings;
   const summary = [value.occasion === 'lunch' ? 'Ce midi' : value.occasion === 'snack' ? 'Collation' : 'Ce soir', minutes ? `${minutes} min` : null, servings ? `${servings} ${Number(servings)===1 ? 'personne' : 'personnes'}` : null, value.query || null, value.craving === 'warm' ? 'Chaud' : value.craving === 'fresh' ? 'Frais' : value.craving === 'comfort' ? 'Réconfortant' : null].filter(Boolean).join(' · ');
+  // The prompt is a Button (V11-06 E2b). Its own classes outrank `.kitchen-meal-prompt`: those that
+  // would change the prompt's look are set back to its values, padding at 900 px and wider included.
   return <Dialog open={open} onOpenChange={setOpen}>
-    {variant==='prompt' ? <DialogTrigger asChild><button className="kitchen-meal-prompt"><Search className="h-5 w-5 shrink-0" strokeWidth={1.4} aria-hidden="true" /><span>Une envie, une contrainte ?</span><span className="sr-only">Modifier le repas : {summary}</span></button></DialogTrigger> : <div className="flex min-h-11 items-center justify-between gap-3 border-b pb-2">
+    {variant==='prompt' ? <DialogTrigger asChild><Button variant="ghost" className="kitchen-meal-prompt flex h-auto justify-start gap-3 whitespace-normal rounded-lg px-[14px] py-[10px] font-normal hover:bg-card/30 min-[900px]:py-2 [&_svg]:size-5"><Search className="h-5 w-5 shrink-0" strokeWidth={1.4} aria-hidden="true" /><span>Une envie, une contrainte ?</span><span className="sr-only">Modifier le repas : {summary}</span></Button></DialogTrigger> : <div className="flex min-h-11 items-center justify-between gap-3 border-b pb-2">
       <p className="text-sm font-medium break-words" aria-label="Contexte du repas">{summary}</p>
       <DialogTrigger asChild><Button variant="ghost" className="min-h-11 shrink-0">Modifier le repas</Button></DialogTrigger>
     </div>}
