@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom';
-import { calendarDate, calendarWeekStart } from '@smart/shared';
-import { useWeeklyMenu, type MenuMealType } from '@/hooks/useWeeklyMenu';
-import { Button } from '@/components/ui/button';
+import { calendarDate } from '@smart/shared';
+import type { MenuMealType } from '@/hooks/useWeeklyMenu';
+import type { MenuRead } from '@/components/kitchen/today/TonightBlock';
 
-/** A read of this week's actual slots; an absent plan is never a sample meal. */
-export default function KitchenWeekPreview({ now, mealType }: { now: Date; mealType: MenuMealType }) {
+/**
+ * A read of this week's actual slots; an absent plan is never a sample meal. The home reads the menus
+ * once and says a failure in its single alert (V11-06 E5): this block only shows the week.
+ */
+export default function KitchenWeekPreview({ now, mealType, menu }: { now: Date; mealType: MenuMealType; menu: MenuRead }) {
   const today = new Date(`${calendarDate(now)}T12:00:00Z`);
   const dayIndex = (today.getUTCDay() + 6) % 7;
-  const menu = useWeeklyMenu(calendarWeekStart(now)!);
   const days = Array.from({ length: Math.min(3, 7 - dayIndex) }, (_, offset) => {
     const date = new Date(today);
     date.setUTCDate(today.getUTCDate() + offset);
@@ -16,7 +18,7 @@ export default function KitchenWeekPreview({ now, mealType }: { now: Date; mealT
   return <aside className="kitchen-week" aria-labelledby="kitchen-week-title">
     <h2 id="kitchen-week-title" className="kitchen-section-title">Cette semaine</h2>
     {menu.isLoading ? <p className="kitchen-week-status" role="status">Chargement de tes menus…</p>
-      : menu.isError ? <div className="kitchen-week-status" role="alert"><p>Menus indisponibles pour le moment.</p><Button variant="ghost" onClick={() => void menu.refetch()}>Réessayer</Button></div>
+      : menu.isError ? <p className="kitchen-week-status">Semaine indisponible pour le moment.</p>
       : <ul className="kitchen-week-days">{days.map(({ date, entry }, index) => <li key={date.toISOString()}>
         <Link to="/kitchen/meal-planning" className="kitchen-week-day" data-today={index === 0}>
           <span className="kitchen-week-label">{date.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')}</span>

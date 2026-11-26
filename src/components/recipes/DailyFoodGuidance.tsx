@@ -13,13 +13,14 @@ function FactDetails({fact}:{fact:FoodFact}){
   <ul>{fact.sources.map(s=><li key={s.url}><a href={s.url} target="_blank" rel="noopener noreferrer" className="kitchen-inline-link">{s.title}</a></li>)}</ul>
  </div>;
 }
-export default function DailyFoodGuidance({now}:{now:Date}){
+/** `heading={false}`: inside a fold whose summary already names it (home, V11-06 E5). */
+export default function DailyFoodGuidance({now,heading=true}:{now:Date;heading?:boolean}){
  const query=useFoodGuidance(now),ask=useAskAssistant();
  if(query.isLoading)return <section className="kitchen-food-guidance" aria-label="Mieux manger aujourd’hui"><p role="status">Lecture du stock pour les conseils du jour…</p></section>;
- if(query.error||!query.data)return <section className="kitchen-food-guidance"><h2 className="kitchen-section-title">Mieux manger aujourd’hui</h2><p role="alert">{query.error?.message??'Les conseils liés à ton stock sont indisponibles.'}</p><Button variant="outline" onClick={()=>void query.refetch()}>Réessayer les conseils</Button></section>;
+ if(query.error||!query.data)return <section className="kitchen-food-guidance" aria-label="Mieux manger aujourd’hui">{heading&&<h2 className="kitchen-section-title">Mieux manger aujourd’hui</h2>}<p role="alert">{query.error?.message??'Les conseils liés à ton stock sont indisponibles.'}</p><Button variant="outline" onClick={()=>void query.refetch()}>Réessayer les conseils</Button></section>;
  const data=query.data,plants=data.facts.filter(f=>f.kind==='plant');
- return <section className="kitchen-food-guidance" aria-labelledby="food-guidance-title">
-  <div><h2 id="food-guidance-title" className="kitchen-section-title">Mieux manger aujourd’hui</h2><p className="mt-2 text-sm text-muted-foreground">{data.season} · {data.reference_region} · idées alimentaires pour adultes, selon ton stock.</p></div>
+ return <section className="kitchen-food-guidance" {...(heading?{"aria-labelledby":"food-guidance-title"}:{"aria-label":"Mieux manger aujourd’hui"})}>
+  <div>{heading&&<h2 id="food-guidance-title" className="kitchen-section-title">Mieux manger aujourd’hui</h2>}<p className="mt-2 text-sm text-muted-foreground">{data.season} · {data.reference_region} · idées alimentaires pour adultes, selon ton stock.</p></div>
   <div className="kitchen-food-guidance-grid">
    <div className="kitchen-food-guidance-card"><h3 className="font-semibold">À mettre au menu</h3>
     {data.daily_foods.length?<ul className="space-y-4">{data.daily_foods.map(f=><li key={f.id}><h4 className="font-medium">{f.name}{f.season==='in_season'?' · de saison':''}</h4><p className="mt-1 text-sm">{f.use}</p><p className="mt-1 text-sm text-muted-foreground">{f.benefit}</p><details><summary className="cursor-pointer text-sm">Pourquoi et sources</summary><FactDetails fact={f}/></details><Button variant="link" className="whitespace-normal h-auto px-0 text-left" onClick={()=>ask(`Trouve des recettes avec ${f.name}, adaptées à mon stock, et donne de vrais liens vers des recettes de qualité.`)}>Trouver une recette avec {f.name}</Button></li>)}</ul>:<p className="text-sm">Aucune idée alimentaire ne peut être validée avec les lots et contraintes connus. Vérifie ton stock et ton profil.</p>}
