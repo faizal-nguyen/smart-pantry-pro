@@ -1,5 +1,7 @@
 # KPIs et Métriques - Smart Pantry Pro
 
+> **Document historique, non factuel.** Les valeurs présentées comme « actuelles » ne viennent d'aucune mesure du dépôt. La mesure produit est spécifiée par [PRP-V11-06](../PRP/V11/PRP-V11-06-Consolidation-Design-Mesure.md), section 11 (décision D7). Conservé pour mémoire (bandeau posé en V11-06 E4a, 26 novembre 2026).
+
 ## Vue d'ensemble
 
 Ce document définit les indicateurs clés de performance (KPIs) pour mesurer le succès de Smart Pantry Pro à travers les dimensions produit, business, technique et impact sociétal.

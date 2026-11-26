@@ -1,5 +1,7 @@
 # Roadmap Produit - Smart Pantry Pro
 
+> **Document historique, non factuel.** Ce calendrier de 2024 et l'offre qu'il décrit sont sans rapport avec l'application actuelle. La feuille de route en vigueur est [PRP/V11/README.md](../PRP/V11/README.md). Conservé pour mémoire (PRP V11-06, section 7 ; bandeau posé en E4a, 26 novembre 2026).
+
 ## Vision à Long Terme
 
 Devenir la plateforme de référence mondiale pour la gestion intelligente de la cuisine domestique, en réduisant le gaspillage alimentaire de 50% et en simplifiant la vie culinaire de millions de foyers.

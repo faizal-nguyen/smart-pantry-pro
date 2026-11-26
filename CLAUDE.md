@@ -1,5 +1,7 @@
 # CLAUDE.md - Smart Pantry Pro
 
+> **Document historique, non factuel.** Ce guide décrit une architecture qui n'est pas celle de l'application (Next.js, Drizzle, dossiers inexistants). L'application réelle : React et Vite (`src/`), API Express (`apps/api/`), Supabase (`supabase/migrations/`), schémas partagés (`packages/shared/`). Se fier au code, aux PRP de [PRP/V11](PRP/V11/README.md) et aux comptes rendus de [docs/implementations](docs/implementations). Bandeau posé en V11-06 E4a, 26 novembre 2026.
+
 This file provides guidance to Claude Code when working with the Smart Pantry Pro codebase.
 
 ## Project Overview
