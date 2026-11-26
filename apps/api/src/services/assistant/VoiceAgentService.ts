@@ -30,7 +30,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../types/supabase.js';
-import { calendarDate, calendarWeekStart, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
+import { calendarDate, calendarWeekStart, formatDate, PANTRY_TIME_ZONE, memoryHistoryFloor, MemoryWriteResultSchema, withinMemoryHistory, type MemoryPolicy, type MemoryWriteResult, type AssistantSessionMessage } from '@smart/shared';
 import { recipeWordsMatched } from './handlers/read.js';
 import { StockCommandError } from '../stock/StockCommandService.js';
 import { sameMemoryPolicy } from './MemoryPolicy.js';
@@ -1516,16 +1516,14 @@ const RECIPE_ACTION = new RegExp(['(?:j[\'’]ai|on a|nous avons)\\s+(?:cuisiné
 
 // The model copies one date per meal-plan call; the server derives week and day.
 // Given week_start + day_of_week to fill in, gpt-4o-mini mixed them up (live repro 2026-11-07).
-const FRENCH_DAY = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-const FRENCH_WEEKDAY = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', weekday: 'long' });
 const noon = (iso: string) => new Date(`${iso}T12:00:00Z`);
 function shiftDate(iso: string, days: number): string {
   return new Date(noon(iso).getTime() + days * 86400000).toISOString().slice(0, 10);
 }
 function todayContext(now: Date): string {
   const today = calendarDate(now)!, weekStart = calendarWeekStart(now)!;
-  const week = (start: string) => Array.from({ length: 7 }, (_, i) => `${FRENCH_WEEKDAY.format(noon(shiftDate(start, i)))} ${shiftDate(start, i)}`).join(', ');
-  return `TODAY (Europe/Paris): Aujourd’hui : ${FRENCH_DAY.format(noon(today))} (${today}). Demain : ${FRENCH_DAY.format(noon(shiftDate(today, 1)))} (${shiftDate(today, 1)}).\n`
+  const week = (start: string) => Array.from({ length: 7 }, (_, i) => `${formatDate(shiftDate(start, i), 'weekday')} ${shiftDate(start, i)}`).join(', ');
+  return `TODAY (${PANTRY_TIME_ZONE}): Aujourd’hui : ${formatDate(today, 'weekdayDayMonthYear')} (${today}). Demain : ${formatDate(shiftDate(today, 1), 'weekdayDayMonthYear')} (${shiftDate(today, 1)}).\n`
     + `Cette semaine : ${week(weekStart)}.\nSemaine prochaine : ${week(shiftDate(weekStart, 7))}.\n`
     + 'For read_meal_plan and add_recipe_to_meal_plan pass `date` (YYYY-MM-DD). A date or week the user states explicitly (« la semaine du lundi 5 octobre 2026 », « le 12 décembre ») always wins over today: use that date. Only a relative date (aujourd’hui, ce soir, demain, cette semaine, la semaine prochaine) is copied from these lines; never compute one.';
 }

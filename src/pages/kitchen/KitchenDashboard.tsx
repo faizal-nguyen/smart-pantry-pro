@@ -2,7 +2,7 @@ import { readShareCapture } from '@/services/shareCaptures';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import KitchenWeekPreview from '@/components/meal-planning/KitchenWeekPreview';
-import { calendarWeekStart, produceReview } from '@smart/shared';
+import { formatDate, calendarWeekStart, produceReview } from '@smart/shared';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { useInventory } from '@/hooks/useInventory';
 import { useShoppingList } from '@/hooks/useShoppingList';
@@ -59,7 +59,7 @@ export default function KitchenDashboard() {
   return <div className="culinary-page kitchen-today" data-culinary-view={design}>
     <header className="kitchen-today-heading">
       <h1 className="culinary-title"><span className="hidden md:inline">Qu’est-ce qu’on cuisine {context.occasion==='lunch' ? 'ce midi' : context.occasion==='snack' ? 'pour une pause' : 'ce soir'} ?</span><span className="md:hidden">{context.occasion==='lunch' ? 'Ce midi' : context.occasion==='snack' ? 'Pour une pause' : 'Ce soir'}, on cuisine ?</span></h1>
-      <p className="kitchen-date">{now.toLocaleDateString('fr-FR',{ weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Paris' })}</p>
+      <p className="kitchen-date">{formatDate(now, 'weekdayDayMonth')}</p>
     </header>
     {next && <ResumeCard next={next} />}
     <TodayAlert failures={failures} onRetry={menu.isError || stock.error || shopping.error ? retryReads : undefined} />

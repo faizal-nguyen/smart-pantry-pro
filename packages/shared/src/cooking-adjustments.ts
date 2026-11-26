@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { formatNumber } from './format.js';
 import { allocateRecipeStock, normalizeIngredientName, type StockIngredient, type StockLot, type StockMissing } from './quantities.js';
 export const CookingAdjustmentSchema = z.object({
   ingredient_index: z.number().int().nonnegative(),
@@ -92,7 +93,7 @@ function unitFor(quantity: number, unit: string): string {
   if (quantity < 2 || !/^\p{L}{3,}$/u.test(word) || /[sxz]$/i.test(word) || UNIT_ABBREVIATIONS.has(word.toLowerCase())) return word;
   return `${word}s`;
 }
-const amount = (quantity: number, unit: string) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(quantity)} ${unitFor(quantity, unit)}`.trim();
+const amount = (quantity: number, unit: string) => `${formatNumber(quantity, { maximumFractionDigits: 2 })} ${unitFor(quantity, unit)}`.trim();
 const sameName = (name: string) => normalizeIngredientName(name);
 /** Each ingredient once (iPhone 2026-11-09: « ghee » twice in the same list). */
 const names = (items: Array<{ ingredient_name: string }>) => items
