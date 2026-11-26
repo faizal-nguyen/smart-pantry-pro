@@ -383,11 +383,6 @@
       "count": 2
     }
   },
-  "src/components/performance/PerformanceMonitor.tsx": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    }
-  },
   "src/components/recipes/BulkImportButton.tsx": {
     "no-useless-escape": {
       "count": 1
