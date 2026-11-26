@@ -1,6 +1,13 @@
 /** Dates-only are calendar labels; timestamps are converted in one reference zone. */
 export const PANTRY_TIME_ZONE = 'Europe/Paris';
 const DAY = 86_400_000;
+/** One formatter per zone: building an Intl formatter for every row of a list is costly. */
+const zoneDays = new Map<string, Intl.DateTimeFormat>();
+function zoneDay(zone: string): Intl.DateTimeFormat {
+  let format = zoneDays.get(zone);
+  if (!format) { format = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit' }); zoneDays.set(zone, format); }
+  return format;
+}
 export function calendarDate(value: string | Date = new Date(), zone = PANTRY_TIME_ZONE): string | null {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const parsed = new Date(`${value}T00:00:00Z`);
@@ -8,7 +15,7 @@ export function calendarDate(value: string | Date = new Date(), zone = PANTRY_TI
   }
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isFinite(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(date);
+  const parts = zoneDay(zone).formatToParts(date);
   const part = (type: string) => parts.find(item => item.type === type)?.value;
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
