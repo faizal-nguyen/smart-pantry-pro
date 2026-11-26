@@ -433,11 +433,6 @@
       "count": 5
     }
   },
-  "src/types/family-mode.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "src/types/global.d.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5

@@ -3,8 +3,9 @@
  *
  * Before this fix, the page threw on every visit because
  * `useCipherMealPlanning` destructured `familyProfiles` while
- * `useFamilyMode` exposes `availableProfiles`. The page tried to read
- * `.length` on `undefined` and React mounted the error boundary.
+ * `useFamilyMode` exposed `availableProfiles` (both hooks are gone since).
+ * The page tried to read `.length` on `undefined` and React mounted the
+ * error boundary.
  *
  * This test asserts the page mounts without surfacing the
  * react-router "Unexpected Application Error!" overlay or our

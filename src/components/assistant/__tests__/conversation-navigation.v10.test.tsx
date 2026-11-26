@@ -8,7 +8,6 @@ let mockError=false;
 const conversations=[{id:'soup',title:'Soupe aux oignons',mode:'general',created_at:'2026-11-09T20:00:00Z',last_message_at:null},
   {id:'tunis',title:'Une recette tunisienne',mode:'recipes',created_at:'2026-11-09T21:00:00Z',last_message_at:null}];
 jest.mock('@/hooks/useAuthenticatedUser',()=>({useAuthenticatedUser:()=>({id:'owner'}),useAuthSessionOptional:()=>({user:{id:'owner'}})}));
-jest.mock('@/hooks/useFamilyMode',()=>({useAgeAdaptiveUI:()=>({adaptiveInterface:{},getStyleClasses:()=>''})}));
 jest.mock('@/hooks/useAssistantConversations',()=>({
   useAssistantConversations:()=>({conversations,isLoading:false,error:null,refetch:jest.fn()}),
   useAssistantMessages:(id:string|null)=>({messages:id ? [{id:id+'-user',conversation_id:id,role:'user',content:id==='soup' ? 'Préparons une soupe aux oignons' : 'Une recette tunisienne avec mon stock',created_at:'2026-11-09T21:00:00Z',action_log_ids:[],metadata:{}},

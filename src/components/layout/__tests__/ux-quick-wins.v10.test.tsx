@@ -11,7 +11,7 @@ const mockReport = jest.fn();
 jest.mock('@/lib/reportClientError', () => ({ reportClientError: (...args: unknown[]) => mockReport(...args) }));
 
 const config = { mainNavigation: NAVIGATION_CONFIG, specialNavigation: SPECIAL_NAVIGATION_ITEMS, allNavigation: [...NAVIGATION_CONFIG, ...SPECIAL_NAVIGATION_ITEMS] };
-const nav = (path: string) => render(<MemoryRouter initialEntries={[path]}><MobileNavigation navigationConfig={config} currentProfile={null} onNavigate={jest.fn()} /></MemoryRouter>);
+const nav = (path: string) => render(<MemoryRouter initialEntries={[path]}><MobileNavigation navigationConfig={config} /></MemoryRouter>);
 
 // Audit 2026-11-07 (UX P1 1): Menus and the assistant were only in the avatar menu.
 describe('five tabs, menus inside recipes', () => {
