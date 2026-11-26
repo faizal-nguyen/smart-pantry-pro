@@ -26,7 +26,7 @@ import { useImageManagement } from '@/hooks/useImageManagement';
 import { useRecipeFavorites } from '@/hooks/useRecipeFavorites';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { plannedMealId, usePlannedMeal } from '@/hooks/usePlannedMeal';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { startCookingSession } from '@/services/cookingSessions';
 import { saveRecipePhoto } from '@/services/recipeDetails';
 import { fireRecipeAssistantAction } from '@/lib/recipeActions';
@@ -90,7 +90,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const showActionError = (error: unknown) => {
     const message = error instanceof Error ? error.message : 'Action non confirmée. Réessaie.';
     setActionError(message);
-    toast({ title: 'Action non confirmée', description: message, variant: 'destructive' });
+    toast.error('Action non confirmée', { description: message });
   };
   const ownsRecipe = !!recipe && recipe.source !== 'recipes_catalog' && recipe.user_id === user.id;
   // The existing editor only writes legacy recipes. Do not send a library ID to it.
@@ -107,7 +107,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
       setOverrideImageUrl(url);
       dispatchAgentDbChanged([reference.source === 'user_recipes' ? 'user_recipes' : 'recipes']);
       await fetchRecipes();
-      toast({ title: 'Photo mise à jour', description: 'La nouvelle image est enregistrée.' });
+      toast('Photo mise à jour', { description: 'La nouvelle image est enregistrée.' });
     } catch (error) { showActionError(error); }
   };
   const handleCook = async () => {
@@ -124,7 +124,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
     setAddingToCart(true); setActionError(null);
     try {
       const title = await fireRecipeAssistantAction({ ...reference, name: recipe.name, servings }, 'add_missing');
-      toast({ title });
+      toast(title);
     } catch (error) { showActionError(error); }
     finally { setAddingToCart(false); }
   };
@@ -134,7 +134,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
     const url = new URL(recipeDetailPath(reference, servings), window.location.origin).href;
     try {
       if (typeof navigator.share === 'function') await navigator.share({ title: recipe.name, url });
-      else { await navigator.clipboard.writeText(url); toast({ title: 'Lien de recette copié' }); }
+      else { await navigator.clipboard.writeText(url); toast('Lien de recette copié'); }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) showActionError(error);
     } finally { setSharing(false); }
@@ -145,7 +145,7 @@ function RecipeDetailContent({ id }: { id?: string }) {
     try {
       await deleteRecipe(recipe.id, recipe.source);
       setShowDeleteDialog(false);
-      toast({ title: 'Recette supprimée' });
+      toast('Recette supprimée');
       navigate('/kitchen/recipes');
     } catch (error) { showActionError(error); }
     finally { setDeleting(false); }

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface SpeechRecognitionResult {
   text: string;
@@ -39,7 +39,6 @@ export const useSpeechRecognition = (
   const [error, setError] = useState<string | null>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const { toast } = useToast();
 
   const {
     language = 'fr-FR',
@@ -111,10 +110,8 @@ export const useSpeechRecognition = (
       }
       
       setError(errorMessage);
-      toast({
-        variant: "destructive",
-        title: "Erreur de reconnaissance vocale",
-        description: errorMessage
+      toast.error("Erreur de reconnaissance vocale", {
+        description: errorMessage,
       });
     };
 
@@ -123,14 +120,12 @@ export const useSpeechRecognition = (
     };
 
     return recognition;
-  }, [language, continuous, interimResults, isSupported, toast]);
+  }, [language, continuous, interimResults, isSupported]);
 
   const startListening = useCallback(() => {
     if (!isSupported) {
-      toast({
-        variant: "destructive",
-        title: "Non supporté",
-        description: "La reconnaissance vocale n'est pas supportée par votre navigateur."
+      toast.error("Non supporté", {
+        description: "La reconnaissance vocale n'est pas supportée par votre navigateur.",
       });
       return;
     }
@@ -150,7 +145,7 @@ export const useSpeechRecognition = (
         setError('Impossible de démarrer la reconnaissance vocale');
       }
     }
-  }, [isSupported, isListening, initializeRecognition, toast]);
+  }, [isSupported, isListening, initializeRecognition]);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {

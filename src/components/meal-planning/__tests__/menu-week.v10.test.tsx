@@ -9,11 +9,11 @@ import MenuEntryCard, { type MenuCardActions } from '../MenuEntryCard';
 import { WEEKLY_MENU_QUERY_KEY, type MenuEntryView } from '@/hooks/useWeeklyMenu';
 
 jest.mock('@/hooks/useCalendarNow', () => ({ useCalendarNow: () => new Date('2026-11-06T12:00:00Z') }));
-const mockCook = jest.fn(), mockUndo = jest.fn(), mockForget = jest.fn(), mockToast = jest.fn();
+const mockCook = jest.fn(), mockUndo = jest.fn(), mockForget = jest.fn(), mockToastError = jest.fn();
 jest.mock('@/lib/recipeActions', () => ({ fireRecipeAssistantAction: jest.fn(), cookRecipeWithStock: (...args: unknown[]) => mockCook(...args),
   forgetMealCooking: (...args: unknown[]) => mockForget(...args) }));
 jest.mock('@/services/stockCommands', () => ({ undoStockCommand: (...args: unknown[]) => mockUndo(...args) }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }) }));
+jest.mock('sonner', () => ({ toast: Object.assign(jest.fn(), { error: (...args: unknown[]) => mockToastError(...args) }) }));
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: 'owner' } }) }));
 // The card rereads the menu through useWeeklyMenu's module; its clients stay out of the test.
 jest.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
@@ -111,14 +111,14 @@ test('a refusal because the meal changed rereads the menu and says why', async (
   render(withClient(<MenuFromBase />));
   fireEvent.click(await screen.findByRole('button', { name: 'Marquer Repas du vendredi comme cuisinée' }));
   expect(await screen.findByRole('button', { name: 'Repas du vendredi est cuisinée' })).toBeDisabled();
-  expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ variant: 'destructive', description: 'Ce repas est déjà marqué cuisiné.' }));
+  expect(mockToastError).toHaveBeenCalledWith('Action impossible', { description: 'Ce repas est déjà marqué cuisiné.' });
 });
 
 test('a meal removed from the menu is named as such, not as a missing product', async () => {
   mockCook.mockRejectedValue(new ApiError('Ce produit ou cet achat n’est plus disponible. Actualise la liste.', { status: 400, code: 'ITEM_NOT_FOUND' }));
   render(withClient(<MenuFromBase />));
   fireEvent.click(await screen.findByRole('button', { name: 'Marquer Repas du vendredi comme cuisinée' }));
-  await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ description: 'Ce repas n’est plus au menu : le menu a été relu.' })));
+  await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Action impossible', { description: 'Ce repas n’est plus au menu : le menu a été relu.' }));
 });
 
 test('an older entry without a recipe reference is cooked without a meal link, as before', async () => {

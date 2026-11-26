@@ -18,9 +18,8 @@ jest.mock('@/hooks/useSocialRecipeImports', () => ({ useSocialRecipeImports: () 
   isLoading: false, isError: false, error: null, hasMore: false, isFetching: false,
   fetchMore: jest.fn(), capture: jest.fn(), extract: jest.fn(), save: mockSave, archive: jest.fn(), unarchive: jest.fn(), getCurrentDraft: mockCurrent,
 }) }));
-jest.mock('@/hooks/use-toast', () => ({ toast: jest.fn() }));
 jest.mock('@/services/recipe-import/api', () => ({ importsApi: { get: jest.fn() } }));
-jest.mock('sonner', () => ({ toast: { error: (...args: unknown[]) => mockToastError(...args), success: jest.fn() } }));
+jest.mock('sonner', () => ({ toast: Object.assign(jest.fn(), { error: (...args: unknown[]) => mockToastError(...args), success: jest.fn() }) }));
 jest.mock('@/components/recipes/RoutineRecipeLibrary', () => ({ __esModule: true, default: () => <div>Bibliothèque</div> }));
 jest.mock('@/components/recipes/discovery/DiscoveryDraftEditor', () => ({ __esModule: true, default: ({ owner, prepared }: { owner: string; prepared: { import: { id: string }; draft: { version: number } } }) => <div>Éditeur canonique {owner} {prepared.import.id} révision {prepared.draft.version}</div> }));
 jest.mock('@/components/onboarding/RecipeImportOnboarding', () => ({ __esModule: true, default: () => null }));

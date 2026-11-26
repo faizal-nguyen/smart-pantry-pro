@@ -42,7 +42,7 @@ import {
   BookOpen,
   Mic
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 // Pattern cuisine categories (adaptation ProductCard Cipher)
 const CUISINE_CATEGORIES = [
@@ -331,8 +331,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
         // Tags
         setTags(recipe.tags);
         
-        toast({
-          title: "Recette extraite avec succès !",
+        toast("Recette extraite avec succès !", {
           description: `${recipe.name} - ${recipe.ingredients.length} ingrédients`,
         });
         
@@ -402,8 +401,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
           setServings(recipe.servings.toString());
         }
         
-        toast({
-          title: "Recette scannée !",
+        toast("Recette scannée !", {
           description: `${recipe.name} - ${recipe.ingredients.length} ingrédients détectés`,
         });
         
@@ -411,8 +409,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
         // Si pas de recette parsée, mettre juste le texte dans les instructions
         setInstructions(ocrResult.text);
         
-        toast({
-          title: "Texte scanné",
+        toast("Texte scanné", {
           description: "Texte ajouté aux instructions. Veuillez compléter les autres champs.",
         });
       }
@@ -422,10 +419,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
       
     } catch (error) {
       console.error('OCR result processing error:', error);
-      toast({
-        title: "Erreur OCR",
+      toast.error("Erreur OCR", {
         description: "Impossible de traiter le résultat du scan",
-        variant: "destructive"
       });
     }
   };
@@ -460,8 +455,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
         setServings(voiceRecipe.servings.toString());
       }
       
-      toast({
-        title: "Recette vocale traitée !",
+      toast("Recette vocale traitée !", {
         description: `${voiceRecipe.name} - ${voiceRecipe.ingredients.length} ingrédients (confiance: ${Math.round(voiceRecipe.confidence * 100)}%)`,
       });
       
@@ -470,29 +464,23 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
       
     } catch (error) {
       console.error('Voice recipe processing error:', error);
-      toast({
-        title: "Erreur vocale",
+      toast.error("Erreur vocale", {
         description: "Impossible de traiter la recette vocale",
-        variant: "destructive"
       });
     }
   };
 
   const handleSubmit = async () => {
     if (!recipeName.trim()) {
-      toast({
-        title: "Nom manquant",
+      toast.error("Nom manquant", {
         description: "Veuillez entrer un nom pour la recette",
-        variant: "destructive"
       });
       return;
     }
 
     if (ingredients.filter(ing => ing.name.trim()).length === 0) {
-      toast({
-        title: "Ingrédients manquants", 
+      toast.error("Ingrédients manquants", {
         description: "Veuillez ajouter au moins un ingrédient",
-        variant: "destructive"
       });
       return;
     }
@@ -534,8 +522,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
       onOpenChange(false);
       resetForm();
       
-      toast({
-        title: "Recette ajoutée !",
+      toast("Recette ajoutée !", {
         description: `${recipeName} a été ajoutée à votre collection`,
       });
       
@@ -543,10 +530,8 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
       const message = error instanceof Error ? error.message : 'Impossible de sauvegarder. Votre saisie est conservée.';
       setSaveError(message);
       await restorePendingSave().catch(() => undefined);
-      toast({
-        title: "Sauvegarde non confirmée",
+      toast.error("Sauvegarde non confirmée", {
         description: message,
-        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -874,7 +859,7 @@ const AddRecipeDialog = ({ open, onOpenChange, onRecipeAdded, initialDraft, allo
                 if (!draft) return;
                 applyDraft(draft.draft_json);
                 setCurrentTab("manual");
-                toast({ title: "Recette lue", description: "Vérifie les quantités et les étapes avant d’enregistrer." });
+                toast("Recette lue", { description: "Vérifie les quantités et les étapes avant d’enregistrer." });
               }}
               placeholder="Lien Instagram, TikTok, YouTube…"
             />

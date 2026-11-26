@@ -2,7 +2,7 @@ import { useContext,useEffect,useRef } from 'react';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { calendarDate,RecipeLifecycleCommandSchema,recipeReferenceKey,type RecipeLifecycleCommand } from '@smart/shared';
 import {RecipeLifecycleContext} from '@/contexts/RecipeLifecycleContext';
-import {toast} from '@/hooks/use-toast';
+import {toast} from 'sonner';
 import { useAuthenticatedUser } from './useAuthenticatedUser';
 import {useOwnedValue} from '@/lib/ownedStorage';
 import { readRecipeLifecycle,recordRecipeLifecycle,saveRecipeChoice } from '@/services/recipeLifecycle';
@@ -20,7 +20,7 @@ export function useRecipeLifecycleData(){
     await saveRecipeChoice(owner,{recipe,action});
     await client.invalidateQueries({queryKey:key});
     if(action==='cooked')dispatchAgentDbChanged(['recipe_interactions']);
-    else toast({title:action==='queue'?'Ajoutée à « À cuisiner bientôt »':'Retirée de « À cuisiner bientôt »'});
+    else toast(action==='queue'?'Ajoutée à « À cuisiner bientôt »':'Retirée de « À cuisiner bientôt »');
   };
   return {...query,save,pending,pendingError,stateFor:(recipe:RecipeLifecycleCommand['recipe'])=>query.data?.recipes.find(s=>recipeReferenceKey(s.recipe)===recipeReferenceKey(recipe))};
 }

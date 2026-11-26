@@ -16,7 +16,7 @@ import { BookOpen, Compass, Plus, Bookmark, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 import { useUserRecipes } from '@/hooks/useUserRecipes';
 import { useRecipes } from '@/hooks/useRecipes';
@@ -96,11 +96,10 @@ function RecipesContent() {
 
   const handleAddToLibrary = (recipeId: string, recipeName: string) => {
     addFromCatalog({ catalogRecipeId: recipeId }, {
-      onSuccess: () => toast({
-        title: 'Recette ajoutée !',
+      onSuccess: () => toast('Recette ajoutée !', {
         description: `« ${recipeName} » est dans tes recettes.`,
       }),
-      onError: error => toast({ title: 'Erreur', description: error.message, variant: 'destructive' }),
+      onError: error => toast.error('Erreur', { description: error.message }),
     });
   };
 
@@ -154,7 +153,7 @@ function RecipesContent() {
                 pendingCount={inboxPendingCount}
                 onVerifyDraft={({ import: socialImport, draft }) => {
                   if (!draft || socialImport.user_id !== user.id || draft.user_id !== user.id || draft.import_id !== socialImport.id) {
-                    toast({ title: 'Brouillon indisponible', description: 'Relis cet import depuis le compte qui l’a gardé.', variant: 'destructive' });
+                    toast.error('Brouillon indisponible', { description: 'Relis cet import depuis le compte qui l’a gardé.' });
                     return;
                   }
                   setCanonicalReview({ owner: user.id, prepared: { import: socialImport, draft } });
@@ -181,8 +180,7 @@ function RecipesContent() {
               onComplete={() => {
                 setShowOnboarding(false);
                 setActiveTab('library');
-                toast({
-                  title: 'Recettes enregistrées',
+                toast('Recettes enregistrées', {
                   description: 'Ta bibliothèque est prête à être parcourue.',
                 });
               }}

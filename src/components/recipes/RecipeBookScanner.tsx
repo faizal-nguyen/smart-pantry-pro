@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Camera, X, Flashlight, BookOpen, Loader2, FileImage, RotateCcw } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface RecipeBookScannerProps {
   isOpen: boolean;
@@ -169,10 +169,8 @@ const RecipeBookScanner = ({ isOpen, onClose, onScan }: RecipeBookScannerProps) 
 
       } catch (error) {
         console.error('Image capture failed:', error);
-        toast({
-          title: "Erreur de capture",
+        toast.error("Erreur de capture", {
           description: "Impossible de capturer l'image",
-          variant: "destructive"
         });
       } finally {
         setIsProcessing(false);
@@ -204,17 +202,14 @@ const RecipeBookScanner = ({ isOpen, onClose, onScan }: RecipeBookScannerProps) 
       const engineName = result.engine === 'google-vision' ? 'Google Vision' : 
                          result.engine === 'tesseract-fallback' ? 'Tesseract' : 'OCR';
       
-      toast({
-        title: "Texte extrait !",
+      toast("Texte extrait !", {
         description: `${result.text.length} caractères détectés via ${engineName} (confiance: ${Math.round(result.confidence * 100)}%)`,
       });
 
     } catch (error) {
       console.error('OCR processing failed:', error);
-      toast({
-        title: "Erreur OCR",
+      toast.error("Erreur OCR", {
         description: "Impossible d'extraire le texte de l'image",
-        variant: "destructive"
       });
     }
   };
@@ -225,10 +220,8 @@ const RecipeBookScanner = ({ isOpen, onClose, onScan }: RecipeBookScannerProps) 
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Format invalide",
+      toast.error("Format invalide", {
         description: "Veuillez sélectionner une image",
-        variant: "destructive"
       });
       return;
     }
@@ -248,10 +241,8 @@ const RecipeBookScanner = ({ isOpen, onClose, onScan }: RecipeBookScannerProps) 
 
     } catch (error) {
       console.error('File upload failed:', error);
-      toast({
-        title: "Erreur de traitement",
+      toast.error("Erreur de traitement", {
         description: "Impossible de traiter l'image",
-        variant: "destructive"
       });
     } finally {
       setIsProcessing(false);

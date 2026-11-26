@@ -13,7 +13,7 @@ import {
   Upload,
   X
 } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useRecipes } from "@/hooks/useRecipes";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -129,10 +129,8 @@ const RecipeEdit = () => {
       }
     } catch (error) {
       console.error('Error fetching recipe details:', error);
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de charger les détails de la recette",
-        variant: "destructive"
       });
     } finally {
       setLoading(false);
@@ -173,10 +171,8 @@ const RecipeEdit = () => {
       return data.publicUrl;
     } catch (error) {
       console.error('Error uploading image:', error);
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de télécharger l'image",
-        variant: "destructive"
       });
       return null;
     } finally {
@@ -282,18 +278,15 @@ const RecipeEdit = () => {
         if (ingredientsError) throw ingredientsError;
       }
 
-      toast({
-        title: "Recette mise à jour",
+      toast("Recette mise à jour", {
         description: "Les modifications ont été enregistrées avec succès",
       });
       
       navigate(`/kitchen/recipes/${id}`);
     } catch (error) {
       console.error('Error updating recipe:', error);
-      toast({
-        title: "Erreur",
+      toast.error("Erreur", {
         description: "Impossible de mettre à jour la recette",
-        variant: "destructive"
       });
     } finally {
       setLoading(false);
