@@ -136,12 +136,6 @@ GET /api/v1/recipes/stats
 }
 ```
 
-### Get Favorite Recipes
-
-```http
-GET /api/v1/recipes/favorites
-```
-
 ### Get Recent Recipes
 
 ```http
@@ -231,11 +225,7 @@ Content-Type: application/json
 }
 ```
 
-### Toggle Favorite
-
-```http
-POST /api/v1/recipes/:id/favorite
-```
+`GET /api/v1/recipes/favorites` et `POST /api/v1/recipes/:id/favorite` ont été retirées en V11-06 E4b (novembre 2026), sans appelant.
 
 ### Delete Recipe
 

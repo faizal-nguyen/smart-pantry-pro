@@ -89,20 +89,6 @@ export class RecipeService {
   }
 
   /**
-   * Toggle favorite status
-   */
-  async toggleFavorite(userId: string, recipeId: string): Promise<Recipe> {
-    return this.repository.toggleFavorite(recipeId, userId);
-  }
-
-  /**
-   * Get favorite recipes
-   */
-  async getFavorites(userId: string): Promise<Recipe[]> {
-    return this.repository.findFavorites(userId);
-  }
-
-  /**
    * Get recently added recipes
    */
   async getRecent(userId: string, limit: number = 10): Promise<Recipe[]> {

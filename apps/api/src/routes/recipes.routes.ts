@@ -56,26 +56,6 @@ export function createRecipesRouter(_adminClient: SupabaseClient<Database>) {
   });
 
   /**
-   * GET /api/v1/recipes/favorites
-   * Get favorite recipes
-   */
-  router.get('/favorites', async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId || !req.supabaseClient) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const service = new RecipeService(req.supabaseClient);
-      const recipes = await service.getFavorites(userId);
-      res.json({ data: recipes });
-    } catch (error) {
-      logError(error, { context: 'Error fetching favorite recipes:' });
-      res.status(500).json({ error: 'Failed to fetch favorite recipes' });
-    }
-  });
-
-  /**
    * GET /api/v1/recipes/recent
    * Get recently added recipes
    */
@@ -222,26 +202,6 @@ export function createRecipesRouter(_adminClient: SupabaseClient<Database>) {
     } catch (error) {
       logError(error, { context: 'Error updating recipe:' });
       res.status(500).json({ error: 'Failed to update recipe' });
-    }
-  });
-
-  /**
-   * POST /api/v1/recipes/:id/favorite
-   * Toggle favorite status
-   */
-  router.post('/:id/favorite', async (req: Request, res: Response) => {
-    try {
-      const userId = req.user?.id;
-      if (!userId || !req.supabaseClient) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      const service = new RecipeService(req.supabaseClient);
-      const recipe = await service.toggleFavorite(userId, req.params.id);
-      res.json({ data: recipe });
-    } catch (error) {
-      logError(error, { context: 'Error toggling favorite:' });
-      res.status(500).json({ error: 'Failed to toggle favorite' });
     }
   });
 

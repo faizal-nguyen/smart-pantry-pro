@@ -2,7 +2,6 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase.js';
 import { BaseRepository } from './BaseRepository.js';
 import { sanitizeSearchQuery } from '../utils/sanitization.js';
-import { NotFoundError } from '../utils/errors.js';
 
 type Recipe = Database['public']['Tables']['recipes']['Row'];
 
@@ -156,19 +155,5 @@ export class RecipeRepository extends BaseRepository<Recipe, 'recipes'> {
       byDifficulty,
       avgPrepTime
     };
-  }
-
-  /**
-   * Toggle favorite status
-   */
-  async toggleFavorite(id: string, userId: string): Promise<Recipe> {
-    const recipe = await this.findById(id, userId);
-    if (!recipe) {
-      throw new NotFoundError('Recipe not found');
-    }
-
-    return this.update(id, userId, {
-      is_favorite: !recipe.is_favorite
-    });
   }
 }
