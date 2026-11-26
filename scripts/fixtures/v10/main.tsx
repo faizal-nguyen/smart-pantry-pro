@@ -22,8 +22,7 @@ import WeekShoppingPage from '@/pages/shopping/WeekShoppingPage';
 import WeekProposalPage from '@/pages/kitchen/WeekProposalPage';
 import ReceiptScanPage from '@/pages/shopping/ReceiptScanPage';
 import Recipes from '@/pages/Recipes';
-import { Toaster } from '@/components/ui/toaster';
-import { Toaster as Sonner } from '@/components/ui/sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { RECIPE, CATALOG, WRAPPER, OWNER, data, failures, persistFixtureData } from './supabase';
 import '@/index.css';
 import { useTheme } from '@/hooks/useTheme';
@@ -112,7 +111,7 @@ function Fixture() {
       <Route path="*" element={<RecipeDetail/>}/>
     </Route></Routes>
     {carnetScene && controls}
-    <Toaster/><Sonner/>
+    <Toaster/>
   </CulinaryDesignContext.Provider>;
 }
 createRoot(document.getElementById('root')!).render(
