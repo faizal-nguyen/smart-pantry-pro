@@ -2,7 +2,7 @@ import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { PANTRY_TIME_ZONE } from '@smart/shared';
+import { formatDate } from '@smart/shared';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,10 +18,8 @@ const REASON_LABELS: Record<WasteReason, string> = { expired: 'Périmé', spoile
 const PERIOD_LABELS: Record<WastePeriod, string> = { last30: `${WASTE_WINDOW_DAYS} derniers jours`, all: 'Depuis le début' };
 const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const AMOUNT = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 });
-const DAY = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: PANTRY_TIME_ZONE });
-const DAY_YEAR = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: PANTRY_TIME_ZONE });
 
-const sinceLabel = (start: string, end: string) => `depuis le ${(start.slice(0, 4) === end.slice(0, 4) ? DAY : DAY_YEAR).format(noonOf(start))}`;
+const sinceLabel = (start: string, end: string) => `depuis le ${formatDate(start, start.slice(0, 4) === end.slice(0, 4) ? 'dayMonth' : 'dayMonthYear')}`;
 const periodLabel = (period: WastePeriod, summary: WasteSummary) => summary.start === null ? 'aucune déclaration datée'
   : period === 'last30' ? `${PERIOD_LABELS.last30}, ${sinceLabel(summary.start, summary.end)}` : sinceLabel(summary.start, summary.end);
 const undatedLabel = (count: number) => count > 1
@@ -31,10 +29,7 @@ const quantityLabel = (event: WasteEvent) => {
   const amount = Number(event.quantity);
   return Number.isFinite(amount) && amount > 0 ? `${AMOUNT.format(amount)}${event.unit_type ? ` ${event.unit_type}` : ''}` : null;
 };
-const eventDay = (event: WasteEvent) => {
-  const date = new Date(event.occurred_at);
-  return Number.isFinite(date.getTime()) ? DAY_YEAR.format(date) : 'Date inconnue';
-};
+const eventDay = (event: WasteEvent) => formatDate(event.occurred_at, 'dayMonthYear') || 'Date inconnue';
 
 function MeasureCard({ id, title, children }: { id: string; title: string; children: ReactNode }) {
   return <section aria-labelledby={id}>

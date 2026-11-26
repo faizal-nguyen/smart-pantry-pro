@@ -1,6 +1,6 @@
 import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
-import { calendarDate } from '@smart/shared';
+import { formatDate, calendarDate } from '@smart/shared';
 import type { MenuMealType } from '@/hooks/useWeeklyMenu';
 import type { MenuRead } from '@/components/kitchen/today/TonightBlock';
 
@@ -22,7 +22,7 @@ export default function KitchenWeekPreview({ now, mealType, menu }: { now: Date;
       : menu.isError ? <p className="kitchen-week-status">Semaine indisponible pour le moment.</p>
       : <ul className="kitchen-week-days">{days.map(({ date, entry }, index) => <li key={date.toISOString()}>
         <Link to="/kitchen/meal-planning" className="kitchen-week-day" data-today={index === 0}>
-          <span className="kitchen-week-label">{date.toLocaleDateString('fr-FR', { weekday: 'short', timeZone: 'UTC' }).replace('.', '')}</span>
+          <span className="kitchen-week-label">{formatDate(date, 'weekdayShort').replace('.', '')}</span>
           <span>{entry?.recipe_name || 'Choisir un repas'}</span>
         </Link>
       </li>)}</ul>}
