@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
@@ -111,7 +112,7 @@ export function WasteSection({ onSettled }: { onSettled?: () => void } = {}) {
   };
 
   let body: ReactNode;
-  if (status === 'loading') body = <p role="status" className="text-sm text-muted-foreground">Chargement de tes pertes…</p>;
+  if (status === 'loading') body = <LoadingSkeleton label="Chargement de tes pertes…" count={4} className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" itemClassName="h-28 rounded-lg" />;
   else if (status === 'error') {
     body = <div role="alert" className="kitchen-notice">
       <p>Impossible de lire tes pertes pour le moment.</p>

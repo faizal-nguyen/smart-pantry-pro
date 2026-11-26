@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package } from 'lucide-react';
@@ -29,7 +30,7 @@ export function InsightsDashboard({ onSettled }: { onSettled?: () => void } = {}
   const { status, insights, retry } = useStockInsights();
   useEffect(() => { if (status !== 'loading') onSettled?.(); }, [status, onSettled]);
 
-  if (status === 'loading') return <p role="status" className="text-sm text-muted-foreground">Chargement de ton stock…</p>;
+  if (status === 'loading') return <LoadingSkeleton label="Chargement de ton stock…" count={2} className="grid gap-4 sm:grid-cols-2" itemClassName="h-44 rounded-lg" />;
   if (status === 'error' || !insights) {
     return <div role="alert" className="kitchen-notice">
       <p>Impossible de lire ton stock pour le moment.</p>

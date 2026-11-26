@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { Leaf, Milk, Package } from 'lucide-react';
 import { calendarDaysUntil, pantryDateLabel } from '@smart/shared';
@@ -9,7 +10,7 @@ export default function UseSoonStrip({ inventory, loading, failed, now }: { inve
     .sort((a, b) => (a.expiry_date ?? '').localeCompare(b.expiry_date ?? '')).slice(0, 3);
   return <section className="kitchen-use-soon" aria-labelledby="use-soon">
     <h2 id="use-soon" className="kitchen-section-title">À utiliser bientôt</h2>
-    {loading ? <p className="text-sm text-muted-foreground" role="status">Chargement de ton stock…</p> : soon.length > 0 ? <ul className="kitchen-stock-strip">{soon.map(item => {
+    {loading ? <LoadingSkeleton label="Chargement de ton stock…" /> : soon.length > 0 ? <ul className="kitchen-stock-strip">{soon.map(item => {
       const days = calendarDaysUntil(item.expiry_date, now)!;
       const label = days < 0 ? 'Date dépassée' : days === 0 ? 'Aujourd’hui' : `${days} ${days === 1 ? 'jour' : 'jours'}`;
       const photo = item.product?.image_url;

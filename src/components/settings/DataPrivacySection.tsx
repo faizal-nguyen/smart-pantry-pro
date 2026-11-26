@@ -165,6 +165,7 @@ export default function DataPrivacySection() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading && <p role="status" className="mb-3 text-sm text-muted-foreground">Chargement de tes choix de confidentialité…</p>}
           <ToggleRow
             id="privacy-consent"
             label="Autoriser l’analyse des scans et les statistiques"
