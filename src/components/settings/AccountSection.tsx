@@ -26,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { usePersonalization } from '@/hooks/usePersonalization';
 
 interface AccountSectionProps {
@@ -35,7 +35,6 @@ interface AccountSectionProps {
 
 export default function AccountSection({ user }: AccountSectionProps) {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { clearPersonalizationData } = usePersonalization();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
@@ -68,10 +67,8 @@ export default function AccountSection({ user }: AccountSectionProps) {
       navigate('/auth');
     } catch {
       setAccountError('Impossible de se déconnecter. Réessaie.');
-      toast({
-        title: 'Erreur',
+      toast.error('Erreur', {
         description: 'Impossible de se déconnecter. Réessaie.',
-        variant: 'destructive',
       });
     } finally {
       setLogoutPending(false);

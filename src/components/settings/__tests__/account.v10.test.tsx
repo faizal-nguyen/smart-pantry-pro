@@ -8,7 +8,6 @@ const mockClearPreferences = jest.fn();
 jest.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
 jest.mock('@/integrations/supabase/client', () => ({ supabase: { auth: { signOut: () => mockSignOut() } } }));
 jest.mock('@/hooks/usePersonalization', () => ({ usePersonalization: () => ({ clearPersonalizationData: mockClearPreferences }) }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 const user = { id: 'A', email: 'test@example.invalid' } as User;
 beforeEach(() => { jest.clearAllMocks(); localStorage.clear(); });
 async function confirmLogout() {

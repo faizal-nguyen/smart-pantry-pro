@@ -1,7 +1,7 @@
 import type { ShoppingOrigin, StockCommand, StockCommandResult } from '@smart/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useAuthSessionOptional } from '@/hooks/useAuthenticatedUser';
 import { useAgentDbInvalidation } from '@/lib/agentEvents';
 import { ApiError } from '@/lib/api';
@@ -46,7 +46,6 @@ export const useShoppingList = (options: { notify?: boolean; resume?: boolean } 
   const [error, setError] = useState<string | null>(null);
   const [lastShoppingChange, setLastShoppingChange] = useState<ShoppingChangeNotice | null>(null);
   const busy = useRef(new Set<string>());
-  const { toast } = useToast();
 
   const requireOwner = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -70,7 +69,7 @@ export const useShoppingList = (options: { notify?: boolean; resume?: boolean } 
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Écriture non confirmée. Réessayez.';
       setError(message);
-      if (options.notify!==false) toast({ variant: 'destructive', title: 'Action non confirmée', description: message });
+      if (options.notify!==false) toast.error('Action non confirmée', { description: message });
       throw failure;
     } finally { busy.current.delete(key); }
   };
@@ -182,7 +181,7 @@ export const useShoppingList = (options: { notify?: boolean; resume?: boolean } 
         const transferred = new Set(command.payload.items.map(item => item.id));
         setShoppingList(previous => previous.filter(row => !transferred.has(row.id)));
         await fetchShoppingList().catch(() => setError('Les articles ont été rangés, mais la liste n’a pas pu être relue. Actualisez les courses.'));
-        if (options.notify!==false) toast({ title: 'Articles rangés', description: `${result.inventory_ids?.length ?? items.length} article(s) ajoutés au stock.` });
+        if (options.notify!==false) toast('Articles rangés', { description: `${result.inventory_ids?.length ?? items.length} article(s) ajoutés au stock.` });
         return result;
       });
     } catch (failure) {

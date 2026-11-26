@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { useAgentDbInvalidation } from '@/lib/agentEvents';
 
 export type MenuMealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
@@ -117,7 +117,6 @@ export function useRefreshWeeklyMenu(): () => Promise<void> {
 
 export function useWeeklyMenu(weekStart: string) {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const { user } = useAuthSessionOptional();
   const userId = user?.id;
 
@@ -173,12 +172,10 @@ export function useWeeklyMenu(weekStart: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
-      toast({ title: 'Recette ajoutée au menu' });
+      toast('Recette ajoutée au menu');
     },
     onError: (err: unknown) => {
-      toast({
-        variant: 'destructive',
-        title: 'Ajout impossible',
+      toast.error('Ajout impossible', {
         description: errorMessage(err),
       });
     },

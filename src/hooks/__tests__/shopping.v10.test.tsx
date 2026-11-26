@@ -29,7 +29,6 @@ jest.mock('@/lib/api', () => {
   return { ApiError: MockApiError };
 });
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: 'A' }, isLoading: false }) }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 jest.mock('@/lib/agentEvents', () => ({ dispatchAgentDbChanged: jest.fn(), useAgentDbInvalidation: jest.fn() }));
 let mockCommandCount = 0;
 jest.mock('@/services/stockCommands', () => ({
