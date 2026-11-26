@@ -18,7 +18,6 @@ import { createMenusRouter } from './menus.routes.js';
 import { createNutritionProfileRouter } from './settings.nutrition.routes.js';
 import {
   createRecipesRouter,
-  createShoppingRouter,
   createUsersRouter,
   createReceiptsRouter,
   createRecommendationsRouter,
@@ -38,7 +37,6 @@ v1Router.use('/stock', authMiddleware, createStockRouter());
 // V11-01 E1: the review of a week's shopping.
 v1Router.use('/menus', authMiddleware, createMenusRouter(supabaseAdmin));
 v1Router.use('/recipes', authMiddleware, createRecipesRouter(supabaseAdmin));
-v1Router.use('/shopping', authMiddleware, createShoppingRouter(supabaseAdmin));
 v1Router.use('/users', authMiddleware, createUsersRouter(supabaseAdmin));
 v1Router.use('/receipts', authMiddleware, createReceiptsRouter(supabaseAdmin));
 // PRP-234 PR3 — moteur PRP-226 exposé en HTTP pour le dashboard Today.

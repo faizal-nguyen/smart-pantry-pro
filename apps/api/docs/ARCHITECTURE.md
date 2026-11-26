@@ -34,7 +34,6 @@ Smart Pantry Pro API follows a **layered architecture** with clear separation of
 
 **Files**:
 - `recipes.routes.ts` - Recipe management endpoints
-- `shopping.routes.ts` - Shopping list endpoints
 - `users.routes.ts` - User profile endpoints
 - `v1.ts` - Main v1 router with authentication
 
@@ -69,7 +68,6 @@ router.get('/stats', async (req: Request, res: Response) => {
 
 **Files**:
 - `RecipeService.ts` - Recipe operations, cookable recipes
-- `ShoppingService.ts` - Shopping list management
 - `UserService.ts` - User profile management
 
 **Key Features**:
@@ -140,7 +138,6 @@ async findCookableRecipes(userId: string) {
 - `BaseRepository.ts` - Abstract base class with CRUD operations
 - `InventoryRepository.ts` - Inventory data access
 - `RecipeRepository.ts` - Recipe data access
-- `ShoppingRepository.ts` - Shopping list data access
 - `UserRepository.ts` - User profile data access
 
 **Key Features**:
