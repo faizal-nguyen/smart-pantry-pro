@@ -13,17 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useAssistantHistorySearch } from '@/hooks/useAssistantHistorySearch';
+import { formatDate } from '@smart/shared';
 
 interface AssistantSearchBarProps {
   className?: string;
   /** Limit on the result list. Default 10. */
   limit?: number;
   onSelect?:()=>void;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
 
 function highlight(snippet: string, query: string): React.ReactNode {
@@ -113,7 +109,7 @@ export default function AssistantSearchBar({
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {m.source === 'summary' ? 'Résumé · ' : ''}
                       {m.role ? `${m.role} · ` : ''}
-                      {formatDate(m.created_at)}
+                      {formatDate(m.created_at, 'day2MonthShort')}
                     </p>
                   </button>
                 </li>

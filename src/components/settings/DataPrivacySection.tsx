@@ -52,6 +52,7 @@ import {
 import { usePrivacySettings } from '@/hooks/usePrivacySettings';
 import { useDeletionRequest } from '@/hooks/useDeletionRequest';
 import type { DeletionRequestView, PrivacyDataRetention } from '@/services/privacyApi';
+import { formatDate } from '@smart/shared';
 
 interface ToggleRowProps {
   id: string;
@@ -88,13 +89,11 @@ const RETENTION_LABELS: Record<PrivacyDataRetention, string> = {
   full: 'Complète — pas d’effacement automatique',
 };
 
-const FRENCH_DATE = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' });
-
 /** What the latest deletion request means for the user; never « terminée » while photos remain. */
 function deletionStatusText(request: DeletionRequestView): string {
   if (request.status === 'completed') {
     return request.completedAt
-      ? `Suppression terminée le ${FRENCH_DATE.format(new Date(request.completedAt))}.`
+      ? `Suppression terminée le ${formatDate(request.completedAt, 'dayMonthYear')}.`
       : 'Suppression terminée.';
   }
   if (request.status === 'failed') return 'La suppression n’a pas pu aboutir. Tu peux refaire une demande.';

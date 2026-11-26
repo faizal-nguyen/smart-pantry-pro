@@ -1,6 +1,6 @@
 import { useState, useId } from 'react';
 import { Link } from 'react-router-dom';
-import type { DiscoveryCreator, DiscoveryItem } from '@smart/shared';
+import { formatDate, type DiscoveryCreator, type DiscoveryItem } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 import { recipeDetailPath } from '@/lib/recipeLinks';
 import { safeDiscoverySourceUrl, type DiscoveryDecision, type DiscoveryFeedback } from '@/services/discoveryApi';
@@ -31,7 +31,7 @@ export default function DiscoveryCard({ item, creator, disabled, priority = fals
     <RecipePreview imageUrl={item.imageUrl} title={item.title} priority={priority} decorative className="culinary-recipe-photo" />
     <div className="culinary-recipe-copy space-y-2 min-w-0">
       <p className="text-xs text-muted-foreground break-words">{creator?.name ?? 'Créateur'} · {item.status === 'added' ? 'Ajoutée à mes recettes' : item.status === 'kept' ? 'Gardée' : qualityLabels[item.quality.state]}</p>
-      <p className="text-xs text-muted-foreground"><time dateTime={item.createdAt}>Lien ajouté le {new Date(item.createdAt).toLocaleDateString('fr-FR')}</time>{item.publishedAt && <> · <time dateTime={item.publishedAt}>Publication du {new Date(item.publishedAt).toLocaleDateString('fr-FR')}</time></>}</p>
+      <p className="text-xs text-muted-foreground"><time dateTime={item.createdAt}>Lien ajouté le {formatDate(item.createdAt, 'numeric')}</time>{item.publishedAt && <> · <time dateTime={item.publishedAt}>Publication du {formatDate(item.publishedAt, 'numeric')}</time></>}</p>
       <h3 className="kitchen-card-title">{item.title}</h3>
       {item.description && <p className="text-sm break-words">{item.description}</p>}
       {ingredients.length > 0 && <p className="text-sm text-muted-foreground break-words">{ingredients.join(', ')}</p>}

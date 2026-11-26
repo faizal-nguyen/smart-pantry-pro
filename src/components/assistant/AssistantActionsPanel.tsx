@@ -21,6 +21,7 @@ import {
   type RiskTier,
 } from '@/services/assistantApi';
 import { dispatchAgentDbChanged, tablesForTool } from '@/lib/agentEvents';
+import { formatDate } from '@smart/shared';
 
 export interface AssistantActionsPanelProps {
   result: AssistantPlanResponse;
@@ -89,7 +90,7 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
   if (typeof args.recipe_id === 'string') {
     const recipe = labels[args.recipe_id] ?? 'Recette';
     if (!('meal_type' in args)) return recipe;
-    const day = typeof args.date === 'string' ? ', ' + new Date(`${args.date}T12:00:00Z`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }) : '';
+    const day = typeof args.date === 'string' ? ', ' + formatDate(args.date, 'weekdayDayMonth') : '';
     return `${recipe} — ${MEAL_LABELS[String(args.meal_type)] ?? String(args.meal_type)}${day}`;
   }
   if ('url' in args) return String(args.url);

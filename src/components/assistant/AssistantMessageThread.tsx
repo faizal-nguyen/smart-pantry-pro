@@ -15,6 +15,7 @@ import type { AssistantMessage } from '@/services/assistantApi';
 import AssistantRecipeProposals from './AssistantRecipeProposals';
 import AddChefIdeaDialog from './AddChefIdeaDialog';
 import {AssistantText} from './AssistantText';
+import { formatTime } from '@smart/shared';
 
 /**
  * PRP-239 PR4 §10.4 — split a chef synthesis text on the off-DB header.
@@ -86,11 +87,6 @@ interface AssistantMessageThreadProps {
   isLoading?: boolean;
   /** Shown after the last message and before the scroll marker, so it stays in view (actions to confirm). */
   footer?: React.ReactNode;
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function MessageBubble({ msg }: { msg: AssistantMessage }) {

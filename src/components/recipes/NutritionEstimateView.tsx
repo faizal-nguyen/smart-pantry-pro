@@ -1,4 +1,4 @@
-import {MACRO_NUTRIENTS,MICRO_NUTRIENTS,type NutritionEstimate} from '@smart/shared';
+import { formatDate, MACRO_NUTRIENTS, MICRO_NUTRIENTS, type NutritionEstimate } from '@smart/shared';
 
 const sources:Record<string,string>={ manual:'saisie manuelle',openfoodfacts:'Open Food Facts',estimated:'estimation déclarée',ciqual2020:'Anses — Ciqual 2020' };
 const states:Record<NutritionEstimate['status'],string>={
@@ -11,7 +11,7 @@ export default function NutritionEstimateView({ nutrition,showDetails=true }:{ n
   const details=<div className="space-y-2">
     {nutrition.sources.length>0 && <p>Sources : {[...new Set(nutrition.sources.map(source=>{
       const date=source.updated_at ? new Date(source.updated_at) : null;
-      return `${sources[source.source] ?? 'source déclarée'}${date && Number.isFinite(date.getTime()) ? ` (${date.toLocaleDateString('fr-FR')})` : ' (date inconnue)'}`;
+      return `${sources[source.source] ?? 'source déclarée'}${date && Number.isFinite(date.getTime()) ? ` (${formatDate(date, 'numeric')})` : ' (date inconnue)'}`;
     }))].join(', ')} · base déclarée pour 100 g.</p>}
     {[...new Set(nutrition.sources.map(source=>source.url).filter((url):url is string=>!!url?.startsWith('https://')))].map(url=><a key={url} className="inline-flex min-h-11 items-center underline" href={url} target="_blank" rel="noopener noreferrer">Consulter la référence nutritionnelle</a>)}
     {nutrition.limitations.map((text,index)=><p key={index} className="text-muted-foreground">{text}</p>)}

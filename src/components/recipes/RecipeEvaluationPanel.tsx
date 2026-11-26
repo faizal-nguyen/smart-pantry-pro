@@ -1,4 +1,4 @@
-import { needsPurchase, type RecipeEvaluation } from '@smart/shared';
+import { formatDateTime, needsPurchase, type RecipeEvaluation } from '@smart/shared';
 import { Button } from '@/components/ui/button';
 
 export default function RecipeEvaluationPanel({ evaluation,loading,refreshing,error,onRetry,validServings }:{
@@ -24,7 +24,7 @@ export default function RecipeEvaluationPanel({ evaluation,loading,refreshing,er
       {constraints.findings.map((finding,index)=><p key={index}>{finding.ingredient ? `${finding.ingredient} : ` : ''}{finding.message}</p>)}
       <details><summary className="min-h-11 cursor-pointer">Détails de la vérification</summary>
         {constraints.limitations.map((text,index)=><p key={index} className="text-muted-foreground">{text}</p>)}
-        <p className="text-xs text-muted-foreground">Profil version {evaluation.profile_version} · calcul {new Date(evaluation.calculated_at).toLocaleString('fr-FR')}.</p>
+        <p className="text-xs text-muted-foreground">Profil version {evaluation.profile_version} · calcul {formatDateTime(evaluation.calculated_at)}.</p>
       </details>
   </section>;
 }
