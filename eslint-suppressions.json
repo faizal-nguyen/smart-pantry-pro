@@ -458,29 +458,6 @@
       "count": 1
     }
   },
-  "supabase/functions/_shared/rateLimiter.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "supabase/functions/_shared/security.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "no-useless-escape": {
-      "count": 15
-    }
-  },
-  "supabase/functions/ai-assistant-enhanced/index.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 16
-    }
-  },
-  "supabase/functions/panic-mode/index.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 10
-    }
-  },
   "tailwind.config.ts": {
     "@typescript-eslint/no-require-imports": {
       "count": 1

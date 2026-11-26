@@ -335,8 +335,17 @@ class SecurityBaselineValidator {
   async checkRateLimiting() {
     console.log('\n🚦 Checking Rate Limiting...');
 
-    // Check rate limiter implementation
+    // Check rate limiter implementation. The API (Express) carries the limiters since the Edge
+    // functions left the repository (V11-06 E4a); an Edge limiter still counts if one comes back.
+    const apiLimiterPath = path.join(process.cwd(), 'apps/api/src/middleware/rateLimit.ts');
+    const apiUserLimiterPath = path.join(process.cwd(), 'apps/api/src/middleware/userRateLimit.ts');
     const rateLimiterPath = path.join(process.cwd(), 'supabase/functions/_shared/rateLimiter.ts');
+    const apiLimiter = fs.existsSync(apiLimiterPath) && fs.readFileSync(apiLimiterPath, 'utf8').includes('export function rateLimit');
+    const apiUserLimiter = fs.existsSync(apiUserLimiterPath) && fs.readFileSync(apiUserLimiterPath, 'utf8').includes('export function userRateLimit');
+    if (apiLimiter) {
+      this.results.passed.push('✅ Rate limiter module implemented (API)');
+      if (apiUserLimiter) this.results.passed.push('✅ Per-user rate limiting configured (API)');
+    }
     if (fs.existsSync(rateLimiterPath)) {
       this.results.passed.push('✅ Rate limiter module implemented');
       
@@ -344,7 +353,7 @@ class SecurityBaselineValidator {
       if (content.includes('checkLimit') && content.includes('RateLimitPresets')) {
         this.results.passed.push('✅ Rate limiting with presets configured');
       }
-    } else {
+    } else if (!apiLimiter) {
       this.results.failed.push('❌ Rate limiter not implemented');
     }
 
@@ -372,6 +381,17 @@ class SecurityBaselineValidator {
    */
   async checkCORSConfiguration() {
     console.log('\n🌐 Checking CORS Configuration...');
+
+    // The API (Express): origins checked against an allow-list, never a wildcard.
+    const apiCorsPath = path.join(process.cwd(), 'apps/api/src/middleware/cors.ts');
+    if (fs.existsSync(apiCorsPath)) {
+      const content = fs.readFileSync(apiCorsPath, 'utf8');
+      if (/origin:\s*['"]\*['"]|Access-Control-Allow-Origin['"]?\s*[,:]\s*['"]\*['"]/.test(content)) {
+        this.results.failed.push('❌ Wildcard CORS in the API');
+      } else if (content.includes('isAllowedOrigin')) {
+        this.results.passed.push('✅ CORS restricted to allowed origins (API)');
+      }
+    }
 
     const functionsPath = path.join(process.cwd(), 'supabase/functions');
     if (fs.existsSync(functionsPath)) {
@@ -442,7 +462,12 @@ class SecurityBaselineValidator {
       this.results.passed.push('✅ Using parameterized queries (Supabase ORM)');
     }
 
-    // Check for SQL sanitization helper
+    // Check for SQL sanitization helper. The API escapes search patterns since the Edge
+    // functions left the repository (V11-06 E4a).
+    const apiSanitizationPath = path.join(process.cwd(), 'apps/api/src/utils/sanitization.ts');
+    if (fs.existsSync(apiSanitizationPath) && fs.readFileSync(apiSanitizationPath, 'utf8').includes('escapeLikeQuery')) {
+      this.results.passed.push('✅ Search pattern escaping implemented (API)');
+    }
     const securityPath = path.join(process.cwd(), 'supabase/functions/_shared/security.ts');
     if (fs.existsSync(securityPath)) {
       const content = fs.readFileSync(securityPath, 'utf8');
@@ -458,7 +483,11 @@ class SecurityBaselineValidator {
   async checkXSSPrevention() {
     console.log('\n🛡️ Checking XSS Prevention...');
 
-    // Check for HTML sanitization
+    // Check for HTML sanitization (the API's helpers, and an Edge module if one comes back)
+    const apiSanitizationPath = path.join(process.cwd(), 'apps/api/src/utils/sanitization.ts');
+    if (fs.existsSync(apiSanitizationPath) && fs.readFileSync(apiSanitizationPath, 'utf8').includes('sanitizeHtml')) {
+      this.results.passed.push('✅ HTML sanitization functions implemented (API)');
+    }
     const securityPath = path.join(process.cwd(), 'supabase/functions/_shared/security.ts');
     if (fs.existsSync(securityPath)) {
       const content = fs.readFileSync(securityPath, 'utf8');
@@ -504,7 +533,15 @@ class SecurityBaselineValidator {
   async checkHTTPSSecurity() {
     console.log('\n🔒 Checking HTTPS/TLS Security...');
 
-    // Check security headers implementation
+    // Check security headers implementation: the app's headers (vercel.json) and the API's helmet
+    const vercelPath = path.join(process.cwd(), 'vercel.json');
+    if (fs.existsSync(vercelPath) && fs.readFileSync(vercelPath, 'utf8').includes('Strict-Transport-Security')) {
+      this.results.passed.push('✅ HSTS header configured (vercel.json)');
+    }
+    const apiSecurityPath = path.join(process.cwd(), 'apps/api/src/middleware/security.ts');
+    if (fs.existsSync(apiSecurityPath) && fs.readFileSync(apiSecurityPath, 'utf8').includes('helmet(')) {
+      this.results.passed.push('✅ Security headers middleware implemented (API, helmet)');
+    }
     const securityPath = path.join(process.cwd(), 'supabase/functions/_shared/security.ts');
     if (fs.existsSync(securityPath)) {
       const content = fs.readFileSync(securityPath, 'utf8');
@@ -554,7 +591,11 @@ class SecurityBaselineValidator {
   async checkAuthSecurity() {
     console.log('\n🔐 Checking Authentication & Authorization...');
 
-    // Check JWT implementation
+    // Check JWT implementation: the API verifies the session token with Supabase Auth
+    const apiAuthPath = path.join(process.cwd(), 'apps/api/src/middleware/auth.middleware.ts');
+    if (fs.existsSync(apiAuthPath) && fs.readFileSync(apiAuthPath, 'utf8').includes('auth.getUser(')) {
+      this.results.passed.push('✅ JWT validation middleware exists (API)');
+    }
     const hasJWTValidation = fs.existsSync(path.join(process.cwd(), 'supabase/functions/_shared/security.ts'));
     if (hasJWTValidation) {
       this.results.passed.push('✅ JWT validation middleware exists');
@@ -614,8 +655,11 @@ class SecurityBaselineValidator {
   async checkSecurityHeaders() {
     console.log('\n📋 Checking Security Headers...');
 
-    const securityPath = path.join(process.cwd(), 'supabase/functions/_shared/security.ts');
-    if (fs.existsSync(securityPath)) {
+    // The app's response headers live in vercel.json since the Edge functions left the repository
+    // (V11-06 E4a); an Edge security module is still read if one comes back.
+    const securityPath = [path.join(process.cwd(), 'supabase/functions/_shared/security.ts'), path.join(process.cwd(), 'vercel.json')]
+      .find(candidate => fs.existsSync(candidate));
+    if (securityPath) {
       const content = fs.readFileSync(securityPath, 'utf8');
       const headers = [
         'X-Content-Type-Options',
@@ -639,6 +683,8 @@ class SecurityBaselineValidator {
       } else {
         this.results.warnings.push(`⚠️  Only ${implementedHeaders}/${headers.length} security headers implemented`);
       }
+    } else {
+      this.results.warnings.push('⚠️  No security headers source found (vercel.json or an Edge security module)');
     }
   }
 
