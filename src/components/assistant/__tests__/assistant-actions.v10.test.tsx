@@ -4,7 +4,7 @@ import { AssistantActionsPanel } from '../AssistantActionsPanel';
 import AssistantConversationSurface from '../AssistantConversationSurface';
 import type { AssistantPlanResponse } from '@/services/assistantApi';
 
-const mockConfirm = jest.fn(), mockUndo = jest.fn(), mockDbChanged = jest.fn(), mockToast = jest.fn();
+const mockConfirm = jest.fn(), mockUndo = jest.fn(), mockDbChanged = jest.fn(), mockToast = jest.fn(), mockToastError = jest.fn();
 let mockOwner = 'owner-a';
 let mockReply: AssistantPlanResponse | null = null;
 jest.mock('@/services/assistantApi', () => ({
@@ -12,7 +12,7 @@ jest.mock('@/services/assistantApi', () => ({
   postAssistantUndo: (...args: unknown[]) => mockUndo(...args),
 }));
 jest.mock('@/lib/agentEvents', () => ({ tablesForTool: (tool: string) => [tool], dispatchAgentDbChanged: (...args: unknown[]) => mockDbChanged(...args) }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: mockToast }) }));
+jest.mock('sonner', () => ({ toast: Object.assign((...args: unknown[]) => mockToast(...args), { error: (...args: unknown[]) => mockToastError(...args) }) }));
 jest.mock('@/hooks/useAuthenticatedUser', () => ({ useAuthSessionOptional: () => ({ user: { id: mockOwner } }) }));
 jest.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: jest.fn() }) }));
 jest.mock('@/hooks/useAssistantConversations', () => ({ useAssistantMessages: () => ({ messages: [], isLoading: false }) }));
@@ -38,7 +38,7 @@ const reply = (changes: Partial<AssistantPlanResponse> = {}): AssistantPlanRespo
   session_id: 's', transcript: 'J’ai utilisé 200 g de riz', message: 'Je décompte 200 g de riz ?', actions_executed: [], actions_pending: [pending],
   confirmation_token: 'token-1', cost: { whisper_usd: 0, llm_usd: 0, total_usd: 0 }, model_used: null, duration_ms: 10, ...changes,
 });
-beforeEach(() => { mockConfirm.mockReset(); mockUndo.mockReset(); mockDbChanged.mockReset(); mockToast.mockReset(); mockOwner = 'owner-a'; mockReply = null; });
+beforeEach(() => { mockConfirm.mockReset(); mockUndo.mockReset(); mockDbChanged.mockReset(); mockToast.mockReset(); mockToastError.mockReset(); mockOwner = 'owner-a'; mockReply = null; });
 
 describe('pending and executed actions of a reply', () => {
   test('Confirmer executes the pending actions with their token and refreshes the touched data', async () => {
@@ -118,8 +118,8 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText('Je retire de ton stock : Oignon 2 pièce.')).toBeInTheDocument();
     expect(screen.getByText('Pas dans ton stock, rien à retirer : Agneau.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Actions confirmées',
-      description: 'Retiré de ton stock : Oignon 2 pièce. Pas dans ton stock, rien à retirer : Agneau.' })));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Actions confirmées',
+      { description: 'Retiré de ton stock : Oignon 2 pièce. Pas dans ton stock, rien à retirer : Agneau.' }));
   });
   test('a long list is shortened, the whole list one tap away, and the toast stays short (iPhone 2026-11-09)', async () => {
     const absent = 'Pas dans ton stock, rien à retirer : huile neutre, graines de carvi, macis, cannelle, cardamome noire, graines de coriandre, muscade.';
@@ -134,21 +134,23 @@ describe('pending and executed actions of a reply', () => {
     expect(screen.getByText(absent)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Voir moins' })).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ description: short })));
+    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.any(String), { description: short }));
   });
   test('a failed confirmation says why, in a clear title', async () => {
     mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [{ action_id: 'p1', tool: 'cook_recipe', error_code: 'EXECUTION_FAILED', reason: 'Cette recette n’est plus accessible.' }] });
     render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Action non réalisée', description: 'Cette recette n’est plus accessible.' })));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Action non réalisée', { description: 'Cette recette n’est plus accessible.' }));
   });
   test('an action still in progress or to verify is not announced as failed nor as done', async () => {
     for (const error_code of ['EXECUTION_IN_PROGRESS', 'EXECUTION_UNVERIFIED']) {
       mockToast.mockReset();
+      mockToastError.mockReset();
       mockConfirm.mockResolvedValue({ actions_executed: [], actions_failed: [{ action_id: 'p1', tool: 'consume_inventory_items', error_code, reason: 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.' }] });
       const { unmount } = render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
       fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
-      await waitFor(() => expect(mockToast).toHaveBeenCalledWith({ title: 'Action à vérifier', description: 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.' }));
+      await waitFor(() => expect(mockToast).toHaveBeenCalledWith('Action à vérifier', { description: 'Cette action est déjà en cours. Vérifie son résultat dans un instant avant de la recommencer.' }));
+      expect(mockToastError).not.toHaveBeenCalled();
       unmount();
     }
   });
@@ -158,7 +160,7 @@ describe('pending and executed actions of a reply', () => {
       { action_id: 'p2', tool: 'consume_inventory_items', error_code: 'EXECUTION_UNVERIFIED', reason: 'Vérifie son résultat.' }] });
     render(<AssistantActionsPanel result={reply()} onResultPatched={jest.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Confirmer (1)' }));
-    await waitFor(() => expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Action non réalisée', variant: 'destructive' })));
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledWith('Action non réalisée', expect.anything()));
   });
   test('a reply whose only action was a read renders nothing', () => {
     const read = { ...executed, tool: 'read_inventory', reversible: false, risk_tier: 'read' as const };

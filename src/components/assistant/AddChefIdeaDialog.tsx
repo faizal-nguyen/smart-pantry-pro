@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { apiPost } from '@/lib/api';
 
 interface AddChefIdeaDialogProps {
@@ -124,9 +124,7 @@ export function AddChefIdeaDialog({
   const handleSave = async (): Promise<void> => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      toast({
-        variant: 'destructive',
-        title: 'Titre manquant',
+      toast.error('Titre manquant', {
         description: 'Donne un nom à cette recette avant de l\'enregistrer.',
       });
       return;
@@ -136,9 +134,7 @@ export function AddChefIdeaDialog({
       .map((s) => s.trim())
       .filter(Boolean);
     if (instructions.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Instructions manquantes',
+      toast.error('Instructions manquantes', {
         description: 'Décris au moins une étape.',
       });
       return;
@@ -167,17 +163,14 @@ export function AddChefIdeaDialog({
         conversation_id: conversationId,
       });
       const policyHits = res.sanitization?.changes?.length ?? 0;
-      toast({
-        title: 'Recette ajoutée',
+      toast('Recette ajoutée', {
         description: policyHits > 0
           ? `Politique appliquée à ${policyHits} ingrédient(s). Voir dans Mes recettes.`
           : 'Voir dans Mes recettes.',
       });
       onOpenChange(false);
     } catch (err) {
-      toast({
-        variant: 'destructive',
-        title: 'Échec de l\'enregistrement',
+      toast.error('Échec de l\'enregistrement', {
         description: err instanceof Error ? err.message : 'Erreur inconnue.',
       });
     } finally {

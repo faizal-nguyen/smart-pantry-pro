@@ -8,7 +8,6 @@ jest.mock('@/hooks/useDictation',()=>({ ...jest.requireActual('@/hooks/useDictat
   useDictation:(options:UseDictationOptions)=>{ mockDictation=options;return { status:mockDictationStatus,recordingMs:12000,toggle:mockToggle,cancel:mockCancel,error:mockDictationError }; } }));
 jest.mock('@/services/assistantApi',()=>({ postAssistantText:(...args:unknown[])=>mockPost(...args),newClientRequestId:()=> 'request',patchAssistantConversation:jest.fn() }));
 jest.mock('../AssistantModePicker',()=>({ __esModule:true,default:()=>null }));
-jest.mock('@/hooks/use-toast',()=>({ useToast:()=>({ toast:jest.fn() }) }));
 const wrap=(onResponse?:jest.Mock)=> <QueryClientProvider client={new QueryClient()}><AssistantComposer expectedUserId="owner-a" onResponse={onResponse} /></QueryClientProvider>;
 beforeEach(()=>{ mockPost.mockReset();mockToggle.mockReset();mockCancel.mockReset();mockDictationStatus='idle';mockDictationError=null;mockDictation=null; });
 test('a rejected response leaves a visible error, the question and the input focus',async()=>{

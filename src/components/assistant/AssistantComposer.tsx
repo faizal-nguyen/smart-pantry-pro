@@ -21,7 +21,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 import { appendDictation, useDictation } from '@/hooks/useDictation';
 import {
@@ -93,7 +93,6 @@ export default function AssistantComposer({
   const [review, setReview] = useState<(SeenGroceries & { key: number }) | null>(null);
   const reviews = useRef(0);
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const dictation = useDictation({
     owner: expectedUserId,
@@ -208,10 +207,8 @@ export default function AssistantComposer({
         await queryClient.invalidateQueries({ queryKey: ['assistant-conversation'] });
         await queryClient.invalidateQueries({ queryKey: ['assistant-conversations'] });
       } catch (err) {
-        toast({
-          title: 'Mode non sauvegardé',
+        toast.error('Mode non sauvegardé', {
           description: err instanceof Error ? err.message : 'Erreur réseau',
-          variant: 'destructive',
         });
       }
     }

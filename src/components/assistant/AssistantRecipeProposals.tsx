@@ -33,7 +33,7 @@ import { recipeDetailPath } from '@/lib/recipeLinks';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { AssistantPlanResponse, ExecutedAction } from '@/services/assistantApi';
 import {
   fireRecipeAssistantAction,
@@ -156,7 +156,6 @@ interface RecipeCardProps {
 }
 
 function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCardProps) {
-  const { toast } = useToast();
   const [pendingAction, setPendingAction] = React.useState<RecipeAction | null>(null);
   const cooking = useCookRecipe(r);
   const cooked = cooking.status === 'cooked' || cooking.status === 'undoing';
@@ -171,13 +170,11 @@ function RecipeCard({ recipe: r, showCookabilityBadge, showActions }: RecipeCard
     setPendingAction(action);
     try {
       const title = await fireRecipeAssistantAction(r, action);
-      toast({ title, description: `Recette : ${r.name}` });
+      toast(title, { description: `Recette : ${r.name}` });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
-      toast({
-        title: 'Action impossible',
+      toast.error('Action impossible', {
         description: message,
-        variant: 'destructive',
       });
     } finally {
       setPendingAction(null);

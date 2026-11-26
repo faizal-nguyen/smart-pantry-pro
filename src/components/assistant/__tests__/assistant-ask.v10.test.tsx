@@ -9,7 +9,6 @@ jest.mock('@/services/assistantApi', () => ({ postAssistantText: (...args: unkno
 jest.mock('@/hooks/useDictation', () => ({ ...jest.requireActual('@/hooks/useDictation'),
   useDictation: () => ({ status: 'idle', recordingMs: 0, toggle: jest.fn(), cancel: jest.fn(), error: null }) }));
 jest.mock('../AssistantModePicker', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 
 beforeEach(() => mockPost.mockReset());
 const client = () => new QueryClient();
