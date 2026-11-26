@@ -278,7 +278,7 @@ export default function DataPrivacySection() {
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-start gap-2"
+            className="min-h-11 w-full justify-start gap-2"
             onClick={() => void handleExport()}
             disabled={isExporting}
           >
@@ -293,7 +293,7 @@ export default function DataPrivacySection() {
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-start gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="min-h-11 w-full justify-start gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => setShowDeleteDialog(true)}
             disabled={isRequesting}
           >
@@ -309,6 +309,7 @@ export default function DataPrivacySection() {
                   type="button"
                   variant="outline"
                   size="sm"
+                  className="min-h-11"
                   onClick={() => void handleDelete()}
                   disabled={isRequesting}
                 >
@@ -339,11 +340,11 @@ export default function DataPrivacySection() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRequesting}>Annuler</AlertDialogCancel>
+            <AlertDialogCancel className="min-h-11" disabled={isRequesting}>Annuler</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleDelete()}
               disabled={isRequesting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isRequesting ? 'Envoi…' : 'Confirmer la demande'}
             </AlertDialogAction>
