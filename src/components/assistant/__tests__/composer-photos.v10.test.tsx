@@ -15,7 +15,6 @@ jest.mock('@/services/assistantApi', () => ({
 jest.mock('@/lib/photoResize', () => ({ KEPT_PHOTO_SIDE: 1024, resizePhoto: jest.fn(async () => new Blob(['jpeg'], { type: 'image/jpeg' })) }));
 jest.mock('@/lib/agentEvents', () => ({ dispatchAgentDbChanged: jest.fn() }));
 jest.mock('../AssistantModePicker', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: jest.fn() }) }));
 jest.mock('@/hooks/useDictation', () => ({ ...jest.requireActual('@/hooks/useDictation'),
   useDictation: () => ({ status: 'idle', recordingMs: 0, toggle: jest.fn(), cancel: jest.fn(), error: null }) }));
 

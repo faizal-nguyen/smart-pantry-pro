@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { shortenList } from '@/lib/shortenList';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   postAssistantConfirm,
   postAssistantUndo,
@@ -98,7 +98,6 @@ function previewArgs(args: Record<string, unknown>, labels: Record<string, strin
 }
 
 export function AssistantActionsPanel({ result, onResultPatched }: AssistantActionsPanelProps) {
-  const { toast } = useToast();
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState<string | null>(null);
@@ -120,13 +119,12 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       const summaries = done.actions_executed.flatMap(action => summaryOf(action.result)).map(line => shortenList(line) ?? line);
       // In progress or unverified: it may well have happened, so neither « non réalisée » nor « confirmée ».
       const failures = done.actions_failed.filter(failure => !UNSETTLED_CODES.has(failure.error_code));
-      toast({
-        title: !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle'
-          : failures.length ? 'Action non réalisée' : 'Action à vérifier',
-        description: !done.actions_failed.length ? summaries.length ? summaries.join(' ') : `${done.actions_executed.length} exécutée(s).`
-          : reasons.length ? reasons.join(' ') : 'Rien n’a changé. Redis ta demande pour réessayer.',
-        ...(failures.length ? { variant: 'destructive' as const } : {}),
-      });
+      const title = !done.actions_failed.length ? 'Actions confirmées' : done.actions_executed.length ? 'Confirmation partielle'
+        : failures.length ? 'Action non réalisée' : 'Action à vérifier';
+      const description = !done.actions_failed.length ? summaries.length ? summaries.join(' ') : `${done.actions_executed.length} exécutée(s).`
+        : reasons.length ? reasons.join(' ') : 'Rien n’a changé. Redis ta demande pour réessayer.';
+      // Red only when something certainly failed; « à vérifier » stays neutral.
+      (failures.length ? toast.error : toast)(title, { description });
     } catch (err) {
       // Kept on screen: a toast can be missed on a phone, and the user may retry.
       setConfirmError(err instanceof Error ? err.message : 'Confirmation impossible. Réessaie ou relance ta demande.');
@@ -141,9 +139,9 @@ export function AssistantActionsPanel({ result, onResultPatched }: AssistantActi
       await postAssistantUndo(action.action_id);
       onResultPatched({ actions_executed: result.actions_executed.map(a => (a.action_id === action.action_id ? { ...a, reversible: false } : a)) });
       dispatchAgentDbChanged(tablesForTool(action.tool));
-      toast({ title: 'Action annulée' });
+      toast('Action annulée');
     } catch (err) {
-      toast({ title: 'Annulation impossible', description: err instanceof Error ? err.message : 'Erreur inconnue', variant: 'destructive' });
+      toast.error('Annulation impossible', { description: err instanceof Error ? err.message : 'Erreur inconnue' });
     } finally {
       setUndoing(null);
     }

@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   AssistantConversation,
   archiveAssistantConversation,
@@ -59,7 +59,6 @@ export default function ConversationListItem({ conversation,onSelect }: Conversa
   const destination=new URLSearchParams({ conversation:conversation.id });
   if (conversation.mode!=='general') destination.set('mode',conversation.mode);
   const queryClient = useQueryClient();
-  const { toast } = useToast();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const invalidate = () =>
@@ -69,31 +68,31 @@ export default function ConversationListItem({ conversation,onSelect }: Conversa
     mutationFn: (title: string) => patchAssistantConversation(conversation.id, { title }),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Conversation renommée' });
+      toast('Conversation renommée');
     },
     onError: (err: Error) =>
-      toast({ title: 'Renommage échoué', description: err.message, variant: 'destructive' }),
+      toast.error('Renommage échoué', { description: err.message }),
   });
 
   const archiveMutation = useMutation({
     mutationFn: () => archiveAssistantConversation(conversation.id),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Conversation archivée' });
+      toast('Conversation archivée');
     },
     onError: (err: Error) =>
-      toast({ title: 'Archivage échoué', description: err.message, variant: 'destructive' }),
+      toast.error('Archivage échoué', { description: err.message }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: () => softDeleteAssistantConversation(conversation.id),
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Conversation supprimée' });
+      toast('Conversation supprimée');
       setConfirmDeleteOpen(false);
     },
     onError: (err: Error) =>
-      toast({ title: 'Suppression échouée', description: err.message, variant: 'destructive' }),
+      toast.error('Suppression échouée', { description: err.message }),
   });
 
   const handleRename = () => {
