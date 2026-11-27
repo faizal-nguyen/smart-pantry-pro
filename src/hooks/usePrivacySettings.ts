@@ -15,6 +15,11 @@
  * backend (futur) finalise — l'app n'efface plus les données
  * inline. Trade-off : pas d'effet immédiat côté UI, mais
  * conformité RGPD propre + auditabilité.
+ *
+ * V11-06 E6c : le hook ne pose plus d'effet hors de son état
+ * (`window.analyticsEnabled`, classe `battery-saver`, clé `private-mode`
+ * de `sessionStorage`) : rien ne les lisait. Les retours sans appelant
+ * (`isFeatureAllowed`, consentement et sa boîte de dialogue) sont retirés.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -52,18 +57,16 @@ export function usePrivacySettings() {
   const [error, setError] = useState<Error | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showConsentDialog, setShowConsentDialog] = useState(false);
 
   // ----- Load -----
   useEffect(() => {
     let active = true;
-    setIsLoading(true);setError(null);setShowConsentDialog(false);
-    applyPrivacySettings(DEFAULT_SETTINGS);
+    setIsLoading(true);setError(null);
     if (!owner) { setIsLoading(false);return; }
     (async () => {
       try {
         const { settings: loaded } = await getPrivacySettings(owner);
-        if (active) { setLoaded({ owner,settings:loaded });applyPrivacySettings(loaded); }
+        if (active) setLoaded({ owner,settings:loaded });
       } catch (err) {
         // 401/non-auth → on garde DEFAULT_SETTINGS, sans toast (peut
         // arriver pendant la phase de session loading).
@@ -86,36 +89,20 @@ export function usePrivacySettings() {
       const previous = settings;
       const optimistic = { ...settings, ...next };
       setSettings(optimistic);
-      applyPrivacySettings(optimistic);
       try {
         const { settings: confirmed } = await patchPrivacySettings(next,owner);
         if (ownerRef.current!==owner) return false;
         setSettings(confirmed);
-        applyPrivacySettings(confirmed);
         return true;
       } catch (err) {
         if (ownerRef.current!==owner) return false;
         setSettings(previous);
-        applyPrivacySettings(previous);
         const message = err instanceof Error ? err.message : 'Erreur inconnue';
         toast.error(`Sauvegarde impossible : ${message}`);
         return false;
       } finally { if (ownerRef.current === owner) setIsUpdating(false); }
     },
     [settings,owner,setSettings,error,isLoading],
-  );
-
-  // ----- Consent -----
-  const requestConsent = useCallback(() => setShowConsentDialog(true), []);
-
-  const isFeatureAllowed = useCallback(
-    (feature: keyof PrivacySettings): boolean => {
-      if (isLoading || error) return false;
-      if (feature === 'assistantMemoryEnabled' || feature === 'saveHistory' || feature === 'batterySaver') return settings[feature] === true;
-      if (!settings.hasConsent) return false;
-      return settings[feature] === true;
-    },
-    [settings, isLoading, error],
   );
 
   // ----- Export (download) -----
@@ -170,37 +157,8 @@ export function usePrivacySettings() {
   return {
     owner, settings,
     isLoading, error, isUpdating,
-    hasConsent: settings.hasConsent,
-    showConsentDialog,
-    setShowConsentDialog,
     updateSettings,
-    requestConsent,
-    isFeatureAllowed,
     exportUserData,
     requestDataDeletion,
   };
-}
-
-// ---- Side effects ---------------------------------------------------
-
-function applyPrivacySettings(settings: PrivacySettings) {
-  if (typeof window === 'undefined') return;
-
-  // Analytics flag (consommé par les wrappers analytics ailleurs).
-  (window as unknown as { analyticsEnabled?: boolean }).analyticsEnabled =
-    settings.allowAnalytics;
-
-  // Battery saver visuel — class CSS gérée par PRP-237 tokens.
-  if (settings.batterySaver) {
-    document.documentElement.classList.add('battery-saver');
-  } else {
-    document.documentElement.classList.remove('battery-saver');
-  }
-
-  // Mode privé pour l'historique de session.
-  if (!settings.saveHistory) {
-    sessionStorage.setItem('private-mode', 'true');
-  } else {
-    sessionStorage.removeItem('private-mode');
-  }
 }
