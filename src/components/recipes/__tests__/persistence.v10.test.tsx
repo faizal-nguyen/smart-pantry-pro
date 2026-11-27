@@ -10,7 +10,6 @@ jest.mock('@/hooks/useRecipeParser', () => ({ useRecipeParser: () => ({ loading:
 const capture = jest.fn();
 const extract = jest.fn();
 jest.mock('@/hooks/useSocialRecipeImports', () => ({ useSocialRecipeImports: () => ({ capture, extract, getCurrentDraft: jest.fn() }) }));
-jest.mock('../RecipeBookScanner', () => ({ __esModule: true, default: () => null }));
 jest.mock('../RecipeVoiceInput', () => ({ __esModule: true, default: () => null }));
 
 const save = jest.mocked(saveRecipeWithIngredients);
@@ -65,6 +64,18 @@ describe('manual recipe persistence', () => {
     await waitFor(() => expect(close).toHaveBeenCalledWith(false));
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[0][0]).toEqual(save.mock.calls[1][0]);
+  });
+});
+
+describe('add modes', () => {
+  test('offers no book scanner: its OCR route no longer exists', () => {
+    render(<AddRecipeDialog open onOpenChange={jest.fn()} />);
+    expect(screen.queryByRole('tab', { name: /Scanner/ })).toBeNull();
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent?.trim())).toEqual(['Manuel', 'URL', 'Vocal', 'Social']);
+  });
+  test('without link import, only manual and voice modes remain', () => {
+    render(<AddRecipeDialog open onOpenChange={jest.fn()} allowLinkImport={false} />);
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent?.trim())).toEqual(['Manuel', 'Vocal']);
   });
 });
 
