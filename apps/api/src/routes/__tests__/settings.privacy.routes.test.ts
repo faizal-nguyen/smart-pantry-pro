@@ -80,3 +80,21 @@ describe('delete-request status is readable, without the internal error',()=>{
     try { await request(reading(null,{message:'boom'}).app).get('/settings/delete-request').expect(500); } finally { log.mockRestore(); }
   });
 });
+
+describe('V11-06 S1: the export answers within what one response can carry',()=>{
+  function exporting(rows:number) {
+    const s=setup();
+    s.db.rpc.mockImplementation(async(name:string)=>({ error:null,
+      data:name==='export_user_data' ? { user_id:USER,stock_movements:Array.from({length:rows},(_v,i)=>({id:i,user_id:USER,snapshot:'x'.repeat(200)})) } : {} }));
+    return s;
+  }
+  test('an export of a usual size is returned whole',async()=>{
+    const res=await request(exporting(10).app).post('/settings/export').expect(200);
+    expect(res.body.data.stock_movements).toHaveLength(10);expect(res.body.data).toHaveProperty('assistant_memory');
+  });
+  test('an export beyond 4 MB is refused in words, with its own code, instead of failing as an error',async()=>{
+    const res=await request(exporting(20_000).app).post('/settings/export').expect(413);
+    expect(res.body.code).toBe('PRIVACY_EXPORT_TOO_LARGE');expect(res.body.error).toMatch(/4 Mo/);
+    expect(JSON.stringify(res.body)).not.toContain('stock_movements');
+  });
+});
