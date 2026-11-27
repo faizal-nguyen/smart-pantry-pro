@@ -6,13 +6,13 @@
 
 Kitchen OS est une application de cuisine : stock, recettes, courses, menus et assistant.
 
-Le responsable du traitement de vos données est [à compléter : nom et statut du responsable de traitement]. Pour toute question sur vos données ou pour exercer vos droits, utilisez le contact indiqué en section 11.
+Le responsable du traitement de vos données est Kitchen OS, 2 rue Berthollet, 94110 Arcueil. Pour toute question sur vos données ou pour exercer vos droits, écrivez à cette adresse (section 11).
 
 ## 2. Données traitées
 
 ### 2.1 Votre compte
 
-- Votre adresse e-mail et un mot de passe, gérés par le service d'authentification de Supabase. [à compléter : règles de mot de passe et confirmation de l'e-mail configurées dans Supabase, service d'envoi des e-mails]
+- Votre adresse e-mail et un mot de passe d'au moins 6 caractères, gérés par le service d'authentification de Supabase. Votre adresse doit être confirmée avant la première connexion ; les e-mails d'authentification (confirmation, réinitialisation du mot de passe) sont envoyés par le service d'envoi intégré de Supabase.
 - Une fiche de profil créée à l'inscription : votre e-mail et un nom, qui reprend votre e-mail par défaut.
 
 ### 2.2 Ce que vous enregistrez dans l'application
@@ -79,7 +79,7 @@ Vos données sont traitées par les services suivants, chacun pour ce qui le con
 
 | Service | Rôle | Données concernées |
 | --- | --- | --- |
-| Supabase | Base de données, authentification, stockage des photos | Toutes les données décrites en section 2. Région : [à compléter : région du projet Supabase] |
+| Supabase | Base de données, authentification, stockage des photos | Toutes les données décrites en section 2, hébergées à Paris (région `eu-west-3`) |
 | Vercel | Hébergement de l'application et de son API (fonctions exécutées à Francfort, région `fra1`) ; journaux techniques | Requêtes et journaux décrits en section 7 |
 | OpenAI | Assistant et résumés de conversation, transcription des dictées, lecture des photos de produits et de tickets, extraction des recettes importées, recherche de recettes sur le web, rapprochement des noms de produits | Vos demandes et dictées, les photos envoyées, le contenu de la recette importée, les extraits de stock, de recettes, de courses et de menus utiles à la demande, l'historique et la mémoire s'ils sont activés, le profil alimentaire seulement si vous l'autorisez. Aucun identifiant de compte n'est transmis |
 | Open Food Facts | Base de produits alimentaires | Le code-barres ou le nom recherché, sans identifiant de compte |
@@ -87,11 +87,16 @@ Vos données sont traitées par les services suivants, chacun pour ce qui le con
 | Sites de recettes | Lecture d'une page dont vous importez la recette, ou trouvée par la recherche web de l'assistant | L'adresse de la page, téléchargée par le serveur |
 | Hébergeurs des images de recettes | Affichage d'une image de recette importée, chargée par votre navigateur depuis son site d'origine | L'adresse IP de votre navigateur |
 
-**OpenAI.** Les requêtes de l'assistant, de lecture de photos, d'import et de recherche web demandent à OpenAI de ne pas enregistrer l'échange (`store: false`). La transcription des dictées et le rapprochement des noms de produits n'ont pas cette option. [à compléter : accord de traitement avec OpenAI, durée de conservation par OpenAI des textes et de l'audio, garanties de transfert hors de l'Union européenne]
+**OpenAI.** Les requêtes de l'assistant, de lecture de photos, d'import et de recherche web demandent à OpenAI de ne pas enregistrer l'échange (`store: false`). La transcription des dictées et le rapprochement des noms de produits n'ont pas cette option. D'après la documentation d'OpenAI, les données transmises par son API ne servent pas à entraîner ses modèles, et OpenAI peut les conserver jusqu'à 30 jours pour détecter les abus, textes comme audio. Son accord de traitement, intégré à ses conditions de service, encadre le transfert vers les États-Unis par les clauses contractuelles types de la Commission européenne.
 
-**Transferts hors de l'Union européenne.** [à compléter : localisation et garanties de transfert pour Supabase, Vercel, Meta, TikTok et Google]
+**Transferts hors de l'Union européenne.**
 
-**Limitation de débit.** [à compléter : préciser si un service Redis est utilisé en production, son fournisseur et sa région ; il ne recevrait que l'identifiant technique du compte et un compteur]
+- **Supabase** héberge la base à Paris ; ses équipes peuvent y accéder depuis l'étranger, pour le support ou la sécurité. Supabase propose un accord de traitement qui encadre ces transferts par les clauses contractuelles types de la Commission européenne.
+- **Vercel** exécute l'API à Francfort ; Vercel est certifiée au cadre de protection des données entre l'Union européenne et les États-Unis.
+- **OpenAI** : voir ci-dessus.
+- **Meta, TikTok, Google et les sites de recettes** ne reçoivent du serveur que l'adresse demandée, sans identifiant ; ils traitent cette requête selon leurs propres règles.
+
+**Limitation de débit.** Les compteurs restent en mémoire du serveur ; aucun service tiers ne les reçoit.
 
 La dictée dans la fenêtre d'ajout d'une recette utilise la reconnaissance vocale de votre navigateur : selon le navigateur, l'audio peut être traité par son éditeur. La lecture à voix haute des réponses utilise la synthèse vocale de votre appareil.
 
@@ -101,21 +106,21 @@ La dictée dans la fenêtre d'ajout d'une recette utilise la reconnaissance voca
 | --- | --- |
 | Historique des conversations et mémoire de l'assistant | Désactivés par défaut. Une fois activés : 7 jours (conservation minimale), 30 jours (standard, par défaut) ou sans limite (complète), selon votre choix. L'effacement se fait à la prochaine utilisation de l'assistant. Raccourcir la durée raccourcit celle des éléments déjà enregistrés ; l'allonger ne la prolonge pas. Les éléments enregistrés avant la mise en place de ces durées n'en ont pas : ils restent jusqu'à la suppression de vos données |
 | Contexte d'une conversation en cours | 24 heures au plus |
-| Ticket de caisse lu mais non validé, ou illisible | 7 jours, puis effacé ; annuler l'application d'un ticket le fait repartir pour 7 jours. [à compléter : confirmer que la tâche quotidienne purge-receipt-scans est planifiée en production] |
+| Ticket de caisse lu mais non validé, ou illisible | 7 jours, puis effacé par une tâche quotidienne ; annuler l'application d'un ticket le fait repartir pour 7 jours |
 | Ticket validé, prix d'achat | Jusqu'à la suppression de vos données |
 | Compte, stock, recettes, courses, menus, profil alimentaire, journal des actions, traces de recettes, photos | Jusqu'à la suppression de vos données |
 | Compteurs de limitation de débit (adresse IP ou identifiant de compte) | En mémoire du serveur, une heure au plus |
 | Journaux techniques de l'hébergeur | Voir la section 7.2 |
 
-[à compléter : formule Supabase, existence et durée de conservation des sauvegardes de la base]
+Aucune sauvegarde de la base n'est faite : la formule gratuite de Supabase, utilisée aujourd'hui, n'en comprend pas. Une donnée effacée ne peut donc pas être restaurée.
 
 ## 6. Vos droits
 
 Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation, de portabilité et d'opposition. Vous pouvez retirer à tout moment un consentement donné, sans effet sur ce qui a été fait avant.
 
-- **Accès et portabilité** : Paramètres > Données et confidentialité > « Exporter mes données » produit un fichier JSON avec les données des tables de votre compte. Les photos y sont désignées par leur adresse, sans leur contenu ; les caches recalculés et les données de connexion n'y figurent pas. Un export de plus de 4 Mo ne peut pas encore être produit par l'application : écrivez-nous pour le recevoir.
+- **Accès et portabilité** : Paramètres > Données et confidentialité > « Exporter mes données » produit un fichier JSON avec les données des tables de votre compte. Les photos y sont désignées par leur adresse, sans leur contenu ; les caches recalculés et les données de connexion n'y figurent pas. Un export de plus de 4 Mo ne peut pas encore être produit par l'application : écrivez-nous (section 11) pour le recevoir.
 - **Rectification** : vous modifiez vos données directement dans l'application.
-- **Effacement** : « Demander la suppression de mes données » efface aussitôt vos photos. Vos autres données sont ensuite effacées automatiquement, par lots, à chaque heure. [à compléter : confirmer que la tâche planifiée process-deletion-requests est active en production] Si certaines photos ne peuvent pas être effacées, la demande reste ouverte et l'écran propose de réessayer. Restent après l'effacement : l'enregistrement de votre demande (identifiant technique, dates, statut), les noms de produits ajoutés au catalogue commun, un registre technique des commandes de la découverte de recettes, et votre compte de connexion (e-mail et mot de passe). Pour fermer aussi ce compte, écrivez-nous.
+- **Effacement** : « Demander la suppression de mes données » efface aussitôt vos photos. Vos autres données sont ensuite effacées automatiquement, par lots, par une tâche qui s'exécute chaque heure. Si certaines photos ne peuvent pas être effacées, la demande reste ouverte et l'écran propose de réessayer. Restent après l'effacement : l'enregistrement de votre demande (identifiant technique, dates, statut), les noms de produits ajoutés au catalogue commun, un registre technique des commandes de la découverte de recettes, et votre compte de connexion (e-mail et mot de passe). Pour fermer aussi ce compte, écrivez-nous (section 11).
 - **Opposition et retrait du consentement** :
   désactivez l'historique ou la mémoire de l'assistant : leur enregistrement et leur usage s'arrêtent, mais les éléments déjà enregistrés restent jusqu'à leur échéance, jusqu'à ce que vous les oubliiez (Paramètres > Mémoire de l'assistant) ou jusqu'à la suppression de vos données. Vous pouvez aussi retirer l'autorisation de transmettre votre profil à l'assistant, ou effacer votre profil alimentaire. Il n'existe pas de réglage d'analyses, faute de mesure d'usage. Les traces de recettes et le journal des actions n'ont pas de réglage ; ils sont effacés avec vos données.
 - **Réclamation** : vous pouvez saisir la CNIL ([www.cnil.fr](https://www.cnil.fr)).
@@ -146,7 +151,7 @@ Il ne contient ni le message d'erreur, ni ce que vous avez saisi, ni l'adresse c
 
 **Journaux du serveur.** L'API consigne des événements techniques : échecs, limitations de débit, imports de recettes, lectures de tickets. Ces lignes peuvent contenir l'identifiant technique de votre compte ou de l'opération, un code et le message technique de l'erreur. Ce message peut exceptionnellement citer l'adresse d'une recette que vous importez. Ces journaux ne contiennent ni vos demandes à l'assistant, ni vos dictées.
 
-L'hébergeur conserve aussi, dans ses journaux d'infrastructure, l'adresse IP et les métadonnées techniques des requêtes. Durée de conservation de ces journaux : [à compléter : formule Vercel et durée de conservation des journaux d'exécution].
+L'hébergeur conserve aussi, dans ses journaux d'infrastructure, l'adresse IP et les métadonnées techniques des requêtes. D'après la documentation de Vercel, ces journaux sont conservés au plus 30 jours avec la formule actuelle (Pro).
 
 ## 8. Stockage sur votre appareil
 
@@ -170,8 +175,8 @@ Kitchen OS s'adresse aux personnes de 15 ans et plus. L'inscription ne vérifie 
 
 ## 10. Modifications
 
-Cette politique peut évoluer avec l'application ; la date en tête de page indique sa dernière mise à jour. [à compléter : canal d'information en cas de changement important]
+Cette politique peut évoluer avec l'application ; la date en tête de page indique sa dernière mise à jour. Aucun autre canal d'information n'est prévu pour l'instant.
 
 ## 11. Contact
 
-[à compléter : adresse de contact]
+Kitchen OS, 2 rue Berthollet, 94110 Arcueil.
