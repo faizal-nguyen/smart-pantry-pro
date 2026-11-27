@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import DataPrivacySection from '../DataPrivacySection';
 import { ApiError } from '@/lib/apiError';
 import { toast } from 'sonner';
@@ -23,7 +24,7 @@ test('rows erased with photos left reads as an open request, and the photos can 
   mockGetRequest.mockResolvedValueOnce({ request: filesPending })
     .mockResolvedValueOnce({ request: { ...filesPending, filesPending: false } });
   mockPostRequest.mockResolvedValueOnce({ id: 'request-1', status: 'processing', requestedAt: filesPending.requestedAt, alreadyPending: true });
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   expect(await screen.findByText(/certaines photos n’ont pas pu l’être/)).toBeInTheDocument();
   expect(screen.queryByText(/Suppression terminée/)).not.toBeInTheDocument();
   expect(mockGetRequest).toHaveBeenCalledWith('A');
@@ -37,7 +38,7 @@ test('a failed photo removal says the request is recorded, not refused, and rere
   mockGetRequest.mockResolvedValue({ request: filesPending });
   mockPostRequest.mockRejectedValueOnce(new ApiError('Demande enregistrée, mais tes photos n’ont pas pu être effacées : réessaie dans un instant.',
     { status: 502, code: 'PRIVACY_FILES_DELETE_FAILED' }));
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   fireEvent.click(await screen.findByRole('button', { name: 'Réessayer d’effacer mes photos' }));
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Demande enregistrée, mais tes photos n’ont pas pu être effacées : réessaie dans un instant.'));
   await waitFor(() => expect(mockGetRequest).toHaveBeenCalledTimes(2));
@@ -45,15 +46,15 @@ test('a failed photo removal says the request is recorded, not refused, and rere
 
 test('pending, completed and failed requests each read as such', async () => {
   mockGetRequest.mockResolvedValueOnce({ request: { ...filesPending, status: 'pending', filesPending: false } });
-  const { unmount } = render(<DataPrivacySection />);
+  const { unmount } = render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   expect(await screen.findByText(/Demande enregistrée, traitée dans l’heure/)).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Réessayer d’effacer mes photos' })).not.toBeInTheDocument();
   unmount();
   mockGetRequest.mockResolvedValueOnce({ request: { ...filesPending, status: 'completed', completedAt: '2026-11-22T11:17:00Z', filesPending: false } });
-  const second = render(<DataPrivacySection />);
+  const second = render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   expect(await screen.findByText(/Suppression terminée le/)).toBeInTheDocument();
   second.unmount();
   mockGetRequest.mockResolvedValueOnce({ request: { ...filesPending, status: 'failed', filesPending: false } });
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   expect(await screen.findByText(/La suppression n’a pas pu aboutir/)).toBeInTheDocument();
 });

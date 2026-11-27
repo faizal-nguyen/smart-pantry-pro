@@ -10,12 +10,15 @@ module.exports = {
     // NodeNext-style imports use in production code.
     '^@smart/shared$': '<rootDir>/packages/shared/src/index.ts',
     '^(\\.{1,2}/.+)\\.js$': '$1',
+    // V11-06 E7: `?raw` imports of repository Markdown from src/content, read as text below.
+    '^\\.\\./\\.\\./docs/(.+\\.md)\\?raw$': '<rootDir>/docs/$1',
   },
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: 'tsconfig.test.json'
     }],
     '^.+\\.(js|jsx)$': 'babel-jest',
+    '^.+\\.md$': '<rootDir>/scripts/jest-raw-transform.cjs',
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: [

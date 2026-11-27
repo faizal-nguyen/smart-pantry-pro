@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 import { routineDestination } from '@/lib/routineRoutes';
@@ -205,9 +205,10 @@ const Auth = () => {
             </button>
           </form>
           
-          <div className="mt-4 text-center text-xs text-muted-foreground">
-            En vous inscrivant, vous acceptez nos conditions d'utilisation
-          </div>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            En vous inscrivant, vos données sont traitées comme le décrit la{' '}
+            <Link to="/confidentialite" className="underline underline-offset-4">politique de confidentialité</Link>.
+          </p>
         </div>
       </div>
     </div>
