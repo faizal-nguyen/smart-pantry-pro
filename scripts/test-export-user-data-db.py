@@ -17,6 +17,7 @@ run, literal, check, equal = stock.run, stock.literal, stock.check, stock.assert
 A, B, ROOT = stock.A, stock.B, stock.ROOT
 FORMER_EXPORT = ROOT / "supabase/migrations/20260517071100_harden_privacy_rpcs.sql"
 MIGRATION = ROOT / "supabase/migrations/20261127120300_v11_06_export_user_data.sql"
+COMPLETENESS = deletion.COMPLETENESS
 # Exported by export_assistant_memory or export_nutrition_personalization in the same /settings/export
 # call, or recomputed caches; user_privacy_settings keeps its former key, privacy_settings.
 ELSEWHERE = {"assistant_memory_items", "assistant_conversations", "assistant_messages", "assistant_conversation_summaries",
@@ -43,6 +44,8 @@ def tests():
         run("INSERT INTO public.user_profiles(id,email,full_name,allergens) VALUES(" + literal(user) + ","
             + literal(name.lower() + "@example.test") + "," + literal(name) + ",ARRAY['arachide']);")
         run("SELECT patch_assistant_privacy_settings('{\"saveHistory\":true}'::jsonb);", owner=user)
+        deletion.discovery_receipt(user, "Chez " + name)
+        deletion.contribute(user, "Épice de " + name)
     # A table holding a secret beside the account's own data, as 20250830000002's calendar tokens.
     run("CREATE TABLE public.zz_calendar_links(user_id uuid,label text,google_calendar_token text,refresh_token text,tokens_used integer);"
         "INSERT INTO public.zz_calendar_links VALUES(" + literal(A) + ",'Agenda','ya29.secret','1//refresh',12);")
@@ -63,7 +66,8 @@ def tests():
         owned = dict(item.split("=") for item in deletion.owned(A).split(","))
         for table, count in owned.items():
             if table not in ELSEWHERE:
-                equal((table, len(data[table])), (table, int(count)))
+                key = table.removeprefix("private.")
+                equal((table, len(data[key])), (table, int(count)))
         equal(data["user_id"], A)
     check("each exported table holds all of the caller's rows and only theirs", only_the_caller)
 
@@ -75,6 +79,16 @@ def tests():
         equal(len(data["meal_plan_entries"]), int(run("SELECT count(*) FROM meal_plan_entries e JOIN weekly_meal_plans p ON p.id=e.meal_plan_id"
                                                          " WHERE p.user_id=" + literal(A) + ";")))
     check("the profile row (keyed by id) and the menu entries (keyed by their plan) are exported", profile_and_menu)
+
+    def discovery_and_catalogue():
+        equal([row["command"]["name"] for row in data["recipe_discovery_receipts"]], ["Chez Alice"])
+        contributions = data["catalog_contributions"]
+        equal([row["name"] for row in contributions["products"]], ["Épice de Alice"])
+        equal([row["alias"] for row in contributions["product_aliases"]], ["épice de alice"])
+        assert "Bruno" not in json.dumps(data), "another account's rows leaked"
+        assert set(contributions["products"][0]) == {"id", "name", "created_at"}, contributions["products"][0]
+    check("the discovery receipts and the products and aliases the account added to the catalogue are exported, only theirs",
+          discovery_and_catalogue)
 
     def no_secret_column():
         equal(data["zz_calendar_links"], [{"user_id": A, "label": "Agenda", "tokens_used": 12}])
@@ -107,9 +121,13 @@ if __name__ == "__main__":
             run(file=ROOT / "supabase/migrations" / name)
         run(file=deletion.RECIPE_CONVERSATIONS)
         run(deletion.USER_PROFILES_STUB)
+        run(deletion.CATALOG_STUB)
+        run(deletion.RECEIPTS_STUB)
         run(file=FORMER_EXPORT)
         run(file=MIGRATION)
         run(file=MIGRATION)
+        run(file=COMPLETENESS)
+        run(file=COMPLETENESS)
         tests()
         print(f"{stock.checks} groups passed on real local PostgreSQL (GDPR export).")
     finally:
