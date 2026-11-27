@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { useRecipes } from "@/hooks/useRecipes";
 import { supabase } from "@/integrations/supabase/client";
+import { RecipePhotoError, uploadRecipePhoto } from "@/lib/recipePhotoUpload";
 import {
   Select,
   SelectContent,
@@ -154,25 +155,11 @@ const RecipeEdit = () => {
     
     try {
       setUploading(true);
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `recipe-${Date.now()}.${fileExt}`;
-      const filePath = fileName;
-
-      const { error: uploadError } = await supabase.storage
-        .from('recipe-images')
-        .upload(filePath, imageFile);
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from('recipe-images')
-        .getPublicUrl(filePath);
-
-      return data.publicUrl;
+      // V11-06 S1: re-encoded on the device, without the original's metadata.
+      return await uploadRecipePhoto(imageFile);
     } catch (error) {
-      console.error('Error uploading image:', error);
       toast.error("Erreur", {
-        description: "Impossible de télécharger l'image",
+        description: error instanceof RecipePhotoError ? error.message : "Impossible de télécharger l’image.",
       });
       return null;
     } finally {
