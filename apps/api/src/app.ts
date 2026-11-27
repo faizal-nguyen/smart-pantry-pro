@@ -28,7 +28,6 @@ import { healthRouter } from './routes/health.js';
 import { v1Router } from './routes/v1.js';
 import { createAdminDeletionsRouter } from './routes/admin.deletions.routes.js';
 import { createAdminAuthMiddleware } from './middleware/adminAuth.middleware.js';
-import { createAssistantStreamRouter } from './routes/assistant.js';
 import { parseVideoRecipeRouter } from './routes/parseVideoRecipe.js';
 import { createInstagramRouter } from './routes/instagram.js';
 import { proxyRouter } from './routes/proxy.js';
@@ -80,7 +79,6 @@ export function createApp(options: CreateAppOptions = {}): Express {
 
   const requireUser = createAuthMiddleware(supabaseAdmin as any);
   const parseVideoLimit = userRateLimit({ key: 'parse-video-recipe', freeMax: 30, premiumMax: 300, windowMs: 3_600_000 });
-  const assistantStreamRouter = createAssistantStreamRouter(supabaseAdmin);
   const instagramRouter = createInstagramRouter(supabaseAdmin);
 
   // Middlewares
@@ -97,7 +95,6 @@ export function createApp(options: CreateAppOptions = {}): Express {
       endpoints: {
         health: '/api/health',
         v1: '/api/v1',
-        assistant: '/api/assistant/stream',
       },
       timestamp: new Date().toISOString(),
     });
@@ -108,7 +105,9 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/health', healthRouter);
   app.use('/api/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/social/instagram', instagramRouter);
-  app.use('/api/assistant', assistantRateLimit(), assistantStreamRouter);
+  // V11-06 S1: /assistant/stream, without a caller, is gone; its rate limit keeps guarding the
+  // agent and memory routers mounted below on the same prefix.
+  app.use('/api/assistant', assistantRateLimit());
   app.use('/api/proxy/image', imageProxyRateLimit());
   app.use('/api/proxy/openfoodfacts', requireUser, offProxyRateLimit());
   app.use('/api/proxy', proxyRouter);
@@ -124,8 +123,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/media', createMediaRouter(supabaseAdmin));
   const discoveryRouter = createRecipeDiscoveryRouter(supabaseAdmin);
   app.use('/api/recipes/discovery', discoveryRouter);
-  // PRP-221: voice / text agent — sub-paths only, doesn't collide with
-  // the chat-streaming `assistantRouter` mounted on '/' above.
+  // PRP-221: voice / text agent — sub-paths only.
   app.use('/api/assistant', createAssistantAgentRouter(supabaseAdmin));
   // PRP-223 PR2: memory CRUD (conversations, messages, memories).
   // Mounts disjoint sub-paths to keep the existing routers untouched.
@@ -143,7 +141,7 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use('/api/v1/health', healthRouter);
   app.use('/api/v1/parse-video-recipe', requireUser, parseVideoLimit, parseVideoRecipeRouter);
   app.use('/api/v1/social/instagram', instagramRouter);
-  app.use('/api/v1/assistant', assistantRateLimit(), assistantStreamRouter);
+  app.use('/api/v1/assistant', assistantRateLimit());
   app.use('/api/v1/client-errors', requireUser, clientErrorsRateLimit(), createClientErrorsRouter());
   app.use('/api/v1/proxy/image', imageProxyRateLimit());
   app.use('/api/v1/proxy/openfoodfacts', requireUser, offProxyRateLimit());

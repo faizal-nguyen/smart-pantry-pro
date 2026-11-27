@@ -26,7 +26,6 @@ const STABLE_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/health' },
   { method: 'post', path: '/api/parse-video-recipe' },
   { method: 'post', path: '/api/social/instagram/thumbnail' },
-  { method: 'post', path: '/api/assistant/stream' },
   { method: 'get',  path: '/api/diagnostics/routes' },
   // PRP-220.10: imports REST API. Auth middleware -> 401 without a
   // token; that already fails the "not 404" assertion as expected.
@@ -49,7 +48,6 @@ const V1_ROUTES: Probe[] = [
   { method: 'get',  path: '/api/v1/health' },
   { method: 'post', path: '/api/v1/parse-video-recipe' },
   { method: 'post', path: '/api/v1/social/instagram/thumbnail' },
-  { method: 'post', path: '/api/v1/assistant/stream' },
   { method: 'post', path: '/api/v1/imports/social' },
   { method: 'get',  path: '/api/v1/imports/social' },
   { method: 'get', path: '/api/v1/recipes/discovery' },
@@ -77,13 +75,14 @@ const REMOVED_ROUTES: Probe[] = [
   { method: 'post', path: '/api/v1/inventory' },
   { method: 'get',  path: '/api/v1/shopping' },
   { method: 'post', path: '/api/v1/shopping/from-recipe' },
+  // V11-06 S1 removed /api/assistant/stream and its v1 alias. An anonymous probe there gets the
+  // memory router's 401 before any 404: assistant-stream-removed.test.ts checks it signed in.
 ];
 
 // Costly or outbound routes kept for a live caller: signed-in users only.
 const AUTH_ONLY_ROUTES: Probe[] = [
   { method: 'post', path: '/api/parse-video-recipe' },
   { method: 'post', path: '/api/social/instagram/thumbnail' },
-  { method: 'post', path: '/api/assistant/stream' },
   // V11-06 E6a: client crash reports are accepted from signed-in users only.
   { method: 'post', path: '/api/v1/client-errors' },
 ];
