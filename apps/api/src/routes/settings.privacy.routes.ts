@@ -44,6 +44,12 @@ import type { Database } from '../types/supabase.js';
 type LooseClient = SupabaseClient<any, any, any>;
 
 const HOUR = 3_600_000;
+/**
+ * V11-06 S1: the export now holds every table of the account and is returned in one response, which
+ * Vercel caps at 4.5 MB. Past 4 MB (room for the envelope), it is refused in words rather than failing.
+ */
+const EXPORT_MAX_BYTES = 4_000_000;
+const EXPORT_TOO_LARGE = 'Ton export dépasse 4 Mo, la taille qu’une réponse peut porter : il n’est pas encore possible depuis l’application.';
 
 // PRP-235 §5.2 — shape canonique côté API. Tolérant aux valeurs
 // partielles côté PATCH (z.object().partial() en bas).
@@ -198,7 +204,9 @@ export function createSettingsPrivacyRouter(
       if (personalization.error || !personalization.data) throw new Error('PERSONALIZATION_EXPORT_UNAVAILABLE');
       const memory = await userClient.rpc('export_assistant_memory');
       if (memory.error || !memory.data) throw new Error('MEMORY_EXPORT_UNAVAILABLE');
-      return ok(res,{ ...(data ?? {}),personalization:personalization.data,assistant_memory:memory.data },'OK','PRIVACY_EXPORT_OK');
+      const exported={ ...(data ?? {}),personalization:personalization.data,assistant_memory:memory.data };
+      if (Buffer.byteLength(JSON.stringify(exported))>EXPORT_MAX_BYTES) return fail(res,EXPORT_TOO_LARGE,413,'PRIVACY_EXPORT_TOO_LARGE');
+      return ok(res,exported,'OK','PRIVACY_EXPORT_OK');
     } catch (err) {
       console.error('[settings.privacy.export] failed');
       return fail(res, 'Internal error', 500, 'PRIVACY_EXPORT_FAILED');
