@@ -20,11 +20,11 @@ function ListField({ label,values,onChange,placeholder }:{ label:string;values:s
   useEffect(()=>{ if (JSON.stringify(terms(text))!==JSON.stringify(values)) setText(values.join(', ')); },[values,text]);
   return <label className="block space-y-1">{label}<Input className="min-h-11 text-base md:text-sm" value={text} placeholder={placeholder} onChange={event=>{ setText(event.target.value);onChange(terms(event.target.value)); }} /></label>;
 }
-export default function NutritionProfileEditor({ focus='cooking' }:{ focus?:'cooking'|'nutrition' }) {
+export default function NutritionProfileEditor() {
   const profile=useNutritionProfile();
-  return <NutritionProfileContent key={profile.owner ?? 'anonymous'} profile={profile} focus={focus}/>;
+  return <NutritionProfileContent key={profile.owner ?? 'anonymous'} profile={profile}/>;
 }
-function NutritionProfileContent({ profile,focus }:{ profile:ReturnType<typeof useNutritionProfile>;focus:'cooking'|'nutrition' }) {
+function NutritionProfileContent({ profile }:{ profile:ReturnType<typeof useNutritionProfile> }) {
   const local=usePersonalization(),memories=useAssistantMemories({ enabled:!!profile.owner });
   const owner=profile.owner ?? 'anonymous';
   const [draft,setDraft,storageError]=useOwnedValue<Draft|null>(owner,'nutrition-profile-draft',null);
@@ -62,7 +62,7 @@ function NutritionProfileContent({ profile,focus }:{ profile:ReturnType<typeof u
   };
   const inferred=memories.memories.filter(item=>['preference','negative_preference','diet_goal','constraint','cooking_style'].includes(item.kind));
   return <div className="space-y-4">
-    <Card><CardHeader><CardTitle>{focus==='nutrition' ? 'Objectifs et profil alimentaire' : 'Cuisine et profil alimentaire'}</CardTitle><CardDescription>Vos contraintes passent avant le classement. Le contexte d’un repas reste indépendant de ce profil.</CardDescription></CardHeader><CardContent className="space-y-4">
+    <Card><CardHeader><CardTitle>Cuisine et profil alimentaire</CardTitle><CardDescription>Vos contraintes passent avant le classement. Le contexte d’un repas reste indépendant de ce profil.</CardDescription></CardHeader><CardContent className="space-y-4">
       {profile.isLoading && <p role="status">Chargement de ton profil…</p>}
       {profile.error && <div role="alert"><p>Le profil serveur ne peut pas être lu. Vos valeurs ne sont pas remplacées.</p><Button variant="outline" className="min-h-11" onClick={()=>void profile.refetch()}>Relire mon profil</Button></div>}
       {server && <p className="text-xs text-muted-foreground">{server.version ? `Profil synchronisé · version ${server.version}` : 'Profil à confirmer'}{server.updated_at ? ` · ${formatDate(server.updated_at, 'numeric')}` : ''}</p>}

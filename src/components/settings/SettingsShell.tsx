@@ -7,7 +7,6 @@ import AssistantModelsSection from './AssistantModelsSection';
 import CookingPreferencesSection from './CookingPreferencesSection';
 import DataPrivacySection from './DataPrivacySection';
 import NotificationsSection from './NotificationsSection';
-import NutritionWellbeingStub from './NutritionWellbeingStub';
 
 /** Navigation mounts only the requested section; its data contracts stay unchanged. */
 export default function SettingsShell({ user }: { user: User }) {
@@ -17,7 +16,6 @@ export default function SettingsShell({ user }: { user: User }) {
       case 'assistant-memory': return <AssistantMemorySection />;
       case 'assistant-models': return <AssistantModelsSection />;
       case 'cooking': return <CookingPreferencesSection />;
-      case 'nutrition': return <NutritionWellbeingStub />;
       case 'data-privacy': return <DataPrivacySection />;
       case 'notifications': return <NotificationsSection />;
       case 'appearance': return <AppearanceSection />;
