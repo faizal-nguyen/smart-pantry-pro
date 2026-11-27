@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import DataPrivacySection from '../DataPrivacySection';
 import { patchPrivacySettings } from '@/services/privacyApi';
 
@@ -25,7 +26,7 @@ async function historySwitch() {
 }
 
 test('the conversation history is the only switch, usable whatever the former consent', async () => {
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   await historySwitch();
   expect(screen.getAllByRole('switch')).toHaveLength(1);
   for (const hidden of [/Analytics/i, /anonymisées/, /Traitement d’images/, /batterie/i, /Autoriser l’analyse/, /scans/]) {
@@ -34,7 +35,7 @@ test('the conversation history is the only switch, usable whatever the former co
 });
 
 test('what the application records is stated exactly', async () => {
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   await historySwitch();
   // Under the card title (h3): a sub-heading, not a sibling of the card titles.
   expect(screen.getByRole('heading', { level: 4, name: 'Mesure d’usage et photos' })).toBeInTheDocument();
@@ -43,14 +44,20 @@ test('what the application records is stated exactly', async () => {
 });
 
 test('switching the history sends that setting alone', async () => {
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   fireEvent.click(await historySwitch());
   await waitFor(() => expect(patchPrivacySettings).toHaveBeenCalledWith({ saveHistory: false }, 'A'));
   expect(patchPrivacySettings).toHaveBeenCalledTimes(1);
 });
 
 test('turning the history off says what stays: the actions the assistant took', async () => {
-  render(<DataPrivacySection />);
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
   await historySwitch();
   expect(screen.getByText('Conserve tes échanges avec l’assistant, pour la durée choisie ci-dessous. Ce choix est indépendant de la mémoire ; les actions faites par l’assistant restent consignées.')).toBeInTheDocument();
+});
+
+test('the rights card points to the published privacy policy', async () => {
+  render(<MemoryRouter><DataPrivacySection /></MemoryRouter>);
+  await historySwitch();
+  expect(screen.getByRole('link', { name: 'Lire la politique de confidentialité' })).toHaveAttribute('href', '/confidentialite');
 });

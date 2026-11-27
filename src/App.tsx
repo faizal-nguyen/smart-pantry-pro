@@ -35,6 +35,8 @@ const CookingSessionPage = lazy(() => import("./pages/kitchen/CookingSessionPage
 const RecipeEdit = lazy(() => import("./pages/RecipeEdit"));
 const MealPlanningPage = lazy(() => import("./pages/MealPlanningPage"));
 const ShareTarget = lazy(() => import("./pages/ShareTarget"));
+// V11-06 E7: the privacy policy, public, rendered from docs/PRIVACY-POLICY.md.
+const PrivacyPolicyPage = lazy(() => import("./pages/PrivacyPolicyPage"));
 
 // Dashboards hiérarchiques (lazy)
 const KitchenDashboard = lazy(() => import("./pages/kitchen/KitchenDashboard"));
@@ -81,6 +83,7 @@ const publicRoutes: RouteObject[] = [
   { path: "/auth", element: <Auth /> },
   { path: "/share-target", element: withSuspense(ShareTarget) },
   { path: "/onboarding", element: withSuspense(OnboardingPage) },
+  { path: "/confidentialite", element: withSuspense(PrivacyPolicyPage) },
 ];
 
 const protectedRoutes: RouteObject[] = [

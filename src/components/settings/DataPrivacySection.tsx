@@ -25,6 +25,7 @@
  * suppression inline — un worker backend (futur) finalise.
  */
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Download, Loader2, Shield, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -275,6 +276,9 @@ export default function DataPrivacySection() {
             traitée automatiquement dans l’heure. Ton compte de connexion reste
             ouvert.
           </p>
+          <Link to="/confidentialite" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">
+            Lire la politique de confidentialité
+          </Link>
         </CardContent>
       </Card>
 

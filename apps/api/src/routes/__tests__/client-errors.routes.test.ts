@@ -48,6 +48,12 @@ describe('client error reports', () => {
     expect([...paths].sort()).toEqual([...CLIENT_ROUTE_PATTERNS].sort());
   });
 
+  test('V11-06 E7: the privacy policy is a public route, readable without a session', () => {
+    const source = readFileSync(join(__dirname, '../../../../../src/App.tsx'), 'utf8');
+    const publicBlock = /const publicRoutes[^=]*=\s*\[([\s\S]*?)\];/.exec(source)?.[1] ?? '';
+    expect(publicBlock).toMatch(/path:\s*["']\/confidentialite["']/);
+  });
+
   test('every stock command error code can be reported', () => {
     const source = readFileSync(join(__dirname, '../../services/stock/StockCommandService.ts'), 'utf8');
     const block = source.slice(source.indexOf('const MESSAGES'), source.indexOf('};', source.indexOf('const MESSAGES')));

@@ -10,7 +10,7 @@ export type ClientErrorKind = (typeof CLIENT_ERROR_KINDS)[number];
 
 /** Paths of the client router (`src/App.tsx`), kept in step by a test. */
 export const CLIENT_ROUTE_PATTERNS = [
-  '/auth', '/share-target', '/onboarding',
+  '/auth', '/share-target', '/onboarding', '/confidentialite',
   '/',
   '/pantry/inventory',
   '/kitchen', '/kitchen/recipes', '/kitchen/recipes/:id', '/kitchen/recipes/:id/edit',
