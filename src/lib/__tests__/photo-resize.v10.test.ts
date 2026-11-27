@@ -12,6 +12,8 @@ const JPEG = bytes([0xff, 0xd8, 0xff, 0xe0, 0, 16], 'JFIF', [0, 1]);
 const bitmap = (width: number, height: number) => ({ width, height, close: jest.fn() }) as unknown as ImageBitmap;
 const createImageBitmap = jest.fn();
 const drawImage = jest.fn();
+const fillRect = jest.fn();
+const painted: string[] = [];
 beforeAll(() => {
   Object.assign(globalThis, { createImageBitmap });
   Blob.prototype.arrayBuffer ??= function (this: Blob) {
@@ -21,10 +23,13 @@ beforeAll(() => {
       reader.readAsArrayBuffer(this);
     });
   };
-  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as unknown as CanvasRenderingContext2D);
+  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    drawImage, fillRect,
+    set fillStyle(value: string) { painted.push(value); },
+  } as unknown as CanvasRenderingContext2D);
   jest.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((done, type) => done(new Blob(['jpeg'], { type })));
 });
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => { jest.clearAllMocks(); painted.length = 0; });
 
 test('a phone photo is scaled down to 1600 px on its long side, keeping its proportions', () => {
   expect(fitWithin(4032, 3024)).toEqual({ width: 1600, height: 1200 });
@@ -71,4 +76,12 @@ test('a HEIC photo the converter cannot read is refused with the same message', 
   createImageBitmap.mockRejectedValue(new DOMException('bad', 'InvalidStateError'));
   jest.mocked(heicTo).mockRejectedValue(new Error('libheif: unsupported codec'));
   await expect(resizePhoto(new Blob([HEIC]))).rejects.toThrow('Cette photo ne peut pas être lue sur cet appareil.');
+});
+
+test('a transparent image (PNG, WebP) gets a white background instead of turning black in the JPEG', async () => {
+  createImageBitmap.mockResolvedValue(bitmap(800, 600));
+  await resizePhoto(new Blob([JPEG], { type: 'image/png' }));
+  expect(painted).toEqual(['#ffffff']);
+  expect(fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
+  expect(fillRect.mock.invocationCallOrder[0]).toBeLessThan(drawImage.mock.invocationCallOrder[0]);
 });

@@ -78,6 +78,7 @@ describe('removing a product photo', () => {
     ['another site', 'https://elsewhere.test/storage/v1/object/public/product-images/0.42.jpg'],
     ['another bucket', `${STORAGE}/recipe-images/recipe-1.jpg`],
     ['a path leaving the bucket', `${STORAGE}/product-images/%2E%2E/recipe-images/recipe-1.jpg`],
+    ['an encoded path leaving the bucket once decoded', `${STORAGE}/product-images/a%2F..%2F..%2Frecipe-images%2Frecipe-1.jpg`],
     ['the bucket itself', `${STORAGE}/product-images/`],
     ['text that is not a URL', 'product-1.jpg'],
   ])('refuses %s and removes nothing', async (_label, url) => {
@@ -93,4 +94,10 @@ describe('removing a product photo', () => {
     await expect(deleteProductPhoto(`${STORAGE}/product-images/0.42.jpg`))
       .rejects.toEqual(new PhotoUploadError('La photo n’a pas pu être supprimée.'));
   });
+});
+
+test('a failure without words of its own (no random generator on this browser) is still reported in words', async () => {
+  Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+  await expect(uploadProductPhoto(original)).rejects.toEqual(new PhotoUploadError('Impossible de télécharger l’image.'));
+  expect(mockUpload).not.toHaveBeenCalled();
 });
