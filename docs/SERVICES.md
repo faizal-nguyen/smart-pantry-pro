@@ -22,62 +22,8 @@ src/
 
 ## 🤖 Services d'Intelligence Artificielle
 
-### `StreamingAIService`
-Service de streaming pour l'assistant IA avec OpenAI.
-
-**Localisation** : `src/services/ai/streamingAIService.ts`
-
-**Fonctionnalités** :
-- Chat streaming temps réel avec OpenAI
-- Gestion des tokens et coûts
-- Annulation des requêtes
-- Cache intelligent des réponses
-- Retry automatique avec backoff
-
-**API** :
-```typescript
-class StreamingAIService {
-  async streamChat(
-    messages: ChatMessage[], 
-    options: StreamOptions
-  ): Promise<ReadableStream>;
-  
-  cancelStream(): void;
-  getTokenUsage(): TokenUsage;
-  estimateCost(messages: ChatMessage[]): number;
-}
-
-interface StreamOptions {
-  model?: 'gpt-4' | 'gpt-3.5-turbo';
-  temperature?: number;
-  maxTokens?: number;
-  userId?: string;
-}
-```
-
-**Exemple d'utilisation** :
-```typescript
-const aiService = getStreamingAIService(apiKey);
-
-const stream = await aiService.streamChat([
-  { role: 'system', content: 'Tu es un assistant culinaire' },
-  { role: 'user', content: 'Que faire avec des tomates ?' }
-], {
-  model: 'gpt-4',
-  temperature: 0.7,
-  userId: user.id
-});
-
-// Traitement du stream
-const reader = stream.getReader();
-while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  
-  const chunk = decoder.decode(value);
-  // Process chunk
-}
-```
+L'assistant passe par l'API : routes `/api/assistant/text`, `/text/stream`, `/voice`, `/transcribe` et `/photos/*` ([assistant.agent.ts](../apps/api/src/routes/assistant.agent.ts)), services dans `apps/api/src/services/assistant/`.
+`StreamingAIService` et la route `/api/assistant/stream`, sans appelant, ont été retirés en V11-06 S1 (27 novembre 2026).
 
 ## 👁️ Services de Vision AI
 

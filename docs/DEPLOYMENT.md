@@ -261,12 +261,6 @@ NODE_ENV=production
         { "key": "Referrer-Policy", "value": "origin-when-cross-origin" }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/ai-assistant/(.*)",
-      "destination": "/api/v1/assistant/stream"
-    }
   ]
 }
 ```
