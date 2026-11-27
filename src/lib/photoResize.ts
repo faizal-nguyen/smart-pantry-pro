@@ -60,6 +60,9 @@ export async function resizePhoto(file: Blob, max = PHOTO_MAX_SIDE, quality = 0.
   canvas.height = size.height;
   const context = canvas.getContext('2d');
   if (!context) { bitmap.close(); throw new Error(UNREADABLE); }
+  // JPEG has no transparency: without a background, a transparent PNG or WebP turns black.
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, size.width, size.height);
   context.drawImage(bitmap, 0, 0, size.width, size.height);
   bitmap.close();
   const jpeg = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));

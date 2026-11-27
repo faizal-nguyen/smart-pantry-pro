@@ -5,6 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Camera, Image as ImageIcon, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useImageManagement } from "@/hooks/useImageManagement";
+import { PhotoUploadError } from "@/lib/photoUpload";
+
+const UPLOAD_FAILED = "Impossible de télécharger l’image.";
+const DELETE_FAILED = "La photo n’a pas pu être supprimée.";
+/** The words of a photo failure; any other error keeps its technical detail to itself. */
+const failureText = (error: unknown, fallback: string): string => (error instanceof PhotoUploadError ? error.message : fallback);
 
 interface ImageUploadSectionProps {
   value?: string;
@@ -41,9 +47,8 @@ export const ImageUploadSection = ({
       const url = await uploadImage(file);
       onChange(url);
     } catch (error) {
-      // The product is saved without a photo; the person learns why.
-      toast.error('Photo non ajoutée', { description: error instanceof Error ? error.message : 'Impossible de télécharger l’image.' });
-      onChange(undefined);
+      // The current photo, if any, stays; the person learns why the new one was not added.
+      toast.error('Photo non ajoutée', { description: failureText(error, UPLOAD_FAILED) });
     }
   };
 
@@ -53,7 +58,7 @@ export const ImageUploadSection = ({
         await deleteImage(value);
       } catch (error) {
         // The photo leaves the product anyway; the person learns the file stayed.
-        toast.error('Fichier non supprimé', { description: error instanceof Error ? error.message : 'La photo n’a pas pu être supprimée.' });
+        toast.error('Fichier non supprimé', { description: failureText(error, DELETE_FAILED) });
       }
     }
     onChange(undefined);

@@ -42,7 +42,13 @@ async function uploadPhoto(file: Blob, { bucket, prefix, maxSide, quality }: Pho
   } catch (error) {
     throw new PhotoUploadError(error instanceof Error && error.message ? error.message : UNREADABLE);
   }
-  const path = `${prefix}-${crypto.randomUUID()}.jpg`;
+  let path: string;
+  try {
+    path = `${prefix}-${crypto.randomUUID()}.jpg`;
+  } catch {
+    // No random generator outside a secure context or on an old browser: never fall back to a guessable name.
+    throw new PhotoUploadError(UPLOAD_FAILED);
+  }
   const { error } = await supabase.storage.from(bucket).upload(path, jpeg, { contentType: 'image/jpeg' });
   if (error) throw new PhotoUploadError(UPLOAD_FAILED);
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
