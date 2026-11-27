@@ -111,6 +111,18 @@ def tests():
         equal(run("SELECT has_function_privilege('authenticated','public.export_user_data(uuid)','EXECUTE')::text;"), "true")
     check("another overload, possibly unguarded, can no longer be called by the app's roles", older_overload_closed)
 
+    def optional_objects_absent():
+        # The group above added a text overload, which would take the call, and replayed the S1 export.
+        run("DROP FUNCTION public.export_user_data(text);")
+        run(file=COMPLETENESS)
+        # This fixture has no list sharing (20250818000001); drop the other optional objects.
+        run(deletion.OPTIONAL_OBJECTS_DROP.replace("DROP TABLE public.shopping_list_collaborators;", ""))
+        exported = export(A)
+        assert "recipe_discovery_receipts" not in exported, sorted(exported)
+        equal(exported["catalog_contributions"], {})
+        equal(exported["user_profile"]["id"], A)
+    check("without aliases, discovery receipts or product authors, the export still answers, without those keys", optional_objects_absent)
+
 
 if __name__ == "__main__":
     run("CREATE DATABASE " + stock.DATABASE + ";", database="postgres")

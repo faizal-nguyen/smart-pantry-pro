@@ -42,6 +42,8 @@ CREATE TABLE public.shopping_list_collaborators(id uuid PRIMARY KEY DEFAULT gen_
   shared_with_user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   shared_by_user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
   permissions text NOT NULL DEFAULT 'edit',UNIQUE(shopping_list_id,shared_with_user_id));"""
+# Objects the S2 deletion and export check before use: the last group drops them.
+OPTIONAL_OBJECTS_DROP = "DROP TABLE public.shopping_list_collaborators;DROP TABLE public.product_aliases;DROP TABLE private.recipe_discovery_receipts;ALTER TABLE public.products DROP COLUMN created_by;"
 STORAGE_STUB = """CREATE SCHEMA storage;
 CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text,owner uuid,owner_id text,
   created_at timestamptz DEFAULT now());"""
@@ -314,6 +316,18 @@ def tests():
         for role in ("authenticated", "anon"):
             run("SELECT * FROM public.list_user_storage_objects(" + literal(A) + ");", role=role, error="permission denied")
     check("the files listed for erasure are the user's uploads and their users/<id>/ folder, for the service role only", lists_the_user_files_only)
+
+    def optional_objects_absent():
+        # Production never received 20250818000001 (E0, 5.3); the guards also cover a database without the others.
+        run("DELETE FROM storage.objects;")  # the files of the group above would keep the request waiting
+        seed(A)
+        run(OPTIONAL_OBJECTS_DROP)
+        identity = request(A)
+        equal(process(), DONE)
+        equal(status(identity), "completed|true|")
+        equal(owned(A), "")
+    check("without list sharing, aliases, discovery receipts or product authors (absent in production or elsewhere), a request still completes",
+          optional_objects_absent)
 
 
 if __name__ == "__main__":
