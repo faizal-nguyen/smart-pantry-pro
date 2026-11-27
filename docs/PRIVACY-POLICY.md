@@ -1,6 +1,8 @@
 # Politique de Confidentialité - Smart Pantry Pro
 
-*Dernière mise à jour : Janvier 2025. Mise à jour partielle le 26 novembre 2026 : journal d'erreurs techniques (section 7.3).*
+*Dernière mise à jour : Janvier 2025. Mise à jour partielle le 26 novembre 2026 : journal d'erreurs techniques (section 7.3). Mise à jour partielle le 27 novembre 2026 : réglages de confidentialité et données selon vos choix (sections 3.2, 4.2, 6.5 et 14.1).*
+
+> **Avertissement.** Les sections 2.1, 5, 7.1, 7.2, 8.1 et 9.1 datent de janvier 2025 et ne décrivent pas toutes le fonctionnement actuel ; leur réécriture est prévue. En cas d'écart, ce sont les sections 3.2, 4.2, 6.5, 7.3 et 14.1, à jour, qui décrivent ce que fait l'application.
 
 ## 1. Introduction
 
@@ -26,10 +28,13 @@ Smart Pantry Pro ("nous", "notre", "l'application") s'engage à protéger votre 
 - **Inventaire** : Produits scannés, quantités, dates de péremption
 - **Recettes** : Recettes sauvegardées et créées
 
-### 3.2 Données Optionnelles (Avec Consentement)
-- **Historique des scans** : Pour des suggestions personnalisées
-- **Analyses anonymisées** : Statistiques d'usage pour améliorer l'app
-- **Images temporaires** : Pour la reconnaissance de produits (supprimées après traitement)
+### 3.2 Données selon vos choix et vos usages
+- **Historique des conversations avec l'assistant** : conservé seulement si vous l'activez (Paramètres > Données et confidentialité), pour la durée de conservation choisie.
+- **Mémoire de l'assistant** : goûts et habitudes retenus seulement si vous l'activez (Paramètres > Mémoire de l'assistant).
+- **Mesure d'usage** : aucune mesure d'usage dédiée n'est active. Pour ses suggestions, l'application enregistre les recettes proposées, ouvertes, ajoutées à « À cuisiner bientôt » ou retirées, et préparées, ainsi que vos retours sur une recette. Ces traces n'ont pas de réglage ; elles sont effacées avec vos données.
+- **Journal des actions de l'assistant** : chaque action effectuée par l'assistant (outil appelé et ses paramètres, modèle utilisé) est consignée, que l'historique des conversations soit activé ou non. Ce journal est effacé avec vos données.
+- **Photos** : une photo n'est analysée que lorsque vous l'envoyez. Les codes-barres sont lus sur l'appareil ; le numéro lu sert ensuite à retrouver le produit. La photo d'un ticket de caisse n'est pas conservée ; les informations qui y sont lues (magasin, date, total, lignes et prix) le sont. Les photos ajoutées à un produit ou à une recette, celles des produits ajoutés depuis l'assistant, et les vidéos déposées pour importer une recette avec les images qui en sont extraites, sont conservées avec vos données et effacées avec elles.
+- **Erreurs techniques** : voir la section 7.3.
 
 ### 3.3 Données JAMAIS Collectées
 - Localisation GPS
@@ -46,10 +51,9 @@ Smart Pantry Pro ("nous", "notre", "l'application") s'engage à protéger votre 
 - Alertes de péremption
 - Synchronisation entre vos appareils (si activée)
 
-### 4.2 Amélioration du Service (Optionnel)
-- Analyse des fonctionnalités les plus utilisées
-- Détection et correction des bugs
-- Optimisation des performances
+### 4.2 Amélioration du Service
+- Aucune mesure d'usage dédiée : les fonctionnalités utilisées ne sont pas analysées
+- Détection et correction des plantages, par le journal d'erreurs techniques (section 7.3)
 
 ### 4.3 Ce que Nous NE Faisons PAS
 - Vente de vos données
@@ -87,7 +91,7 @@ Vous pouvez supprimer définitivement votre compte et toutes les données associ
 Exportez vos données dans un format standard (JSON) pour les utiliser ailleurs.
 
 ### 6.5 Droit d'Opposition
-Désactivez à tout moment les fonctionnalités optionnelles (analytics, historique).
+Désactivez à tout moment l'historique des conversations et la mémoire de l'assistant. Aucune mesure d'usage dédiée n'est active : il n'existe donc pas de réglage d'analyses. Les traces de recettes et le journal des actions de l'assistant (section 3.2) n'ont pas de réglage ; ils sont effacés avec vos données (section 6.3).
 
 ### 6.6 Droit à la Limitation
 Vous pouvez limiter le traitement de vos données via les paramètres de confidentialité.
@@ -184,7 +188,7 @@ En cas de désaccord, vous pouvez contacter l'autorité de protection des donné
 ## 14. Bases Légales
 
 ### 14.1 Consentement
-Pour toutes les données optionnelles (analytics, historique)
+Pour l'historique des conversations et la mémoire de l'assistant, activés seulement à votre demande. Aucune mesure d'usage dédiée n'est collectée.
 
 ### 14.2 Contrat
 Pour les données nécessaires au fonctionnement du service
