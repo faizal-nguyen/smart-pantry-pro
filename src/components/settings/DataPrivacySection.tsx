@@ -1,12 +1,18 @@
 /**
  * PRP-235 PR5 — DataPrivacySection (refonte).
  *
- * Surface 4 zones :
- *   1. Consentement (master switch)
- *   2. Toggles fonctionnels (analytics, save history, image, anonyme,
- *      battery saver) — analyse soumise à hasConsent ; historique indépendant
- *   3. Data retention (dropdown)
- *   4. Export + Demande de suppression (CTAs)
+ * Trois cartes :
+ *   1. Mes données : historique des conversations (seul réglage à effet
+ *      réel ici, lu en SQL par la mémoire de l'assistant ; il ne couvre pas
+ *      `assistant_action_log`), puis mesure d'usage et photos, dites
+ *      exactement
+ *   2. Data retention (dropdown)
+ *   3. Export + Demande de suppression (CTAs), avec sa boîte de confirmation
+ *
+ * V11-06 E6c : l'interrupteur principal (`hasConsent`) et les réglages
+ * `allowAnalytics`, `shareAnonymizedData`, `allowImageProcessing` et
+ * `batterySaver` ne sont plus affichés : rien ne les lisait. Leurs valeurs
+ * restent enregistrées, l'API les accepte toujours.
  *
  * Tout passe par `usePrivacySettings` qui consomme les endpoints
  * `/api/v1/settings/*` (PR5). Plus aucun appel direct RPC depuis
@@ -19,7 +25,7 @@
  * suppression inline — un worker backend (futur) finalise.
  */
 import { useState } from 'react';
-import { Download, Loader2, Shield, ShieldCheck, Trash2 } from 'lucide-react';
+import { Download, Loader2, Shield, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -117,8 +123,6 @@ export default function DataPrivacySection() {
   const [isExporting, setIsExporting] = useState(false);
   const [isRequesting, setIsRequesting] = useState(false);
 
-  const consentGiven = settings.hasConsent;
-
   const handleExport = async () => {
     if (isExporting) return;
     setIsExporting(true);
@@ -146,15 +150,11 @@ export default function DataPrivacySection() {
 
   return (
     <div className="space-y-4">
-      {/* Consentement maître */}
+      {/* Mes données */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {consentGiven ? (
-              <ShieldCheck className="h-5 w-5 text-emerald-600" aria-hidden="true" />
-            ) : (
-              <Shield className="h-5 w-5" aria-hidden="true" />
-            )}
+            <Shield className="h-5 w-5" aria-hidden="true" />
             Mes données
           </CardTitle>
           <CardDescription>
@@ -163,74 +163,26 @@ export default function DataPrivacySection() {
             tout moment.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {isLoading && <p role="status" className="mb-3 text-sm text-muted-foreground">Chargement de tes choix de confidentialité…</p>}
-          <ToggleRow
-            id="privacy-consent"
-            label="Autoriser l’analyse des scans et les statistiques"
-            description="Autorise les options d’analyse et de données anonymisées. La mémoire, l’historique et le profil ont leurs propres choix."
-            checked={consentGiven}
-            onCheckedChange={(v) => updateSettings({ hasConsent: v })}
-            disabled={!!error || isUpdating || isLoading}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Fonctionnalités (disabled si pas de consentement) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Fonctionnalités</CardTitle>
-          <CardDescription>
-            {consentGiven
-              ? 'Choisis les options d’analyse. L’historique reste un choix indépendant.'
-              : 'Autorise l’analyse ci-dessus pour ces options. L’historique reste un choix indépendant.'}
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
-          <ToggleRow
-            id="privacy-analytics"
-            label="Analytics anonymes"
-            description="Permettre l’envoi d’événements anonymisés pour améliorer l’app."
-            checked={settings.allowAnalytics}
-            onCheckedChange={(v) => updateSettings({ allowAnalytics: v })}
-            disabled={!consentGiven || isLoading}
-          />
-          <Separator />
+          {isLoading && <p role="status" className="text-sm text-muted-foreground">Chargement de tes choix de confidentialité…</p>}
           <ToggleRow
             id="privacy-history"
-            label="Sauvegarder mon historique de scans et de conversations"
-            description="Conserve les scans et les échanges avec l’assistant. Ce choix est indépendant de la mémoire."
+            label="Sauvegarder mes conversations avec l’assistant"
+            description="Conserve tes échanges avec l’assistant, pour la durée choisie ci-dessous. Ce choix est indépendant de la mémoire ; les actions faites par l’assistant restent consignées."
             checked={settings.saveHistory}
             onCheckedChange={(v) => updateSettings({ saveHistory: v })}
             disabled={!!error || isUpdating || isLoading}
           />
           <Separator />
-          <ToggleRow
-            id="privacy-image"
-            label="Traitement d’images"
-            description="Autorise l’analyse de tes photos (codes-barres, OCR, recettes)."
-            checked={settings.allowImageProcessing}
-            onCheckedChange={(v) => updateSettings({ allowImageProcessing: v })}
-            disabled={!consentGiven || isLoading}
-          />
-          <Separator />
-          <ToggleRow
-            id="privacy-share-anon"
-            label="Partager des données anonymisées"
-            description="Aider à améliorer les recommandations pour tous les utilisateurs."
-            checked={settings.shareAnonymizedData}
-            onCheckedChange={(v) => updateSettings({ shareAnonymizedData: v })}
-            disabled={!consentGiven || isLoading}
-          />
-          <Separator />
-          <ToggleRow
-            id="privacy-battery"
-            label="Mode économie de batterie"
-            description="Réduit les animations et les requêtes en arrière-plan."
-            checked={settings.batterySaver}
-            onCheckedChange={(v) => updateSettings({ batterySaver: v })}
-            disabled={!!error || isUpdating || isLoading}
-          />
+          <section aria-labelledby="privacy-records-title" className="space-y-2">
+            <h4 id="privacy-records-title" className="text-sm font-medium">Mesure d’usage et photos</h4>
+            <p className="text-sm text-muted-foreground">
+              Aucune mesure d’usage dédiée n’est active. Pour ses suggestions, l’application enregistre les recettes proposées, ouvertes, ajoutées à « À cuisiner bientôt » ou retirées, et préparées, ainsi que tes retours sur une recette.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Une photo n’est analysée que lorsque tu l’envoies ; les codes-barres sont lus sur ton appareil.
+            </p>
+          </section>
         </CardContent>
       </Card>
 
