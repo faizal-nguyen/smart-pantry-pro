@@ -27,7 +27,7 @@ Le responsable du traitement de vos données est Kitchen OS, 2 rue Berthollet, 9
 
 Ces données sont stockées sur le serveur et suivent votre compte sur chacun de vos appareils.
 
-**Catalogue de produits commun.** Quand vous ajoutez un produit qui n'existe pas encore, par la saisie, l'assistant ou un ticket, son nom entre dans un catalogue de produits partagé entre tous les comptes et lisible par eux. Ce nom n'est pas effacé avec vos données ; il n'est alors plus rattaché à votre compte. N'y mettez pas d'information personnelle.
+**Catalogue de produits commun.** Quand vous ajoutez un produit qui n'existe pas encore, par la saisie, l'assistant ou un ticket, son nom entre dans un catalogue de produits partagé entre tous les comptes et lisible par eux. Ce nom n'est pas effacé avec vos données ; il n'est alors plus rattaché à votre compte. N'y mettez pas d'information personnelle. Si vous ajoutez une photo en créant ainsi un produit à la main, elle devient la photo de ce produit dans le catalogue : les autres comptes la voient aussi. Elle est effacée avec vos photos.
 
 ### 2.3 Votre profil alimentaire
 
