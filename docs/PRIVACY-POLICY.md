@@ -27,7 +27,7 @@ Le responsable du traitement de vos données est Kitchen OS, 2 rue Berthollet, 9
 
 Ces données sont stockées sur le serveur et suivent votre compte sur chacun de vos appareils.
 
-**Catalogue de produits commun.** Quand vous ajoutez un produit qui n'existe pas encore, par la saisie, l'assistant ou un ticket, son nom entre dans un catalogue de produits partagé entre tous les comptes et lisible par eux. Ce nom n'est pas effacé avec vos données : n'y mettez pas d'information personnelle.
+**Catalogue de produits commun.** Quand vous ajoutez un produit qui n'existe pas encore, par la saisie, l'assistant ou un ticket, son nom entre dans un catalogue de produits partagé entre tous les comptes et lisible par eux. Ce nom n'est pas effacé avec vos données ; il n'est alors plus rattaché à votre compte. N'y mettez pas d'information personnelle.
 
 ### 2.3 Votre profil alimentaire
 
@@ -53,7 +53,7 @@ Aucune mesure d'usage dédiée n'est active : l'application n'analyse pas les fo
 - Sont conservées avec vos données : les photos ajoutées à un produit ou à une recette, celles des produits ajoutés depuis l'assistant, les miniatures des recettes importées, et la copie d'image d'une recette importée si vous cochez la case prévue.
 - Les photos de produits et de recettes, ainsi que les copies d'images importées, sont déposées dans des espaces publics : quiconque connaît leur adresse peut les afficher. Seul votre compte peut les remplacer ou les supprimer. L'adresse d'une copie d'image importée contient l'identifiant technique de votre compte.
 - Les photos des produits ajoutés depuis l'assistant et les miniatures des recettes importées sont privées : elles ne s'affichent qu'à votre compte.
-- Les photos envoyées depuis l'éditeur de recette sont réencodées sur votre appareil, ce qui retire leurs métadonnées (position, appareil). Celles déposées avant le 27 novembre 2026 peuvent avoir conservé les leurs.
+- Les photos ajoutées à un produit ou à une recette sont réencodées sur votre appareil, ce qui retire leurs métadonnées (position, appareil), et déposées sous un nom aléatoire. Les photos déposées avant cette mise à jour peuvent avoir conservé les leurs.
 
 ### 2.7 Erreurs techniques
 
@@ -118,9 +118,9 @@ Aucune sauvegarde de la base n'est faite : la formule gratuite de Supabase, util
 
 Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation, de portabilité et d'opposition. Vous pouvez retirer à tout moment un consentement donné, sans effet sur ce qui a été fait avant.
 
-- **Accès et portabilité** : Paramètres > Données et confidentialité > « Exporter mes données » produit un fichier JSON avec les données des tables de votre compte. Les photos y sont désignées par leur adresse, sans leur contenu ; les caches recalculés et les données de connexion n'y figurent pas. Un export de plus de 4 Mo ne peut pas encore être produit par l'application : écrivez-nous (section 11) pour le recevoir.
+- **Accès et portabilité** : Paramètres > Données et confidentialité > « Exporter mes données » produit un fichier JSON avec les données des tables de votre compte, dont le registre des commandes de la découverte de recettes et les produits que vous avez ajoutés au catalogue commun. Les photos y sont désignées par leur adresse, sans leur contenu ; les caches recalculés et les données de connexion n'y figurent pas. Un export de plus de 4 Mo ne peut pas encore être produit par l'application : écrivez-nous (section 11) pour le recevoir.
 - **Rectification** : vous modifiez vos données directement dans l'application.
-- **Effacement** : « Demander la suppression de mes données » efface aussitôt vos photos. Vos autres données sont ensuite effacées automatiquement, par lots, par une tâche qui s'exécute chaque heure. Si certaines photos ne peuvent pas être effacées, la demande reste ouverte et l'écran propose de réessayer. Restent après l'effacement : l'enregistrement de votre demande (identifiant technique, dates, statut), les noms de produits ajoutés au catalogue commun, un registre technique des commandes de la découverte de recettes, et votre compte de connexion (e-mail et mot de passe). Pour fermer aussi ce compte, écrivez-nous (section 11).
+- **Effacement** : « Demander la suppression de mes données » efface aussitôt vos photos. Vos autres données sont ensuite effacées automatiquement, par lots, par une tâche qui s'exécute chaque heure. Si certaines photos ne peuvent pas être effacées, la demande reste ouverte et l'écran propose de réessayer. Restent après l'effacement : l'enregistrement de votre demande (identifiant technique, dates, statut), les noms de produits ajoutés au catalogue commun, qui ne sont plus rattachés à votre compte, et votre compte de connexion (e-mail et mot de passe). Pour fermer aussi ce compte, écrivez-nous (section 11).
 - **Opposition et retrait du consentement** :
   désactivez l'historique ou la mémoire de l'assistant : leur enregistrement et leur usage s'arrêtent, mais les éléments déjà enregistrés restent jusqu'à leur échéance, jusqu'à ce que vous les oubliiez (Paramètres > Mémoire de l'assistant) ou jusqu'à la suppression de vos données. Vous pouvez aussi retirer l'autorisation de transmettre votre profil à l'assistant, ou effacer votre profil alimentaire. Il n'existe pas de réglage d'analyses, faute de mesure d'usage. Les traces de recettes et le journal des actions n'ont pas de réglage ; ils sont effacés avec vos données.
 - **Réclamation** : vous pouvez saisir la CNIL ([www.cnil.fr](https://www.cnil.fr)).
