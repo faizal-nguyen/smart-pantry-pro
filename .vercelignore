@@ -34,10 +34,14 @@ tests
 
 # Ignorer les fichiers de documentation
 README.md
-docs/
+docs/*
 *.md
 BARCODE_API.md
 DEPLOYMENT.md
+# … sauf la politique de confidentialité : la page /confidentialite l'importe
+# au build (V11-06 E7). Comme pour scripts/* : `docs/*` (glob) et non `docs/`
+# (dossier), sinon la négation ne peut pas ré-inclure le fichier.
+!docs/PRIVACY-POLICY.md
 
 # Ignorer les fichiers de développement
 # NB: on utilise `scripts/*` (glob) et pas `scripts/` (dir) — gitignore
