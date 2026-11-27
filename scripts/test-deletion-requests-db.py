@@ -20,6 +20,10 @@ MIGRATION = ROOT / "supabase/migrations/20261106140000_process_deletion_requests
 FILES_MIGRATION = ROOT / "supabase/migrations/20261106160000_list_user_storage_objects.sql"
 WAIT_FOR_FILES = ROOT / "supabase/migrations/20261122140000_deletion_requests_wait_for_files.sql"
 RECIPE_CONVERSATIONS = ROOT / "supabase/migrations/20250803064737_dc431841-ee01-4240-840d-c491f17bd767.sql"
+PROFILES = ROOT / "supabase/migrations/20261127120200_v11_06_delete_user_profiles.sql"
+# The columns of 20251004000000 that matter here; its sign-up trigger needs auth.users columns the stub lacks.
+USER_PROFILES_STUB = """CREATE TABLE public.user_profiles(id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email text,full_name text,allergens text[] DEFAULT ARRAY[]::text[]);"""
 STORAGE_STUB = """CREATE SCHEMA storage;
 CREATE TABLE storage.objects(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),bucket_id text,name text,owner uuid,owner_id text,
   created_at timestamptz DEFAULT now());"""
@@ -98,6 +102,8 @@ def tests():
         run(file=MIGRATION)
         run(file=WAIT_FOR_FILES)
         run(file=WAIT_FOR_FILES)
+        run(file=PROFILES)
+        run(file=PROFILES)
         equal(run("SELECT string_agg(jobname||' '||schedule||' '||command,';') FROM cron.job;"),
               "process-deletion-requests 17 * * * * SELECT public.process_pending_deletion_requests(10)")
     check("a pending request blocks the migration; once reviewed it schedules one hourly job", guard_then_schedule)
@@ -117,6 +123,18 @@ def tests():
         equal(status(identity), "completed|true|")
         equal(run("SELECT count(*) FROM auth.users WHERE id=" + literal(A) + ";"), "1")
     check("a request erases every row the user owns, the former missed tables included, and only theirs", erases_every_owned_row)
+
+    def erases_the_profile():
+        for user, name in ((A, "Alice"), (B, "Bruno")):
+            run("INSERT INTO public.user_profiles(id,email,full_name,allergens) VALUES(" + literal(user) + ","
+                + literal(name.lower() + "@example.test") + "," + literal(name) + ",ARRAY['arachide']) ON CONFLICT(id) DO NOTHING;")
+        identity = request(A)
+        equal(process(), DONE)
+        equal(status(identity), "completed|true|")
+        equal(run("SELECT count(*) FROM public.user_profiles WHERE id=" + literal(A) + ";"), "0")
+        equal(run("SELECT full_name FROM public.user_profiles WHERE id=" + literal(B) + ";"), "Bruno")
+        equal(run("SELECT count(*) FROM auth.users WHERE id=" + literal(A) + ";"), "1")
+    check("a request also erases the account's profile (e-mail, name, allergens), and only theirs; sign-in stays", erases_the_profile)
 
     def blocked_is_failed_not_completed():
         recipe = seed(A)
@@ -211,6 +229,7 @@ if __name__ == "__main__":
                      "20261009095426_v10_personalization.sql", "20261011184535_v10_assistant_memory.sql"]:
             run(file=ROOT / "supabase/migrations" / name)
         run(file=RECIPE_CONVERSATIONS)
+        run(USER_PROFILES_STUB)
         run(CRON_STUB)
         run(STORAGE_STUB)
         run(file=FILES_MIGRATION)
