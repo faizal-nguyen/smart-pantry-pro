@@ -1,25 +1,23 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Bell, BookOpen, ChefHat, Heart, Palette, Shield, User as UserIcon } from 'lucide-react';
-import { SETTINGS_SECTIONS, useSettingsSection, type SettingsSection } from '@/hooks/useSettingsSection';
+import { ArrowLeft, Bell, BookOpen, ChefHat, Palette, Shield, User as UserIcon } from 'lucide-react';
+import { useSettingsSection, type SettingsSection } from '@/hooks/useSettingsSection';
 import { cn } from '@/lib/utils';
 
 const sections = [
-  { id: 'cooking', label: 'Profil alimentaire', detail: 'Goûts, contraintes, temps et portions', icon: ChefHat },
+  { id: 'cooking', label: 'Profil alimentaire', detail: 'Goûts, contraintes, objectifs, temps et portions', icon: ChefHat },
   { id: 'assistant-memory', label: 'Mémoire de l’assistant', detail: 'Souvenirs enregistrés et conversations', icon: BookOpen },
   { id: 'assistant-models', label: 'Modèles de l’assistant', detail: 'Configuration, modèles servis et coûts', icon: BookOpen },
   { id: 'data-privacy', label: 'Données et confidentialité', detail: 'Historique, export et conservation', icon: Shield },
   { id: 'account', label: 'Compte', detail: 'Connexion et informations personnelles', icon: UserIcon },
   { id: 'notifications', label: 'Notifications', detail: 'Rappels et autorisations', icon: Bell },
   { id: 'appearance', label: 'Apparence', detail: 'Clair, sombre et affichage', icon: Palette },
-  { id: 'nutrition', label: 'Nutrition et bien-être', detail: 'Informations et disponibilité', icon: Heart },
 ] satisfies Array<{ id: SettingsSection; label: string; detail: string; icon: typeof ChefHat }>;
 
 /** Mobile opens a real list of destinations; direct section links remain stable. */
 export default function SettingsNavigation({ renderSection }: { renderSection: (section: SettingsSection) => ReactNode }) {
-  const { section } = useSettingsSection();
+  const { section, hasSection } = useSettingsSection();
   const [params] = useSearchParams();
-  const hasSection = SETTINGS_SECTIONS.includes(params.get('section') as SettingsSection);
   const title = useRef<HTMLHeadingElement>(null);
   const current = sections.find(item => item.id === section)!;
   useEffect(() => { if (hasSection) title.current?.focus(); }, [section, hasSection]);
