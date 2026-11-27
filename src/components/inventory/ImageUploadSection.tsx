@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Camera, Image as ImageIcon, X, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { useImageManagement } from "@/hooks/useImageManagement";
 
 interface ImageUploadSectionProps {
@@ -37,15 +38,11 @@ export const ImageUploadSection = ({
     setImageSize(formatFileSize(file.size));
 
     try {
-      const url = await uploadImage(file, {
-        maxWidth: 800,
-        quality: 0.8,
-        format: 'webp'
-      });
+      const url = await uploadImage(file);
       onChange(url);
     } catch (error) {
-      console.error('Error uploading image:', error);
-      // Fallback: continue without photo
+      // The product is saved without a photo; the person learns why.
+      toast.error('Photo non ajoutée', { description: error instanceof Error ? error.message : 'Impossible de télécharger l’image.' });
       onChange(undefined);
     }
   };
@@ -55,7 +52,8 @@ export const ImageUploadSection = ({
       try {
         await deleteImage(value);
       } catch (error) {
-        console.error('Error deleting image:', error);
+        // The photo leaves the product anyway; the person learns the file stayed.
+        toast.error('Fichier non supprimé', { description: error instanceof Error ? error.message : 'La photo n’a pas pu être supprimée.' });
       }
     }
     onChange(undefined);
@@ -98,6 +96,7 @@ export const ImageUploadSection = ({
                 className="absolute top-2 right-2 h-8 w-8 p-0"
                 onClick={handleRemoveImage}
                 disabled={uploading || disabled}
+                aria-label="Retirer la photo"
               >
                 <X className="h-4 w-4" />
               </Button>

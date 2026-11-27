@@ -22,7 +22,7 @@ import {recipeLibraryReturnUrl} from '@/hooks/useRecipeListReturn';
 import { useRecipeDetails } from '@/hooks/useRecipeDetails';
 import { useRecipeEvaluation } from '@/hooks/useRecipeEvaluation';
 import { useRecipes } from '@/hooks/useRecipes';
-import { useImageManagement } from '@/hooks/useImageManagement';
+import { uploadRecipePhoto } from '@/lib/photoUpload';
 import { useRecipeFavorites } from '@/hooks/useRecipeFavorites';
 import { useAuthenticatedUser } from '@/hooks/useAuthenticatedUser';
 import { plannedMealId, usePlannedMeal } from '@/hooks/usePlannedMeal';
@@ -74,7 +74,6 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const evaluation = useRecipeEvaluation(reference, servings, revision, recipe?.canonicalId);
   const freshEvaluation = !evaluation.isFetching && !details.isFetching && !evaluation.error && !details.error ? evaluation.data : undefined;
   const { deleteRecipe, fetchRecipes } = useRecipes();
-  const { uploadImage } = useImageManagement();
   const favorites = useRecipeFavorites();
   const [favoriting, setFavoriting] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -102,7 +101,8 @@ function RecipeDetailContent({ id }: { id?: string }) {
   const handlePhotoUpload = async (file: File) => {
     if (!reference || !ownsRecipe) return;
     try {
-      const url = await uploadImage(file, { maxWidth: 1600, quality: 0.85 });
+      // V11-06 S2: re-encoded on the device, into recipe-images (it went to product-images).
+      const url = await uploadRecipePhoto(file);
       await saveRecipePhoto(user.id, reference, url);
       setOverrideImageUrl(url);
       dispatchAgentDbChanged([reference.source === 'user_recipes' ? 'user_recipes' : 'recipes']);

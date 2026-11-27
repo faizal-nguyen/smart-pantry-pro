@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 import { useRecipes } from "@/hooks/useRecipes";
 import { supabase } from "@/integrations/supabase/client";
-import { RecipePhotoError, uploadRecipePhoto } from "@/lib/recipePhotoUpload";
+import { PhotoUploadError, uploadRecipePhoto } from "@/lib/photoUpload";
 import {
   Select,
   SelectContent,
@@ -159,7 +159,7 @@ const RecipeEdit = () => {
       return await uploadRecipePhoto(imageFile);
     } catch (error) {
       toast.error("Erreur", {
-        description: error instanceof RecipePhotoError ? error.message : "Impossible de télécharger l’image.",
+        description: error instanceof PhotoUploadError ? error.message : "Impossible de télécharger l’image.",
       });
       return null;
     } finally {

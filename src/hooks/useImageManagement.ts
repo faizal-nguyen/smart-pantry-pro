@@ -1,140 +1,36 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-
-interface ImageUploadOptions {
-  maxWidth?: number;
-  quality?: number;
-  format?: string;
-}
+import { deleteProductPhoto, uploadProductPhoto } from "@/lib/photoUpload";
 
 interface UseImageManagementReturn {
   uploading: boolean;
   progress: number;
-  uploadImage: (file: File, options?: ImageUploadOptions) => Promise<string>;
+  /** Re-encodes the photo on the device and uploads it under a random name; returns its public URL. */
+  uploadImage: (file: File) => Promise<string>;
+  /** Deletes a product photo by its public URL. */
   deleteImage: (url: string) => Promise<void>;
-  compressImage: (file: File, options?: ImageUploadOptions) => Promise<File>;
 }
 
+const PROGRESS_STARTED = 30;
+const PROGRESS_DONE = 100;
+const PROGRESS_RESET_MS = 1000;
+
+/** Product photos (V11-06 S2: through photoUpload, as recipe photos). */
 export const useImageManagement = (): UseImageManagementReturn => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const compressImage = async (
-    file: File, 
-    options: ImageUploadOptions = {}
-  ): Promise<File> => {
-    const { maxWidth = 800, quality = 0.8, format = 'webp' } = options;
-
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-
-      img.onload = () => {
-        // Calculate dimensions maintaining aspect ratio
-        let { width, height } = img;
-        if (width > maxWidth) {
-          height = (height * maxWidth) / width;
-          width = maxWidth;
-        }
-
-        // Set canvas dimensions
-        canvas.width = width;
-        canvas.height = height;
-
-        // Draw and compress
-        ctx?.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: `image/${format}`,
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            } else {
-              resolve(file);
-            }
-          },
-          `image/${format}`,
-          quality
-        );
-      };
-
-      img.src = URL.createObjectURL(file);
-    });
-  };
-
-  const uploadImage = async (
-    file: File, 
-    options: ImageUploadOptions = {}
-  ): Promise<string> => {
+  const uploadImage = async (file: File): Promise<string> => {
     setUploading(true);
-    setProgress(0);
-
+    setProgress(PROGRESS_STARTED);
     try {
-      // Compress image before upload
-      const compressedFile = await compressImage(file, options);
-      
-      // Generate unique filename
-      const fileExt = compressedFile.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      setProgress(30);
-
-      // Upload to Supabase Storage
-      const { error: uploadError, data } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, compressedFile);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      setProgress(70);
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      setProgress(100);
-      return publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw error;
+      const url = await uploadProductPhoto(file);
+      setProgress(PROGRESS_DONE);
+      return url;
     } finally {
       setUploading(false);
-      setTimeout(() => setProgress(0), 1000);
+      setTimeout(() => setProgress(0), PROGRESS_RESET_MS);
     }
   };
 
-  const deleteImage = async (url: string): Promise<void> => {
-    try {
-      // Extract file path from URL
-      const urlParts = url.split('/');
-      const fileName = urlParts[urlParts.length - 1];
-      
-      const { error } = await supabase.storage
-        .from('product-images')
-        .remove([fileName]);
-
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error deleting image:', error);
-      throw error;
-    }
-  };
-
-  return {
-    uploading,
-    progress,
-    uploadImage,
-    deleteImage,
-    compressImage,
-  };
+  return { uploading, progress, uploadImage, deleteImage: deleteProductPhoto };
 };
