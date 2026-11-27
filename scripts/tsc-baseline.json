@@ -12,7 +12,6 @@
   "src/components/settings/AppearanceSection.tsx TS6133": 1,
   "src/components/settings/NotificationsSection.tsx TS6133": 1,
   "src/hooks/useAccessibility.ts TS6133": 3,
-  "src/hooks/useImageManagement.ts TS6133": 1,
   "src/hooks/useRecipeCatalog.ts TS2339": 6,
   "src/hooks/useRecipeCatalog.ts TS2769": 1,
   "src/hooks/useRecipeCatalog.ts TS6133": 3,

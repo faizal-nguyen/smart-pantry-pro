@@ -9,6 +9,8 @@ import RecipeDetail from '../RecipeDetail';
 import { startCookingSession } from '@/services/cookingSessions';
 import { useRecipeEvaluation } from '@/hooks/useRecipeEvaluation';
 import { ApiError } from '@/lib/api';
+import { uploadRecipePhoto } from '@/lib/photoUpload';
+import { saveRecipePhoto } from '@/services/recipeDetails';
 
 const OWNER = '00000000-0000-4000-8000-000000000001';
 const ID = '10000000-0000-4000-8000-000000000001';
@@ -34,7 +36,7 @@ jest.mock('@/hooks/useRecipeEvaluation', () => ({ useRecipeEvaluation: jest.fn((
   isLoading: false, isFetching: false, error: mockFailure, validServings: servings > 0 && servings <= 100, refetch: mockRetry,
 })) }));
 jest.mock('@/hooks/useRecipes', () => ({ useRecipes: () => ({ deleteRecipe: jest.fn(), fetchRecipes: jest.fn() }) }));
-jest.mock('@/hooks/useImageManagement', () => ({ useImageManagement: () => ({ uploadImage: jest.fn() }) }));
+jest.mock('@/lib/photoUpload', () => ({ uploadRecipePhoto: jest.fn() }));
 jest.mock('@/hooks/useRecipeFavorites', () => ({ useRecipeFavorites: () => ({ isFavorite: () => false, toggle: jest.fn() }) }));
 jest.mock('@/components/recipes/RecipeSourcePreview', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/services/recipeDetails', () => ({ saveRecipePhoto: jest.fn() }));
@@ -168,4 +170,13 @@ test('a malformed meal parameter is ignored, as when the recipe is opened from t
   expect(screen.queryByText(/Repas du menu|repas du menu|plus au menu/)).not.toBeInTheDocument();
   cook();
   await waitFor(() => expect(startCookingSession).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, ['Cuire le riz.'], 2, undefined));
+});
+test('a recipe photo is sent through the recipe upload, into the recipe bucket, then saved on the recipe', async () => {
+  const stored = 'https://project.supabase.test/storage/v1/object/public/recipe-images/recipe-1.jpg';
+  jest.mocked(uploadRecipePhoto).mockResolvedValue(stored);
+  show();
+  const photo = new File(['raw camera bytes'], 'IMG_2041.HEIC', { type: 'image/heic' });
+  fireEvent.change(screen.getByLabelText('Sélectionner une photo de recette'), { target: { files: [photo] } });
+  await waitFor(() => expect(saveRecipePhoto).toHaveBeenCalledWith(OWNER, { id: ID, source: 'user_recipes' }, stored));
+  expect(uploadRecipePhoto).toHaveBeenCalledWith(photo);
 });
